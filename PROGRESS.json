@@ -1,8 +1,8 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-09-28T15:00:00+09:00",
+  "updated_at": "2026-09-28T15:30:00+09:00",
   "phase": "P0",
-  "current_task": "PROGRESS 整理",
+  "current_task": "T1-04 (生地の見本 FabricPreview)",
   "done": [
     "T0-00",
     "T0-01",
@@ -26,13 +26,15 @@
     "T0-19",
     "T1-01",
     "T1-02",
-    "T1-03"
+    "T1-03",
+    "T1-04"
   ],
   "checks": {
-    "T1-03": {
-      "stripe": "expandPlan (plan 繰り返し→length で打ち切り、空 plan/length<=0 は空配列) / toRuns (連続する同じ糸をまとめる) / indexToCell・cellToIndex (段*列数+列、往復一致) / answerFor (rows*cols 本) / compare (長さ違いは例外、wrong と empty を帯番号で返す)",
-      "test": "13件 (expandPlan 3 / toRuns 3 / indexToCell・cellToIndex 3 / compare 2 / answerFor 2: 本物データの5お題で長さ一致+s1 の中身)",
-      "npm_test": "ok (170 passed / 11 skipped)",
+    "T1-04": {
+      "fabric_preview": "drawFabric (threadPx 既定3px、市松で経糸/緯糸交互、外周1px sumiSub 枠、save→clip→restore) / fabricSpecFor (plan→hex 展開)",
+      "test": "5件 (偽 ctx で記録検証)",
+      "browser_check": "本物データ5柄を一時描画し縞を確認 (コミット外)。スクショ報告済み",
+      "npm_test": "ok (175 passed / 11 skipped)",
       "npm_run_check": "ok"
     }
   },

@@ -211,6 +211,14 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - **npm_test**: ok (170 passed / 11 skipped)
 - **npm_run_check**: ok
 
+## T1-04
+
+- **fabric_preview**: `src/core/ui/fabricPreview.ts (63行)` — drawFabric (threadPx 既定3px、warp を左から繰り返し、市松で経糸/緯糸を交互、外周 1px sumiSub 枠線、save→clip→restore で rect 外にはみ出さない) / fabricSpecFor (plan の糸 → colors をたどって hex に展開)。
+- **test**: fabricPreview.test.ts 5件 (偽 ctx で fillRect/fillStyle を記録。経糸マスが市松の列ごとに赤・白・赤・白 / save→clip→restore / 緯糸のマスが混ざる / 外周枠線 sumiSub / fabricSpecFor kon×7+shiro×1 → 紺7白1+weft 紺)。
+- **browser_check**: dev サーバーでコンソールから本物データの5柄を Canvas に一時描画 (コードはコミットせず)。5柄すべての縞が見える (無地・ピンストライプ・チョークストライプ・シャドーストライプ・オルタネートストライプ) をスクリーンショットで確認。problems=0。検証後サーバー停止。
+- **npm_test**: ok (175 passed / 11 skipped)
+- **npm_run_check**: ok
+
 ## notes (気づいた点・今後も守る注意点)
 
 - T0-01: npm registry の最新 typescript は 7.0.2 (dist-tags latest) だが typescript-eslint 8.70.1 の peer 依存 (>=4.8.4 <6.1.0) と衝突し ERESOLVE。typescript を ^5.9.3 (5.x 最新) にして解消。他パッケージは現時点の最新安定版 (^付き) のまま。
