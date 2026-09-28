@@ -197,7 +197,7 @@
       "npm_test": "ok (153 passed / 11 skipped)",
       "npm_run_check": "ok",
       "npm_run_build": "ok",
-      "browser_check": "本番ビルド (vite preview) で再ビルド→配信し直しの確認を実施 (下記報告参照)"
+      "browser_check": "本番ビルド (vite preview :4173) で完了条件を確認: ①1回目訪問で SW 登録 ②再ビルドして新しいタブで開く → 診断「新しい版: 届いている」+ ボタン enabled ③ボタン → confirmDialog (切り替える/やめる) ④「切り替える」→ ログ info「新しい版へ切り替え」(再読み込み後も meta logs に残るよう logger.flush() を呼んでから applyUpdateNow) ⑤画面が再読み込みされ「ビルドの識別」が 13:47:24 → 13:48:51 に更新。やめるの場合は何も起きない (ダイアログが閉じるだけ)"
     }
   },
   "notes": [

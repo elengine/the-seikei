@@ -200,6 +200,7 @@ export function createAdminScreen(ctx: AppContext): Screen {
             return;
           }
           ctx.logger.log('info', '新しい版へ切り替え');
+          await ctx.logger.flush(); // 再読み込み前にログを保存する
           await applyUpdateNow(); // 画面が再読み込みされる
         },
       });
