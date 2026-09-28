@@ -72,6 +72,13 @@ body {
   outline-offset: 2px;
 }
 
+.btn:disabled {
+  background: var(--c-machine-light);
+  color: var(--c-sumi-sub);
+  cursor: not-allowed;
+  transform: none;
+}
+
 .btn--secondary {
   color: var(--c-ai);
   background: var(--c-white);

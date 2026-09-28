@@ -1,5 +1,3 @@
-import { COLORS } from './tokens';
-
 interface ButtonOpts {
   label: string;
   variant?: 'primary' | 'secondary';
@@ -129,6 +127,10 @@ export function textInputDialog(
     input.maxLength = opts.maxLength;
     input.setAttribute('aria-label', opts.title);
     body.appendChild(input);
+    // 開いたら入力欄にフォーカス
+    queueMicrotask(() => {
+      input.focus();
+    });
 
     const { ok, cancel, close } = buildDialog(
       parent,
@@ -141,13 +143,14 @@ export function textInputDialog(
     );
 
     function syncOk(): void {
-      ok.disabled = input.value.length === 0; // 空文字の決定は不可
+      // 前後の空白を除いて空なら決定不可 (空白だけの入力を通さない)
+      ok.disabled = input.value.trim().length === 0;
     }
     syncOk();
     input.addEventListener('input', syncOk);
 
     ok.addEventListener('click', () => {
-      const value = input.value;
+      const value = input.value.trim(); // 決定値も前後の空白を除く
       close();
       resolve(value);
     });
@@ -157,6 +160,3 @@ export function textInputDialog(
     });
   });
 }
-
-// COLORS は CSS 変数と対応づけのため参照 (未使用変数の警告を避けるため明示)
-void COLORS;
