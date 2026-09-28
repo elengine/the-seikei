@@ -1,8 +1,7 @@
 import type { GameId } from '../game/types';
 import type { Repository, Rec } from '../storage/types';
 import type { Clock } from '../clock/clock';
-
-export type FontScale = 'large' | 'xlarge';
+import type { FontScale } from '../ui/tokens';
 
 export interface SettingsData {
   playerName: string;
@@ -75,6 +74,24 @@ export async function createSettingsService(repo: Repository, clock: Clock): Pro
       cb(cache);
     }
   }
+
+  // 保存データを読み直してキャッシュを更新する (購読と起動時で共用)
+  async function reload(): Promise<void> {
+    const rec = await repo.get<StoredSettings>('settings', SETTINGS_ID);
+    if (rec !== undefined && !rec.deletedAt) {
+      stored = { ...normalize(rec.data), _updated: rec.data._updated ?? {} };
+    } else {
+      stored = { ...DEFAULT_SETTINGS, _updated: {} }; // 削除済み・未保存なら既定値
+    }
+    cache = strip(stored);
+  }
+
+  // settings コレクションが外から変わったとき (バックアップの読み込みや将来の同期) に
+  // 保存データを読み直して onChange を呼ぶ。update 自身の保存でも購読が反応するが、
+  // onChange が二重に呼ばれても壊れない作りにしている。
+  repo.subscribe('settings', () => {
+    void reload().then(notify);
+  });
 
   return {
     get(): SettingsData {

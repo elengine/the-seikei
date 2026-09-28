@@ -1,6 +1,6 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-09-28T10:30:00+09:00",
+  "updated_at": "2026-09-28T10:40:00+09:00",
   "phase": "P0",
   "current_task": "T0-14",
   "done": [
@@ -128,8 +128,9 @@
       "settings_ts": "src/core/settings/settings.ts (112行) — SettingsData/DEFAULT_SETTINGS (shopName 整経所, volume 0.7 等)/createSettingsService。保存先 settings/main、data=SettingsData+_updated。update は patch のキーだけ _updated[key]=clock.now()、get() は _updated を含めず同期返し、読み込み時に無いキーは既定値で補う (削除済み Rec も既定値)",
       "context_ts": "src/app/context.ts (65行) — createAppContext。createLocalRepository (deviceId 指定なし) → terms (terms.default.json) → settings → audio。soundOn/volume と fontScale を初期反映+onChange 追従。deviceId=repo.deviceId",
       "test_first": "settings.test.ts (仕様書テスト1〜5 + 追加2件: get に _updated を含めない / 論理削除で既定値に戻る、fake-indexeddb) を先に書き RED 確認後に実装。context.ts は仕様書どおり単体テスト不要 (T0-15 で確認)",
-      "npm_test": "ok (131 passed / 11 skipped)",
-      "npm_run_check": "ok (tsc --noEmit + eslint, error 0)"
+      "npm_test": "ok (132 passed / 11 skipped)",
+      "npm_run_check": "ok (tsc --noEmit + eslint, error 0)",
+      "fix_2026_09_28": "T0-14 追加修正: ①createSettingsService が repo.subscribe(\"settings\", …) を登録し、外部変更 (importAll や将来の同期) で保存データを読み直してキャッシュ更新+onChange。テスト: サービス作成後に repo.put(\"settings\",{…shopName:\"山田整経\"},\"main\") → get().shopName===\"山田整経\" & onChange に新しい設定が渡る (vi.waitFor)。update 自身の保存でも購読が反応するが二重でも壊れない ②FontScale を tokens.ts から import (独自定義を廃止)。共通の決まり: キャッシュする部品は必ず repo.subscribe で外からの変更を見張り読み直す"
     }
   },
   "notes": [

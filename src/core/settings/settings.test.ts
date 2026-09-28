@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { createSettingsService, DEFAULT_SETTINGS } from './settings';
 import type { SettingsData } from './settings';
 import { createLocalRepository } from '../storage/localRepository';
@@ -92,5 +92,23 @@ describe('settings', () => {
     await repo.remove('settings', 'main'); // 論理削除
     const settings2 = await createSettingsService(repo, clock);
     expect(settings2.get()).toEqual(DEFAULT_SETTINGS); // 削除済みなら既定値
+  });
+
+  it('追加修正1: 外から repo.put された場合も読み直して get が変わり、onChange が呼ばれる', async () => {
+    const { repo, settings } = await make();
+    const seen: string[] = [];
+    settings.onChange((s) => {
+      seen.push(s.shopName);
+    });
+    expect(seen).toEqual([]);
+
+    await repo.put<{ playerName: string; shopName: string }>('settings', { playerName: '', shopName: '山田整経' }, 'main'); // 外から直接保存
+
+    // 購読からの読み直しは非同期で走るので完了を待つ
+    await vi.waitFor(() => {
+      expect(seen.length).toBeGreaterThan(0);
+    });
+    expect(settings.get().shopName).toBe('山田整経'); // 保存データが読み直されている
+    expect(seen[seen.length - 1]).toBe('山田整経'); // onChange に新しい設定が渡る
   });
 });
