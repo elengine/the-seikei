@@ -1,9 +1,21 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-09-28T09:00:00+09:00",
+  "updated_at": "2026-09-28T09:10:00+09:00",
   "phase": "P0",
   "current_task": "T0-10",
-  "done": ["T0-00", "T0-01", "T0-02", "T0-03", "T0-04", "T0-05", "T0-06", "T0-07", "T0-08", "T0-09", "T0-10"],
+  "done": [
+    "T0-00",
+    "T0-01",
+    "T0-02",
+    "T0-03",
+    "T0-04",
+    "T0-05",
+    "T0-06",
+    "T0-07",
+    "T0-08",
+    "T0-09",
+    "T0-10"
+  ],
   "checks": {
     "T0-01": {
       "npm_install": "ok",
@@ -78,8 +90,9 @@
       "game_types": "src/core/game/types.ts (50行) — 02_architecture 5.1 の GameModule/GameProps/GameInstance + GameId/TutorialPage/TutorialSpec/JobSpec/GameResult",
       "registry": "src/core/game/registry.ts (28行) — registerGame(二重登録は例外)/getGame/listGames(登録順)/clearGamesForTest",
       "test_first": "screenManager.test.ts (仕様書テスト1〜5をカバー) と registry.test.ts を先に書き RED 確認後に実装",
-      "npm_test": "ok (93 passed / 11 skipped)",
-      "npm_run_check": "ok (tsc --noEmit + eslint, error 0)"
+      "npm_test": "ok (96 passed / 11 skipped)",
+      "npm_run_check": "ok (tsc --noEmit + eslint, error 0)",
+      "fix_2026_09_28": "T0-10 追加修正: ①matchRoute が decodeURIComponent の URIError (%E7 等の不正エンコード) を catch し、そのルートは一致しなかったものとして扱う (→ 未一致なので '/' へ navigate) ②unmountCurrent が前画面 unmount() の例外を try/catch し console.error に記録、そのうえで container を空にして次の mount を必ず行う (stop 時も container を空にする)。いずれも RED 確認後に実装"
     }
   },
   "notes": [

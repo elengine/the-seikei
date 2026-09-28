@@ -48,16 +48,26 @@ describe('matchRoute', () => {
     expect(m!.route.pattern).toBe('/games/:gameId');
     expect(m!.params).toEqual({ gameId: 'creel' });
   });
+
+  it('追加修正1: 不正なエンコード (%E7 など) は例外を出さず null (一致なし扱い)', () => {
+    // URIError にならないこと ('#/zukan/%E7' は decodeURIComponent が失敗する)
+    expect(() => matchRoute(routes, '#/zukan/%E7')).not.toThrow();
+    expect(matchRoute(routes, '#/zukan/%E7')).toBeNull(); // 一致しなかったものとして扱う
+  });
 });
 
-function fakeScreen(log: string[], name: string, onMount?: () => void): Screen {
+function fakeScreen(log: string[], name: string, onMount?: () => void, onUnmount?: () => void): Screen {
   return {
-    mount: () => {
+    mount: (container: HTMLElement) => {
       log.push(`${name}:mount`);
+      const el = document.createElement('div');
+      el.classList.add(`screen-${name.toLowerCase()}`);
+      container.appendChild(el);
       onMount?.();
     },
     unmount: () => {
       log.push(`${name}:unmount`);
+      onUnmount?.();
     },
   };
 }
@@ -153,6 +163,50 @@ describe('createScreenManager', () => {
     expect(log).toEqual(['home:mount']);
     fire('hashchange');
     expect(log).toEqual(['home:mount', 'home:unmount', 'home:mount']);
+    sm.stop();
+  });
+
+  it('追加修正2: unmount が例外を出しても console.error に記録し、次の画面の mount は必ず行われる', () => {
+    const { container, setHash, fire } = setup();
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const log: string[] = [];
+    const routes: Route[] = [
+      { pattern: '/', create: () => fakeScreen(log, 'A', undefined, () => { throw new Error('unmount failed'); }) },
+      { pattern: '/other', create: () => fakeScreen(log, 'B') },
+    ];
+    const sm = createScreenManager(container, routes);
+    sm.start();
+
+    setHash('#/other');
+    fire('hashchange');
+    // 例外が出ても console.error に記録され、B の mount は必ず行われる
+    expect(errSpy).toHaveBeenCalledTimes(1);
+    expect(errSpy.mock.calls[0]?.[0]).toBeInstanceOf(Error);
+    expect(log).toEqual(['A:mount', 'A:unmount', 'B:mount']);
+    expect(container.querySelector('.screen-b')).not.toBeNull();
+
+    // stop() でも container は空にされる
+    sm.stop();
+    expect(container.children).toHaveLength(0);
+    errSpy.mockRestore();
+  });
+
+  it('追加修正2: mount 側に DOM 残骸があっても container は空にされてから mount される', () => {
+    const { container, setHash, fire } = setup();
+    const log: string[] = [];
+    const routes: Route[] = [
+      { pattern: '/', create: () => fakeScreen(log, 'A') },
+      { pattern: '/other', create: () => fakeScreen(log, 'B') },
+    ];
+    const sm = createScreenManager(container, routes);
+    sm.start();
+
+    container.appendChild(document.createElement('span')); // 残骸を仕込む
+    setHash('#/other');
+    fire('hashchange');
+    expect(log).toEqual(['A:mount', 'A:unmount', 'B:mount']);
+    expect(container.children).toHaveLength(1); // B の1要素だけ (残骸は消えている)
+    expect(container.firstElementChild?.tagName).toBe('DIV');
     sm.stop();
   });
 });

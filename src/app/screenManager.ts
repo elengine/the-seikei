@@ -38,7 +38,13 @@ export function matchRoute(routes: Route[], hash: string): MatchedRoute | null {
           matched = false;
           break;
         }
-        params[p.slice(1)] = decodeURIComponent(s);
+        try {
+          params[p.slice(1)] = decodeURIComponent(s);
+        } catch {
+          // 不正なエンコード (例:'%E7') は、そのルートは一致しなかったものとして扱う
+          matched = false;
+          break;
+        }
       } else if (p !== s) {
         matched = false;
         break;
@@ -62,10 +68,16 @@ export function createScreenManager(container: HTMLElement, routes: Route[]): Sc
 
   function unmountCurrent(): void {
     if (current !== null) {
-      current.unmount();
+      const screen = current;
       current = null;
-      container.textContent = ''; // 前の画面を取り除いてから次を mount する
+      try {
+        screen.unmount();
+      } catch (e) {
+        // 1つの画面の不具合で切替自体が壊れないように、記録して続行する
+        console.error(e instanceof Error ? e : new Error(String(e)));
+      }
     }
+    container.textContent = ''; // 前の画面を取り除いてから次を mount する
   }
 
   function show(): void {
