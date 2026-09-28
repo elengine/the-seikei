@@ -9,6 +9,8 @@ import type {
   RawStore,
 } from './types';
 import { CURRENT_SCHEMA_VERSION } from './types';
+import { MIGRATIONS, migrateRecs } from './migrations';
+import { mergeRec } from './merge';
 
 interface RecRow {
   key: string; // collection + '\u0000' + id
@@ -160,9 +162,55 @@ export async function createLocalRepository(opts: {
       };
     },
 
-    async importAll(): Promise<ImportReport> {
-      // 引数は使わない (T0-07 で実装)
-      throw new Error('T0-07 で実装');
+    async importAll(file: BackupFile): Promise<ImportReport> {
+      // 1. app が違うなら全件 rejected で何もしない
+      if (file.app !== 'seikei-game') {
+        return { added: 0, updated: 0, unchanged: 0, rejected: file.recs.length };
+      }
+      // 2. 新しすぎる版なら全件 rejected
+      if (file.schemaVersion > CURRENT_SCHEMA_VERSION) {
+        return { added: 0, updated: 0, unchanged: 0, rejected: file.recs.length };
+      }
+      // 3. 古ければ現在の版へ移行する
+      const incoming = migrateRecs(file.recs, MIGRATIONS, CURRENT_SCHEMA_VERSION);
+      const report: ImportReport = { added: 0, updated: 0, unchanged: 0, rejected: 0 };
+      const changed = new Set<CollectionName>();
+      for (const inc of incoming) {
+        const local = await db.recs.get(rowKey(inc.collection, inc.id));
+        if (local === undefined) {
+          await db.recs.put({
+            key: rowKey(inc.collection, inc.id),
+            collection: inc.collection,
+            id: inc.id,
+            updatedAt: inc.updatedAt,
+            rec: inc,
+          });
+          report.added++;
+          changed.add(inc.collection);
+          continue;
+        }
+        const merged = mergeRec(local.rec, inc);
+        if (
+          JSON.stringify(merged) === JSON.stringify(local.rec)
+        ) {
+          report.unchanged++;
+          continue;
+        }
+        await db.recs.put({
+          key: rowKey(inc.collection, inc.id),
+          collection: merged.collection,
+          id: merged.id,
+          updatedAt: merged.updatedAt,
+          rec: merged,
+        });
+        report.updated++;
+        changed.add(inc.collection);
+      }
+      // 5. 変更のあったコレクションの購読者に通知する
+      for (const c of changed) {
+        notify(c);
+      }
+      return report;
     },
 
     async getRaw(collection: CollectionName, id: string): Promise<Rec<unknown> | undefined> {

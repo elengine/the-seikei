@@ -89,12 +89,4 @@ describe('LocalRepository 固有の振る舞い (T0-05 仕様)', () => {
     expect(later.every((r) => r.updatedAt === r.rec.updatedAt)).toBe(true);
     void rows;
   });
-
-  it('importAll は T0-05 時点では throw する', async () => {
-    const clock = createFixedClock('2026-01-01T00:00:00.000Z');
-    const repo = await makeWithClock(clock, 'dev-A');
-    await expect(
-      repo.importAll({ app: 'seikei-game', exportedAt: '', schemaVersion: 1, deviceId: 'x', recs: [] }),
-    ).rejects.toThrow('T0-07 で実装');
-  });
 });

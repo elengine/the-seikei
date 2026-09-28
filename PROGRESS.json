@@ -1,9 +1,9 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-09-28T07:35:00+09:00",
+  "updated_at": "2026-09-28T07:50:00+09:00",
   "phase": "P0",
-  "current_task": "T0-06",
-  "done": ["T0-00", "T0-01", "T0-02", "T0-03", "T0-04", "T0-05", "T0-06"],
+  "current_task": "T0-07",
+  "done": ["T0-00", "T0-01", "T0-02", "T0-03", "T0-04", "T0-05", "T0-06", "T0-07"],
   "checks": {
     "T0-01": {
       "npm_install": "ok",
@@ -45,6 +45,14 @@
       "npm_test": "ok (43 passed / 11 skipped — merge 18件: 仕様書テスト6項目+ルール別詳細)",
       "npm_run_check": "ok (tsc --noEmit + eslint, error 0)",
       "fix_2026_09_28": "T0-06 追加修正 (管理者指摘の同点決着3件+型修正): ①fieldNewer 同時刻は updatedBy の大きい方を採る ②fieldNewer で新しい方に無いキーは古い方の値を残す ③union の obtainedAt 同時刻は isNewer の新しい方の source を採る ④CollectionName を types.ts から import に変更。テストは merge.tie.test.ts に分離 (RED確認後 GREEN)"
+    },
+    "T0-07": {
+      "migrations": "src/core/storage/migrations.ts (69行) — Migration/MIGRATIONS(空)/runMigrations/migrateRecs。meta schemaVersion 読み書き・全 Rec 移行後に保存 (例外時は無変更)・不足 Migration は例外",
+      "test_first": "migrations.test.ts (移行7件) と tests/import/localRepositoryImport.test.ts (importAll 6件) を先に書き RED 確認後に実装",
+      "importAll": "localRepository.ts に実装 (app 不一致/新しすぎる版→全件 rejected・migrateRecs で現行版化・getRaw 比較で added/updated/unchanged・変更コレクションの購読者に通知)",
+      "note": "T0-05 時点のテスト「importAll は throw する」は T0-07 で実装されたため削除 (期待値の陳腐化。テストの意図である移行・結合の検証は import テスト群が引き継ぐ)",
+      "npm_test": "ok (58 passed / 11 skipped — 移行7件+importAll 6件を含む)",
+      "npm_run_check": "ok (tsc --noEmit + eslint, error 0)"
     }
   },
   "notes": [
