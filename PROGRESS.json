@@ -1,9 +1,9 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-09-28T06:24:01+09:00",
+  "updated_at": "2026-09-28T06:30:00+09:00",
   "phase": "P0",
-  "current_task": "T0-01",
-  "done": ["T0-00", "T0-01"],
+  "current_task": "T0-02",
+  "done": ["T0-00", "T0-01", "T0-02"],
   "checks": {
     "T0-01": {
       "npm_install": "ok",
@@ -12,10 +12,15 @@
       "npm_run_build": "ok (dist生成)",
       "npm_run_dev": "ok (/the-seikei/ で title=整経ゲーム、main.ts が「整経ゲーム 準備中」を出力)",
       "core_import_guard": "src/core/sample.ts に import '../app/x' → eslint no-restricted-imports で error (exit 1) を確認後、ファイル削除済み"
+    },
+    "T0-02": {
+      "workflow": ".github/workflows/deploy.yml を仕様どおり作成 (push main + workflow_dispatch, permissions, concurrency pages, build+deploy ジョブ)",
+      "pages_api": "POST /repos/elengine/the-seikei/pages build_type=workflow は T0-00 で設定済み"
     }
   },
   "notes": [
-    "T0-01: npm registry の最新 typescript は 7.0.2 (dist-tags latest) だが typescript-eslint 8.70.1 の peer 依存 (>=4.8.4 <6.1.0) と衝突し ERESOLVE。typescript を ^5.9.3 (5.x 最新) にして解消。他パッケージは現時点の最新安定版 (^付き) のまま。"
+    "T0-01: npm registry の最新 typescript は 7.0.2 (dist-tags latest) だが typescript-eslint 8.70.1 の peer 依存 (>=4.8.4 <6.1.0) と衝突し ERESOLVE。typescript を ^5.9.3 (5.x 最新) にして解消。他パッケージは現時点の最新安定版 (^付き) のまま。",
+    "T0-02: 管理者指示により docs/04_tasks/00_rules.md のライブラリ表の下に「TypeScript は 5.x に固定する(typescript-eslint が 7 に未対応のため)。上げる場合は管理者の承認を得る。」を追記(本コミットに同梱)。"
   ],
   "open_bugs": []
 }

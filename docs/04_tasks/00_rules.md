@@ -34,6 +34,8 @@
 | 実行時 | `dexie`, `gsap` |
 | 開発用 | `vite`, `typescript`, `vitest`, `jsdom`, `fake-indexeddb`, `eslint`, `@eslint/js`, `typescript-eslint`, `globals`, `vite-plugin-pwa` |
 
+TypeScript は 5.x に固定する(typescript-eslint が 7 に未対応のため)。上げる場合は管理者の承認を得る。
+
 ## 不具合修正のとき
 
 管理者から不具合の指摘を受けて直すときは、まず不具合を再現するテストを `tests/regression/` に書き、失敗することを確認してから直す。テスト名は `bugNN_内容`(NN は `PROGRESS.json` の `open_bugs` の番号)とする。
