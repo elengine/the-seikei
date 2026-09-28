@@ -1,8 +1,8 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-09-28T10:20:00+09:00",
+  "updated_at": "2026-09-28T10:30:00+09:00",
   "phase": "P0",
-  "current_task": "T0-13",
+  "current_task": "T0-14",
   "done": [
     "T0-00",
     "T0-01",
@@ -17,7 +17,8 @@
     "T0-10",
     "T0-11",
     "T0-12",
-    "T0-13"
+    "T0-13",
+    "T0-14"
   ],
   "checks": {
     "T0-01": {
@@ -122,6 +123,13 @@
       "npm_test": "ok (124 passed / 11 skipped)",
       "npm_run_check": "ok (tsc --noEmit + eslint, error 0)",
       "fix_2026_09_28": "T0-13 追加修正: ①base.css に #app { height:100%; box-sizing:border-box; padding:*: env(safe-area-inset-*) } を追加 (viewport-fit=cover 対応)。gameFrame は currentSize でなく parent の getBoundingClientRect (内寸) を基準に配置・レイアウト判定 (縦長テスト: 内寸600×800→portrait で盤面上60%)。テスト: parent の内寸を変えると盤面の scale が従う ②tutorialOverlay の戻るボタンを「もどる」→「まえへ」に変更 (テスト: 2ページ目で「まえへ」表示) ③チュートリアル Canvas は幅 min(560px, 画面幅の90%)、高さ=幅の2/3、setupCanvas で画素密度対応し draw には CSS px を渡す (テスト: 画面幅1000→560×373、400→360) ④gameFrame の不要な root0 を削除"
+    },
+    "T0-14": {
+      "settings_ts": "src/core/settings/settings.ts (112行) — SettingsData/DEFAULT_SETTINGS (shopName 整経所, volume 0.7 等)/createSettingsService。保存先 settings/main、data=SettingsData+_updated。update は patch のキーだけ _updated[key]=clock.now()、get() は _updated を含めず同期返し、読み込み時に無いキーは既定値で補う (削除済み Rec も既定値)",
+      "context_ts": "src/app/context.ts (65行) — createAppContext。createLocalRepository (deviceId 指定なし) → terms (terms.default.json) → settings → audio。soundOn/volume と fontScale を初期反映+onChange 追従。deviceId=repo.deviceId",
+      "test_first": "settings.test.ts (仕様書テスト1〜5 + 追加2件: get に _updated を含めない / 論理削除で既定値に戻る、fake-indexeddb) を先に書き RED 確認後に実装。context.ts は仕様書どおり単体テスト不要 (T0-15 で確認)",
+      "npm_test": "ok (131 passed / 11 skipped)",
+      "npm_run_check": "ok (tsc --noEmit + eslint, error 0)"
     }
   },
   "notes": [
