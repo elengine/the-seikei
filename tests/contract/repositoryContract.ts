@@ -149,11 +149,13 @@ export function runRepositoryContract(name: string, make: Factory): void {
       expect(await repo.getMeta('k')).toBe('v2');
     });
 
-    it('補助: 各テストは新しい実装で clock を固定する(固定時刻から始まる)', async () => {
+    it('補助: 各テストは新しい実装で clock を固定する(createdAt は ISO 8601 で START_ISO 以上)', async () => {
       const repo = await makeRepo();
       const rec = await repo.put('records', { n: 0 }, 'r0');
-      // createFixedClock('2026-01-01T00:00:00.000Z') の1回目の now() は開始時刻そのもの
-      expect(rec.createdAt).toBe(START_ISO);
+      // ISO 8601 UTC 形式であること。将来の同期実装で put 前に now() を呼ぶ可能性があるため、
+      // START_ISO との完全一致ではなく「START_ISO 以上」までを確かめる。
+      expect(rec.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+      expect(rec.createdAt >= START_ISO).toBe(true);
     });
 
     it('補助: allRaw は全コレクションの Rec を返す', async () => {

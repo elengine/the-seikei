@@ -1,9 +1,9 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-09-28T06:51:00+09:00",
+  "updated_at": "2026-09-28T06:59:00+09:00",
   "phase": "P0",
-  "current_task": "T0-04",
-  "done": ["T0-00", "T0-01", "T0-02", "T0-03", "T0-04"],
+  "current_task": "T0-05",
+  "done": ["T0-00", "T0-01", "T0-02", "T0-03", "T0-04", "T0-05"],
   "checks": {
     "T0-01": {
       "npm_install": "ok",
@@ -29,13 +29,22 @@
       "stub": "tests/contract/stub.test.ts は describe.skip で登録 (11 skipped)",
       "npm_run_check": "ok (tsc --noEmit + eslint, error 0)",
       "npm_test": "ok (10 passed / 11 skipped — 契約テストは T0-05 の実装で有効化)"
+    },
+    "T0-05": {
+      "impl": "src/core/storage/localRepository.ts (198行) を Dexie 4.4.6 で作成。version 1, recs=[collection+id]主キー+collection/updatedAt索引, meta=key主キー",
+      "contract_result": "runRepositoryContract('LocalRepository (Dexie)') が全件 pass (skip分11は stub 用のまま)",
+      "deviceid_test": "deviceId 未指定→UUID 生成・同 dbName 再生成で同一値・削済み put で復活(deletedAt 消去, createdAt 引き継ぎ)・importAll は throw の4件を localRepository.test.ts に追加",
+      "contract_loosen": "管理者指示により契約テスト補助1件を「ISO 8601 形式で START_ISO 以上」に緩和 (repositoryContract.ts 変更は T0-05 コミットに同梱)",
+      "npm_run_check": "ok (tsc --noEmit + eslint, error 0)",
+      "npm_test": "ok (24 passed / 11 skipped)"
     }
   },
   "notes": [
     "T0-01: npm registry の最新 typescript は 7.0.2 (dist-tags latest) だが typescript-eslint 8.70.1 の peer 依存 (>=4.8.4 <6.1.0) と衝突し ERESOLVE。typescript を ^5.9.3 (5.x 最新) にして解消。他パッケージは現時点の最新安定版 (^付き) のまま。",
     "T0-02: 管理者指示により docs/04_tasks/00_rules.md のライブラリ表の下に「TypeScript は 5.x に固定する(typescript-eslint が 7 に未対応のため)。上げる場合は管理者の承認を得る。」を追記(本コミットに同梱)。",
     "T0-03: mulberry32 は純粋関数型 (状態を返す) で実装。Date/crypto は createSystemClock 内のみで使用。noUncheckedIndexedAccess 対応で Uint8Array 要素に non-null assertion を使用(any は不使用)。",
-    "T0-04: 契約テストは実装を受け取る関数型 (make: (clock, deviceId) => Promise<Repository & RawStore>) で export。テスト6 (購読) は put/remove で「そのコレクションの購読者が1回」呼ばれることを検出する設計。stub.test.ts は skip なので契約テストの実行は T0-05 から。"
+    "T0-04: 契約テストは実装を受け取る関数型 (make: (clock, deviceId) => Promise<Repository & RawStore>) で export。テスト6 (購読) は put/remove で「そのコレクションの購読者が1回」呼ばれることを検出する設計。stub.test.ts は skip なので契約テストの実行は T0-05 から。",
+    "T0-05: Dexie は compound primary key [collection+id] をそのまま key にはできないため、key='collection\\u0000id' の文字列主キー+collection/updatedAt 索引の構成にした(等価)。put の now() 呼び出しは1回 (createdAt===updatedAt の契約を満たす)。uuid() は id 省略時のみ呼ぶので fixed clock でも時刻が1ステップしか進まない。"
   ],
   "open_bugs": []
 }
