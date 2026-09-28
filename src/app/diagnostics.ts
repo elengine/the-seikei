@@ -7,15 +7,44 @@ export interface DiagnosticItem {
 }
 
 let installPromptSeen = false;
+let installPromptEvent: BeforeInstallPromptEvent | null = null;
 
-/** beforeinstallprompt の発生を記録する (main.ts から boot より前に呼ぶ)。preventDefault はしない */
+/** beforeinstallprompt イベントの必要な部分。prompt() は1回しか呼べない */
+export interface BeforeInstallPromptEvent {
+  prompt(): Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+}
+
+/** インストール用イベントが保存されているか */
+export function hasInstallPromptEvent(): boolean {
+  return installPromptEvent !== null;
+}
+
+/**
+ * beforeinstallprompt を preventDefault して保存する (main.ts から boot より前に呼ぶ)。
+ * 保存したイベントは管理者メニューの「アプリとしてインストール」ボタンから prompt() する。
+ */
 export function setInstallPromptRecorded(): void {
   if (typeof window === 'undefined' || window.addEventListener === undefined) {
     return; // テスト環境など window が無い場合は何もしない
   }
-  window.addEventListener('beforeinstallprompt', () => {
+  window.addEventListener('beforeinstallprompt', (e: Event) => {
+    e.preventDefault();
+    installPromptEvent = e as unknown as BeforeInstallPromptEvent;
     installPromptSeen = true;
   });
+}
+
+/** 保存したイベントの prompt() を呼び、userChoice の結果を返す。呼んだ後はイベントを捨てる (1回だけ) */
+export async function promptInstall(): Promise<{ outcome: 'accepted' | 'dismissed' } | null> {
+  const event = installPromptEvent;
+  if (event === null) {
+    return null;
+  }
+  installPromptEvent = null; // prompt() は1回しか使えない
+  await event.prompt();
+  const choice = await event.userChoice;
+  return { outcome: choice.outcome };
 }
 
 /** キャッシュの中の manifest.webmanifest から id を取り出す。無ければ既定の表示を返す */

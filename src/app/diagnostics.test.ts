@@ -6,6 +6,9 @@ import {
   installPromptState,
   displayModeState,
   collectDiagnostics,
+  hasInstallPromptEvent,
+  promptInstall,
+  setInstallPromptRecorded,
 } from './diagnostics';
 
 /** CacheStorage の偽物 */
@@ -111,5 +114,79 @@ describe('diagnostics', () => {
     ]);
     expect(items.find((i) => i.label === '保存済みの設定ファイル (キャッシュ内の id)')?.value).toBe('the-seikei');
     expect(items.find((i) => i.label === 'インストールの判定 (beforeinstallprompt)')?.value).toBe('いいえ');
+  });
+});
+
+describe('install prompt (T0-19)', () => {
+  function makeFakeEvent(outcome: 'accepted' | 'dismissed') {
+    const prompt = vi.fn(async () => undefined);
+    const event = {
+      prompt,
+      userChoice: Promise.resolve({ outcome }),
+      preventDefault: vi.fn(),
+    };
+    return { event, prompt };
+  }
+
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('beforeinstallprompt を preventDefault して保存する', async () => {
+    const { event } = makeFakeEvent('accepted');
+    const fakeWindow = {
+      addEventListener: (type: string, cb: (e: Event) => void) => {
+        if (type === 'beforeinstallprompt') {
+          cb(event as unknown as Event);
+        }
+      },
+      removeEventListener: () => undefined,
+    };
+    vi.stubGlobal('window', fakeWindow);
+    setInstallPromptRecorded();
+    expect(event.preventDefault).toHaveBeenCalledTimes(1); // preventDefault する
+    expect(hasInstallPromptEvent()).toBe(true); // 保存されている
+  });
+
+  it('prompt() が1回だけ呼ばれ、userChoice の結果が返る。2回目は null', async () => {
+    const { event, prompt } = makeFakeEvent('accepted');
+    const fakeWindow = {
+      addEventListener: (type: string, cb: (e: Event) => void) => {
+        if (type === 'beforeinstallprompt') {
+          cb(event as unknown as Event);
+        }
+      },
+      removeEventListener: () => undefined,
+    };
+    vi.stubGlobal('window', fakeWindow);
+    setInstallPromptRecorded();
+    expect(hasInstallPromptEvent()).toBe(true);
+
+    const result = await promptInstall();
+    expect(result?.outcome).toBe('accepted');
+    expect(prompt).toHaveBeenCalledTimes(1); // 1回だけ
+    expect(hasInstallPromptEvent()).toBe(false); // 呼んだ後は捨てられる
+    expect(await promptInstall()).toBeNull(); // 2回目は null (押せなくなる)
+  });
+
+  it('dismissed の結果も返る', async () => {
+    const { event } = makeFakeEvent('dismissed');
+    const fakeWindow = {
+      addEventListener: (type: string, cb: (e: Event) => void) => {
+        if (type === 'beforeinstallprompt') {
+          cb(event as unknown as Event);
+        }
+      },
+      removeEventListener: () => undefined,
+    };
+    vi.stubGlobal('window', fakeWindow);
+    setInstallPromptRecorded();
+    const result = await promptInstall();
+    expect(result?.outcome).toBe('dismissed');
+  });
+
+  it('イベントが無いとき promptInstall は null (押せない状態に相当)', async () => {
+    expect(hasInstallPromptEvent()).toBe(false);
+    expect(await promptInstall()).toBeNull();
   });
 });

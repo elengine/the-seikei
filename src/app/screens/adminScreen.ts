@@ -2,7 +2,7 @@ import type { AppContext } from '../context';
 import type { Screen } from '../screenManager';
 import type { ImportReport } from '../../core/storage/types';
 import { createButton } from '../../core/ui/widgets';
-import { collectDiagnostics } from '../diagnostics';
+import { collectDiagnostics, hasInstallPromptEvent, promptInstall } from '../diagnostics';
 
 function pad2(n: number): string {
   return String(n).padStart(2, '0');
@@ -168,6 +168,22 @@ export function createAdminScreen(ctx: AppContext): Screen {
         buildLi.textContent = `ビルドの識別: ${__BUILD_ID__}`;
         diagList.appendChild(buildLi);
       })();
+
+      // ---- アプリとしてインストール (beforeinstallprompt が保存されているときだけ押せる) ----
+      const installBtn = createButton({
+        label: 'アプリとしてインストール',
+        variant: 'primary',
+        onClick: async () => {
+          const result = await promptInstall();
+          if (result !== null) {
+            ctx.logger.log('info', `インストールの確認: ${result.outcome === 'accepted' ? '受け入れられた' : '見送られた'} (${result.outcome})`);
+          }
+          installBtn.disabled = true; // prompt() は1回しか使えないので押せなく戻す
+        },
+      });
+      // 保存したイベントが無いときは押せない
+      installBtn.disabled = !hasInstallPromptEvent();
+      root.appendChild(installBtn);
 
       // ---- ログ ----
       const logBox = document.createElement('div');

@@ -13,9 +13,15 @@ import { createAdminScreen } from './app/screens/adminScreen';
 // Service Worker を登録する (registerType: 'prompt'。更新は次回起動時に切り替わる)
 registerSW({ immediate: false });
 
-// beforeinstallprompt が発生したかだけを記録する (preventDefault はしない)。
+// beforeinstallprompt を preventDefault して保存する (管理者メニューのボタンから prompt() する)。
 // boot より前に登録して、起動直後のイベントも取りこぼさない
 setInstallPromptRecorded();
+
+// インストールが完了したらログに残す (boot 前に発生した分は boot 後に転記する)
+let appInstalledSeen = false;
+window.addEventListener('appinstalled', () => {
+  appInstalledSeen = true;
+});
 
 async function main(): Promise<void> {
   const app = document.querySelector<HTMLDivElement>('#app');
@@ -44,6 +50,9 @@ async function main(): Promise<void> {
     return;
   }
   const ctx = result.ctx;
+  if (appInstalledSeen) {
+    ctx.logger.log('info', 'appinstalled を受信');
+  }
 
   // 最初の pointerdown で audio を unlock する (iPad の Safari などでは利用者の操作が必要)
   window.addEventListener(
