@@ -308,3 +308,23 @@ body {
   margin: var(--gap) 0 0;
   padding-left: 1.4em;
 }
+
+
+/* ---- 起動時のエラー表示 ---- */
+
+.boot-error {
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--gap) calc(var(--gap) * 2);
+}
+
+.boot-error p {
+  font-size: var(--fs-heading);
+  font-weight: 700;
+  color: var(--c-shu);
+  text-align: center;
+  margin: 0;
+}

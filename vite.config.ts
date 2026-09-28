@@ -1,5 +1,36 @@
 import { defineConfig } from 'vite';
+import { VitePWA } from 'vite-plugin-pwa';
+import pkg from './package.json';
 
 export default defineConfig({
   base: '/the-seikei/',
+  // アプリの版をコードに埋め込む (管理者メニューに表示)
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
+  plugins: [
+    VitePWA({
+      registerType: 'prompt', // 更新を促す表示は出さない。次回起動時に切り替わる (skipWaiting / clientsClaim は使わない)
+      workbox: {
+        // 全ファイルを事前にキャッシュする
+        globPatterns: ['**/*.{js,css,html,png,json}'],
+      },
+      manifest: {
+        name: '整経ゲーム',
+        short_name: '整経',
+        start_url: './',
+        scope: './',
+        display: 'standalone',
+        orientation: 'any',
+        background_color: '#F7F3E8',
+        theme_color: '#4F5B47',
+        lang: 'ja',
+        icons: [
+          { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+          { src: 'icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        ],
+      },
+    }),
+  ],
 });

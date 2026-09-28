@@ -1,8 +1,8 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-09-28T11:20:00+09:00",
+  "updated_at": "2026-09-28T11:50:00+09:00",
   "phase": "P0",
-  "current_task": "T0-16",
+  "current_task": "T0-17",
   "done": [
     "T0-00",
     "T0-01",
@@ -20,7 +20,8 @@
     "T0-13",
     "T0-14",
     "T0-15",
-    "T0-16"
+    "T0-16",
+    "T0-17"
   ],
   "checks": {
     "T0-01": {
@@ -155,6 +156,14 @@
       "npm_test": "ok (138 passed / 11 skipped)",
       "npm_run_check": "ok (tsc --noEmit + eslint, error 0)",
       "npm_run_build": "ok (dist 生成)"
+    },
+    "T0-17": {
+      "boot_ts": "src/app/boot.ts (53行) — boot(opts): createAppContext → runMigrations(MIGRATIONS, CURRENT_SCHEMA_VERSION) (例外時 ok:false+reason+errorログ) → navigator.storage?.persist?.() (結果を info ログ、失敗でも続行) → ok:true。移行実行時は info ログも残す",
+      "main_ts": "boot 失敗時は「データの準備でうまくいきませんでした。管理者に連絡してください。」を大きく表示し、それ以外は何もしない。成功時は既存4ルートで ScreenManager 開始。registerSW (virtual:pwa-register) を追加",
+      "vite_pwa": "vite.config.ts — VitePWA registerType:prompt、globPatterns js/css/html/png/json、manifest (name 整経ゲーム / short_name 整経 / start_url ./ / scope ./ / standalone / any / #F7F3E8 / #4F5B47 / ja / icons 3種)、define で __APP_VERSION__ 埋め込み。skipWaiting/clientsClaim は無効 (生成 SW を確認: メッセージハンドラ内のみ、自動実行なし)",
+      "admin_screen": "データの状態に「アプリの版: __APP_VERSION__」の1行追加 (仕様書許可の1行) + src/vite-env.d.ts (型宣言)",
+      "build_check": "npm run check / test (138 passed) / build 成功。dist に manifest.webmanifest・sw.js・icons 出力、precache 12 entries (630KiB, html/css/js/png/manifest.json 含む)",
+      "browser_check": "CDP 検証 (dev サーバー, 1180×820): boot 経由でホーム表示 OK。管理者メニューの「スキーマの版」が「（まだ）」→「1」に変化 (boot の runMigrations が動いた証拠)、「アプリの版: 0.1.0」表示、「永続化: されていない」(persisted() が動いている=API 反映)、ログに「永続化の要求: 許可されなかった」(info, boot.ts の persist 要求が動いた証拠)。※ヘッドレス検証環境では persist() は false を返すため、実機での許可確認は管理者の完了条件5で行う"
     }
   },
   "notes": [

@@ -121,6 +121,7 @@ export function createAdminScreen(ctx: AppContext): Screen {
         const items: string[] = [];
         const schemaVersion = await ctx.repo.getMeta('schemaVersion');
         items.push(`スキーマの版: ${schemaVersion ?? '（まだ）'}`);
+        items.push(`アプリの版: ${__APP_VERSION__}`);
         try {
           const persisted = await navigator.storage?.persisted?.();
           items.push(`永続化: ${persisted === undefined ? '不明' : persisted ? 'されている' : 'されていない'}`);
