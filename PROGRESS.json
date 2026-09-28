@@ -1,8 +1,8 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-09-28T13:40:00+09:00",
+  "updated_at": "2026-09-28T14:05:00+09:00",
   "phase": "P0",
-  "current_task": "T1-01 (今すぐ新しい版に切り替えるボタン)",
+  "current_task": "T1-02 (内容データと読み込み)",
   "done": [
     "T0-00",
     "T0-01",
@@ -24,7 +24,8 @@
     "T0-17",
     "T0-18",
     "T0-19",
-    "T1-01"
+    "T1-01",
+    "T1-02"
   ],
   "checks": {
     "T0-01": {
@@ -198,6 +199,15 @@
       "npm_run_check": "ok",
       "npm_run_build": "ok",
       "browser_check": "本番ビルド (vite preview :4173) で完了条件を確認: ①1回目訪問で SW 登録 ②再ビルドして新しいタブで開く → 診断「新しい版: 届いている」+ ボタン enabled ③ボタン → confirmDialog (切り替える/やめる) ④「切り替える」→ ログ info「新しい版へ切り替え」(再読み込み後も meta logs に残るよう logger.flush() を呼んでから applyUpdateNow) ⑤画面が再読み込みされ「ビルドの識別」が 13:47:24 → 13:48:51 に更新。やめるの場合は何も起きない (ダイアログが閉じるだけ)"
+    },
+    "T1-02": {
+      "types": "src/core/domain/types.ts — 仕様どおり ColorId/YarnColor/YarnTypeId/YarnType/StripeRun/StripePlan/Pattern/CreelPuzzle",
+      "content": "loadContent は各項目の形を検査し、正しくない項目・存在しない color/yarn/pattern 参照・count<1・cols<1 or >8・rows<1 を読み飛ばして problems に1行ずつ記録 (例外は出さない)。品番の重複は後の方を読み飛ばす。creelPuzzles は stage 昇順。getContent は4つの JSON を import して1回だけ計算してキャッシュ",
+      "json": "colors.json (8色, 03_basic_design 4.1 どおり) / yarns.json (12糸, 品番は架空) / patterns.json (5柄, era 1967-2004, 説明は「(P4で追記)」) / creelPuzzles.json (s1〜s5)",
+      "test": "4件 (本物JSON: problems 空・お題5・柄5・stage昇順 / 存在しないyarn: 柄+連鎖したお題を読み飛ばし / cols=9 読み飛ばし / 品番重複: 後を読み飛ばし)",
+      "npm_test": "ok (157 passed / 11 skipped)",
+      "npm_run_check": "ok",
+      "npm_run_build": "ok"
     }
   },
   "notes": [

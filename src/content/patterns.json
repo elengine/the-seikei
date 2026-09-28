@@ -1,0 +1,52 @@
+[
+  {
+    "id": "p-muji-kon",
+    "name": "紺の無地",
+    "plan": [ { "yarn": "kon-a", "count": 6 } ],
+    "weft": "kon",
+    "era": { "from": 1967, "to": 2004 },
+    "description": "(P4で追記)",
+    "difficulty": 1
+  },
+  {
+    "id": "p-pin-kon",
+    "name": "紺地のピンストライプ",
+    "plan": [ { "yarn": "kon-a", "count": 7 }, { "yarn": "shiro-a", "count": 1 } ],
+    "weft": "kon",
+    "era": { "from": 1967, "to": 2004 },
+    "description": "(P4で追記)",
+    "difficulty": 1
+  },
+  {
+    "id": "p-chalk-char",
+    "name": "チャコールのチョークストライプ",
+    "plan": [ { "yarn": "charcoal-a", "count": 6 }, { "yarn": "hai-a", "count": 2 } ],
+    "weft": "charcoal",
+    "era": { "from": 1967, "to": 2004 },
+    "description": "(P4で追記)",
+    "difficulty": 2
+  },
+  {
+    "id": "p-shadow-kon",
+    "name": "紺のシャドーストライプ",
+    "plan": [ { "yarn": "kon-a", "count": 4 }, { "yarn": "kon-c", "count": 4 } ],
+    "weft": "kon",
+    "era": { "from": 1967, "to": 2004 },
+    "description": "(P4で追記)",
+    "difficulty": 2
+  },
+  {
+    "id": "p-alt-kon",
+    "name": "紺のオルタネートストライプ",
+    "plan": [
+      { "yarn": "kon-a", "count": 5 },
+      { "yarn": "kon-b", "count": 1 },
+      { "yarn": "kon-a", "count": 5 },
+      { "yarn": "mizu-a", "count": 1 }
+    ],
+    "weft": "kon",
+    "era": { "from": 1967, "to": 2004 },
+    "description": "(P4で追記)",
+    "difficulty": 3
+  }
+]

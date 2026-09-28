@@ -1,0 +1,7 @@
+[
+  { "id": "s1", "stage": 1, "patternId": "p-muji-kon", "rows": 1, "cols": 6 },
+  { "id": "s2", "stage": 2, "patternId": "p-pin-kon", "rows": 1, "cols": 8 },
+  { "id": "s3", "stage": 3, "patternId": "p-chalk-char", "rows": 2, "cols": 8 },
+  { "id": "s4", "stage": 4, "patternId": "p-shadow-kon", "rows": 2, "cols": 8 },
+  { "id": "s5", "stage": 5, "patternId": "p-alt-kon", "rows": 3, "cols": 8 }
+]
