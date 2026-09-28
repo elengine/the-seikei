@@ -1,10 +1,21 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-09-28T05:40:00+09:00",
+  "updated_at": "2026-09-28T06:24:01+09:00",
   "phase": "P0",
-  "current_task": "T0-00",
-  "done": ["T0-00"],
-  "checks": {},
-  "notes": [],
+  "current_task": "T0-01",
+  "done": ["T0-00", "T0-01"],
+  "checks": {
+    "T0-01": {
+      "npm_install": "ok",
+      "npm_run_check": "ok (tsc --noEmit + eslint, error 0)",
+      "npm_test": "ok (1 passed)",
+      "npm_run_build": "ok (dist生成)",
+      "npm_run_dev": "ok (/the-seikei/ で title=整経ゲーム、main.ts が「整経ゲーム 準備中」を出力)",
+      "core_import_guard": "src/core/sample.ts に import '../app/x' → eslint no-restricted-imports で error (exit 1) を確認後、ファイル削除済み"
+    }
+  },
+  "notes": [
+    "T0-01: npm registry の最新 typescript は 7.0.2 (dist-tags latest) だが typescript-eslint 8.70.1 の peer 依存 (>=4.8.4 <6.1.0) と衝突し ERESOLVE。typescript を ^5.9.3 (5.x 最新) にして解消。他パッケージは現時点の最新安定版 (^付き) のまま。"
+  ],
   "open_bugs": []
 }

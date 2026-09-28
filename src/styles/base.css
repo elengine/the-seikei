@@ -1,0 +1,13 @@
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: #f7f3e8;
+  color: #2b2a24;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  overscroll-behavior: none;
+}
