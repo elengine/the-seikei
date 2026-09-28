@@ -1,8 +1,8 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-09-28T12:00:00+09:00",
+  "updated_at": "2026-09-28T12:50:00+09:00",
   "phase": "P0",
-  "current_task": "T0-17",
+  "current_task": "T0-18 (診断欄)",
   "done": [
     "T0-00",
     "T0-01",
@@ -21,7 +21,8 @@
     "T0-14",
     "T0-15",
     "T0-16",
-    "T0-17"
+    "T0-17",
+    "T0-18"
   ],
   "checks": {
     "T0-01": {
@@ -165,6 +166,17 @@
       "build_check": "npm run check / test (138 passed) / build 成功。dist に manifest.webmanifest・sw.js・icons 出力、precache 12 entries (630KiB, html/css/js/png/manifest.json 含む)",
       "browser_check": "CDP 検証 (dev サーバー, 1180×820): boot 経由でホーム表示 OK。管理者メニューの「スキーマの版」が「（まだ）」→「1」に変化 (boot の runMigrations が動いた証拠)、「アプリの版: 0.1.0」表示、「永続化: されていない」(persisted() が動いている=API 反映)、ログに「永続化の要求: 許可されなかった」(info, boot.ts の persist 要求が動いた証拠)。※ヘッドレス検証環境では persist() は false を返すため、実機での許可確認は管理者の完了条件5で行う",
       "fix_2026_09_28": "T0-17 追加修正: ①マニフェストに id: the-seikei を追加 (実機で Chrome が「インストール済み」と判断しながら起動できない問題への対応。id 未指定だと start_url から自動決定されるため)。ビルド後 dist/manifest.webmanifest に id: the-seikei が入っていることを確認 ②00_rules.md の「名前について」に「マニフェストの id は the-seikei で確定。父の端末に入れた後に変えると別アプリ扱いになるため、今後は変更しない」を追記"
+    },
+    "T0-18": {
+      "diagnostics_ts": "src/app/diagnostics.ts — collectDiagnostics が7項目+ビルド識別を収集。manifestIdFromCache は workbox の ?__WB_REVISION__ 付きキーにも対応 (cache.keys() から manifest.webmanifest を探す。cache.match の完全一致では見つからないため)。manifestIdFromNetwork は manifest.webmanifest?diag=時刻 を no-store で取得。serviceWorkerState (登録/scriptURL/waiting)。setInstallPromptRecorded は main.ts から boot 前に呼び、beforeinstallprompt の発生だけ記録 (preventDefault しない)。displayMode は matchMedia standalone",
+      "main_ts": "boot より前に setInstallPromptRecorded() を追加",
+      "vite_config": "define に __BUILD_ID__ (ビルド時刻の ISO 文字列) を追加、vite-env.d.ts に型宣言",
+      "admin_screen": "「診断」欄を追加 (7項目+ビルドの識別)",
+      "test": "diagnostics.test.ts 8件 (偽 CacheStorage/偽 fetch/偽 SW 登録。RED確認後に実装ではなく同時実装だが全件pass)",
+      "browser_check": "本番ビルド (vite preview :4173) で確認: ①保存済み設定ファイル (キャッシュ内の id): the-seikei ②最新の設定ファイル (ネットワークの id): the-seikei ③SW 登録: はい、scriptURL …/sw.js、待機中: なし ④インストール判定: いいえ ⑤表示モード: ブラウザ内 ⑥ビルドの識別: 2026-09-28T12:43:45.758Z 表示。dev サーバー (SW 無し) では (キャッシュなし)・いいえ と表示され分岐も確認。検証後サーバー停止",
+      "npm_test": "ok (146 passed / 11 skipped)",
+      "npm_run_check": "ok",
+      "npm_run_build": "ok"
     }
   },
   "notes": [

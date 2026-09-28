@@ -2,6 +2,7 @@ import './styles/base.css';
 import { registerSW } from 'virtual:pwa-register';
 import { createSystemClock } from './core/clock/clock';
 import { boot } from './app/boot';
+import { setInstallPromptRecorded } from './app/diagnostics';
 import { createScreenManager } from './app/screenManager';
 import type { Route } from './app/screenManager';
 import { createHomeScreen } from './app/screens/homeScreen';
@@ -11,6 +12,10 @@ import { createAdminScreen } from './app/screens/adminScreen';
 
 // Service Worker を登録する (registerType: 'prompt'。更新は次回起動時に切り替わる)
 registerSW({ immediate: false });
+
+// beforeinstallprompt が発生したかだけを記録する (preventDefault はしない)。
+// boot より前に登録して、起動直後のイベントも取りこぼさない
+setInstallPromptRecorded();
 
 async function main(): Promise<void> {
   const app = document.querySelector<HTMLDivElement>('#app');

@@ -2,11 +2,15 @@ import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import pkg from './package.json';
 
+// ビルド時刻 (ISO 文字列)。アプリの版だけでは同じ 0.1.0 でも区別できないため診断に表示する
+const buildId = new Date().toISOString();
+
 export default defineConfig({
   base: '/the-seikei/',
-  // アプリの版をコードに埋め込む (管理者メニューに表示)
+  // アプリの版とビルドの識別をコードに埋め込む (管理者メニューに表示)
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
+    __BUILD_ID__: JSON.stringify(buildId),
   },
   plugins: [
     VitePWA({

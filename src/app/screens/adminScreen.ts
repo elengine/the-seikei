@@ -2,6 +2,7 @@ import type { AppContext } from '../context';
 import type { Screen } from '../screenManager';
 import type { ImportReport } from '../../core/storage/types';
 import { createButton } from '../../core/ui/widgets';
+import { collectDiagnostics } from '../diagnostics';
 
 function pad2(n: number): string {
   return String(n).padStart(2, '0');
@@ -141,6 +142,31 @@ export function createAdminScreen(ctx: AppContext): Screen {
           li.textContent = item;
           stateList.appendChild(li);
         }
+      })();
+
+      // ---- 診断 ----
+      const diagBox = document.createElement('div');
+      diagBox.classList.add('admin__state');
+      const diagTitle = document.createElement('p');
+      diagTitle.classList.add('settings__label');
+      diagTitle.textContent = '診断';
+      diagBox.appendChild(diagTitle);
+      const diagList = document.createElement('ul');
+      diagList.classList.add('admin__list');
+      diagBox.appendChild(diagList);
+      root.appendChild(diagBox);
+      void (async () => {
+        const items = await collectDiagnostics({ installPromptRecorded: false });
+        diagList.textContent = '';
+        for (const item of items) {
+          const li = document.createElement('li');
+          li.textContent = `${item.label}: ${item.value}`;
+          diagList.appendChild(li);
+        }
+        // ビルドの識別 (版だけでは同じ 0.1.0 でも区別できないため)
+        const buildLi = document.createElement('li');
+        buildLi.textContent = `ビルドの識別: ${__BUILD_ID__}`;
+        diagList.appendChild(buildLi);
       })();
 
       // ---- ログ ----
