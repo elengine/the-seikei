@@ -1,8 +1,8 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-09-28T09:40:00+09:00",
+  "updated_at": "2026-09-28T09:50:00+09:00",
   "phase": "P0",
-  "current_task": "T0-11",
+  "current_task": "T0-12",
   "done": [
     "T0-00",
     "T0-01",
@@ -15,7 +15,8 @@
     "T0-08",
     "T0-09",
     "T0-10",
-    "T0-11"
+    "T0-11",
+    "T0-12"
   ],
   "checks": {
     "T0-01": {
@@ -102,6 +103,14 @@
       "npm_test": "ok (105 passed / 11 skipped)",
       "npm_run_check": "ok (tsc --noEmit + eslint, error 0)",
       "fix_2026_09_28": "T0-11 追加修正: ①createTerms が repo.subscribe(\"terms\", …) を登録し、外部変更 (importAll や将来の同期) で上書きキャッシュを読み直して onChange を呼ぶ。テスト: Terms 作成後に repo.put(\"terms\",{value:\"大枠\"},\"drum\") → t(\"drum\")===\"大枠\" & onChange 呼ばれ (vi.waitFor で非同期完了を待つ)。set/reset 自身の保存でも購読が反応するが二重でも壊れない作り ②terms.default.json の drum の説明を「桟を組んだかご状の胴。帯を順に巻き重ねる」に変更 (設計見直し)"
+    },
+    "T0-12": {
+      "sounds_ts": "src/core/audio/sounds.ts (40行) — SoundName 6種 / Note / SOUNDS (純粋データ)。tap 880Hz 60ms、ok 上がる2音、gentleNo 330Hz やわらかい1音、knot 3連音 (triangle)、page 740Hz 70ms、fanfare ド・ミ・ソ・ド 上昇。周波数 250〜2000Hz、gain 0.5 以下、全体長 2000ms 以下",
+      "audio_ts": "src/core/audio/audio.ts (89行) — createAudioPlayer(makeContext?)。unlock で AudioContext 作成+resume、play は unlock 前/無効時は何もしない。Note ごとに OscillatorNode+GainNode、頭と終わりに 10ms フェード、全体音量は共通 GainNode。例外は投げず無視",
+      "test_first": "audio.test.ts (仕様書テスト1〜5 + 追加2件: setVolume(-0.5)→0 / makeContext 例外でも play は投げない) を先に書き RED 確認後に実装",
+      "npm_test": "ok (112 passed / 11 skipped)",
+      "npm_run_check": "ok (tsc --noEmit + eslint, error 0)",
+      "note": "実機での鳴動確認は T0-15 以降に管理者が実施 (仕様書どおり)"
     }
   },
   "notes": [
