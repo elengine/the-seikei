@@ -8,6 +8,8 @@ import { createSettingsService } from '../core/settings/settings';
 import type { SettingsService } from '../core/settings/settings';
 import { createAudioPlayer } from '../core/audio/audio';
 import type { AudioPlayer } from '../core/audio/audio';
+import { createLogger } from '../core/log/log';
+import type { Logger } from '../core/log/log';
 import { applyFontScale } from '../core/ui/tokens';
 
 /**
@@ -20,6 +22,7 @@ export interface AppContext {
   terms: Terms;
   settings: SettingsService;
   audio: AudioPlayer;
+  logger: Logger;
   navigate(path: string): void;
 }
 
@@ -44,6 +47,8 @@ export async function createAppContext(opts: {
     applyAudio(s);
   });
 
+  const logger = await createLogger(repo, opts.clock);
+
   // settings の fontScale を反映し、変更時にも追従させる
   function applyFont(s: { fontScale: 'large' | 'xlarge' }): void {
     applyFontScale(document.documentElement, s.fontScale);
@@ -60,6 +65,7 @@ export async function createAppContext(opts: {
     terms,
     settings,
     audio,
+    logger,
     navigate: opts.navigate,
   };
 }

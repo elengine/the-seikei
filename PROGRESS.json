@@ -1,8 +1,8 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-09-28T11:05:00+09:00",
+  "updated_at": "2026-09-28T11:20:00+09:00",
   "phase": "P0",
-  "current_task": "T0-15",
+  "current_task": "T0-16",
   "done": [
     "T0-00",
     "T0-01",
@@ -19,7 +19,8 @@
     "T0-12",
     "T0-13",
     "T0-14",
-    "T0-15"
+    "T0-15",
+    "T0-16"
   ],
   "checks": {
     "T0-01": {
@@ -142,6 +143,18 @@
       "npm_run_check": "ok (tsc --noEmit + eslint, error 0)",
       "npm_run_build": "ok (dist 生成)",
       "fix_2026_09_28": "T0-15 追加修正: ①選択中ボタンを settings__current で背景 --c-ai・白文字・ラベル先頭に「✓ 」(文字の大きさ/音/音の大きさのすべて。「（いまの設定）」は「✓ 」に置換)。テスト新規 settingsScreen.test.ts (jsdom で mount、選択中のみ ✓+current、選択変更で ✓ が移る) ②設定画面の各行を CSS grid 3列 (項目名 minmax(9em,auto) / 今の値 1fr / ボタン auto 右端揃え) に変更。ブラウザ 1180×820 と 412×915 で actions 右端が全行 1156px / 388px でそろうことを確認"
+    },
+    "T0-16": {
+      "log_ts": "src/core/log/log.ts (75行) — createLogger(store, clock, max=100)。起動時に meta logs を読み込み、max 超過で古いものから捨てる。log() は同期 (新しい順 unshift) で1秒以内に自動 flush (連続 log は1回にまとめる)。flush 失敗は無視",
+      "terms_screen": "src/app/screens/termsScreen.ts — entries を1行ずつ (呼び名大きく/説明は補足色/かえる/上書き中は元にもどす)。かえる は textInputDialog max10 → terms.set。上部にもどる (設定へ)",
+      "admin_screen": "src/app/screens/adminScreen.ts — バックアップ書き出し (exportAll → canShare なら navigator.share、なければ a download。ファイル名 seikei-backup-YYYYMMDD-HHmm.json)、読み込み (隠し file input、JSON 失敗で「ファイルを読み込めませんでした」、成功で件数表示)、データの状態 (schemaVersion/persisted/estimate/端末ID)、ログ表示",
+      "context_logger": "AppContext へ logger を追加 (仕様書の許可範囲: logger の追加のみ)。createLogger(repo, clock)",
+      "main_ts": "ルート2つ追加 (#/settings/terms → termsScreen、#/admin → adminScreen) のみ",
+      "test": "log.test.ts 4件 (仕様書1〜2 + 追加2: 自動flushの1回まとめ/flush失敗を無視) を先に書き RED 確認後に実装",
+      "browser_check": "CDP 検証 (dev サーバー :5199, 1180×820): ①呼び名「クリール」→「クリールさん」変更、設定画面を経由して戻っても残る、リロード後も残る、元にもどすで戻る ②管理者 (1967) でバックアップ書き出し (a.download 方式、内容を取得して JSON 検証: app/schemaVersion1/deviceId/terms+settings) → 端末側の屋号を「山田整経所」に変更 → そのバックアップ (settings の updatedAt が古い) を読み込み → 結果「追加0・更新0・変化なし2・読み込めず0」でホームの屋号は新しい方「山田整経所」が残る ③データの状態表示 (スキーマの版/永続化/使用量/端末ID) 確認。検証後は屋号・呼び名を初期値に戻した",
+      "npm_test": "ok (138 passed / 11 skipped)",
+      "npm_run_check": "ok (tsc --noEmit + eslint, error 0)",
+      "npm_run_build": "ok (dist 生成)"
     }
   },
   "notes": [

@@ -5,6 +5,8 @@ import { createScreenManager } from './app/screenManager';
 import type { Route } from './app/screenManager';
 import { createHomeScreen } from './app/screens/homeScreen';
 import { createSettingsScreen } from './app/screens/settingsScreen';
+import { createTermsScreen } from './app/screens/termsScreen';
+import { createAdminScreen } from './app/screens/adminScreen';
 
 async function main(): Promise<void> {
   const app = document.querySelector<HTMLDivElement>('#app');
@@ -34,6 +36,8 @@ async function main(): Promise<void> {
   const routes: Route[] = [
     { pattern: '/', create: () => createHomeScreen(ctx) },
     { pattern: '/settings', create: () => createSettingsScreen(ctx) },
+    { pattern: '/settings/terms', create: () => createTermsScreen(ctx) },
+    { pattern: '/admin', create: () => createAdminScreen(ctx) },
   ];
   const screens = createScreenManager(app, routes);
   screens.start();

@@ -260,3 +260,51 @@ body {
   min-height: 48px;
   font-size: var(--fs-body);
 }
+
+
+/* ---- 呼び名の変更と管理者メニュー ---- */
+
+.terms {
+  height: 100%;
+  box-sizing: border-box;
+  overflow-y: auto;
+  padding: var(--gap) calc(var(--gap) * 2) calc(var(--gap) * 4);
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--gap) * 1.5);
+}
+
+.terms__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+.terms__row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--gap);
+}
+
+.terms__value {
+  font-size: var(--fs-heading);
+  margin: 0;
+}
+
+.terms__desc {
+  font-size: var(--fs-body);
+  color: var(--c-sumi-sub);
+  margin: 0;
+}
+
+.admin__state {
+  margin-top: var(--gap);
+}
+
+.admin__list {
+  font-size: var(--fs-body);
+  color: var(--c-sumi-sub);
+  margin: var(--gap) 0 0;
+  padding-left: 1.4em;
+}
