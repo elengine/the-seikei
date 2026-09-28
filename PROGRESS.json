@@ -1,9 +1,9 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-09-28T07:10:00+09:00",
+  "updated_at": "2026-09-28T07:25:00+09:00",
   "phase": "P0",
-  "current_task": "T0-05",
-  "done": ["T0-00", "T0-01", "T0-02", "T0-03", "T0-04", "T0-05"],
+  "current_task": "T0-06",
+  "done": ["T0-00", "T0-01", "T0-02", "T0-03", "T0-04", "T0-05", "T0-06"],
   "checks": {
     "T0-01": {
       "npm_install": "ok",
@@ -31,13 +31,19 @@
       "npm_test": "ok (10 passed / 11 skipped — 契約テストは T0-05 の実装で有効化)"
     },
     "T0-05": {
-      "impl": "src/core/storage/localRepository.ts (198行) を Dexie 4.4.6 で作成。version 1, recs=[collection+id]主キー+collection/updatedAt索引, meta=key主キー",
-      "contract_result": "runRepositoryContract('LocalRepository (Dexie)') が全件 pass (skip分11は stub 用のまま)",
+      "impl": "src/core/storage/localRepository.ts を Dexie 4.4.6 で作成。version 1, recs=key(=collection+\\u0000+id)主キー+collection/updatedAt索引, meta=key主キー",
+      "contract_result": "runRepositoryContract('LocalRepository (Dexie)') が全件 pass",
       "deviceid_test": "deviceId 未指定→UUID 生成・同 dbName 再生成で同一値・削済み put で復活(deletedAt 消去, createdAt 引き継ぎ)・importAll は throw の4件を localRepository.test.ts に追加",
       "contract_loosen": "管理者指示により契約テスト補助1件を「ISO 8601 形式で START_ISO 以上」に緩和 (repositoryContract.ts 変更は T0-05 コミットに同梱)",
       "npm_run_check": "ok (tsc --noEmit + eslint, error 0)",
       "npm_test": "ok (24 passed / 11 skipped)",
       "fix_2026_09_28": "T0-05 追加修正: ①RecRow に updatedAt を持たせ put/remove/putRaw すべてで設定 (updatedAt 索引が有効化。where('updatedAt').above() のテストを追加) ②put の削除済み復活を if 文なし「新しい rec に deletedAt を含めない」方式に整理 ③RecRow.key のコメントを実形式 (collection + '\\u0000' + id) に修正。テスト用に SeikeiDbForTest を export (アプリ側は不使用)"
+    },
+    "T0-06": {
+      "impl": "src/core/storage/merge.ts (235行) — MergeRule/RULES/mergeRec/isNewer を仕様どおり作成",
+      "test_first": "merge.test.ts を先に作成し実装前に失敗することを確認 (RED確認済み)",
+      "npm_test": "ok (43 passed / 11 skipped — merge 18件: 仕様書テスト6項目+ルール別詳細)",
+      "npm_run_check": "ok (tsc --noEmit + eslint, error 0)"
     }
   },
   "notes": [
@@ -45,7 +51,8 @@
     "T0-02: 管理者指示により docs/04_tasks/00_rules.md のライブラリ表の下に「TypeScript は 5.x に固定する(typescript-eslint が 7 に未対応のため)。上げる場合は管理者の承認を得る。」を追記(本コミットに同梱)。",
     "T0-03: mulberry32 は純粋関数型 (状態を返す) で実装。Date/crypto は createSystemClock 内のみで使用。noUncheckedIndexedAccess 対応で Uint8Array 要素に non-null assertion を使用(any は不使用)。",
     "T0-04: 契約テストは実装を受け取る関数型 (make: (clock, deviceId) => Promise<Repository & RawStore>) で export。テスト6 (購読) は put/remove で「そのコレクションの購読者が1回」呼ばれることを検出する設計。stub.test.ts は skip なので契約テストの実行は T0-05 から。",
-    "T0-05: Dexie は compound primary key [collection+id] をそのまま key にはできないため、key='collection\\u0000id' の文字列主キー+collection/updatedAt 索引の構成にした(等価)。put の now() 呼び出しは1回 (createdAt===updatedAt の契約を満たす)。uuid() は id 省略時のみ呼ぶので fixed clock でも時刻が1ステップしか進まない。"
+    "T0-05: Dexie は compound primary key [collection+id] をそのまま key にはできないため、key='collection\\u0000id' の文字列主キー+collection/updatedAt 索引の構成にした(等価)。put の now() 呼び出しは1回 (createdAt===updatedAt の契約を満たす)。uuid() は id 省略時のみ呼ぶので fixed clock でも時刻が1ステップしか進まない。",
+    "T0-06: 「どちらかと完全に同じならその Rec をそのまま返す」は完全一致判定に JSON.stringify 比較を使用 (Rec は JSON で表現可能な構造のみ保持)。union ルールは deletedAt を付けない・max/fieldNewer は削除を newer 扱いで統一。対称性テスト (mergeRec(a,b)===mergeRec(b,a)) を全ルールで実施。"
   ],
   "open_bugs": []
 }
