@@ -18,6 +18,9 @@ export default defineConfig({
       manifest: {
         name: '整経ゲーム',
         short_name: '整経',
+        // アプリの識別子。解決後は https://elengine.github.io/the-seikei となる。
+        // 実機にインストールした後に変えると別アプリ扱いになるため、00_rules.md のとおり今後は変更しない
+        id: 'the-seikei',
         start_url: './',
         scope: './',
         display: 'standalone',

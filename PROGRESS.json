@@ -1,6 +1,6 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-09-28T11:50:00+09:00",
+  "updated_at": "2026-09-28T12:00:00+09:00",
   "phase": "P0",
   "current_task": "T0-17",
   "done": [
@@ -163,7 +163,8 @@
       "vite_pwa": "vite.config.ts — VitePWA registerType:prompt、globPatterns js/css/html/png/json、manifest (name 整経ゲーム / short_name 整経 / start_url ./ / scope ./ / standalone / any / #F7F3E8 / #4F5B47 / ja / icons 3種)、define で __APP_VERSION__ 埋め込み。skipWaiting/clientsClaim は無効 (生成 SW を確認: メッセージハンドラ内のみ、自動実行なし)",
       "admin_screen": "データの状態に「アプリの版: __APP_VERSION__」の1行追加 (仕様書許可の1行) + src/vite-env.d.ts (型宣言)",
       "build_check": "npm run check / test (138 passed) / build 成功。dist に manifest.webmanifest・sw.js・icons 出力、precache 12 entries (630KiB, html/css/js/png/manifest.json 含む)",
-      "browser_check": "CDP 検証 (dev サーバー, 1180×820): boot 経由でホーム表示 OK。管理者メニューの「スキーマの版」が「（まだ）」→「1」に変化 (boot の runMigrations が動いた証拠)、「アプリの版: 0.1.0」表示、「永続化: されていない」(persisted() が動いている=API 反映)、ログに「永続化の要求: 許可されなかった」(info, boot.ts の persist 要求が動いた証拠)。※ヘッドレス検証環境では persist() は false を返すため、実機での許可確認は管理者の完了条件5で行う"
+      "browser_check": "CDP 検証 (dev サーバー, 1180×820): boot 経由でホーム表示 OK。管理者メニューの「スキーマの版」が「（まだ）」→「1」に変化 (boot の runMigrations が動いた証拠)、「アプリの版: 0.1.0」表示、「永続化: されていない」(persisted() が動いている=API 反映)、ログに「永続化の要求: 許可されなかった」(info, boot.ts の persist 要求が動いた証拠)。※ヘッドレス検証環境では persist() は false を返すため、実機での許可確認は管理者の完了条件5で行う",
+      "fix_2026_09_28": "T0-17 追加修正: ①マニフェストに id: the-seikei を追加 (実機で Chrome が「インストール済み」と判断しながら起動できない問題への対応。id 未指定だと start_url から自動決定されるため)。ビルド後 dist/manifest.webmanifest に id: the-seikei が入っていることを確認 ②00_rules.md の「名前について」に「マニフェストの id は the-seikei で確定。父の端末に入れた後に変えると別アプリ扱いになるため、今後は変更しない」を追記"
     }
   },
   "notes": [

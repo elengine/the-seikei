@@ -52,3 +52,4 @@ TypeScript は 5.x に固定する(typescript-eslint が 7 に未対応のため
 
 - リポジトリ名と公開URLのサブパスは `the-seikei`(`https://elengine.github.io/the-seikei/`)。
 - 端末内のデータベース名(`seikei-game`)とバックアップファイルのアプリ識別子(`app: 'seikei-game'`)は、アプリ内部の名前なので**リポジトリ名に合わせて変えない**。
+- マニフェストの id は `'the-seikei'` で確定。父の端末に入れた後に変えると別アプリ扱いになるため、今後は変更しない。
