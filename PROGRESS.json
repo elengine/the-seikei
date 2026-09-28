@@ -1,9 +1,9 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-09-28T08:15:00+09:00",
+  "updated_at": "2026-09-28T08:30:00+09:00",
   "phase": "P0",
-  "current_task": "T0-08",
-  "done": ["T0-00", "T0-01", "T0-02", "T0-03", "T0-04", "T0-05", "T0-06", "T0-07", "T0-08"],
+  "current_task": "T0-09",
+  "done": ["T0-00", "T0-01", "T0-02", "T0-03", "T0-04", "T0-05", "T0-06", "T0-07", "T0-08", "T0-09"],
   "checks": {
     "T0-01": {
       "npm_install": "ok",
@@ -63,6 +63,14 @@
       "npm_run_check": "ok (tsc --noEmit + eslint, error 0)",
       "main_ts": "src/main.ts は未変更 (仕様どおり)",
       "fix_2026_09_28": "T0-08 追加修正: ①.btn:disabled 追加 (machine-light地/sumi-sub文字/not-allowed/transform:none) ②textInputDialog は trim 後空なら disabled・決定値も trim ③tokens.test.ts 新規 (COLORS/FONT/SIZE と base.css の変数の一致を機械検証) ④ダイアログ開時に input.focus() ⑤widgets.ts の void COLORS と import を削除。テスト実行に必要な @types/node を devDependencies に追加、tsconfig types に vite/client+node"
+    },
+    "T0-09": {
+      "impl": "src/core/viewport/viewport.ts (95行) — layoutOf/fitStage/currentSize/onViewportChange/setupCanvas",
+      "test_first": "viewport.test.ts (仕様書テスト1〜4+補助6件) を先に書き RED 確認後に実装",
+      "fitStage_note": "scale=min(availW/logicalW, availH/logicalH)、余白は収まった描画域の周囲に (avail-論理*scale)/2 で均等配分 (仕様書例2・3と整合)",
+      "onviewport_note": "scheduled フラグで同フレーム内の複数変化を1回の requestAnimationFrame にまとめ、解除は window 2種+visualViewport resize の remove",
+      "npm_test": "ok (80 passed / 11 skipped)",
+      "npm_run_check": "ok (tsc --noEmit + eslint, error 0)"
     }
   },
   "notes": [

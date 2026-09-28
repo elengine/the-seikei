@@ -1,0 +1,95 @@
+export type Layout = 'landscape' | 'portrait';
+
+export interface ViewportSize {
+  width: number; // CSS px
+  height: number; // CSS px
+}
+
+/** 幅 >= 高さ なら landscape */
+export function layoutOf(size: ViewportSize): Layout {
+  return size.width >= size.height ? 'landscape' : 'portrait';
+}
+
+export interface StageFit {
+  scale: number;
+  offsetX: number;
+  offsetY: number;
+}
+
+/**
+ * 論理座標の盤面 (logicalW×logicalH) を、利用できる領域 (availW×availH) に
+ * 縦横比を保って収める。scale は収まる最大の倍率。余白は左右または上下に均等に配る。純粋関数。
+ */
+export function fitStage(logicalW: number, logicalH: number, availW: number, availH: number): StageFit {
+  const scale = Math.min(availW / logicalW, availH / logicalH);
+  const drawnW = logicalW * scale;
+  const drawnH = logicalH * scale;
+  return {
+    scale,
+    offsetX: (availW - drawnW) / 2,
+    offsetY: (availH - drawnH) / 2,
+  };
+}
+
+/** visualViewport があればその幅高さ、なければ window.innerWidth/Height */
+export function currentSize(): ViewportSize {
+  const vv = (globalThis as { visualViewport?: { width: number; height: number } }).visualViewport;
+  if (vv !== undefined) {
+    return { width: vv.width, height: vv.height };
+  }
+  return { width: window.innerWidth, height: window.innerHeight };
+}
+
+/**
+ * サイズ・向きの変化を通知する。visualViewport の resize、window の resize と
+ * orientationchange を監視し、同じフレーム内の複数の変化は requestAnimationFrame で
+ * 1回にまとめる。戻り値で監視を解除する。
+ */
+export function onViewportChange(cb: (size: ViewportSize, layout: Layout) => void): () => void {
+  let scheduled = false;
+
+  function fire(): void {
+    if (scheduled) {
+      return; // 同じフレーム内の複数の変化は1回にまとめる
+    }
+    scheduled = true;
+    requestAnimationFrame(() => {
+      scheduled = false;
+      const size = currentSize();
+      cb(size, layoutOf(size));
+    });
+  }
+
+  const win = window;
+  const vv = (globalThis as {
+    visualViewport?: { addEventListener: (t: string, l: () => void) => void; removeEventListener: (t: string, l: () => void) => void };
+  }).visualViewport;
+  vv?.addEventListener('resize', fire);
+  win.addEventListener('resize', fire);
+  win.addEventListener('orientationchange', fire);
+
+  return () => {
+    vv?.removeEventListener('resize', fire);
+    win.removeEventListener('resize', fire);
+    win.removeEventListener('orientationchange', fire);
+  };
+}
+
+/**
+ * Canvas を CSS サイズ cssW×cssH で表示し、内部解像度を devicePixelRatio 倍にする。
+ * 戻り値の ctx は、CSS px の座標で描けるよう setTransform 済み。
+ * devicePixelRatio は 1〜3 の範囲に丸める。
+ */
+export function setupCanvas(canvas: HTMLCanvasElement, cssW: number, cssH: number): CanvasRenderingContext2D {
+  const dpr = Math.min(3, Math.max(1, window.devicePixelRatio));
+  canvas.style.width = `${cssW}px`;
+  canvas.style.height = `${cssH}px`;
+  canvas.width = Math.round(cssW * dpr);
+  canvas.height = Math.round(cssH * dpr);
+  const ctx = canvas.getContext('2d');
+  if (ctx === null) {
+    throw new Error('canvas 2d context not available');
+  }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return ctx;
+}
