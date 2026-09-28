@@ -47,6 +47,28 @@ export async function promptInstall(): Promise<{ outcome: 'accepted' | 'dismisse
   return { outcome: choice.outcome };
 }
 
+let updateApply: ((reload?: boolean) => Promise<void>) | null = null;
+
+/** 新しい版が届いたことを記録する (main.ts の registerSW の onNeedRefresh から呼ぶ)。apply は registerSW が返す更新実行関数 */
+export function setUpdateAvailable(apply: (reload?: boolean) => Promise<void>): void {
+  updateApply = apply;
+}
+
+/** 新しい版が届いているか */
+export function isUpdateAvailable(): boolean {
+  return updateApply !== null;
+}
+
+/** 保持した更新実行関数を reload=true で呼ぶ。未記録なら何もしない */
+export async function applyUpdateNow(): Promise<void> {
+  const apply = updateApply;
+  if (apply === null) {
+    return; // 未記録
+  }
+  updateApply = null; // 1回だけ (画面は再読み込みされる)
+  await apply(true);
+}
+
 /** キャッシュの中の manifest.webmanifest から id を取り出す。無ければ既定の表示を返す */
 export async function manifestIdFromCache(): Promise<string> {
   try {
@@ -140,6 +162,7 @@ export async function collectDiagnostics(opts: {
     { label: 'Service Worker 待機中', value: sw.waiting },
     { label: 'インストールの判定 (beforeinstallprompt)', value: installPromptState(opts.installPromptRecorded || installPromptSeen) },
     { label: '表示モード', value: displayModeState(typeof matchMedia === 'function' && matchMedia('(display-mode: standalone)').matches) },
+    { label: '新しい版', value: isUpdateAvailable() ? '届いている' : 'なし' },
   ];
   return items;
 }

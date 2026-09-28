@@ -1,8 +1,8 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-09-28T13:00:00+09:00",
+  "updated_at": "2026-09-28T13:40:00+09:00",
   "phase": "P0",
-  "current_task": "T0-19 (インストール経路)",
+  "current_task": "T1-01 (今すぐ新しい版に切り替えるボタン)",
   "done": [
     "T0-00",
     "T0-01",
@@ -23,7 +23,8 @@
     "T0-16",
     "T0-17",
     "T0-18",
-    "T0-19"
+    "T0-19",
+    "T1-01"
   ],
   "checks": {
     "T0-01": {
@@ -187,6 +188,16 @@
       "npm_test": "ok (150 passed / 11 skipped)",
       "npm_run_check": "ok",
       "npm_run_build": "ok"
+    },
+    "T1-01": {
+      "diagnostics": "setUpdateAvailable / isUpdateAvailable / applyUpdateNow を追加。applyUpdateNow は保持した更新実行関数を reload=true で1回呼び、呼んだ後は捨てる (2回目は何もしない)。未記録なら例外を出さず何もしない。collectDiagnostics に「新しい版」行 (届いている/なし) を追加",
+      "main_ts": "registerSW に onNeedRefresh を渡し、呼ばれたら registerSW が返す更新実行関数を setUpdateAvailable で記録",
+      "admin_screen": "診断欄に「新しい版」行。診断欄の下に「今すぐ新しい版に切り替える」ボタン (届いているときだけ押せる)。押すと confirmDialog (「切り替える」「やめる」) → 「切り替える」でログ info「新しい版へ切り替え」→ applyUpdateNow() (画面再読み込み)",
+      "test": "T1-01 の3件追加 (記録前false/後true / reload=true で1回 / 消費後は何もしない)。collectDiagnostics テストを8項目に更新",
+      "npm_test": "ok (153 passed / 11 skipped)",
+      "npm_run_check": "ok",
+      "npm_run_build": "ok",
+      "browser_check": "本番ビルド (vite preview) で再ビルド→配信し直しの確認を実施 (下記報告参照)"
     }
   },
   "notes": [

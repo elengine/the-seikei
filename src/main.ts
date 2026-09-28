@@ -2,7 +2,7 @@ import './styles/base.css';
 import { registerSW } from 'virtual:pwa-register';
 import { createSystemClock } from './core/clock/clock';
 import { boot } from './app/boot';
-import { setInstallPromptRecorded } from './app/diagnostics';
+import { setInstallPromptRecorded, setUpdateAvailable } from './app/diagnostics';
 import { createScreenManager } from './app/screenManager';
 import type { Route } from './app/screenManager';
 import { createHomeScreen } from './app/screens/homeScreen';
@@ -10,8 +10,14 @@ import { createSettingsScreen } from './app/screens/settingsScreen';
 import { createTermsScreen } from './app/screens/termsScreen';
 import { createAdminScreen } from './app/screens/adminScreen';
 
-// Service Worker を登録する (registerType: 'prompt'。更新は次回起動時に切り替わる)
-registerSW({ immediate: false });
+// Service Worker を登録する (registerType: 'prompt'。お父さん向けの画面では案内を出さず、
+// 次回起動時に自動で切り替わる。管理者メニューの「今すぐ新しい版に切り替える」ボタンからも切り替えられる)
+const updateSW = registerSW({
+  immediate: false,
+  onNeedRefresh() {
+    setUpdateAvailable(updateSW);
+  },
+});
 
 // beforeinstallprompt を preventDefault して保存する (管理者メニューのボタンから prompt() する)。
 // boot より前に登録して、起動直後のイベントも取りこぼさない

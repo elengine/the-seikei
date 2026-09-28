@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
+  isUpdateAvailable,
+  setUpdateAvailable,
+  applyUpdateNow,
   manifestIdFromCache,
   manifestIdFromNetwork,
   serviceWorkerState,
@@ -96,7 +99,7 @@ describe('diagnostics', () => {
     expect(displayModeState(false)).toBe('ブラウザ内');
   });
 
-  it('collectDiagnostics が7項目をそろえる', async () => {
+  it('collectDiagnostics が8項目をそろえる', async () => {
     vi.stubGlobal('caches', makeFakeCaches({ 'manifest.webmanifest': { id: 'the-seikei' } }));
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ id: 'the-seikei' }))) as unknown as typeof fetch);
     vi.stubGlobal('navigator', { serviceWorker: { getRegistration: async () => undefined } });
@@ -111,9 +114,11 @@ describe('diagnostics', () => {
       'Service Worker 待機中',
       'インストールの判定 (beforeinstallprompt)',
       '表示モード',
+      '新しい版',
     ]);
     expect(items.find((i) => i.label === '保存済みの設定ファイル (キャッシュ内の id)')?.value).toBe('the-seikei');
     expect(items.find((i) => i.label === 'インストールの判定 (beforeinstallprompt)')?.value).toBe('いいえ');
+    expect(items.find((i) => i.label === '新しい版')?.value).toBe('なし');
   });
 });
 
@@ -188,5 +193,38 @@ describe('install prompt (T0-19)', () => {
   it('イベントが無いとき promptInstall は null (押せない状態に相当)', async () => {
     expect(hasInstallPromptEvent()).toBe(false);
     expect(await promptInstall()).toBeNull();
+  });
+});
+
+describe('update available (T1-01)', () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('setUpdateAvailable 前は false、後は true', async () => {
+    expect(isUpdateAvailable()).toBe(false);
+    const apply = vi.fn(async () => undefined);
+    setUpdateAvailable(apply);
+    expect(isUpdateAvailable()).toBe(true);
+  });
+
+  it('applyUpdateNow で保持した関数が reload=true で1回呼ばれる', async () => {
+    const apply = vi.fn(async () => undefined);
+    setUpdateAvailable(apply);
+    await applyUpdateNow();
+    expect(apply).toHaveBeenCalledTimes(1);
+    expect(apply).toHaveBeenCalledWith(true);
+  });
+
+  it('未記録なら applyUpdateNow は例外を出さず何もしない', async () => {
+    // このテストだけ実装の状態に依存しないよう、別の読みで確認する
+    // (未記録の状態を作るため、最初に一度 applyUpdateNow を呼んで捨てさせる)
+    const apply = vi.fn(async () => undefined);
+    setUpdateAvailable(apply);
+    await applyUpdateNow(); // 1回目で消費される
+    expect(apply).toHaveBeenCalledTimes(1);
+    // 消費後の2回目は例外を出さず、apply も呼ばれない
+    await expect(applyUpdateNow()).resolves.toBeUndefined();
+    expect(apply).toHaveBeenCalledTimes(1);
   });
 });

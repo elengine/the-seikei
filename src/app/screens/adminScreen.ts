@@ -2,7 +2,8 @@ import type { AppContext } from '../context';
 import type { Screen } from '../screenManager';
 import type { ImportReport } from '../../core/storage/types';
 import { createButton } from '../../core/ui/widgets';
-import { collectDiagnostics, hasInstallPromptEvent, promptInstall } from '../diagnostics';
+import { collectDiagnostics, hasInstallPromptEvent, promptInstall, isUpdateAvailable, applyUpdateNow } from '../diagnostics';
+import { confirmDialog } from '../../core/ui/widgets';
 
 function pad2(n: number): string {
   return String(n).padStart(2, '0');
@@ -184,6 +185,26 @@ export function createAdminScreen(ctx: AppContext): Screen {
       // 保存したイベントが無いときは押せない
       installBtn.disabled = !hasInstallPromptEvent();
       root.appendChild(installBtn);
+
+      // ---- 今すぐ新しい版に切り替える (新しい版が届いているときだけ押せる) ----
+      const updateBtn = createButton({
+        label: '今すぐ新しい版に切り替える',
+        variant: 'secondary',
+        onClick: async () => {
+          const ok = await confirmDialog(root, {
+            message: '新しい版に切り替えますか? (画面が再読み込みされます)',
+            okLabel: '切り替える',
+            cancelLabel: 'やめる',
+          });
+          if (!ok) {
+            return;
+          }
+          ctx.logger.log('info', '新しい版へ切り替え');
+          await applyUpdateNow(); // 画面が再読み込みされる
+        },
+      });
+      updateBtn.disabled = !isUpdateAvailable(); // 届いていないときは押せない
+      root.appendChild(updateBtn);
 
       // ---- ログ ----
       const logBox = document.createElement('div');
