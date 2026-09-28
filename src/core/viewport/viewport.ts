@@ -47,14 +47,16 @@ export function currentSize(): ViewportSize {
  */
 export function onViewportChange(cb: (size: ViewportSize, layout: Layout) => void): () => void {
   let scheduled = false;
+  let rafId: number | null = null;
 
   function fire(): void {
     if (scheduled) {
       return; // 同じフレーム内の複数の変化は1回にまとめる
     }
     scheduled = true;
-    requestAnimationFrame(() => {
+    rafId = requestAnimationFrame(() => {
       scheduled = false;
+      rafId = null;
       const size = currentSize();
       cb(size, layoutOf(size));
     });
@@ -72,6 +74,12 @@ export function onViewportChange(cb: (size: ViewportSize, layout: Layout) => voi
     vv?.removeEventListener('resize', fire);
     win.removeEventListener('resize', fire);
     win.removeEventListener('orientationchange', fire);
+    // 予約済みのフレームも取り消す (解除後に cb が呼ばれないように)
+    if (rafId !== null) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+      scheduled = false;
+    }
   };
 }
 

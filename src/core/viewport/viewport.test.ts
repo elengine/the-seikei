@@ -60,6 +60,52 @@ describe('onViewportChange', () => {
     vi.restoreAllMocks();
   });
 
+  it('追加修正1: resize 発火 → 次のフレームの前に解除 → cb は呼ばれない (raf 予約も取り消される)', () => {
+    let rafId = 0;
+    const rafCbs = new Map<number, FrameRequestCallback>();
+    const raf = vi.fn((cb: FrameRequestCallback) => {
+      rafId++;
+      rafCbs.set(rafId, cb);
+      return rafId;
+    });
+    const caf = vi.fn((id: number) => {
+      rafCbs.delete(id);
+    });
+    vi.stubGlobal('requestAnimationFrame', raf);
+    vi.stubGlobal('cancelAnimationFrame', caf);
+    vi.stubGlobal('visualViewport', { width: 882, height: 344, addEventListener: vi.fn(), removeEventListener: vi.fn() });
+    vi.stubGlobal('innerWidth', 882);
+    vi.stubGlobal('innerHeight', 344);
+    const addWin = vi.fn();
+    const removeWin = vi.fn();
+    vi.stubGlobal('window', {
+      innerWidth: 882,
+      innerHeight: 344,
+      addEventListener: addWin,
+      removeEventListener: removeWin,
+    });
+
+    const cb = vi.fn();
+    const off = onViewportChange(cb);
+    const resizeCall = addWin.mock.calls.find((c) => c[0] === 'resize');
+    const handler = resizeCall![1] as () => void;
+
+    // resize を発火 → raf が予約されるが cb はまだ呼ばれない
+    handler();
+    expect(raf).toHaveBeenCalledTimes(1);
+    expect(cb).toHaveBeenCalledTimes(0);
+
+    // 次のフレームの前に解除 → 予約済み raf も取り消される
+    off();
+    expect(caf).toHaveBeenCalledWith(1);
+
+    // 次のフレームが来ても cb は呼ばれない
+    for (const [, c] of rafCbs) {
+      c(0);
+    }
+    expect(cb).toHaveBeenCalledTimes(0);
+  });
+
   it('4. window の resize を2回続けて発火させても、次のフレームで cb は1回だけ呼ばれる。解除後は呼ばれない', () => {
     // raf を「コールバックを貯めて手動で発火」するモックにする (フレーム境界を制御するため)
     let rafCb: FrameRequestCallback | null = null;
