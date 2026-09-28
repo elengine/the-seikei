@@ -119,4 +119,37 @@ describe('audio', () => {
     player.unlock();
     expect(() => player.play('tap')).not.toThrow();
   });
+
+  it('追加修正2a: makeContext 省略時は既定の AudioContext を使い、unlock → play で発振器が作られる', async () => {
+    // globalThis.AudioContext に偽物を置く
+    const { ctx, oscillators } = makeFakeContext();
+    // new 付き呼び出しでも ctx を返させる (実装は new AudioContext() する)
+    const FakeAudioContext = vi.fn(function (this: unknown) {
+      return ctx as unknown as object;
+    } as unknown as () => void) as unknown as { new (): unknown; mock: { calls: unknown[] } };
+    vi.stubGlobal('AudioContext', FakeAudioContext);
+    try {
+      const player = createAudioPlayer(); // 引数なし
+      player.unlock();
+      await vi.waitFor(() => {
+        expect((FakeAudioContext as { mock: { calls: unknown[] } }).mock.calls.length).toBe(1); // 既定で new AudioContext()
+        expect(ctx.resume).toHaveBeenCalled();
+      });
+      player.play('ok');
+      expect(oscillators).toHaveLength(SOUNDS.ok.length); // 発振器が作られる
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('追加修正2b: AudioContext が存在しない環境で unlock() しても例外が出ない', () => {
+    vi.stubGlobal('AudioContext', undefined); // 存在しない環境を再現
+    try {
+      const player = createAudioPlayer(); // 引数なし
+      expect(() => player.unlock()).not.toThrow();
+      expect(() => player.play('tap')).not.toThrow(); // 何もしない
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });

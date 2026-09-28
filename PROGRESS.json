@@ -1,6 +1,6 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-09-28T09:50:00+09:00",
+  "updated_at": "2026-09-28T10:00:00+09:00",
   "phase": "P0",
   "current_task": "T0-12",
   "done": [
@@ -108,9 +108,10 @@
       "sounds_ts": "src/core/audio/sounds.ts (40行) — SoundName 6種 / Note / SOUNDS (純粋データ)。tap 880Hz 60ms、ok 上がる2音、gentleNo 330Hz やわらかい1音、knot 3連音 (triangle)、page 740Hz 70ms、fanfare ド・ミ・ソ・ド 上昇。周波数 250〜2000Hz、gain 0.5 以下、全体長 2000ms 以下",
       "audio_ts": "src/core/audio/audio.ts (89行) — createAudioPlayer(makeContext?)。unlock で AudioContext 作成+resume、play は unlock 前/無効時は何もしない。Note ごとに OscillatorNode+GainNode、頭と終わりに 10ms フェード、全体音量は共通 GainNode。例外は投げず無視",
       "test_first": "audio.test.ts (仕様書テスト1〜5 + 追加2件: setVolume(-0.5)→0 / makeContext 例外でも play は投げない) を先に書き RED 確認後に実装",
-      "npm_test": "ok (112 passed / 11 skipped)",
+      "npm_test": "ok (114 passed / 11 skipped)",
       "npm_run_check": "ok (tsc --noEmit + eslint, error 0)",
-      "note": "実機での鳴動確認は T0-15 以降に管理者が実施 (仕様書どおり)"
+      "note": "実機での鳴動確認は T0-15 以降に管理者が実施 (仕様書どおり)",
+      "fix_2026_09_28": "T0-12 追加修正: ①makeContext 省略時の既定動作を追加 — defaultMakeContext() が new AudioContext() を返す (引数の既定値)。AudioContext が存在しない環境では unlock の try/catch が例外を無視し、音は鳴らないが例外も出ない (従来どおり) ②テスト2件を先に追加: 「makeContext を渡さず globalThis.AudioContext に偽物を置いて unlock → play(\"ok\") で発振器が作られる」(vi.fn を new 対応にして戻り値 ctx を返す) と「AudioContext が存在しない環境 (undefined) で unlock しても例外が出ない」。RED 確認後に実装"
     }
   },
   "notes": [

@@ -10,7 +10,12 @@ export interface AudioPlayer {
 
 const FADE_MS = 10; // 音の頭と終わりのフェード。「プツッ」という音を防ぐ
 
-export function createAudioPlayer(makeContext?: () => AudioContext): AudioPlayer {
+function defaultMakeContext(): AudioContext {
+  // AudioContext が存在しない環境では例外を出し、unlock 側で無視する
+  return new AudioContext();
+}
+
+export function createAudioPlayer(makeContext: () => AudioContext = defaultMakeContext): AudioPlayer {
   let ctx: AudioContext | null = null;
   let master: GainNode | null = null; // 全体の音量を掛ける共通の GainNode
   let enabled = true;
@@ -29,15 +34,12 @@ export function createAudioPlayer(makeContext?: () => AudioContext): AudioPlayer
         void ctx.resume().catch(() => undefined); // 例外が起きても無視する
         return;
       }
-      if (makeContext === undefined) {
-        return;
-      }
       try {
         ctx = makeContext();
         master = makeMaster();
         void ctx.resume().catch(() => undefined);
       } catch {
-        // 音が鳴らなくても遊びは止めない。例外は投げずに無視する
+        // AudioContext が存在しない環境など。音が鳴らなくても遊びは止めない。例外は投げずに無視する
         ctx = null;
         master = null;
       }
