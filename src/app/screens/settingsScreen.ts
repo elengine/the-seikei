@@ -85,8 +85,8 @@ export function createSettingsScreen(ctx: AppContext): Screen {
             },
           });
           if (ctx.settings.get().fontScale === value) {
-            b.classList.add('settings__current'); // 選ばれている方は藍の枠
-            b.textContent = `${label}（いまの設定）`;
+            b.classList.add('settings__current'); // 選ばれている方は藍の地・白文字 + ✓
+            b.textContent = `✓ ${label}`;
           }
           fontRow.actions.appendChild(b);
         }
@@ -113,6 +113,7 @@ export function createSettingsScreen(ctx: AppContext): Screen {
           });
           if (ctx.settings.get().soundOn === value) {
             b.classList.add('settings__current');
+            b.textContent = `✓ ${label}`;
           }
           soundRow.actions.appendChild(b);
         }
@@ -137,6 +138,7 @@ export function createSettingsScreen(ctx: AppContext): Screen {
           });
           if (Math.abs(ctx.settings.get().volume - value) < 0.01) {
             b.classList.add('settings__current');
+            b.textContent = `✓ ${label}`;
           }
           volumeRow.actions.appendChild(b);
         }

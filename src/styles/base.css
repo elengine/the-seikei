@@ -221,30 +221,33 @@ body {
 }
 
 .settings__row {
-  display: flex;
+  /* 項目名・今の値・ボタンの3列がそろう配置 (値の文字の長さで位置がずれない) */
+  display: grid;
+  grid-template-columns: minmax(9em, auto) 1fr auto;
   align-items: center;
   gap: var(--gap);
-  flex-wrap: wrap;
 }
 
 .settings__label {
   font-size: var(--fs-body);
-  min-width: 9em;
 }
 
 .settings__value {
   font-size: var(--fs-body);
   color: var(--c-sumi-sub);
+  overflow-wrap: anywhere;
 }
 
 .settings__actions {
   display: flex;
   gap: var(--gap);
   flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .settings__current {
-  border: 3px solid var(--c-ai);
+  background: var(--c-ai);
+  color: var(--c-white);
 }
 
 .settings__admin {
