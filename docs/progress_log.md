@@ -1,0 +1,221 @@
+# 進行記録 (progress_log)
+
+PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (気づいた点) を、2026-09-28 の「PROGRESS 整理」でここへ移した。以後の詳しい記録もこの末尾に追記する。
+
+## T0-01
+
+- **npm_install**: ok
+- **npm_run_check**: ok (tsc --noEmit + eslint, error 0)
+- **npm_test**: ok (1 passed)
+- **npm_run_build**: ok (dist生成)
+- **npm_run_dev**: ok (/the-seikei/ で title=整経ゲーム、main.ts が「整経ゲーム 準備中」を出力)
+- **core_import_guard**: src/core/sample.ts に import '../app/x' → eslint no-restricted-imports で error (exit 1) を確認後、ファイル削除済み
+
+## T0-02
+
+- **workflow**: .github/workflows/deploy.yml を仕様どおり作成 (push main + workflow_dispatch, permissions, concurrency pages, build+deploy ジョブ)
+- **pages_api**: POST /repos/elengine/the-seikei/pages build_type=workflow は T0-00 で設定済み
+
+## T0-03
+
+- **test_first**: clock.test.ts を先に作成し、実装前に失敗することを確認 (RED確認済み)
+- **npm_test**: ok (10 passed: 仕様書テスト7項目+補助3件)
+- **npm_run_check**: ok (tsc --noEmit + eslint, error 0)
+
+## T0-04
+
+- **types**: src/core/storage/types.ts を仕様どおり作成 (CollectionName/Rec/BackupFile/ImportReport/Repository/RawStore/CURRENT_SCHEMA_VERSION)
+- **contract**: tests/contract/repositoryContract.ts に runRepositoryContract を作成。仕様書の振る舞い1〜9 + 補助2件を登録
+- **clock_contract**: 管理者補足どおり: id省略 put は createdAt===updatedAt (実装側で1 put=now()1回の前提)。テスト期待値は時計の都合で変更していない
+- **stub**: tests/contract/stub.test.ts は describe.skip で登録 (11 skipped)
+- **npm_run_check**: ok (tsc --noEmit + eslint, error 0)
+- **npm_test**: ok (10 passed / 11 skipped — 契約テストは T0-05 の実装で有効化)
+
+## T0-05
+
+- **impl**: src/core/storage/localRepository.ts を Dexie 4.4.6 で作成。version 1, recs=key(=collection+\u0000+id)主キー+collection/updatedAt索引, meta=key主キー
+- **contract_result**: runRepositoryContract('LocalRepository (Dexie)') が全件 pass
+- **deviceid_test**: deviceId 未指定→UUID 生成・同 dbName 再生成で同一値・削済み put で復活(deletedAt 消去, createdAt 引き継ぎ)・importAll は throw の4件を localRepository.test.ts に追加
+- **contract_loosen**: 管理者指示により契約テスト補助1件を「ISO 8601 形式で START_ISO 以上」に緩和 (repositoryContract.ts 変更は T0-05 コミットに同梱)
+- **npm_run_check**: ok (tsc --noEmit + eslint, error 0)
+- **npm_test**: ok (24 passed / 11 skipped)
+- **fix_2026_09_28**: T0-05 追加修正: ①RecRow に updatedAt を持たせ put/remove/putRaw すべてで設定 (updatedAt 索引が有効化。where('updatedAt').above() のテストを追加) ②put の削除済み復活を if 文なし「新しい rec に deletedAt を含めない」方式に整理 ③RecRow.key のコメントを実形式 (collection + '\u0000' + id) に修正。テスト用に SeikeiDbForTest を export (アプリ側は不使用)
+
+## T0-06
+
+- **impl**: src/core/storage/merge.ts (235行) — MergeRule/RULES/mergeRec/isNewer を仕様どおり作成
+- **test_first**: merge.test.ts を先に作成し実装前に失敗することを確認 (RED確認済み)
+- **npm_test**: ok (43 passed / 11 skipped — merge 18件: 仕様書テスト6項目+ルール別詳細)
+- **npm_run_check**: ok (tsc --noEmit + eslint, error 0)
+- **fix_2026_09_28**: T0-06 追加修正 (管理者指摘の同点決着3件+型修正): ①fieldNewer 同時刻は updatedBy の大きい方を採る ②fieldNewer で新しい方に無いキーは古い方の値を残す ③union の obtainedAt 同時刻は isNewer の新しい方の source を採る ④CollectionName を types.ts から import に変更。テストは merge.tie.test.ts に分離 (RED確認後 GREEN)
+
+## T0-07
+
+- **migrations**: src/core/storage/migrations.ts (69行) — Migration/MIGRATIONS(空)/runMigrations/migrateRecs。meta schemaVersion 読み書き・全 Rec 移行後に保存 (例外時は無変更)・不足 Migration は例外
+- **test_first**: migrations.test.ts (移行7件) と tests/import/localRepositoryImport.test.ts (importAll 6件) を先に書き RED 確認後に実装
+- **importAll**: localRepository.ts に実装 (app 不一致/新しすぎる版→全件 rejected・migrateRecs で現行版化・getRaw 比較で added/updated/unchanged・変更コレクションの購読者に通知)
+- **note**: T0-05 時点のテスト「importAll は throw する」は T0-07 で実装されたため削除 (期待値の陳腐化。テストの意図である移行・結合の検証は import テスト群が引き継ぐ)
+- **npm_test**: ok (58 passed / 11 skipped — 移行7件+importAll 6件を含む)
+- **npm_run_check**: ok (tsc --noEmit + eslint, error 0)
+
+## T0-08
+
+- **tokens**: src/core/ui/tokens.ts (38行) — COLORS/FONT/SIZE/MOTION/FONT_FAMILY/applyFontScale を 03_basic_design 2.1〜2.4 どおり作成
+- **base_css**: src/styles/base.css — :root に全色・間隔の CSS 変数、T0-01 の直書き色を変数に置換。data-font=xlarge で文字サイズ切替。部品クラス (.btn/.btn--primary/.btn--secondary/.dialog*/.text-input) を追加。押下沈み (translateY(2px))・フォーカス時藍の枠
+- **widgets**: src/core/ui/widgets.ts (162行) — createButton/confirmDialog/textInputDialog。data-testid 対応・閉じたら DOM 除去・背景押下では閉じない・空入力時 ok disabled
+- **test_first**: widgets.test.ts (仕様書テスト1〜4+補助3件) を先に書き RED 確認後に実装
+- **npm_test**: ok (64 passed / 11 skipped)
+- **npm_run_check**: ok (tsc --noEmit + eslint, error 0)
+- **main_ts**: src/main.ts は未変更 (仕様どおり)
+- **fix_2026_09_28**: T0-08 追加修正: ①.btn:disabled 追加 (machine-light地/sumi-sub文字/not-allowed/transform:none) ②textInputDialog は trim 後空なら disabled・決定値も trim ③tokens.test.ts 新規 (COLORS/FONT/SIZE と base.css の変数の一致を機械検証) ④ダイアログ開時に input.focus() ⑤widgets.ts の void COLORS と import を削除。テスト実行に必要な @types/node を devDependencies に追加、tsconfig types に vite/client+node
+
+## T0-09
+
+- **impl**: src/core/viewport/viewport.ts (95行) — layoutOf/fitStage/currentSize/onViewportChange/setupCanvas
+- **test_first**: viewport.test.ts (仕様書テスト1〜4+補助6件) を先に書き RED 確認後に実装
+- **fitStage_note**: scale=min(availW/logicalW, availH/logicalH)、余白は収まった描画域の周囲に (avail-論理*scale)/2 で均等配分 (仕様書例2・3と整合)
+- **onviewport_note**: scheduled フラグで同フレーム内の複数変化を1回の requestAnimationFrame にまとめ、解除は window 2種+visualViewport resize の remove
+- **npm_test**: ok (80 passed / 11 skipped)
+- **npm_run_check**: ok (tsc --noEmit + eslint, error 0)
+- **fix_2026_09_28**: T0-09 追加修正: ①onViewportChange の解除関数が予約済み raf を cancelAnimationFrame で取り消す (テスト: resize発火→フレーム前に解除→cb呼ばれず。RED確認後GREEN) ②eslint.config.js に src/**/*.test.ts 以外で node:* と Node 専用モジュール (fs/path/process等) を禁止する no-restricted-imports ルール。src/core/sample.ts で node:*・無prefix の両方エラーになることを確認後削除。テストファイルは eslint exit 0
+
+## T0-10
+
+- **screen_manager**: src/app/screenManager.ts (104行) — matchRoute (純粋関数, '#'なし/空は'/'扱い, params は decodeURIComponent) と createScreenManager (切替時は必ず前画面 unmount→container 空→mount, 未一致は '/' へ navigate)
+- **game_types**: src/core/game/types.ts (50行) — 02_architecture 5.1 の GameModule/GameProps/GameInstance + GameId/TutorialPage/TutorialSpec/JobSpec/GameResult
+- **registry**: src/core/game/registry.ts (28行) — registerGame(二重登録は例外)/getGame/listGames(登録順)/clearGamesForTest
+- **test_first**: screenManager.test.ts (仕様書テスト1〜5をカバー) と registry.test.ts を先に書き RED 確認後に実装
+- **npm_test**: ok (96 passed / 11 skipped)
+- **npm_run_check**: ok (tsc --noEmit + eslint, error 0)
+- **fix_2026_09_28**: T0-10 追加修正: ①matchRoute が decodeURIComponent の URIError (%E7 等の不正エンコード) を catch し、そのルートは一致しなかったものとして扱う (→ 未一致なので '/' へ navigate) ②unmountCurrent が前画面 unmount() の例外を try/catch し console.error に記録、そのうえで container を空にして次の mount を必ず行う (stop 時も container を空にする)。いずれも RED 確認後に実装
+
+## T0-11
+
+- **terms_default_json**: src/content/terms.default.json — 03_basic_design 5章の表 25キー (terms 20 + game.* 5)。説明は 01_requirements 10章、tension は「糸の引っ張られる強さ」、game.* は「ゲームの名前」
+- **terms_ts**: src/core/terms/terms.ts (126行) — createTerms(repo, defaults)。起動時に terms を list してキャッシュ、t() 同期返し。set は trim・空なら reset と同じ・未知キーは例外。reset は論理削除。render は {{key}} 置換 (未知は残す)。entries は初期値の順。onChange は set/reset で呼ぶ
+- **test_first**: terms.test.ts (仕様書テスト1〜6 + 追加2件: 空文字set=reset / entries の順とoverridden) を先に書き RED 確認後に実装
+- **npm_test**: ok (105 passed / 11 skipped)
+- **npm_run_check**: ok (tsc --noEmit + eslint, error 0)
+- **fix_2026_09_28**: T0-11 追加修正: ①createTerms が repo.subscribe("terms", …) を登録し、外部変更 (importAll や将来の同期) で上書きキャッシュを読み直して onChange を呼ぶ。テスト: Terms 作成後に repo.put("terms",{value:"大枠"},"drum") → t("drum")==="大枠" & onChange 呼ばれ (vi.waitFor で非同期完了を待つ)。set/reset 自身の保存でも購読が反応するが二重でも壊れない作り ②terms.default.json の drum の説明を「桟を組んだかご状の胴。帯を順に巻き重ねる」に変更 (設計見直し)
+
+## T0-12
+
+- **sounds_ts**: src/core/audio/sounds.ts (40行) — SoundName 6種 / Note / SOUNDS (純粋データ)。tap 880Hz 60ms、ok 上がる2音、gentleNo 330Hz やわらかい1音、knot 3連音 (triangle)、page 740Hz 70ms、fanfare ド・ミ・ソ・ド 上昇。周波数 250〜2000Hz、gain 0.5 以下、全体長 2000ms 以下
+- **audio_ts**: src/core/audio/audio.ts (89行) — createAudioPlayer(makeContext?)。unlock で AudioContext 作成+resume、play は unlock 前/無効時は何もしない。Note ごとに OscillatorNode+GainNode、頭と終わりに 10ms フェード、全体音量は共通 GainNode。例外は投げず無視
+- **test_first**: audio.test.ts (仕様書テスト1〜5 + 追加2件: setVolume(-0.5)→0 / makeContext 例外でも play は投げない) を先に書き RED 確認後に実装
+- **npm_test**: ok (114 passed / 11 skipped)
+- **npm_run_check**: ok (tsc --noEmit + eslint, error 0)
+- **note**: 実機での鳴動確認は T0-15 以降に管理者が実施 (仕様書どおり)
+- **fix_2026_09_28**: T0-12 追加修正: ①makeContext 省略時の既定動作を追加 — defaultMakeContext() が new AudioContext() を返す (引数の既定値)。AudioContext が存在しない環境では unlock の try/catch が例外を無視し、音は鳴らないが例外も出ない (従来どおり) ②テスト2件を先に追加: 「makeContext を渡さず globalThis.AudioContext に偽物を置いて unlock → play("ok") で発振器が作られる」(vi.fn を new 対応にして戻り値 ctx を返す) と「AudioContext が存在しない環境 (undefined) で unlock しても例外が出ない」。RED 確認後に実装
+
+## T0-13
+
+- **game_frame**: src/core/ui/gameFrame.ts (146行) — 上部帯 72px (左もどる/中央題名/右あそびかた、いずれも64px以上)。landscape は盤面65%/右panel、portrait は盤面60%/下panel。setupCanvas+fitStage→onStageResize。onViewportChange で自動 resize、destroy で監視解除+DOM削除。Canvas が使えない環境では CSS サイズのみ合わせる
+- **tutorial_overlay**: src/core/ui/tutorialOverlay.ts (106行) — showTutorial(parent, spec, {nextLabel?, startLabel?, onPage?}) → Promise<void>。1ページ=絵(Canvas draw)+text (--fs-body 想定)。ページ数「1 / 3」表示、戻るボタンは最初のページでは非表示。最後のページで「はじめる」→解決
+- **result_view**: src/core/ui/resultView.ts (87行) — showResult → Promise<"again"|"home">。星は ★/☆ 文字 (aria-label 併用)。newPatternNames 空なら欄なし。表示後1.5s の演出 (result--settled) 中もボタン押せる
+- **test_first**: gameParts.test.ts (仕様書テスト1〜3 + 補助4件、jsdom の getContext は空の偽物に差し替え) を先に書き RED 確認後に実装
+- **npm_test**: ok (124 passed / 11 skipped)
+- **npm_run_check**: ok (tsc --noEmit + eslint, error 0)
+- **fix_2026_09_28**: T0-13 追加修正: ①base.css に #app { height:100%; box-sizing:border-box; padding:*: env(safe-area-inset-*) } を追加 (viewport-fit=cover 対応)。gameFrame は currentSize でなく parent の getBoundingClientRect (内寸) を基準に配置・レイアウト判定 (縦長テスト: 内寸600×800→portrait で盤面上60%)。テスト: parent の内寸を変えると盤面の scale が従う ②tutorialOverlay の戻るボタンを「もどる」→「まえへ」に変更 (テスト: 2ページ目で「まえへ」表示) ③チュートリアル Canvas は幅 min(560px, 画面幅の90%)、高さ=幅の2/3、setupCanvas で画素密度対応し draw には CSS px を渡す (テスト: 画面幅1000→560×373、400→360) ④gameFrame の不要な root0 を削除
+
+## T0-14
+
+- **settings_ts**: src/core/settings/settings.ts (112行) — SettingsData/DEFAULT_SETTINGS (shopName 整経所, volume 0.7 等)/createSettingsService。保存先 settings/main、data=SettingsData+_updated。update は patch のキーだけ _updated[key]=clock.now()、get() は _updated を含めず同期返し、読み込み時に無いキーは既定値で補う (削除済み Rec も既定値)
+- **context_ts**: src/app/context.ts (65行) — createAppContext。createLocalRepository (deviceId 指定なし) → terms (terms.default.json) → settings → audio。soundOn/volume と fontScale を初期反映+onChange 追従。deviceId=repo.deviceId
+- **test_first**: settings.test.ts (仕様書テスト1〜5 + 追加2件: get に _updated を含めない / 論理削除で既定値に戻る、fake-indexeddb) を先に書き RED 確認後に実装。context.ts は仕様書どおり単体テスト不要 (T0-15 で確認)
+- **npm_test**: ok (132 passed / 11 skipped)
+- **npm_run_check**: ok (tsc --noEmit + eslint, error 0)
+- **fix_2026_09_28**: T0-14 追加修正: ①createSettingsService が repo.subscribe("settings", …) を登録し、外部変更 (importAll や将来の同期) で保存データを読み直してキャッシュ更新+onChange。テスト: サービス作成後に repo.put("settings",{…shopName:"山田整経"},"main") → get().shopName==="山田整経" & onChange に新しい設定が渡る (vi.waitFor)。update 自身の保存でも購読が反応するが二重でも壊れない ②FontScale を tokens.ts から import (独自定義を廃止)。共通の決まり: キャッシュする部品は必ず repo.subscribe で外からの変更を見張り読み直す
+
+## T0-15
+
+- **home_screen**: src/app/screens/homeScreen.ts — 屋号見出し+名前があれば「◯◯さん、こんにちは」、listGames が空なら「ゲームはただいま準備中です」、下部に副ボタン「せってい」。押すと tap 音
+- **settings_screen**: src/app/screens/settingsScreen.ts — お名前(max10)/屋号(max12)は textInputDialog、文字の大きさ(大/特大+藍枠+いまの設定)、音(鳴らす/鳴らさない)、音の大きさ(小/中/大=0.4/0.7/1.0、変更で ok 音)、呼び名をかえる(#/settings/terms)、最下部に小さめ管理者ボタン(1967 で #/admin、違えば閉じる)、もどる
+- **main_ts**: createSystemClock + createAppContext(seikei-game) + ScreenManager(/、/settings)、最初の pointerdown で audio.unlock (once)
+- **browser_check**: CDP 検証実施 (dev サーバー :5199)。1180×820 と 412×915 の両方: ①屋号「整経所」と「ゲームはただいま準備中です」表示 ②屋号を「山田整経所」に変更→ホーム反映、再読み込み後も残る (確認後「整経所」に戻した) ③特大で本文 24px (data-font=xlarge、--fs-body 24px) ④ボタン高さすべて 64px 以上 (管理者ボタンのみ仕様どおり小さめ 48px) ⑤管理者に 0000 を入れても #/settings から移動しない
+- **npm_test**: ok (134 passed / 11 skipped)
+- **npm_run_check**: ok (tsc --noEmit + eslint, error 0)
+- **npm_run_build**: ok (dist 生成)
+- **fix_2026_09_28**: T0-15 追加修正: ①選択中ボタンを settings__current で背景 --c-ai・白文字・ラベル先頭に「✓ 」(文字の大きさ/音/音の大きさのすべて。「（いまの設定）」は「✓ 」に置換)。テスト新規 settingsScreen.test.ts (jsdom で mount、選択中のみ ✓+current、選択変更で ✓ が移る) ②設定画面の各行を CSS grid 3列 (項目名 minmax(9em,auto) / 今の値 1fr / ボタン auto 右端揃え) に変更。ブラウザ 1180×820 と 412×915 で actions 右端が全行 1156px / 388px でそろうことを確認
+
+## T0-16
+
+- **log_ts**: src/core/log/log.ts (75行) — createLogger(store, clock, max=100)。起動時に meta logs を読み込み、max 超過で古いものから捨てる。log() は同期 (新しい順 unshift) で1秒以内に自動 flush (連続 log は1回にまとめる)。flush 失敗は無視
+- **terms_screen**: src/app/screens/termsScreen.ts — entries を1行ずつ (呼び名大きく/説明は補足色/かえる/上書き中は元にもどす)。かえる は textInputDialog max10 → terms.set。上部にもどる (設定へ)
+- **admin_screen**: src/app/screens/adminScreen.ts — バックアップ書き出し (exportAll → canShare なら navigator.share、なければ a download。ファイル名 seikei-backup-YYYYMMDD-HHmm.json)、読み込み (隠し file input、JSON 失敗で「ファイルを読み込めませんでした」、成功で件数表示)、データの状態 (schemaVersion/persisted/estimate/端末ID)、ログ表示
+- **context_logger**: AppContext へ logger を追加 (仕様書の許可範囲: logger の追加のみ)。createLogger(repo, clock)
+- **main_ts**: ルート2つ追加 (#/settings/terms → termsScreen、#/admin → adminScreen) のみ
+- **test**: log.test.ts 4件 (仕様書1〜2 + 追加2: 自動flushの1回まとめ/flush失敗を無視) を先に書き RED 確認後に実装
+- **browser_check**: CDP 検証 (dev サーバー :5199, 1180×820): ①呼び名「クリール」→「クリールさん」変更、設定画面を経由して戻っても残る、リロード後も残る、元にもどすで戻る ②管理者 (1967) でバックアップ書き出し (a.download 方式、内容を取得して JSON 検証: app/schemaVersion1/deviceId/terms+settings) → 端末側の屋号を「山田整経所」に変更 → そのバックアップ (settings の updatedAt が古い) を読み込み → 結果「追加0・更新0・変化なし2・読み込めず0」でホームの屋号は新しい方「山田整経所」が残る ③データの状態表示 (スキーマの版/永続化/使用量/端末ID) 確認。検証後は屋号・呼び名を初期値に戻した
+- **npm_test**: ok (138 passed / 11 skipped)
+- **npm_run_check**: ok (tsc --noEmit + eslint, error 0)
+- **npm_run_build**: ok (dist 生成)
+
+## T0-17
+
+- **boot_ts**: src/app/boot.ts (53行) — boot(opts): createAppContext → runMigrations(MIGRATIONS, CURRENT_SCHEMA_VERSION) (例外時 ok:false+reason+errorログ) → navigator.storage?.persist?.() (結果を info ログ、失敗でも続行) → ok:true。移行実行時は info ログも残す
+- **main_ts**: boot 失敗時は「データの準備でうまくいきませんでした。管理者に連絡してください。」を大きく表示し、それ以外は何もしない。成功時は既存4ルートで ScreenManager 開始。registerSW (virtual:pwa-register) を追加
+- **vite_pwa**: vite.config.ts — VitePWA registerType:prompt、globPatterns js/css/html/png/json、manifest (name 整経ゲーム / short_name 整経 / start_url ./ / scope ./ / standalone / any / #F7F3E8 / #4F5B47 / ja / icons 3種)、define で __APP_VERSION__ 埋め込み。skipWaiting/clientsClaim は無効 (生成 SW を確認: メッセージハンドラ内のみ、自動実行なし)
+- **admin_screen**: データの状態に「アプリの版: __APP_VERSION__」の1行追加 (仕様書許可の1行) + src/vite-env.d.ts (型宣言)
+- **build_check**: npm run check / test (138 passed) / build 成功。dist に manifest.webmanifest・sw.js・icons 出力、precache 12 entries (630KiB, html/css/js/png/manifest.json 含む)
+- **browser_check**: CDP 検証 (dev サーバー, 1180×820): boot 経由でホーム表示 OK。管理者メニューの「スキーマの版」が「（まだ）」→「1」に変化 (boot の runMigrations が動いた証拠)、「アプリの版: 0.1.0」表示、「永続化: されていない」(persisted() が動いている=API 反映)、ログに「永続化の要求: 許可されなかった」(info, boot.ts の persist 要求が動いた証拠)。※ヘッドレス検証環境では persist() は false を返すため、実機での許可確認は管理者の完了条件5で行う
+- **fix_2026_09_28**: T0-17 追加修正: ①マニフェストに id: the-seikei を追加 (実機で Chrome が「インストール済み」と判断しながら起動できない問題への対応。id 未指定だと start_url から自動決定されるため)。ビルド後 dist/manifest.webmanifest に id: the-seikei が入っていることを確認 ②00_rules.md の「名前について」に「マニフェストの id は the-seikei で確定。父の端末に入れた後に変えると別アプリ扱いになるため、今後は変更しない」を追記
+
+## T0-18
+
+- **diagnostics_ts**: src/app/diagnostics.ts — collectDiagnostics が7項目+ビルド識別を収集。manifestIdFromCache は workbox の ?__WB_REVISION__ 付きキーにも対応 (cache.keys() から manifest.webmanifest を探す。cache.match の完全一致では見つからないため)。manifestIdFromNetwork は manifest.webmanifest?diag=時刻 を no-store で取得。serviceWorkerState (登録/scriptURL/waiting)。setInstallPromptRecorded は main.ts から boot 前に呼び、beforeinstallprompt の発生だけ記録 (preventDefault しない)。displayMode は matchMedia standalone
+- **main_ts**: boot より前に setInstallPromptRecorded() を追加
+- **vite_config**: define に __BUILD_ID__ (ビルド時刻の ISO 文字列) を追加、vite-env.d.ts に型宣言
+- **admin_screen**: 「診断」欄を追加 (7項目+ビルドの識別)
+- **test**: diagnostics.test.ts 8件 (偽 CacheStorage/偽 fetch/偽 SW 登録。RED確認後に実装ではなく同時実装だが全件pass)
+- **browser_check**: 本番ビルド (vite preview :4173) で確認: ①保存済み設定ファイル (キャッシュ内の id): the-seikei ②最新の設定ファイル (ネットワークの id): the-seikei ③SW 登録: はい、scriptURL …/sw.js、待機中: なし ④インストール判定: いいえ ⑤表示モード: ブラウザ内 ⑥ビルドの識別: 2026-09-28T12:43:45.758Z 表示。dev サーバー (SW 無し) では (キャッシュなし)・いいえ と表示され分岐も確認。検証後サーバー停止
+- **npm_test**: ok (146 passed / 11 skipped)
+- **npm_run_check**: ok
+- **npm_run_build**: ok
+
+## T0-19
+
+- **diagnostics**: beforeinstallprompt を preventDefault して保存 (setInstallPromptRecorded)。hasInstallPromptEvent / promptInstall を追加。promptInstall は prompt() を1回だけ呼び userChoice の結果 (accepted/dismissed) を返し、呼んだ後はイベントを捨てる (2回目は null → ボタン無効に相当)
+- **admin_screen**: 診断欄の下に「アプリとしてインストール」ボタン。保存イベントがあるときだけ押せる。押すと prompt() → userChoice をログに info 記録 (accepted=受け入れられた/dismissed=見送られた)、その後ボタンを無効化
+- **main_ts**: appinstalled を監視し、発生したらログに info「appinstalled を受信」。boot 前に発生した分はフラグで持って boot 成功後に転記 (boot 前は logger が無いため)
+- **test**: diagnostics.test.ts に T0-19 の4件追加 (preventDefault+保存 / prompt 1回だけ+accepted+2回目null / dismissed / イベント無しはnull)。合計 12件
+- **npm_test**: ok (150 passed / 11 skipped)
+- **npm_run_check**: ok
+- **npm_run_build**: ok
+
+## T1-01
+
+- **diagnostics**: setUpdateAvailable / isUpdateAvailable / applyUpdateNow を追加。applyUpdateNow は保持した更新実行関数を reload=true で1回呼び、呼んだ後は捨てる (2回目は何もしない)。未記録なら例外を出さず何もしない。collectDiagnostics に「新しい版」行 (届いている/なし) を追加
+- **main_ts**: registerSW に onNeedRefresh を渡し、呼ばれたら registerSW が返す更新実行関数を setUpdateAvailable で記録
+- **admin_screen**: 診断欄に「新しい版」行。診断欄の下に「今すぐ新しい版に切り替える」ボタン (届いているときだけ押せる)。押すと confirmDialog (「切り替える」「やめる」) → 「切り替える」でログ info「新しい版へ切り替え」→ applyUpdateNow() (画面再読み込み)
+- **test**: T1-01 の3件追加 (記録前false/後true / reload=true で1回 / 消費後は何もしない)。collectDiagnostics テストを8項目に更新
+- **npm_test**: ok (153 passed / 11 skipped)
+- **npm_run_check**: ok
+- **npm_run_build**: ok
+- **browser_check**: 本番ビルド (vite preview :4173) で完了条件を確認: ①1回目訪問で SW 登録 ②再ビルドして新しいタブで開く → 診断「新しい版: 届いている」+ ボタン enabled ③ボタン → confirmDialog (切り替える/やめる) ④「切り替える」→ ログ info「新しい版へ切り替え」(再読み込み後も meta logs に残るよう logger.flush() を呼んでから applyUpdateNow) ⑤画面が再読み込みされ「ビルドの識別」が 13:47:24 → 13:48:51 に更新。やめるの場合は何も起きない (ダイアログが閉じるだけ)
+
+## T1-02
+
+- **types**: src/core/domain/types.ts — 仕様どおり ColorId/YarnColor/YarnTypeId/YarnType/StripeRun/StripePlan/Pattern/CreelPuzzle
+- **content**: loadContent は各項目の形を検査し、正しくない項目・存在しない color/yarn/pattern 参照・count<1・cols<1 or >8・rows<1 を読み飛ばして problems に1行ずつ記録 (例外は出さない)。品番の重複は後の方を読み飛ばす。creelPuzzles は stage 昇順。getContent は4つの JSON を import して1回だけ計算してキャッシュ
+- **json**: colors.json (8色, 03_basic_design 4.1 どおり) / yarns.json (12糸, 品番は架空) / patterns.json (5柄, era 1967-2004, 説明は「(P4で追記)」) / creelPuzzles.json (s1〜s5)
+- **test**: 4件 (本物JSON: problems 空・お題5・柄5・stage昇順 / 存在しないyarn: 柄+連鎖したお題を読み飛ばし / cols=9 読み飛ばし / 品番重複: 後を読み飛ばし)
+- **npm_test**: ok (157 passed / 11 skipped)
+- **npm_run_check**: ok
+- **npm_run_build**: ok
+
+## T1-03
+
+- **stripe**: expandPlan (plan 繰り返し→length で打ち切り、空 plan/length<=0 は空配列) / toRuns (連続する同じ糸をまとめる) / indexToCell・cellToIndex (段*列数+列、往復一致) / answerFor (rows*cols 本) / compare (長さ違いは例外、wrong と empty を帯番号で返す)
+- **test**: 13件 (expandPlan 3 / toRuns 3 / indexToCell・cellToIndex 3 / compare 2 / answerFor 2: 本物データの5お題で長さ一致+s1 の中身)
+- **npm_test**: ok (170 passed / 11 skipped)
+- **npm_run_check**: ok
+
+## notes (気づいた点・今後も守る注意点)
+
+- T0-01: npm registry の最新 typescript は 7.0.2 (dist-tags latest) だが typescript-eslint 8.70.1 の peer 依存 (>=4.8.4 <6.1.0) と衝突し ERESOLVE。typescript を ^5.9.3 (5.x 最新) にして解消。他パッケージは現時点の最新安定版 (^付き) のまま。
+- T0-02: 管理者指示により docs/04_tasks/00_rules.md のライブラリ表の下に「TypeScript は 5.x に固定する(typescript-eslint が 7 に未対応のため)。上げる場合は管理者の承認を得る。」を追記(本コミットに同梱)。
+- T0-03: mulberry32 は純粋関数型 (状態を返す) で実装。Date/crypto は createSystemClock 内のみで使用。noUncheckedIndexedAccess 対応で Uint8Array 要素に non-null assertion を使用(any は不使用)。
+- T0-04: 契約テストは実装を受け取る関数型 (make: (clock, deviceId) => Promise<Repository & RawStore>) で export。テスト6 (購読) は put/remove で「そのコレクションの購読者が1回」呼ばれることを検出する設計。stub.test.ts は skip なので契約テストの実行は T0-05 から。
+- T0-05: Dexie は compound primary key [collection+id] をそのまま key にはできないため、key='collection\u0000id' の文字列主キー+collection/updatedAt 索引の構成にした(等価)。put の now() 呼び出しは1回 (createdAt===updatedAt の契約を満たす)。uuid() は id 省略時のみ呼ぶので fixed clock でも時刻が1ステップしか進まない。
+- T0-06: 「どちらかと完全に同じならその Rec をそのまま返す」は完全一致判定に JSON.stringify 比較を使用 (Rec は JSON で表現可能な構造のみ保持)。union ルールは deletedAt を付けない・max/fieldNewer は削除を newer 扱いで統一。対称性テスト (mergeRec(a,b)===mergeRec(b,a)) を全ルールで実施。
