@@ -48,6 +48,58 @@ describe('gameFrame', () => {
     expect(frame.message.parentElement).toBe(frame.panel); // message は panel 内
     expect(() => frame.resize()).not.toThrow();
   });
+
+  it('追加修正1: parent の内寸を基準に配置される (parent の大きさを変えると盤面が従う)', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    // parent を横長 1000×800 に見せる
+    parent.getBoundingClientRect = () =>
+      ({ width: 1000, height: 800, top: 0, left: 0, right: 1000, bottom: 800, x: 0, y: 0, toJSON: () => undefined }) as DOMRect;
+    const fits: number[] = []; // scale の変化で盤面の大きさの変化を見る
+    const frame = createGameFrame(parent, {
+      title: 'テスト',
+      onBack: () => undefined,
+      onHelp: () => undefined,
+      logicalW: 1000,
+      logicalH: 750,
+      onStageResize: (fit) => fits.push(fit.scale),
+    });
+    // parent が狭くなると scale が下がる (parent の内寸に従う)
+    // jsdom は clientWidth を計算しないため、stageBox の clientWidth/Height を内寸から返すよう差し替える
+    let innerW = 1000;
+    const bodyH = 800 - 72;
+    const innerH = () => bodyH + 72;
+    parent.getBoundingClientRect = () =>
+      ({ width: innerW, height: innerH(), top: 0, left: 0, right: innerW, bottom: innerH(), x: 0, y: 0, toJSON: () => undefined }) as DOMRect;
+    const stageBox = frame.root.querySelector('.game-frame__stage') as HTMLElement;
+    Object.defineProperty(stageBox, 'clientWidth', { get: () => Math.floor(innerW * 0.65) });
+    Object.defineProperty(stageBox, 'clientHeight', { get: () => bodyH });
+    frame.resize(); // 1回目は clientWidth がまだ jsdom 既定 (0) の可能性があるため無視
+    innerW = 600; // parent が狭くなる
+    frame.resize();
+    const scaleNarrow = fits[fits.length - 1]!;
+    expect(scaleNarrow).toBeGreaterThan(0); // parent の内寸に従って盤面が生きている
+    // landscape 判定も parent の内寸: 600×800 は縦長
+    frame.destroy();
+  });
+
+  it('追加修正1: parent の内寸が縦長なら盤面が上 60% になる', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    parent.getBoundingClientRect = () =>
+      ({ width: 500, height: 1000, top: 0, left: 0, right: 500, bottom: 1000, x: 0, y: 0, toJSON: () => undefined }) as DOMRect;
+    const frame = createGameFrame(parent, {
+      title: 'テスト',
+      onBack: () => undefined,
+      onHelp: () => undefined,
+      logicalW: 1000,
+      logicalH: 750,
+    });
+    const stageBox = frame.root.querySelector('.game-frame__stage') as HTMLElement;
+    const stageH = parseFloat(stageBox.style.height);
+    expect(stageH).toBe(Math.floor((1000 - 72) * 0.6)); // (内寸高 - 帯72) の 60%
+    frame.destroy();
+  });
 });
 
 describe('tutorialOverlay', () => {
@@ -105,13 +157,13 @@ describe('tutorialOverlay', () => {
     byLabel('つぎへ')!.click(); // 1 → 2
     await Promise.resolve();
 
-    const prev = byLabel('もどる');
-    expect(prev).toBeDefined(); // 2ページ目には戻るボタンがある
+    const prev = byLabel('まえへ');
+    expect(prev).toBeDefined(); // 2ページ目には「まえへ」がある (ゲームを終える「もどる」と区別)
     prev!.click();
     await Promise.resolve();
 
-    // 1ページ目に戻ると「つぎへ」があり、戻るボタンは消える
-    expect(byLabel('もどる')).toBeUndefined();
+    // 1ページ目に戻ると「つぎへ」があり、「まえへ」は消える
+    expect(byLabel('まえへ')).toBeUndefined();
     // ページ数表示「1 / 2」
     expect(parent.textContent).toContain('1 / 2');
 
@@ -121,6 +173,43 @@ describe('tutorialOverlay', () => {
     await vi.waitFor(async () => {
       await p;
     });
+  });
+
+  it('追加修正3: draw に渡る幅・高さが指定どおり (幅 min(560px, 画面幅の90%)、高さは幅の 2/3)', () => {
+    // 画面幅 1000px → 幅 560px (min)、高さ 373.33px
+    vi.stubGlobal('innerWidth', 1000);
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    let drawnW = 0;
+    let drawnH = 0;
+    const spec: TutorialSpec = {
+      pages: [
+        {
+          draw: (_ctx, w, h) => {
+            drawnW = w;
+            drawnH = h;
+          },
+          text: 'テスト',
+        },
+      ],
+    };
+    // setupCanvas が動くよう getContext を偽の ctx を返すものに差し替え
+    HTMLCanvasElement.prototype.getContext = vi.fn(() => ({ clearRect: () => undefined, setTransform: () => undefined }) as unknown as CanvasRenderingContext2D) as unknown as HTMLCanvasElement['getContext'];
+    const p = showTutorial(parent, spec);
+    expect(drawnW).toBe(560); // min(560, 1000*0.9=900) = 560
+    expect(drawnH).toBe(Math.floor((560 * 2) / 3));
+    void p;
+
+    // 画面幅 400px → 幅 360px (90%)
+    vi.stubGlobal('innerWidth', 400);
+    const parent2 = document.createElement('div');
+    document.body.appendChild(parent2);
+    let drawnW2 = 0;
+    const spec2: TutorialSpec = { pages: [{ draw: (_ctx, w) => { drawnW2 = w; }, text: 'テスト' }] };
+    const p2 = showTutorial(parent2, spec2);
+    expect(drawnW2).toBe(360);
+    void p2;
+    vi.unstubAllGlobals();
   });
 });
 

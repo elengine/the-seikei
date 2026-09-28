@@ -1,4 +1,5 @@
 import type { TutorialSpec } from '../game/types';
+import { setupCanvas } from '../viewport/viewport';
 
 /**
  * チュートリアルの表示。1ページに絵 (Canvas) と文を置き、
@@ -25,10 +26,19 @@ export function showTutorial(
     box.setAttribute('role', 'dialog');
     box.setAttribute('aria-modal', 'true');
 
-    // 絵 (各ページの draw で描く)
+    // 絵 (各ページの draw で描く)。幅は min(560px, 画面幅の90%)、高さは幅の 2/3
     const canvas = document.createElement('canvas');
     canvas.classList.add('tutorial__canvas');
-    const ctx = canvas.getContext('2d');
+    const canvasW = Math.floor(Math.min(560, window.innerWidth * 0.9));
+    const canvasH = Math.floor((canvasW * 2) / 3);
+    let ctx: CanvasRenderingContext2D | null = null;
+    try {
+      ctx = setupCanvas(canvas, canvasW, canvasH); // 画素密度に合わせる
+    } catch {
+      // Canvas が使えない環境 (テスト等) では CSS サイズだけ合わせる
+      canvas.style.width = `${canvasW}px`;
+      canvas.style.height = `${canvasH}px`;
+    }
     box.appendChild(canvas);
 
     // 文 (3行以内を想定)
@@ -55,16 +65,16 @@ export function showTutorial(
       text.textContent = p.text;
       counter.textContent = `${page + 1} / ${total}`;
       if (ctx !== null) {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        p.draw(ctx, canvas.width, canvas.height);
+        ctx.clearRect(0, 0, canvasW, canvasH);
+        p.draw(ctx, canvasW, canvasH); // draw には CSS px の幅・高さを渡す
       }
       actions.textContent = ''; // ボタンを作り直す
-      // 前のページへ戻るボタン (最初のページでは置かない)
+      // 前のページへ戻るボタン (最初のページでは置かない)。ゲームを終える「もどる」と区別するため「まえへ」
       if (page > 0) {
         const prev = document.createElement('button');
         prev.type = 'button';
         prev.classList.add('btn', 'btn--secondary');
-        prev.textContent = 'もどる';
+        prev.textContent = 'まえへ';
         prev.addEventListener('click', () => {
           if (page > 0) {
             page -= 1;

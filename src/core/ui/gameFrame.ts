@@ -1,4 +1,4 @@
-import { setupCanvas, fitStage, onViewportChange, currentSize, layoutOf } from '../viewport/viewport';
+import { setupCanvas, fitStage, onViewportChange, layoutOf } from '../viewport/viewport';
 import type { StageFit, Layout } from '../viewport/viewport';
 
 /**
@@ -79,23 +79,26 @@ export function createGameFrame(
   let offViewport: (() => void) | null = null;
 
   function applyLayout(): void {
-    const size = currentSize();
-    const layout: Layout = layoutOf(size);
-    const bodyH = Math.max(0, size.height - BAR_H);
+    // 画面全体ではなく parent の実際の内寸を基準にする (#app の safe-area padding を考慮)
+    const rect = parent.getBoundingClientRect();
+    const innerW = Math.max(0, rect.width);
+    const innerH = Math.max(0, rect.height);
+    const layout: Layout = layoutOf({ width: innerW, height: innerH }); // レイアウト判定も parent の内寸
+    const bodyH = Math.max(0, innerH - BAR_H);
     body.style.height = `${bodyH}px`;
     if (layout === 'landscape') {
       // 左:盤面 (残り幅の 65%)・右:panel
-      const stageW = Math.floor(size.width * 0.65);
+      const stageW = Math.floor(innerW * 0.65);
       stageBox.style.width = `${stageW}px`;
       stageBox.style.height = `${bodyH}px`;
-      panel.style.width = `${size.width - stageW}px`;
+      panel.style.width = `${innerW - stageW}px`;
       panel.style.height = `${bodyH}px`;
     } else {
       // 上:盤面 (残り高さの 60%)・下:panel
       const stageH = Math.floor(bodyH * 0.6);
-      stageBox.style.width = `${size.width}px`;
+      stageBox.style.width = `${innerW}px`;
       stageBox.style.height = `${stageH}px`;
-      panel.style.width = `${size.width}px`;
+      panel.style.width = `${innerW}px`;
       panel.style.height = `${bodyH - stageH}px`;
     }
     // 盤面の Canvas を領域いっぱいに作り、fitStage の結果を渡す
@@ -114,9 +117,6 @@ export function createGameFrame(
   function resize(): void {
     applyLayout();
   }
-
-  const root0 = { root };
-  void root0;
 
   parent.appendChild(root);
 
