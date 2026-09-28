@@ -1,9 +1,9 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-09-28T07:50:00+09:00",
+  "updated_at": "2026-09-28T08:05:00+09:00",
   "phase": "P0",
-  "current_task": "T0-07",
-  "done": ["T0-00", "T0-01", "T0-02", "T0-03", "T0-04", "T0-05", "T0-06", "T0-07"],
+  "current_task": "T0-08",
+  "done": ["T0-00", "T0-01", "T0-02", "T0-03", "T0-04", "T0-05", "T0-06", "T0-07", "T0-08"],
   "checks": {
     "T0-01": {
       "npm_install": "ok",
@@ -53,6 +53,15 @@
       "note": "T0-05 時点のテスト「importAll は throw する」は T0-07 で実装されたため削除 (期待値の陳腐化。テストの意図である移行・結合の検証は import テスト群が引き継ぐ)",
       "npm_test": "ok (58 passed / 11 skipped — 移行7件+importAll 6件を含む)",
       "npm_run_check": "ok (tsc --noEmit + eslint, error 0)"
+    },
+    "T0-08": {
+      "tokens": "src/core/ui/tokens.ts (38行) — COLORS/FONT/SIZE/MOTION/FONT_FAMILY/applyFontScale を 03_basic_design 2.1〜2.4 どおり作成",
+      "base_css": "src/styles/base.css — :root に全色・間隔の CSS 変数、T0-01 の直書き色を変数に置換。data-font=xlarge で文字サイズ切替。部品クラス (.btn/.btn--primary/.btn--secondary/.dialog*/.text-input) を追加。押下沈み (translateY(2px))・フォーカス時藍の枠",
+      "widgets": "src/core/ui/widgets.ts (162行) — createButton/confirmDialog/textInputDialog。data-testid 対応・閉じたら DOM 除去・背景押下では閉じない・空入力時 ok disabled",
+      "test_first": "widgets.test.ts (仕様書テスト1〜4+補助3件) を先に書き RED 確認後に実装",
+      "npm_test": "ok (64 passed / 11 skipped)",
+      "npm_run_check": "ok (tsc --noEmit + eslint, error 0)",
+      "main_ts": "src/main.ts は未変更 (仕様どおり)"
     }
   },
   "notes": [

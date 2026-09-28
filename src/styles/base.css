@@ -3,11 +3,130 @@ body {
   margin: 0;
   padding: 0;
   height: 100%;
-  background: #f7f3e8;
-  color: #2b2a24;
+  background: var(--c-kinari);
+  color: var(--c-sumi);
   touch-action: manipulation;
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
   overscroll-behavior: none;
+}
+
+:root {
+  /* 色 (03_basic_design 2.1) */
+  --c-kinari: #f7f3e8;
+  --c-sumi: #2b2a24;
+  --c-sumi-sub: #5a574c;
+  --c-machine-dark: #4f5b47;
+  --c-machine: #8c9a7e;
+  --c-machine-light: #a9b39c;
+  --c-wood: #8a5a3c;
+  --c-steel: #b8bec4;
+  --c-shu: #b03a2e;
+  --c-ai: #2f4a6d;
+  --c-white: #ffffff;
+
+  /* 大きさと間隔 (03_basic_design 2.3) */
+  --gap: 12px;
+  --radius: 12px;
+  --btn-min-h: 64px;
+  --btn-min-w: 120px;
+
+  /* 文字サイズの既定 (大) */
+  --fs-body: 20px;
+  --fs-button: 22px;
+  --fs-heading: 28px;
+  --fs-number: 32px;
+}
+
+:root[data-font='xlarge'] {
+  --fs-body: 24px;
+  --fs-button: 26px;
+  --fs-heading: 34px;
+  --fs-number: 38px;
+}
+
+/* ---- 部品用のクラス ---- */
+
+.btn {
+  min-height: var(--btn-min-h);
+  min-width: var(--btn-min-w);
+  padding: 0 calc(var(--gap) * 1.5);
+  border-radius: var(--radius);
+  border: none;
+  font-size: var(--fs-button);
+  font-weight: 700;
+  font-family: inherit;
+  color: var(--c-white);
+  background: var(--c-machine-dark);
+  cursor: pointer;
+  transition: transform 0.08s ease;
+}
+
+.btn:active {
+  transform: translateY(2px);
+}
+
+.btn:focus-visible {
+  outline: 3px solid var(--c-ai);
+  outline-offset: 2px;
+}
+
+.btn--secondary {
+  color: var(--c-ai);
+  background: var(--c-white);
+  border: 3px solid var(--c-ai);
+}
+
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgb(43 42 36 / 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--gap);
+  z-index: 1000;
+}
+
+.dialog {
+  background: var(--c-white);
+  color: var(--c-sumi);
+  border-radius: var(--radius);
+  padding: calc(var(--gap) * 1.5);
+  min-width: min(320px, calc(100vw - var(--gap) * 2));
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+.dialog__message {
+  font-size: var(--fs-body);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.dialog__actions {
+  display: flex;
+  gap: var(--gap);
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.text-input {
+  font-size: var(--fs-body);
+  font-family: inherit;
+  color: var(--c-sumi);
+  background: var(--c-white);
+  border: 2px solid var(--c-steel);
+  border-radius: var(--radius);
+  min-height: 64px;
+  padding: 0 var(--gap);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.text-input:focus-visible {
+  outline: 3px solid var(--c-ai);
+  outline-offset: 1px;
 }
