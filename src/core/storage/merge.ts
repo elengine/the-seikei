@@ -1,4 +1,4 @@
-import type { Rec } from './types';
+import type { CollectionName, Rec } from './types';
 
 export type MergeRule = 'newer' | 'union' | 'max' | 'fieldNewer';
 
@@ -11,8 +11,6 @@ export const RULES: Record<CollectionName, MergeRule> = {
   shop: 'newer',
   memories: 'newer',
 };
-
-type CollectionName = Rec<unknown>['collection'];
 
 /** 「新しい方」の判定。updatedAt が大きい方。同じなら updatedBy の文字列が大きい方。 */
 export function isNewer(a: Rec<unknown>, b: Rec<unknown>): boolean {
@@ -57,13 +55,13 @@ interface ZukanData {
   count: number;
 }
 
-function mergeZukanData(a: Rec<unknown>, b: Rec<unknown>): ZukanData {
+function mergeZukanData(a: Rec<unknown>, b: Rec<unknown>, newer: Rec<unknown>): ZukanData {
   const da = a.data as Partial<ZukanData>;
   const db = b.data as Partial<ZukanData>;
-  // obtainedAt は早い方。source は obtainedAt が早い方のもの。count は大きい方
+  // obtainedAt は早い方。source は obtainedAt が早い方のもの (同時刻なら isNewer の新しい方)。count は大きい方
   const aTime = da.obtainedAt ?? '';
   const bTime = db.obtainedAt ?? '';
-  const earlier = aTime <= bTime ? da : db;
+  const earlier = aTime < bTime ? da : aTime > bTime ? db : (newer.data as Partial<ZukanData>);
   const countA = da.count ?? 0;
   const countB = db.count ?? 0;
   return {
@@ -99,7 +97,12 @@ function mergeRecordsData(a: Rec<unknown>, b: Rec<unknown>): RecordsData {
   };
 }
 
-function mergeFieldNewerData(a: Rec<unknown>, b: Rec<unknown>, newer: Rec<unknown>): unknown {
+function mergeFieldNewerData(
+  a: Rec<unknown>,
+  b: Rec<unknown>,
+  newer: Rec<unknown>,
+  other: Rec<unknown>, // 新しい方でない方
+): unknown {
   const da = (a.data ?? {}) as Record<string, unknown>;
   const db = (b.data ?? {}) as Record<string, unknown>;
   const ua = (da._updated ?? {}) as Record<string, string>;
@@ -113,17 +116,20 @@ function mergeFieldNewerData(a: Rec<unknown>, b: Rec<unknown>, newer: Rec<unknow
     const ta = ua[key];
     const tb = ub[key];
     if (ta !== undefined && tb !== undefined) {
-      // キーごとの更新日時が新しい方の値を採る
-      out[key] = ta >= tb ? da[key] : db[key];
+      // キーごとの更新日時が新しい方の値を採る。同時刻なら updatedBy の大きい方
+      const aWins = ta > tb || (ta === tb && a.updatedBy >= b.updatedBy);
+      out[key] = aWins ? da[key] : db[key];
       outUpdated[key] = ta >= tb ? ta : tb;
     } else if (ta !== undefined || tb !== undefined) {
       // 片方にしか _updated[キー] がない場合はそちらを採る
       out[key] = ta !== undefined ? da[key] : db[key];
       outUpdated[key] = (ta !== undefined ? ta : tb) as string;
     } else {
-      // どちらにもない場合は、Rec 全体で新しい方の値を採る
-      out[key] = newer.data !== undefined ? (newer.data as Record<string, unknown>)[key] : undefined;
-      // _updated に載せない (どちらにも更新日時がないため)
+      // どちらにもない場合は、Rec 全体で新しい方の値を採る。新しい方に無ければ古い方の値を残す
+      const newerData = newer.data as Record<string, unknown> | undefined;
+      const olderData = other.data as Record<string, unknown> | undefined;
+      const nv = newerData?.[key];
+      out[key] = nv !== undefined ? nv : olderData?.[key];
     }
   }
   // 結果の _updated はキーごとに新しい方の日時 (_updated にのみ存在するキーも保持)
@@ -164,7 +170,7 @@ export function mergeRec(a: Rec<unknown>, b: Rec<unknown>): Rec<unknown> {
   }
   if (rule === 'union') {
     // 図鑑: 削除は無視する (どちらかが入手済みなら入手済み)。結果の deletedAt は付けない
-    const data = mergeZukanData(a, b);
+    const data = mergeZukanData(a, b, newer);
     if (
       JSON.stringify(data) === JSON.stringify(a.data) &&
       a.deletedAt === undefined &&
@@ -214,7 +220,8 @@ export function mergeRec(a: Rec<unknown>, b: Rec<unknown>): Rec<unknown> {
     return buildMerged(newer, data);
   }
   // fieldNewer
-  const data = mergeFieldNewerData(a, b, newer);
+  const other = newer === a ? b : a;
+  const data = mergeFieldNewerData(a, b, newer, other);
   if (
     JSON.stringify(data) === JSON.stringify(a.data) &&
     a.deletedAt === newer.deletedAt &&
