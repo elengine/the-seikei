@@ -1,9 +1,9 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-09-28T06:35:00+09:00",
+  "updated_at": "2026-09-28T06:51:00+09:00",
   "phase": "P0",
-  "current_task": "T0-03",
-  "done": ["T0-00", "T0-01", "T0-02", "T0-03"],
+  "current_task": "T0-04",
+  "done": ["T0-00", "T0-01", "T0-02", "T0-03", "T0-04"],
   "checks": {
     "T0-01": {
       "npm_install": "ok",
@@ -21,12 +21,21 @@
       "test_first": "clock.test.ts を先に作成し、実装前に失敗することを確認 (RED確認済み)",
       "npm_test": "ok (10 passed: 仕様書テスト7項目+補助3件)",
       "npm_run_check": "ok (tsc --noEmit + eslint, error 0)"
+    },
+    "T0-04": {
+      "types": "src/core/storage/types.ts を仕様どおり作成 (CollectionName/Rec/BackupFile/ImportReport/Repository/RawStore/CURRENT_SCHEMA_VERSION)",
+      "contract": "tests/contract/repositoryContract.ts に runRepositoryContract を作成。仕様書の振る舞い1〜9 + 補助2件を登録",
+      "clock_contract": "管理者補足どおり: id省略 put は createdAt===updatedAt (実装側で1 put=now()1回の前提)。テスト期待値は時計の都合で変更していない",
+      "stub": "tests/contract/stub.test.ts は describe.skip で登録 (11 skipped)",
+      "npm_run_check": "ok (tsc --noEmit + eslint, error 0)",
+      "npm_test": "ok (10 passed / 11 skipped — 契約テストは T0-05 の実装で有効化)"
     }
   },
   "notes": [
     "T0-01: npm registry の最新 typescript は 7.0.2 (dist-tags latest) だが typescript-eslint 8.70.1 の peer 依存 (>=4.8.4 <6.1.0) と衝突し ERESOLVE。typescript を ^5.9.3 (5.x 最新) にして解消。他パッケージは現時点の最新安定版 (^付き) のまま。",
     "T0-02: 管理者指示により docs/04_tasks/00_rules.md のライブラリ表の下に「TypeScript は 5.x に固定する(typescript-eslint が 7 に未対応のため)。上げる場合は管理者の承認を得る。」を追記(本コミットに同梱)。",
-    "T0-03: mulberry32 は純粋関数型 (状態を返す) で実装。Date/crypto は createSystemClock 内のみで使用。noUncheckedIndexedAccess 対応で Uint8Array 要素に non-null assertion を使用(any は不使用)。"
+    "T0-03: mulberry32 は純粋関数型 (状態を返す) で実装。Date/crypto は createSystemClock 内のみで使用。noUncheckedIndexedAccess 対応で Uint8Array 要素に non-null assertion を使用(any は不使用)。",
+    "T0-04: 契約テストは実装を受け取る関数型 (make: (clock, deviceId) => Promise<Repository & RawStore>) で export。テスト6 (購読) は put/remove で「そのコレクションの購読者が1回」呼ばれることを検出する設計。stub.test.ts は skip なので契約テストの実行は T0-05 から。"
   ],
   "open_bugs": []
 }
