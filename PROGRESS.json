@@ -1,8 +1,8 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-09-28T10:40:00+09:00",
+  "updated_at": "2026-09-28T10:55:00+09:00",
   "phase": "P0",
-  "current_task": "T0-14",
+  "current_task": "T0-15",
   "done": [
     "T0-00",
     "T0-01",
@@ -18,7 +18,8 @@
     "T0-11",
     "T0-12",
     "T0-13",
-    "T0-14"
+    "T0-14",
+    "T0-15"
   ],
   "checks": {
     "T0-01": {
@@ -131,6 +132,15 @@
       "npm_test": "ok (132 passed / 11 skipped)",
       "npm_run_check": "ok (tsc --noEmit + eslint, error 0)",
       "fix_2026_09_28": "T0-14 追加修正: ①createSettingsService が repo.subscribe(\"settings\", …) を登録し、外部変更 (importAll や将来の同期) で保存データを読み直してキャッシュ更新+onChange。テスト: サービス作成後に repo.put(\"settings\",{…shopName:\"山田整経\"},\"main\") → get().shopName===\"山田整経\" & onChange に新しい設定が渡る (vi.waitFor)。update 自身の保存でも購読が反応するが二重でも壊れない ②FontScale を tokens.ts から import (独自定義を廃止)。共通の決まり: キャッシュする部品は必ず repo.subscribe で外からの変更を見張り読み直す"
+    },
+    "T0-15": {
+      "home_screen": "src/app/screens/homeScreen.ts — 屋号見出し+名前があれば「◯◯さん、こんにちは」、listGames が空なら「ゲームはただいま準備中です」、下部に副ボタン「せってい」。押すと tap 音",
+      "settings_screen": "src/app/screens/settingsScreen.ts — お名前(max10)/屋号(max12)は textInputDialog、文字の大きさ(大/特大+藍枠+いまの設定)、音(鳴らす/鳴らさない)、音の大きさ(小/中/大=0.4/0.7/1.0、変更で ok 音)、呼び名をかえる(#/settings/terms)、最下部に小さめ管理者ボタン(1967 で #/admin、違えば閉じる)、もどる",
+      "main_ts": "createSystemClock + createAppContext(seikei-game) + ScreenManager(/、/settings)、最初の pointerdown で audio.unlock (once)",
+      "browser_check": "CDP 検証実施 (dev サーバー :5199)。1180×820 と 412×915 の両方: ①屋号「整経所」と「ゲームはただいま準備中です」表示 ②屋号を「山田整経所」に変更→ホーム反映、再読み込み後も残る (確認後「整経所」に戻した) ③特大で本文 24px (data-font=xlarge、--fs-body 24px) ④ボタン高さすべて 64px 以上 (管理者ボタンのみ仕様どおり小さめ 48px) ⑤管理者に 0000 を入れても #/settings から移動しない",
+      "npm_test": "ok (132 passed / 11 skipped)",
+      "npm_run_check": "ok (tsc --noEmit + eslint, error 0)",
+      "npm_run_build": "ok (dist 生成)"
     }
   },
   "notes": [
