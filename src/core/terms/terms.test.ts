@@ -7,7 +7,7 @@ import { createFixedClock } from '../clock/clock';
 import type { Repository } from '../storage/types';
 
 const DEFAULTS: Record<string, { value: string; description: string }> = {
-  drum: { value: 'ドラム', description: '帯を順に巻き重ねる大きな円筒' },
+  drum: { value: 'ドラム', description: '桟を組んだかご状の胴。帯を順に巻き重ねる' },
   section: { value: '帯', description: 'ドラムに巻く糸のひとまとまり' },
   'game.knotting': { value: '糸継ぎ', description: 'ゲームの名前' },
 };
@@ -93,8 +93,23 @@ describe('terms', () => {
       key: 'drum',
       value: 'ドラム',
       defaultValue: 'ドラム',
-      description: '帯を順に巻き重ねる大きな円筒',
+      description: '桟を組んだかご状の胴。帯を順に巻き重ねる',
       overridden: false,
     });
+  });
+
+  it('追加修正1: 外から repo.put された場合も読み直して t が変わり、onChange が呼ばれる', async () => {
+    const { repo, terms } = await makeTerms();
+    const cb = vi.fn();
+    terms.onChange(cb);
+    expect(cb).not.toHaveBeenCalled();
+
+    await repo.put<{ value: string }>('terms', { value: '大枠' }, 'drum'); // Terms の外から直接保存
+
+    // 購読からの読み直しは非同期で走るので完了を待つ
+    await vi.waitFor(() => {
+      expect(cb).toHaveBeenCalled();
+    });
+    expect(terms.t('drum')).toBe('大枠'); // 上書きのキャッシュが読み直されている
   });
 });

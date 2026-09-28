@@ -3,7 +3,7 @@
   "cone": { "value": "コーン", "description": "糸を巻いた円すい形の巻き物" },
   "lease": { "value": "綾", "description": "糸の並び順を保つための交差" },
   "section": { "value": "帯", "description": "ドラムに巻く糸のひとまとまり" },
-  "drum": { "value": "ドラム", "description": "帯を順に巻き重ねる大きな円筒" },
+  "drum": { "value": "ドラム", "description": "桟を組んだかご状の胴。帯を順に巻き重ねる" },
   "beam": { "value": "ビーム", "description": "最終的に経糸を巻き取る巻き芯" },
   "beaming": { "value": "ビーミング", "description": "ドラムからビームへの巻き返し" },
   "knotting": { "value": "糸継ぎ", "description": "切れた糸を結ぶこと" },

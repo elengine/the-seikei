@@ -39,6 +39,27 @@ export async function createTerms(repo: Repository, defaults: Defaults): Promise
     }
   }
 
+  // terms コレクションが外から変わったとき (バックアップの読み込みや将来の同期) に
+  // 上書きのキャッシュを読み直して onChange を呼ぶ。
+  // set / reset 自身の保存でも購読が反応するが、onChange が二重に呼ばれても壊れない作りにしている。
+  repo.subscribe('terms', () => {
+    void reloadOverrides().then(notify);
+  });
+
+  async function reloadOverrides(): Promise<void> {
+    const recs = await repo.list<{ value: string }>('terms');
+    const next = new Map<string, string>();
+    for (const rec of recs) {
+      if (keys.includes(rec.id) && typeof rec.data.value === 'string' && !rec.deletedAt) {
+        next.set(rec.id, rec.data.value);
+      }
+    }
+    overrides.clear();
+    for (const [k, v] of next) {
+      overrides.set(k, v);
+    }
+  }
+
   function isKnown(key: string): boolean {
     return Object.prototype.hasOwnProperty.call(defaults, key);
   }
