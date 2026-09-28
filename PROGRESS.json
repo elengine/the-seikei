@@ -1,6 +1,6 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-09-28T06:59:00+09:00",
+  "updated_at": "2026-09-28T07:10:00+09:00",
   "phase": "P0",
   "current_task": "T0-05",
   "done": ["T0-00", "T0-01", "T0-02", "T0-03", "T0-04", "T0-05"],
@@ -36,7 +36,8 @@
       "deviceid_test": "deviceId 未指定→UUID 生成・同 dbName 再生成で同一値・削済み put で復活(deletedAt 消去, createdAt 引き継ぎ)・importAll は throw の4件を localRepository.test.ts に追加",
       "contract_loosen": "管理者指示により契約テスト補助1件を「ISO 8601 形式で START_ISO 以上」に緩和 (repositoryContract.ts 変更は T0-05 コミットに同梱)",
       "npm_run_check": "ok (tsc --noEmit + eslint, error 0)",
-      "npm_test": "ok (24 passed / 11 skipped)"
+      "npm_test": "ok (24 passed / 11 skipped)",
+      "fix_2026_09_28": "T0-05 追加修正: ①RecRow に updatedAt を持たせ put/remove/putRaw すべてで設定 (updatedAt 索引が有効化。where('updatedAt').above() のテストを追加) ②put の削除済み復活を if 文なし「新しい rec に deletedAt を含めない」方式に整理 ③RecRow.key のコメントを実形式 (collection + '\\u0000' + id) に修正。テスト用に SeikeiDbForTest を export (アプリ側は不使用)"
     }
   },
   "notes": [

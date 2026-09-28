@@ -11,9 +11,10 @@ import type {
 import { CURRENT_SCHEMA_VERSION } from './types';
 
 interface RecRow {
-  key: string; // [collection+id]
+  key: string; // collection + '\u0000' + id
   collection: CollectionName;
   id: string;
+  updatedAt: string; // rec.updatedAt と同じ値 (updatedAt 索引用)
   rec: Rec<unknown>;
 }
 
@@ -22,7 +23,8 @@ interface MetaRow {
   value: string;
 }
 
-class SeikeiDb extends Dexie {
+/** テストから updatedAt 索引などを検証するための export (アプリ側からは使わない) */
+export class SeikeiDbForTest extends Dexie {
   recs!: Table<RecRow, string>;
   meta!: Table<MetaRow, string>;
 
@@ -34,6 +36,8 @@ class SeikeiDb extends Dexie {
     });
   }
 }
+
+class SeikeiDb extends SeikeiDbForTest {}
 
 function rowKey(collection: CollectionName, id: string): string {
   return `${collection}\u0000${id}`;
@@ -106,6 +110,7 @@ export async function createLocalRepository(opts: {
       const key = rowKey(collection, newId);
       const existing = await db.recs.get(key);
       const now = opts.clock.now();
+      // 削除済みでも新しい rec に deletedAt を含めないので、そのまま復活になる
       const rec: Rec<T> = {
         id: newId,
         collection,
@@ -115,11 +120,7 @@ export async function createLocalRepository(opts: {
         updatedBy: deviceId,
         schemaVersion: CURRENT_SCHEMA_VERSION,
       };
-      // 既存が削除済みの場合は deletedAt を消して復活させる
-      if (existing !== undefined && existing.rec.deletedAt === undefined) {
-        rec.deletedAt = undefined;
-      }
-      await db.recs.put({ key, collection, id: newId, rec: rec as Rec<unknown> });
+      await db.recs.put({ key, collection, id: newId, updatedAt: rec.updatedAt, rec: rec as Rec<unknown> });
       notify(collection);
       return rec;
     },
@@ -132,7 +133,7 @@ export async function createLocalRepository(opts: {
       }
       const now = opts.clock.now();
       const rec: Rec<unknown> = { ...existing.rec, deletedAt: now, updatedAt: now, updatedBy: deviceId };
-      await db.recs.put({ key, collection, id, rec });
+      await db.recs.put({ key, collection, id, updatedAt: rec.updatedAt, rec });
       notify(collection);
     },
 
@@ -174,6 +175,7 @@ export async function createLocalRepository(opts: {
         key: rowKey(rec.collection, rec.id),
         collection: rec.collection,
         id: rec.id,
+        updatedAt: rec.updatedAt,
         rec,
       });
       notify(rec.collection);
