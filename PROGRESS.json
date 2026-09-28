@@ -1,8 +1,8 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-09-28T10:00:00+09:00",
+  "updated_at": "2026-09-28T10:10:00+09:00",
   "phase": "P0",
-  "current_task": "T0-12",
+  "current_task": "T0-13",
   "done": [
     "T0-00",
     "T0-01",
@@ -16,7 +16,8 @@
     "T0-09",
     "T0-10",
     "T0-11",
-    "T0-12"
+    "T0-12",
+    "T0-13"
   ],
   "checks": {
     "T0-01": {
@@ -112,6 +113,14 @@
       "npm_run_check": "ok (tsc --noEmit + eslint, error 0)",
       "note": "実機での鳴動確認は T0-15 以降に管理者が実施 (仕様書どおり)",
       "fix_2026_09_28": "T0-12 追加修正: ①makeContext 省略時の既定動作を追加 — defaultMakeContext() が new AudioContext() を返す (引数の既定値)。AudioContext が存在しない環境では unlock の try/catch が例外を無視し、音は鳴らないが例外も出ない (従来どおり) ②テスト2件を先に追加: 「makeContext を渡さず globalThis.AudioContext に偽物を置いて unlock → play(\"ok\") で発振器が作られる」(vi.fn を new 対応にして戻り値 ctx を返す) と「AudioContext が存在しない環境 (undefined) で unlock しても例外が出ない」。RED 確認後に実装"
+    },
+    "T0-13": {
+      "game_frame": "src/core/ui/gameFrame.ts (146行) — 上部帯 72px (左もどる/中央題名/右あそびかた、いずれも64px以上)。landscape は盤面65%/右panel、portrait は盤面60%/下panel。setupCanvas+fitStage→onStageResize。onViewportChange で自動 resize、destroy で監視解除+DOM削除。Canvas が使えない環境では CSS サイズのみ合わせる",
+      "tutorial_overlay": "src/core/ui/tutorialOverlay.ts (106行) — showTutorial(parent, spec, {nextLabel?, startLabel?, onPage?}) → Promise<void>。1ページ=絵(Canvas draw)+text (--fs-body 想定)。ページ数「1 / 3」表示、戻るボタンは最初のページでは非表示。最後のページで「はじめる」→解決",
+      "result_view": "src/core/ui/resultView.ts (87行) — showResult → Promise<\"again\"|\"home\">。星は ★/☆ 文字 (aria-label 併用)。newPatternNames 空なら欄なし。表示後1.5s の演出 (result--settled) 中もボタン押せる",
+      "test_first": "gameParts.test.ts (仕様書テスト1〜3 + 補助4件、jsdom の getContext は空の偽物に差し替え) を先に書き RED 確認後に実装",
+      "npm_test": "ok (121 passed / 11 skipped)",
+      "npm_run_check": "ok (tsc --noEmit + eslint, error 0)"
     }
   },
   "notes": [
