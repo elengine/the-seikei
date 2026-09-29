@@ -95,10 +95,13 @@ export function createGameFrame(
     const layout: Layout = layoutOf({ width: innerW, height: innerH }); // レイアウト判定も parent の内寸
     const bodyH = Math.max(0, innerH - BAR_H);
     body.style.height = `${bodyH}px`;
-    // body の内寸 (padding を引いた高さ)。style 変更を反映させるため一度読む。
+    // body の内寸 (padding を引いた高さ = content box)。style 変更を反映させるため一度読む。
     // 測れない環境 (jsdom 等、clientHeight が 0) では bodyH をそのまま使う
     void body.offsetHeight;
-    const bodyInnerH = body.clientHeight > 0 ? body.clientHeight : bodyH;
+    const cs = getComputedStyle(body);
+    const bodyInnerH = body.clientHeight > 0
+      ? Math.max(0, body.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom))
+      : bodyH;
     if (layout === 'landscape') {
       // 左:盤面の列 (Canvas の上・footer の下)・右:panel
       footer.style.display = '';
