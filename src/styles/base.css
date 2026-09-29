@@ -520,6 +520,10 @@ body {
   .creel-panel {
     overflow-y: auto;
   }
+
+  .game-frame__title {
+    font-size: var(--fs-body);
+  }
 }
 
 /* お題一覧 */

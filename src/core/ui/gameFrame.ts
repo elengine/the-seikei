@@ -16,6 +16,21 @@ export interface GameFrame {
   destroy(): void; // 監視の解除と DOM の削除
 }
 
+/**
+ * body の中の幅を、盤面の列と操作欄に分ける。bodyInnerW は body の左右の余白を引いた幅、gap は列のあいだの隙間
+ */
+export function splitWidths(
+  layout: 'landscape' | 'portrait',
+  bodyInnerW: number,
+  gap: number,
+): { stageColW: number; panelW: number } {
+  if (layout === 'portrait') {
+    return { stageColW: bodyInnerW, panelW: bodyInnerW };
+  }
+  const stageColW = Math.floor((bodyInnerW - gap) * 0.65);
+  return { stageColW, panelW: bodyInnerW - gap - stageColW };
+}
+
 const BAR_H = 72; // 上部の帯の高さ
 
 export function createGameFrame(
@@ -102,17 +117,23 @@ export function createGameFrame(
     const bodyInnerH = body.clientHeight > 0
       ? Math.max(0, body.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom))
       : bodyH;
+    // body の左右の余白 (padding) を引いた幅。測れない環境 (jsdom 等、clientWidth が 0) では innerW を使う
+    const bodyInnerW = body.clientWidth > 0
+      ? Math.max(0, body.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight))
+      : innerW;
+    const colGap = parseFloat(cs.columnGap) || 0;
+    const { stageColW, panelW } = splitWidths(layout, bodyInnerW, colGap);
     if (layout === 'landscape') {
       // 左:盤面の列 (Canvas の上・footer の下)・右:panel
       // footer が空 (子が無い) のときは隠す。Canvas の高さは盤面の列の高さのまま
       const footerEmpty = footer.childElementCount === 0;
       footer.style.display = footerEmpty ? 'none' : '';
-      stageCol.style.width = `${Math.floor(innerW * 0.65)}px`;
+      stageCol.style.width = `${stageColW}px`;
       stageCol.style.height = `${bodyInnerH}px`;
       if (footerEmpty) {
         stageBox.style.width = '100%';
         stageBox.style.height = `${bodyInnerH}px`;
-        panel.style.width = `${innerW - Math.floor(innerW * 0.65)}px`;
+        panel.style.width = `${panelW}px`;
         panel.style.height = `${bodyInnerH}px`;
       } else {
         // footer の高さは中身 (実際に測れるなら) から取る。列の gap (rowGap) も引く
@@ -121,18 +142,18 @@ export function createGameFrame(
         const stageH = Math.max(0, bodyInnerH - footerH - rowGap);
         stageBox.style.width = '100%';
         stageBox.style.height = `${stageH}px`;
-        panel.style.width = `${innerW - Math.floor(innerW * 0.65)}px`;
+        panel.style.width = `${panelW}px`;
         panel.style.height = `${bodyInnerH}px`;
       }
     } else {
       // 上:盤面 (残り高さの 60%)・下:panel。footer は使わないので隠す
       footer.style.display = 'none';
-      stageCol.style.width = `${innerW}px`;
+      stageCol.style.width = `${stageColW}px`;
       const stageH = Math.floor(bodyInnerH * 0.6);
       stageCol.style.height = `${stageH}px`; // 縦長では盤面の列は盤面だけ (footer は隠す)
       stageBox.style.width = '100%';
       stageBox.style.height = `${stageH}px`;
-      panel.style.width = `${innerW}px`;
+      panel.style.width = `${panelW}px`;
       panel.style.height = `${bodyInnerH - stageH}px`;
     }
     // 盤面の Canvas を領域いっぱいに作り、fitStage の結果を渡す

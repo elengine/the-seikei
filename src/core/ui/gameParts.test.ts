@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createGameFrame } from './gameFrame';
+import { createGameFrame, splitWidths } from './gameFrame';
 import { showTutorial } from './tutorialOverlay';
 import { showResult } from './resultView';
 import type { TutorialSpec } from '../game/types';
@@ -466,5 +466,17 @@ describe('T1-12a: 結果の表示の柄の欄のクラス', () => {
     expect(names).not.toBeNull();
     expect(label?.textContent).toBe('あたらしく集めた柄');
     expect(names?.textContent).toBe('紺の無地');
+  });
+});
+
+describe('T1-12b: splitWidths (余白と隙間を引いた幅の計算)', () => {
+  it("splitWidths('portrait', 388, 12) は列も操作欄も 388", () => {
+    expect(splitWidths('portrait', 388, 12)).toEqual({ stageColW: 388, panelW: 388 });
+  });
+
+  it("splitWidths('landscape', 1156, 12) は列 + 隙間 + 操作欄 = 1156", () => {
+    const r = splitWidths('landscape', 1156, 12);
+    expect(r.stageColW + r.panelW + 12).toBe(1156);
+    expect(r.stageColW).toBe(Math.floor(1144 * 0.65));
   });
 });
