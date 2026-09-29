@@ -65,9 +65,14 @@ function makeFakeCtx() {
     save: () => calls.push({ op: 'save', args: [] }),
     restore: () => calls.push({ op: 'restore', args: [] }),
     arc: (x: number, y: number, r: number, a0: number, a1: number) => calls.push({ op: 'arc', args: [x, y, r, a0, a1] }),
-    measureText: () => ({ width: 10 }),
+    measureText: (text: string) => ({ width: text.length * 12 }),
   };
   return { ctx: ctx as unknown as CanvasRenderingContext2D, calls };
+}
+
+/** 偽の fit を作る (scale と offset を指定できる) */
+function makeFit(scale: number, offsetX = 0, offsetY = 0): StageFit {
+  return { scale, offsetX, offsetY };
 }
 
 function s1Empty(): CreelState {
@@ -143,5 +148,82 @@ describe('drawBoard', () => {
     const texts = calls.filter((c) => c.op === 'fillText').map((c) => c.args[0] as string);
     expect(texts).toContain('W-4812');
     expect(texts).toContain('ウール 2/48'); // spec
+  });
+
+  describe('追加修正1: 実際の幅を測って描く', () => {
+    it('品番: マスの画面上の幅が 90px なら fillText に品番が渡され、40px なら渡されない', () => {
+      // s1 は 1段×6軸。CREEL_AREA.w=880 → マス幅 146.7 論理。
+      // 画面幅 = 146.7 × scale。scale=0.7 → 102px (90px より広い)。scale=0.25 → 36.7px (40px より狭い)
+      const wide = makeFit(0.7);
+      const { ctx, calls } = makeFakeCtx();
+      const s = { ...s1Empty(), placed: ['kon-a', null, null, null, null, null] };
+      drawBoard(ctx, wide, s, content, terms);
+      let texts = calls.filter((c) => c.op === 'fillText').map((c) => c.args[0] as string);
+      expect(texts).toContain('W-4812');
+
+      const narrow = makeFit(0.25);
+      const r2 = makeFakeCtx();
+      drawBoard(r2.ctx, narrow, s, content, terms);
+      texts = r2.calls.filter((c) => c.op === 'fillText').map((c) => c.args[0] as string);
+      expect(texts).not.toContain('W-4812');
+    });
+
+    it('吹き出し: 枠の幅が「2行のうち広い方の測った幅 + 20」で、左右が Canvas の内側に収まる', () => {
+      // inspected の吹き出し。品番 W-4812 (6文字=72px)、spec ウール 2/48 (8文字=96px) → 枠幅 = 96+20 = 116
+      const f = makeFit(1, 0, 0);
+      const { ctx, calls } = makeFakeCtx();
+      const s = { ...s1Empty(), placed: ['kon-a', null, null, null, null, null], inspected: 0 };
+      drawBoard(ctx, f, s, content, terms);
+      const rects = calls.filter((c) => c.op === 'strokeRect');
+      // 吹き出しの枠 (strokeRect)。幅 116 で、x が 4 以上・x+116 が 800 以下
+      const speech = rects.find((c) => Math.abs((c.args[2] as number) - 116) < 0.5);
+      expect(speech).toBeDefined();
+      expect(speech!.args[0] as number).toBeGreaterThanOrEqual(4 - 0.001);
+      expect((speech!.args[0] as number) + (speech!.args[2] as number)).toBeLessThanOrEqual(800 + 0.001);
+      // 文字が枠の内側 (左右の余白 10px)。吹き出しの文字は「品番の描画 (コーンの下)」と x が違う
+      const texts = calls.filter((c) => c.op === 'fillText' && (c.args[0] === 'W-4812' || c.args[0] === 'ウール 2/48'));
+      expect(texts.length).toBe(3); // コーンの下の品番 + 吹き出しの2行
+      // 吹き出しの文字は、枠の左端 + 10 の位置から始まる
+      const inSpeech = texts.filter((c) => Math.abs((c.args[1] as number) - ((speech!.args[0] as number) + 10)) < 0.001);
+      expect(inSpeech.length).toBe(2);
+      for (const t of inSpeech) {
+        const tw = (t.args[0] as string).length * 12;
+        expect((t.args[1] as number) + tw).toBeLessThanOrEqual((speech!.args[0] as number) + 116 - 10 + 0.001);
+      }
+      // コーンが左端のマス (inspected 0) でも枠が Canvas 内側
+      const s2 = { ...s1Empty(), placed: ['kon-a', null, null, null, null, null], inspected: 0 };
+      const r2 = makeFakeCtx();
+      drawBoard(r2.ctx, makeFit(1, 0, 0), s2, content, terms);
+      const speech2 = r2.calls.filter((c) => c.op === 'strokeRect').find((c) => Math.abs((c.args[2] as number) - 116) < 0.5);
+      expect(speech2).toBeDefined();
+      expect(speech2!.args[0] as number).toBeGreaterThanOrEqual(4 - 0.001);
+    });
+
+    it('番号: マスの画面上の幅が広ければ番号が描かれ textAlign が center。狭ければ描かれない', () => {
+      // 段階5 (3段×8) は各段の最初だけ番号。scale 大なら描く・center
+      const f = makeFit(0.7);
+      const { ctx, calls } = makeFakeCtx();
+      const puzzle = content.creelPuzzles.find((p) => p.id === 's5')!;
+      const s = init(puzzle, content);
+      drawBoard(ctx, f, s, content, terms);
+      const numCalls = calls.filter((c) => c.op === 'fillText' && c.args[0] === '1');
+      expect(numCalls.length).toBeGreaterThan(0);
+      // textAlign は呼び出し履歴に無いので、s1 (全マス) で center を確認する
+      const r2 = makeFakeCtx();
+      drawBoard(r2.ctx, f, s1Empty(), content, terms);
+      // 番号「1」はマスの中央揃えで描かれる。マス 0 の中心 x = toPx(60+73.3)*0.7
+      const num = r2.calls.find((c) => c.op === 'fillText' && c.args[0] === '1');
+      expect(num).toBeDefined();
+      const cellW = (880 / 6) * f.scale;
+      const centerX = 60 * f.scale + cellW / 2;
+      expect(Math.abs((num!.args[1] as number) - centerX)).toBeLessThan(cellW / 2);
+
+      // 狭い場合 (scale 0.1 → マス幅 14.7px、番号 1文字=12px は 14.7-4=10.7 を超える → 描かれない)
+      const narrow = makeFit(0.1);
+      const r3 = makeFakeCtx();
+      drawBoard(r3.ctx, narrow, s1Empty(), content, terms);
+      const nums3 = r3.calls.filter((c) => c.op === 'fillText' && c.args[0] === '1');
+      expect(nums3.length).toBe(0);
+    });
   });
 });

@@ -118,15 +118,18 @@ export function drawBoard(
         ctx.textBaseline = 'middle';
         ctx.fillText(color.symbol, center.x, center.y);
       }
-      // 5. 品番 (段階 1〜3 のみ、コーンの下)
+      // 5. 品番 (段階 1〜3 のみ、コーンの下)。収まらないときは描かない (「しらべる」で見られる)
       if (showHinbanOnCone(s.stage) && yarn !== undefined) {
         const size = 20;
         ctx.font = `${size}px ${FONT_FAMILY}`;
-        ctx.fillStyle = COLORS.sumi;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'alphabetic';
-        const p = toPx(fit, { x: rect.x + rect.w / 2, y: rect.y + rect.h * 0.95 });
-        ctx.fillText(yarn.hinban, p.x, p.y);
+        const cellScreenW = rect.w * fit.scale;
+        if (ctx.measureText(yarn.hinban).width <= cellScreenW - 4) {
+          ctx.fillStyle = COLORS.sumi;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'alphabetic';
+          const p = toPx(fit, { x: rect.x + rect.w / 2, y: rect.y + rect.h * 0.95 });
+          ctx.fillText(yarn.hinban, p.x, p.y);
+        }
       }
     } else {
       // 6. 空いている軸: コーンの形を点線の輪郭だけ
@@ -140,15 +143,28 @@ export function drawBoard(
     }
 
     // 7. 帯の番号 (1 始まり)。段階 1〜3 は全マス、段階 4〜5 は各段の最初のマスだけ
+    //    番号はマスの上端で左右中央に揃える。収まらないときは描かない。
+    //    コーンの上端は「番号の下端 + 2px」より下にする。コーンが 24px 未満になるなら番号を描かない。
     const showNumber = s.stage <= 3 || indexToCell(i, s.cols).col === 0;
     if (showNumber) {
       const size = 20;
       ctx.font = `${size}px ${FONT_FAMILY}`;
-      ctx.fillStyle = COLORS.sumiSub;
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'top';
-      const p = toPx(fit, { x: rect.x + rect.w * 0.04, y: rect.y + rect.h * 0.02 });
-      ctx.fillText(String(i + 1), p.x, p.y);
+      const cellScreenW = rect.w * fit.scale;
+      const cellScreenH = rect.h * fit.scale;
+      const numText = String(i + 1);
+      const fits = ctx.measureText(numText).width <= cellScreenW - 4;
+      // コーンの上端 (論理) は rect.y + rect.h * 0.18。番号の下端 + 2px (画面) との関係で判定
+      const numberBottomScreen = rect.y * fit.scale + size; // 番号はマス上端 (baseline top) なので下端は上端+size
+      const coneTopScreen = (rect.y + rect.h * 0.18) * fit.scale;
+      const coneHScreen = cellScreenH * (0.78 - 0.18);
+      const coneOk = coneTopScreen >= numberBottomScreen + 2 && coneHScreen >= 24;
+      if (fits && coneOk) {
+        ctx.fillStyle = COLORS.sumiSub;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        const p = toPx(fit, { x: rect.x + rect.w / 2, y: rect.y });
+        ctx.fillText(numText, p.x, p.y);
+      }
     }
 
     // 8. marks: wrong と empty のマスに shu の太い ✕
@@ -207,7 +223,7 @@ function drawCross(
   ctx.stroke();
 }
 
-/** 吹き出し (白地・sumi 枠) に品番と説明を描く */
+/** 吹き出し (白地・sumi 枠) に品番と説明を描く。枠の大きさは実際の文字幅から決める (画面 px) */
 function drawSpeech(
   ctx: CanvasRenderingContext2D,
   fit: { scale: number; offsetX: number; offsetY: number },
@@ -217,36 +233,37 @@ function drawSpeech(
 ): void {
   const size = 20;
   const pad = 10;
-  const textW = Math.max(hinban.length, spec.length) * size * 0.6;
+  ctx.font = `${size}px ${FONT_FAMILY}`;
+  // 幅 = 2行のうち広い方の測った幅 + 余白 10px×2
+  const textW = Math.max(ctx.measureText(hinban).width, ctx.measureText(spec).width);
   const w = textW + pad * 2;
-  const h = size * 2.6 + pad * 2;
-  // マスの上に出す (上端に来る場合は下に出す)
-  let x = rect.x + rect.w / 2 - w / 2;
-  x = Math.max(4, Math.min(x, 1000 - w - 4)); // 論理幅 1000 の中に収める
-  const above = rect.y > h + 20;
-  const y = above ? rect.y - h - 12 : rect.y + rect.h + 12;
-  const p = toPx(fit, { x, y });
+  const h = size * 2 + pad * 2; // 2行分の行送り + 余白 10px×2
+  const center = toPx(fit, { x: rect.x + rect.w / 2, y: rect.y });
+  // マスの上に出す (上に十分な余白がなければ真下)。枠は Canvas の内側 (左右 4px 以上) に収める
+  const canvasW = ctx.canvas.width;
+  let px = center.x - w / 2;
+  px = Math.max(4, Math.min(px, canvasW - w - 4));
+  const coneTopScreen = toPx(fit, { x: rect.x, y: rect.y + rect.h * 0.18 }).y;
+  const above = coneTopScreen >= h + 14;
+  const py = above ? coneTopScreen - h - 12 : toPx(fit, { x: 0, y: rect.y + rect.h }).y + 12;
   ctx.fillStyle = COLORS.white;
-  ctx.fillRect(p.x, p.y, w * fit.scale, h * fit.scale);
+  ctx.fillRect(px, py, w, h);
   ctx.strokeStyle = COLORS.sumi;
-  ctx.lineWidth = Math.max(1, 2 * fit.scale);
-  ctx.strokeRect(p.x, p.y, w * fit.scale, h * fit.scale);
-  // 吹き出しのしっぽ
-  const tailTop = above ? y + h : y;
-  const tail = toPx(fit, { x: rect.x + rect.w / 2, y: tailTop + (above ? 10 : -10) });
-  const baseL = toPx(fit, { x: rect.x + rect.w / 2 - 10, y: tailTop });
-  const baseR = toPx(fit, { x: rect.x + rect.w / 2 + 10, y: tailTop });
+  ctx.lineWidth = 2;
+  ctx.strokeRect(px, py, w, h);
+  // 吹き出しのしっぽ (枠の外側に出て、コーンの方を向く)
+  const tailTopY = above ? py + h : py;
+  const tailY = above ? tailTopY + 10 : tailTopY - 10;
   ctx.beginPath();
-  ctx.moveTo(baseL.x, baseL.y);
-  ctx.lineTo(tail.x, tail.y);
-  ctx.lineTo(baseR.x, baseR.y);
+  ctx.moveTo(center.x - 10, tailTopY);
+  ctx.lineTo(center.x, tailY);
+  ctx.lineTo(center.x + 10, tailTopY);
   ctx.stroke();
-  // 文字 (品番と説明)
+  // 文字 (品番と説明)。枠の左右の余白 10px の内側に収める
   ctx.font = `${size}px ${FONT_FAMILY}`;
   ctx.fillStyle = COLORS.sumi;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  const textP = toPx(fit, { x: x + pad, y: y + pad });
-  ctx.fillText(hinban, textP.x, textP.y);
-  ctx.fillText(spec, textP.x, textP.y + size * 1.3);
+  ctx.fillText(hinban, px + pad, py + pad);
+  ctx.fillText(spec, px + pad, py + pad + size);
 }
