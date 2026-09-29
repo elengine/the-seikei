@@ -552,3 +552,18 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 3. **回転**:縦長→横長→縦長と回転したとき、盤面・操作欄・「現在の帯の並び」が正しい位置にすぐ並び直すこと(古い大きさのまま残らないこと)。
 4. **バックアップの書き出し**:管理者 →「バックアップを書き出す」で、共有の画面が出ること。共有が断られた場合もファイルが保存されること(iCloud Drive/ファイルに保存)。
 5. **ホーム画面からの起動**(ホーム画面に追加したアイコンから起動)でも 1〜4 が同じであること。
+
+---
+
+## T1-14(2026-09-30、仕様書 docs/04_tasks/P1/T1-14.md、コミット `752eb12`・1つ)
+
+- **A(閉じ括弧が宣言と同じ行)**:`base.css` の 18 行目(`-webkit-tap-highlight-color`)と 48 行目(`--font-family`)の閉じ括弧 `}` を次の行に分けた。
+- **B(題名の指定が2か所)**:クリール立ての節にあった `.game-frame__title` の規則を削除し、コメントは `.creel-panel` の縦スクロールの説明として残した。規則は game-frame の節の1か所だけにし(`flex: 1; text-align: center; font-size: var(--fs-heading); color: var(--c-sumi); white-space: nowrap;` を1行ずつ)、縦長で `--fs-body` にする指定は同じ節の `@media (orientation: portrait)` の中に移した。
+- **C(書き出しの失敗の記録)**:`adminScreen.ts` の「バックアップを書き出す」の `onClick` の中身全体を `try/catch` で囲み、外側の catch で `ctx.logger.log('error', 'バックアップの書き出しに失敗: …')` を残すようにした(`exportAll` などの失敗が、ログ無し・処理されない Promise の失敗にならない)。`share()` の `AbortError`・`NotAllowedError` の扱い(T1-11c)は変えていない。
+- **テスト**:`adminScreen.test.ts` を新規に作り、`exportAll` が失敗する偽の repo で「バックアップを書き出す」を押すと、例外が外に出ず、ログに error が1件残ることを確かめた(RED 確認 → GREEN)。テストでは `__BUILD_ID__`(vite の define)を `vi.stubGlobal` で代用し、`logger` の偽物に `entries()` を足した。
+- テスト最終値: **294 passed / 11 skipped(305)**、`npm run check`・`npm run build` 成功。
+
+### ブラウザ確認(本番と同じビルド、ポート 4173 固定)
+
+- **412×915(プレイ画面)**:題名「クリール立て」は **20px・1行**(高さ 28px)。横のはみ出しなし(`scrollWidth` 412 = `clientWidth`)。
+- **1180×820(プレイ画面)**:題名は **28px のまま**。見た目は変更前と同じ。
