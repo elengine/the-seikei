@@ -207,6 +207,7 @@ describe('gameScreen', () => {
       expect(session?.state).toEqual(state);
     });
     expect(navigated).toBe('/');
+    screen.unmount(); // pagehide の listener を解除 (次のテストに影響しないように)
   });
 
   it('onStateChange を短い間に3回呼んでも、保存は最後の1回だけになる', async () => {
@@ -339,17 +340,43 @@ describe('T1-06 追加修正', () => {
       stars: 2,
       stats: { 'puzzle:s1': 2 },
       unlockedPatternIds: [],
-      summary: ['たしかめた回数 1回', 'ヒントを使った回数 2回'],
+      summary: ['確認した回数 1回', 'ヒントを使った回数 2回'],
       finishedAt: ctx.clock.now(),
     });
     await vi.waitFor(() => {
       expect(showResult).toHaveBeenCalled();
     });
     const opts = (showResult as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[1] as { lines: string[] };
-    expect(opts.lines).toEqual(['たしかめた回数 1回', 'ヒントを使った回数 2回']);
+    expect(opts.lines).toEqual(['確認した回数 1回', 'ヒントを使った回数 2回']);
     const joined = opts.lines.join(' ');
     expect(joined).not.toContain('puzzle:');
     expect(joined).not.toContain('s1');
     container.remove();
   });
 });
+
+describe('T1-11b: pagehide でも途中保存する', () => {
+  it('pagehide を送ると途中保存が1回行われる。unmount の後は行われない', async () => {
+    const ctx = await makeCtx();
+    await ctx.repo.remove('sessions', 'creel'); // 前のテストの残りを消しておく
+    await ctx.settings.update({ tutorialSeen: { creel: true } });
+    const { module, captured } = makeFakeModule('creel', { stage: 3 });
+    registerGame(module);
+    const screen = createGameScreen(ctx);
+    screen.mount(document.createElement('div'), { id: 'creel' });
+    await vi.waitFor(() => {
+      expect(captured.instance).toBeDefined();
+    });
+    // pagehide を送る
+    window.dispatchEvent(new Event('pagehide'));
+    await vi.waitFor(async () => {
+      const s = await getSession(ctx, 'creel');
+      expect(s?.state).toEqual({ stage: 3 });
+    });
+    // unmount したら保存されない
+    screen.unmount();
+    await ctx.repo.remove('sessions', 'creel');
+    window.dispatchEvent(new Event('pagehide'));
+    await new Promise((r) => setTimeout(r, 30));
+    expect(await getSession(ctx, 'creel')).toBeUndefined();
+  });});

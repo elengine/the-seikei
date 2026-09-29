@@ -21,6 +21,13 @@ export function createAudioPlayer(makeContext: () => AudioContext = defaultMakeC
   let enabled = true;
   let volume = 0.7; // 設定の初期値と同じ
 
+  /** 止まっている (Safari では裏に回ると suspended/interrupted になる) ときだけ resume する */
+  function resumeIfStopped(): void {
+    if (ctx !== null && ctx.state !== 'running') {
+      void ctx.resume().catch(() => undefined); // 例外が起きても無視する
+    }
+  }
+
   function makeMaster(): GainNode {
     const g = ctx!.createGain();
     g.gain.value = volume;
@@ -31,13 +38,13 @@ export function createAudioPlayer(makeContext: () => AudioContext = defaultMakeC
   return {
     unlock(): void {
       if (ctx !== null) {
-        void ctx.resume().catch(() => undefined); // 例外が起きても無視する
+        resumeIfStopped();
         return;
       }
       try {
         ctx = makeContext();
         master = makeMaster();
-        void ctx.resume().catch(() => undefined);
+        resumeIfStopped();
       } catch {
         // AudioContext が存在しない環境など。音が鳴らなくても遊びは止めない。例外は投げずに無視する
         ctx = null;
@@ -49,6 +56,7 @@ export function createAudioPlayer(makeContext: () => AudioContext = defaultMakeC
       if (ctx === null || master === null || !enabled) {
         return; // unlock 前、または無効時は何もしない
       }
+      resumeIfStopped();
       try {
         const notes = SOUNDS[name];
         if (notes === undefined) {

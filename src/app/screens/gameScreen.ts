@@ -241,19 +241,25 @@ function mountGame(
 
   const instance: GameInstance = module.mount(box, props);
 
-  // ---- ページが裏に回ったら途中保存 ----
+  // ---- ページが裏に回ったら途中保存 (visibilitychange の後にすぐ止められることもあるため、
+  //      アプリを閉じるときに出る pagehide でも同じ保存を行う) ----
   const onVisibility = (): void => {
     if (document.visibilityState === 'hidden') {
       void saveSuspended();
     }
   };
+  const onPageHide = (): void => {
+    void saveSuspended();
+  };
   document.addEventListener('visibilitychange', onVisibility);
+  window.addEventListener('pagehide', onPageHide);
 
   // ---- 画面を離れるときの片付け (Screen.unmount と「続けて遊ぶ」から呼ぶ) ----
   const cleanupThis = (): void => {
     lastCleanup = null; // 二重呼び出し防止 (mount し直しで新しい cleanup が登録される)
     instance.unmount();
     document.removeEventListener('visibilitychange', onVisibility);
+    window.removeEventListener('pagehide', onPageHide);
     if (saveTimer !== null) {
       clearTimeout(saveTimer);
       saveTimer = null;

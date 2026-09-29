@@ -65,14 +65,17 @@ async function main(): Promise<void> {
     ctx.logger.log('info', 'appinstalled を受信');
   }
 
-  // 最初の pointerdown で audio を unlock する (iPad の Safari などでは利用者の操作が必要)
-  window.addEventListener(
-    'pointerdown',
-    () => {
-      ctx.audio.unlock();
-    },
-    { once: true },
-  );
+  // 利用者の操作のたびに audio を unlock する (iPad の Safari などでは利用者の操作が必要。
+  // 裏に回って止まった音の出力を、操作の中で再開させるため。pointerdown は Safari に認められないことがある)
+  for (const type of ['pointerup', 'touchend', 'click'] as const) {
+    window.addEventListener(
+      type,
+      () => {
+        ctx.audio.unlock();
+      },
+      { passive: true },
+    );
+  }
 
   // ゲームの登録 (クリール立て)。内容データの問題があればログに残す
   registerGame(createCreelModule(gameDepsFrom(ctx)));

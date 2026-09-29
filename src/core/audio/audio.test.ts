@@ -153,3 +153,70 @@ describe('audio', () => {
     }
   });
 });
+
+describe('T1-11b: Safari で音が止まったあとの再開', () => {
+  /** state を持つ偽の AudioContext */
+  function makeStatefulContext(initialState: string) {
+    const state = { value: initialState };
+    const ctx = {
+      get state() {
+        return state.value;
+      },
+      setState(s: string) {
+        state.value = s;
+      },
+      currentTime: 0,
+      destination: {},
+      resume: vi.fn(async () => undefined),
+      createGain: vi.fn(() => ({
+        gain: { value: 1, setValueAtTime: vi.fn(), linearRampToValueAtTime: vi.fn() },
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+      })),
+      createOscillator: vi.fn(() => ({
+        type: '',
+        frequency: { value: 440, setValueAtTime: vi.fn() },
+        connect: vi.fn(),
+        start: vi.fn(),
+        stop: vi.fn(),
+      })),
+    };
+    return ctx;
+  }
+
+  it.each(['suspended', 'interrupted'])('state が %s のとき、unlock() で resume が呼ばれる', async (state) => {
+    const ctx = makeStatefulContext(state);
+    const player = createAudioPlayer(() => ctx as unknown as AudioContext);
+    player.unlock();
+    await vi.waitFor(() => {
+      expect(ctx.resume).toHaveBeenCalled();
+    });
+  });
+
+  it.each(['suspended', 'interrupted'])('state が %s のとき、play() でも resume が呼ばれる', async (state) => {
+    const ctx = makeStatefulContext(state);
+    const player = createAudioPlayer(() => ctx as unknown as AudioContext);
+    player.unlock();
+    await vi.waitFor(() => {
+      expect(ctx.resume).toHaveBeenCalled();
+    });
+    ctx.resume.mockClear();
+    ctx.setState(state); // 裏に回って止まった状態を作る
+    player.play('tap');
+    await vi.waitFor(() => {
+      expect(ctx.resume).toHaveBeenCalled();
+    });
+  });
+
+  it("state が 'running' のとき、unlock() も play() も resume を呼ばない", async () => {
+    const ctx = makeStatefulContext('running');
+    const player = createAudioPlayer(() => ctx as unknown as AudioContext);
+    player.unlock();
+    await vi.waitFor(() => {
+      // unlock 後も running なら resume は呼ばれない
+      expect(ctx.resume).not.toHaveBeenCalled();
+    });
+    player.play('tap');
+    expect(ctx.resume).not.toHaveBeenCalled();
+  });
+});
