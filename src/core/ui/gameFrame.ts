@@ -95,28 +95,31 @@ export function createGameFrame(
     const layout: Layout = layoutOf({ width: innerW, height: innerH }); // レイアウト判定も parent の内寸
     const bodyH = Math.max(0, innerH - BAR_H);
     body.style.height = `${bodyH}px`;
+    // body の内寸 (padding を引いた高さ)。style 変更を反映させるため一度読む
+    void body.offsetHeight;
+    const bodyInnerH = Math.max(0, body.clientHeight);
     if (layout === 'landscape') {
       // 左:盤面の列 (Canvas の上・footer の下)・右:panel
       footer.style.display = '';
       stageCol.style.width = `${Math.floor(innerW * 0.65)}px`;
-      stageCol.style.height = `${bodyH}px`;
+      stageCol.style.height = `${bodyInnerH}px`;
       // footer の高さは中身 (実際に測れるなら) から取る。測れないときは CSS で決まっている高さ
       const footerH = footer.getBoundingClientRect().height;
-      const stageH = Math.max(0, bodyH - footerH);
+      const stageH = Math.max(0, bodyInnerH - footerH);
       stageBox.style.width = '100%';
       stageBox.style.height = `${stageH}px`;
       panel.style.width = `${innerW - Math.floor(innerW * 0.65)}px`;
-      panel.style.height = `${bodyH}px`;
+      panel.style.height = `${bodyInnerH}px`;
     } else {
       // 上:盤面 (残り高さの 60%)・下:panel。footer は使わないので隠す
       footer.style.display = 'none';
       stageCol.style.width = `${innerW}px`;
-      stageCol.style.height = `${bodyH}px`;
-      const stageH = Math.floor(bodyH * 0.6);
+      stageCol.style.height = `${bodyInnerH}px`;
+      const stageH = Math.floor(bodyInnerH * 0.6);
       stageBox.style.width = '100%';
       stageBox.style.height = `${stageH}px`;
       panel.style.width = `${innerW}px`;
-      panel.style.height = `${bodyH - stageH}px`;
+      panel.style.height = `${bodyInnerH - stageH}px`;
     }
     // 盤面の Canvas を領域いっぱいに作り、fitStage の結果を渡す
     const w = stageBox.clientWidth;
