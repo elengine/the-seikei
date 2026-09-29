@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { COLORS, FONT, SIZE } from './tokens';
+import { COLORS, FONT, FONT_FAMILY, SIZE } from './tokens';
 
 /** base.css を読み、指定セレクタの宣言ブロックから CSS 変数を取り出す */
 function cssVars(selector: string): Map<string, string> {
@@ -114,5 +114,44 @@ describe('T1-12a: 文字の大きさの指定が無い所 (結果の表示・チ
     const m = css.match(re);
     expect(m, `selector not found: ${selector}`).not.toBeNull();
     expect(m![1]).toMatch(/font-size\s*:\s*(calc\()?\s*var\(--fs-/);
+  });
+});
+
+describe('T1-11a: iPad (Safari) への備え (文字と見た目)', () => {
+  function cssText(): string {
+    const path = join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css');
+    return readFileSync(path, 'utf-8');
+  }
+
+  it(':root の --font-family が FONT_FAMILY と同じ', () => {
+    const root = cssVars(':root');
+    expect(root.get('--font-family')).toBe(FONT_FAMILY);
+  });
+
+  it('html, body の宣言に font-family: var(--font-family) がある', () => {
+    const css = cssText();
+    const m = css.match(/html,\s*body\s*\{([^}]*)\}/);
+    expect(m).not.toBeNull();
+    expect(m![1]).toMatch(/font-family\s*:\s*var\(--font-family\)/);
+  });
+
+  it.each([
+    ['-webkit-text-size-adjust: 100%', 'text-size-adjust の指定'],
+    ['text-size-adjust: 100%', 'text-size-adjust の指定'],
+    ['line-height: 1.4', 'line-height の指定'],
+    ['-webkit-tap-highlight-color: transparent', 'tap-highlight-color の指定'],
+  ])('html, body に %s がある', (decl) => {
+    const css = cssText();
+    const m = css.match(/html,\s*body\s*\{([^}]*)\}/);
+    expect(m).not.toBeNull();
+    expect(m![1]).toContain(decl);
+  });
+
+  it('button に -webkit-appearance: none と appearance: none がある', () => {
+    const css = cssText();
+    const m = css.match(/^button\s*\{([^}]*)\}/m);
+    expect(m, 'button rule not found').not.toBeNull();
+    expect(m![1]).toContain('-webkit-appearance: none');
+    expect(m![1]).toContain('appearance: none');
   });
 });

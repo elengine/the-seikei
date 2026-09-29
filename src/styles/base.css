@@ -11,7 +11,11 @@ body {
   -webkit-touch-callout: none;
   overscroll-behavior: none;
   font-size: var(--fs-body);
-}
+  font-family: var(--font-family);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  line-height: 1.4;
+  -webkit-tap-highlight-color: transparent;}
 
 :root {
   /* 色 (03_basic_design 2.1) */
@@ -41,7 +45,7 @@ body {
 
   /* creel の部品で使う色 */
   --c-box: #d8c3a5; /* 段ボール箱の薄い茶 */
-}
+  --font-family: "Hiragino Sans", "Noto Sans JP", sans-serif;}
 
 :root[data-font='xlarge'] {
   --fs-body: 24px;
@@ -754,4 +758,9 @@ body {
 
 .tutorial__counter {
   font-size: var(--fs-body);
+}
+
+button {
+  -webkit-appearance: none;
+  appearance: none;
 }
