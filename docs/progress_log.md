@@ -455,3 +455,33 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 3. **1180×820、段階5(メッセージ2行)**:
    - 操作欄 `scrollHeight` 724 = `clientHeight` 724(**スクロールなし。今までどおり**)。
    - スクショ: `fix5_1180_s5.png`
+
+---
+
+## T1-12(2026-09-30、仕様書 docs/04_tasks/P1/T1-12.md)
+
+- **T1-12a コミット**: `ea26a84`(結果の表示とチュートリアルの文字の大きさ)。RED 確認(tokens.test.ts 7件 + 柄の欄のクラス1件)→ 実装。
+  - `base.css`:`body` に `font-size: var(--fs-body)`、`.result__praise`(heading・太字・中央)・`.result-stars`(number ×1.5・wood 色・letter-spacing)・`.result__lines`(body・行間 1.5)・`.result-patterns`(body)・`.result-patterns__label`(太字)・`.result-patterns__names`・`.tutorial__text`・`.tutorial__counter`(いずれも body)を追加。
+  - `resultView.ts`:柄の欄の2つの p に `result-patterns__label` / `result-patterns__names` を付けた。
+- **T1-12b コミット**: `5a3b748`(幅の計算)。
+  - `gameFrame.ts`:`splitWidths` を export(landscape: `Math.floor((bodyInnerW - gap) * 0.65)` と残り、portrait: 両方 bodyInnerW)。`applyLayout` の幅は `body.clientWidth` から左右の padding を引いた `bodyInnerW` と `columnGap` から計算(clientWidth が 0 のときは innerW)。
+  - テスト:`splitWidths('portrait', 388, 12)` → `{388, 388}`、`splitWidths('landscape', 1156, 12)` → `stageColW + panelW + 12 === 1156`。
+- **T1-12b の追し**:`914b2f2`(`.game-frame__title` への `white-space: nowrap` が T1-12b のコミットから抜けていたため追加)、`9c5dddb` + `0f678cd`(縦長の題名を `--fs-body` にする指定が、後ろに書いた本体の宣言に負けて効かなかったため、`.game-frame__bar .game-frame__title` と詳細度を上げた)。
+- テスト最終値: **277 passed / 11 skipped(288)**、`npm run check`・`npm run build` 成功。
+
+### ブラウザ確認(本番と同じビルド、ポート 4173 固定)
+
+**A(文字の大きさ、仕様書の JavaScript で測定)**: ホーム・設定・お題一覧・プレイ画面・チュートリアル・結果の表示、すべて「**20px 未満の文字なし**」(空配列)。チュートリアルの文とページ数は 20px、結果の表示の各欄も 20px 以上。
+
+**B(横のはみ出し、段階1と段階5で測定)**: どのサイズも `documentElement.scrollWidth` = `clientWidth`、`.game-screen` の `scrollWidth` = `clientWidth`(はみ出しなし)。
+
+| サイズ | 段階1 | 段階5 |
+|---|---|---|
+| 412×915 | 412/412 | 412/412 |
+| 360×800 | 360/360 | 360/360 |
+| 1180×820 | 1180/1180 | 1180/1180 |
+| 960×720 | 960/960 | 960/960 |
+| 820×1180 | 820/820 | 820/820 |
+
+- 1180×820 の段階5:操作欄 `scrollHeight` 724 = `clientHeight` 724(**スクロールなし、今までどおり**)。
+- 縦長 412×915 の段階5:題名「クリール立て」は 1 行(20px・nowrap)。**補足**:「あそびかた」ボタンの文字が 3 行に折り返す(ボタンの幅が狭いため)。T1-12 の仕様の範囲外なので、このままにしています(直すなら別途指示をください)。
