@@ -516,3 +516,39 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - **1180×820 の段階5**: 操作欄 `scrollHeight` 724 = `clientHeight` 724(**スクロールなし**)。
 - **412×915**: 上の帯の題名(1行・20px)と「戻る」「遊び方」(どちらも1行)を確認(スクショ `t13_s5_412.png`)。
 - **プレイ画面のスクショ**: `t13_play.png`、**結果の表示のスクショ**: `t13_result.png`
+
+---
+
+## T1-11(2026-09-30、仕様書 docs/04_tasks/P1/T1-11.md)
+
+- **T1-11a コミット `0afdf9e`(文字と見た目)**:
+  - `tokens.ts` の `FONT_FAMILY` と同じ値を `:root` の `--font-family` に追加し、`html, body` に `font-family: var(--font-family)` を指定。
+  - `html, body` に `-webkit-text-size-adjust: 100%; text-size-adjust: 100%;`、`line-height: 1.4;`、`-webkit-tap-highlight-color: transparent;` を追加。
+  - `button` に `-webkit-appearance: none; appearance: none;` を追加。
+  - テスト(tokens.test.ts):RED 7件 → GREEN 18件。
+- **T1-11b コミット `e491a46`(音と保存)**:
+  - `audio.ts`:`resumeIfStopped()` を追加(`ctx.state !== 'running'` のときだけ `resume()`)。`unlock()` と `play()` の最初で呼ぶ。
+  - `main.ts`:`pointerup`・`touchend`・`click` のたびに `ctx.audio.unlock()`(`once` を外し `{ passive: true }`)。
+  - `gameScreen.ts`:`pagehide` でも `saveSuspended()` を呼ぶ(unmount で解除)。
+  - テスト:audio.test.ts RED 3件 → GREEN、gameScreen.test.ts に pagehide のテスト(RED → GREEN)。
+  - **デバッグ**:pagehide テストが単体では通るが全体実行で失敗 → 前のテスト(onExit)の screen が unmount されず pagehide の listener が残り、{stage:5} を上書き保存していた。onExit テストの最後に `screen.unmount()` を足して解消。
+- **T1-11c コミット `1c13e8b`(回転と書き出し) + `3f25629`(追し)**:
+  - `gameFrame.ts`:footer と同じ ResizeObserver で `parent` も observe(Safari で回転直後の resize のときに古い大きさで配置されるのを防ぐ)。
+  - `adminScreen.ts`:`navigator.share()` が `NotAllowedError` のときは `a` 要素の `download` に切り替え、`AbortError`(利用者が共有を閉じた)のときは何もしない。
+  - 追し:check の TS エラー(NodeList の for...of)を `Array.from` で解消(`3f25629`)。
+- テスト最終値: **293 passed / 11 skipped(304)**、`npm run check`・`npm run build` 成功。
+
+### ブラウザ確認(本番と同じビルド、ポート 4173 固定)
+
+- **書体**:`body` とボタンの `font-family` が `"Hiragino Sans", "Noto Sans JP", sans-serif`、`line-height` 28px(20px × 1.4)。**画面の文字は盤面と同じゴシック体**(Chrome では前と見た目はほぼ変わらず)。
+- **1180×820 の段階5(「確認する」を2回押してメッセージ2行)**:操作欄 `scrollHeight` 724 = `clientHeight` 724(**スクロールなし。line-height 1.4 にしても出なかったので詰め変更は不要**)。
+- **960×720 の段階5(同じ状態)**:操作欄 `scrollHeight` 664 / `clientHeight` 624。道具とボタンの区画は下に固定され、**「外す」「調べる」「確認する」「ヒント」の4つすべて見える**(区画の下端 708 < 720)。
+- **音**:段階1で箱を選んで軸をタップ → 操作はエラーなく完了。タブを裏に回して(`visibilitychange` を hidden → visible に)戻したあとも、タップで操作できる(audio.ts の `play()` が止まっていたら `resume()` を呼ぶ実装。実際の音の鳴り分けは人の耳での確認項目)。
+
+### iPad で確かめること(iPad が手元に来たとき)
+
+1. **書体**:盤面(Canvas)と操作欄・ボタンの文字の書体が同じゴシック体で、明朝体になっていないこと。
+2. **音**:段階1で箱を選んで軸をタップすると音が鳴ること。アプリを裏に回して(ホーム画面や切り替え画面)戻したあと、電話・通知が来たあとも、もう一度鳴ること。
+3. **回転**:縦長→横長→縦長と回転したとき、盤面・操作欄・「現在の帯の並び」が正しい位置にすぐ並び直すこと(古い大きさのまま残らないこと)。
+4. **バックアップの書き出し**:管理者 →「バックアップを書き出す」で、共有の画面が出ること。共有が断られた場合もファイルが保存されること(iCloud Drive/ファイルに保存)。
+5. **ホーム画面からの起動**(ホーム画面に追加したアイコンから起動)でも 1〜4 が同じであること。
