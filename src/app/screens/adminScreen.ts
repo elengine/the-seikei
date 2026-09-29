@@ -41,6 +41,7 @@ export function createAdminScreen(ctx: AppContext): Screen {
         label: 'バックアップを書き出す',
         variant: 'primary',
         onClick: async () => {
+          try {
           const backup = await ctx.repo.exportAll();
           const json = JSON.stringify(backup, null, 2);
           const file = new File([json], backupFileName(new Date()), { type: 'application/json' });
@@ -77,6 +78,10 @@ export function createAdminScreen(ctx: AppContext): Screen {
           } else {
             saveByDownload();
             ctx.logger.log('info', `バックアップを書き出しました (${file.name})`);
+          }
+          } catch (e) {
+            // exportAll などの失敗。記録を残し、処理されない Promise の失敗にしない
+            ctx.logger.log('error', `バックアップの書き出しに失敗: ${String(e)}`);
           }
         },
       });

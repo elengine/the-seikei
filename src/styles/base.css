@@ -15,7 +15,8 @@ body {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
   line-height: 1.4;
-  -webkit-tap-highlight-color: transparent;}
+  -webkit-tap-highlight-color: transparent;
+}
 
 :root {
   /* 色 (03_basic_design 2.1) */
@@ -45,7 +46,8 @@ body {
 
   /* creel の部品で使う色 */
   --c-box: #d8c3a5; /* 段ボール箱の薄い茶 */
-  --font-family: "Hiragino Sans", "Noto Sans JP", sans-serif;}
+  --font-family: "Hiragino Sans", "Noto Sans JP", sans-serif;
+}
 
 :root[data-font='xlarge'] {
   --fs-body: 24px;
@@ -520,21 +522,9 @@ body {
 }
 
 /* 縦長では操作欄の中だけ縦にスクロールできる */
-.game-frame__title {
-  flex: 1;
-  text-align: center;
-  font-size: var(--fs-heading);
-  color: var(--c-sumi);
-  white-space: nowrap;
-}
-
 @media (orientation: portrait) {
   .creel-panel {
     overflow-y: auto;
-  }
-
-  .game-frame__bar .game-frame__title {
-    font-size: var(--fs-body);
   }
 }
 
@@ -638,7 +628,8 @@ body {
   flex: 1;
   text-align: center;
   font-size: var(--fs-heading);
-  color: var(--c-sumi);  white-space: nowrap;
+  color: var(--c-sumi);
+  white-space: nowrap;
 }
 
 .game-frame__body {
@@ -647,6 +638,12 @@ body {
   gap: var(--gap);
   min-height: 0;
   padding: var(--gap);
+}
+
+@media (orientation: portrait) {
+  .game-frame__bar .game-frame__title {
+    font-size: var(--fs-body);
+  }
 }
 
 /* 盤面の列 (横長): Canvas の上・footer (いまの帯の並び) の下 */
