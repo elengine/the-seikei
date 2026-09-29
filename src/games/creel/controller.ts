@@ -68,6 +68,7 @@ export function createController(parent: HTMLElement, deps: GameDeps, props: Gam
   // ---- 操作欄 ----
   const panel: CreelPanel = createCreelPanel(frame.panel, {
     content,
+    message: frame.message,
     onAction: (a: CreelAction) => {
       dispatch(a);
     },

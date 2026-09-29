@@ -202,24 +202,24 @@ describe('createCreelPanel', () => {
       return { parent, panel };
     }
 
-    it('s5: 依頼書の行が4つ。くりかえしの行があり、「2回」と「24本」を含む', () => {
+    it('s5: 依頼書の行が4つ。くりかえしの行があり、「くりかえし」「× 2」を含む(期待値変更の理由: 確認役が文字を変えたため)', () => {
       const { parent, panel } = render('s5');
       const rows = Array.from(parent.querySelectorAll('[data-testid="creel-order-row"]'));
       expect(rows.length).toBe(4);
       const rep = parent.querySelector('[data-testid="creel-order-repeat"]');
       expect(rep).not.toBeNull();
-      expect(rep?.textContent).toContain('2回');
-      expect(rep?.textContent).toContain('24本');
+      expect(rep?.textContent).toContain('くりかえし');
+      expect(rep?.textContent).toContain('× 2');
       panel.destroy();
     });
 
-    it('s3: 行が2つ。くりかえしの行があり、「2回」と「16本」を含む', () => {
+    it('s3: 行が2つ。くりかえしの行があり、「くりかえし」「× 2」を含む(期待値変更の理由: 確認役が文字を変えたため)', () => {
       const { parent, panel } = render('s3');
       const rows = Array.from(parent.querySelectorAll('[data-testid="creel-order-row"]'));
       expect(rows.length).toBe(2);
       const rep = parent.querySelector('[data-testid="creel-order-repeat"]');
-      expect(rep?.textContent).toContain('2回');
-      expect(rep?.textContent).toContain('16本');
+      expect(rep?.textContent).toContain('くりかえし');
+      expect(rep?.textContent).toContain('× 2');
       panel.destroy();
     });
 
@@ -304,6 +304,43 @@ describe('createCreelPanel', () => {
       panel.placeBand(target);
       panel.destroy();
       expect(target.querySelector('[data-testid="creel-band"]')).toBeNull();
+    });
+  });
+
+  describe('追加修正4 B: メッセージ欄を1つにする・くりかえしの行を短くする', () => {
+    it('message を渡すと、setMessage の文字がその要素に入り、creel-panel__message は作らない', () => {
+      const parent = document.createElement('div');
+      document.body.appendChild(parent);
+      const frameMessage = document.createElement('div');
+      frameMessage.classList.add('game-frame__message');
+      document.body.appendChild(frameMessage);
+      const panel = createCreelPanel(parent, { content, onAction: () => undefined, message: frameMessage });
+      panel.setMessage('こんにちは');
+      expect(frameMessage.textContent).toBe('こんにちは');
+      expect(parent.querySelector('.creel-panel__message')).toBeNull();
+      panel.destroy();
+    });
+
+    it('message を渡さないときは、今までどおり creel-panel__message に書く', () => {
+      const parent = document.createElement('div');
+      document.body.appendChild(parent);
+      const panel = createCreelPanel(parent, { content, onAction: () => undefined });
+      panel.setMessage('こんにちは');
+      const msg = parent.querySelector('.creel-panel__message');
+      expect(msg?.textContent).toBe('こんにちは');
+      panel.destroy();
+    });
+
+    it('s5 のくりかえしの行が「くりかえし」と「× 2」を含む (短い文字)', () => {
+      const parent = document.createElement('div');
+      document.body.appendChild(parent);
+      const panel = createCreelPanel(parent, { content, onAction: () => undefined });
+      panel.update(stateOf('s5'));
+      const rep = parent.querySelector('[data-testid="creel-order-repeat"]');
+      expect(rep).not.toBeNull();
+      expect(rep?.textContent).toContain('くりかえし');
+      expect(rep?.textContent).toContain('× 2');
+      panel.destroy();
     });
   });
 });

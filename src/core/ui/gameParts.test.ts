@@ -326,9 +326,12 @@ describe('T1-10fix 追加修正3: 横長では「いまの帯の並び」を盤�
     return { parent, frame };
   }
 
-  it('横長: layout() が landscape。footer があり、縦長配置と違い CSS で隠れていない', () => {
+  it('横長: layout() が landscape。footer は中身が無ければ display:none (中身があれば表示)', () => {
     const { frame } = setupWithSize(1180, 820);
     expect(frame.layout()).toBe('landscape');
+    expect(frame.footer.style.display).toBe('none'); // 空 → 非表示 (追加修正4 C)
+    frame.footer.appendChild(document.createElement('div'));
+    frame.resize();
     expect(frame.footer.style.display).not.toBe('none');
     frame.destroy();
   });
@@ -340,7 +343,7 @@ describe('T1-10fix 追加修正3: 横長では「いまの帯の並び」を盤�
     frame.destroy();
   });
 
-  it('横長で footer に中身を足すと Canvas の高さが「盤面の列の高さ − footer の高さ」になり、onStageResize が呼ばれる', () => {
+  it('横長で footer に中身を足すと Canvas の高さが「盤面の列の高さ − footer の高さ − gap」になり、onStageResize が呼ばれる', () => {
     const sizes: { w: number; h: number }[] = [];
     const parent = document.createElement('div');
     parent.getBoundingClientRect = () =>
@@ -362,13 +365,15 @@ describe('T1-10fix 追加修正3: 横長では「いまの帯の並び」を盤�
     const bodyH = 820 - 72; // BAR_H (上部の帯の高さ)
     expect(stageH0).toBe(bodyH); // footer が空なら今までどおり
 
-    // footer に 190px の帯の並びを足す
+    // footer に 190px の帯の並びを足す (子も足す。空の footer は display:none になるため)
     frame.footer.style.height = '190px';
+    frame.footer.appendChild(document.createElement('div'));
     frame.footer.getBoundingClientRect = () =>
       ({ width: 1180, height: 190, top: 0, left: 0, right: 1180, bottom: 190, x: 0, y: 0, toJSON: () => undefined });
     frame.resize();
     const stageH1 = parseInt(stageBox.style.height, 10);
-    expect(stageH1).toBe(bodyH - 190);
+    const gap0 = parseFloat(getComputedStyle(stageBox.parentElement as HTMLElement).rowGap) || 0;
+    expect(stageH1).toBe(bodyH - 190 - gap0);
     expect(sizes.length).toBeGreaterThanOrEqual(2); // onStageResize が再び呼ばれる
     frame.destroy();
   });
@@ -380,5 +385,34 @@ describe('T1-10fix 追加修正3: 横長では「いまの帯の並び」を盤�
     expect(ro).not.toBeNull();
     expect(() => ro!.cb([], ro as unknown as ResizeObserver)).not.toThrow(); // 高さ変化のコールバックが呼べる
     frame.destroy();
+  });
+
+  describe('追加修正4 C: footer が空のときは非表示、Canvas の高さは gap も引いて計算', () => {
+    it('footer が空 (子が無い) のときは display:none で、Canvas の高さは列の高さと同じ', () => {
+      const { frame } = setupWithSize(1180, 820);
+      const stageCol = frame.stage.closest('.game-frame__stage-col') as HTMLElement;
+      const stageBox = frame.stage.parentElement as HTMLElement;
+      expect(frame.footer.childElementCount).toBe(0);
+      expect(frame.footer.style.display).toBe('none');
+      const colH = parseInt(stageCol.style.height, 10);
+      expect(parseInt(stageBox.style.height, 10)).toBe(colH);
+      frame.destroy();
+    });
+
+    it('footer に中身があるときは、Canvas の高さ = 列の高さ − footer の高さ − gap', () => {
+      const { frame } = setupWithSize(1180, 820);
+      const stageCol = frame.stage.closest('.game-frame__stage-col') as HTMLElement;
+      const stageBox = frame.stage.parentElement as HTMLElement;
+      // gap は CSS 変数 --gap (12px)。getComputedStyle で取れない環境では 0 の扱い
+      const colH = parseInt(stageCol.style.height, 10);
+      frame.footer.style.height = '190px';
+      frame.footer.appendChild(document.createElement('div')); // 空の footer は display:none になるため
+      frame.footer.getBoundingClientRect = () =>
+        ({ width: 1180, height: 190, top: 0, left: 0, right: 1180, bottom: 190, x: 0, y: 0, toJSON: () => undefined });
+      frame.resize();
+      const gap = parseFloat(getComputedStyle(stageCol).rowGap) || 0;
+      expect(parseInt(stageBox.style.height, 10)).toBe(colH - 190 - gap);
+      frame.destroy();
+    });
   });
 });

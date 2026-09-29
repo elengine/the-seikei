@@ -245,7 +245,9 @@ function drawSpeech(
   const h = size * 2 + pad * 2; // 2行分の行送り + 余白 10px×2
   const center = toPx(fit, { x: rect.x + rect.w / 2, y: rect.y });
   // マスの上に出す (上に十分な余白がなければ真下)。枠は Canvas の内側 (左右 4px 以上) に収める
-  const canvasW = ctx.canvas.width;
+  // 収める右の端は Canvas の画面上の幅 (clientWidth)。テストの環境などで clientWidth が
+  // 0 のときだけ、実寸 (canvas.width) を使う
+  const canvasW = ctx.canvas.clientWidth > 0 ? ctx.canvas.clientWidth : ctx.canvas.width;
   let px = center.x - w / 2;
   px = Math.max(4, Math.min(px, canvasW - w - 4));
   const coneTopScreen = toPx(fit, { x: rect.x, y: rect.y + rect.h * 0.18 }).y;

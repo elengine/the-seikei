@@ -104,16 +104,26 @@ export function createGameFrame(
       : bodyH;
     if (layout === 'landscape') {
       // 左:盤面の列 (Canvas の上・footer の下)・右:panel
-      footer.style.display = '';
+      // footer が空 (子が無い) のときは隠す。Canvas の高さは盤面の列の高さのまま
+      const footerEmpty = footer.childElementCount === 0;
+      footer.style.display = footerEmpty ? 'none' : '';
       stageCol.style.width = `${Math.floor(innerW * 0.65)}px`;
       stageCol.style.height = `${bodyInnerH}px`;
-      // footer の高さは中身 (実際に測れるなら) から取る。測れないときは CSS で決まっている高さ
-      const footerH = footer.getBoundingClientRect().height;
-      const stageH = Math.max(0, bodyInnerH - footerH);
-      stageBox.style.width = '100%';
-      stageBox.style.height = `${stageH}px`;
-      panel.style.width = `${innerW - Math.floor(innerW * 0.65)}px`;
-      panel.style.height = `${bodyInnerH}px`;
+      if (footerEmpty) {
+        stageBox.style.width = '100%';
+        stageBox.style.height = `${bodyInnerH}px`;
+        panel.style.width = `${innerW - Math.floor(innerW * 0.65)}px`;
+        panel.style.height = `${bodyInnerH}px`;
+      } else {
+        // footer の高さは中身 (実際に測れるなら) から取る。列の gap (rowGap) も引く
+        const footerH = footer.getBoundingClientRect().height;
+        const rowGap = parseFloat(getComputedStyle(stageCol).rowGap) || 0;
+        const stageH = Math.max(0, bodyInnerH - footerH - rowGap);
+        stageBox.style.width = '100%';
+        stageBox.style.height = `${stageH}px`;
+        panel.style.width = `${innerW - Math.floor(innerW * 0.65)}px`;
+        panel.style.height = `${bodyInnerH}px`;
+      }
     } else {
       // 上:盤面 (残り高さの 60%)・下:panel。footer は使わないので隠す
       footer.style.display = 'none';

@@ -239,4 +239,27 @@ describe('drawBoard', () => {
     const nums = calls.filter((c) => c.op === 'fillText' && ['1', '9', '17'].includes(c.args[0] as string));
     expect(nums.length).toBe(3);
   });
+
+  describe('追加修正4 A: 高精細な画面 (devicePixelRatio 2) でも吹き出しが Canvas の内側に収まる', () => {
+    it('Canvas の実寸が 824 (2倍) でも、収める右の端は clientWidth (412) を使う', () => {
+      const { ctx, calls } = makeFakeCtx();
+      // 偽の canvas: 実寸 824×1010、画面上 412×505 (devicePixelRatio 2)
+      (ctx.canvas as { width: number; height: number; clientWidth: number; clientHeight: number }).width = 824;
+      (ctx.canvas as { width: number; height: number; clientWidth: number; clientHeight: number }).height = 1010;
+      Object.defineProperty(ctx.canvas, 'clientWidth', { value: 412 });
+      Object.defineProperty(ctx.canvas, 'clientHeight', { value: 505 });
+      // 右の端のマス (段階1の6軸。マス5 = 右端) をしらべる
+      const s = { ...s1Empty(), placed: [null, null, null, null, null, 'kon-a'], inspected: 5 };
+      // fit は 412×505 相当で作る (画面 px の座標系)
+      const f = fitStage(1000, 750, 412, 505);
+      drawBoard(ctx, f, s, content, terms);
+      const speech = calls.filter((c) => c.op === 'strokeRect');
+      expect(speech.length).toBeGreaterThan(0);
+      for (const c of speech) {
+        const x = c.args[0] as number;
+        const w = c.args[2] as number;
+        expect(x + w).toBeLessThanOrEqual(408); // Canvas の画面幅 412 - 余白 4
+      }
+    });
+  });
 });

@@ -23,16 +23,22 @@ function selectedHinban(s: CreelState, content: Content): string | null {
 export function createCreelPanel(parent: HTMLElement, opts: {
   content: Content;
   onAction: (a: CreelAction) => void;
+  /** GameFrame の message 欄。渡されたときはそこに書き、独自のメッセージ欄は作らない */
+  message?: HTMLElement;
 }): CreelPanel {
   const content = opts.content;
   const root = document.createElement('div');
   root.classList.add('creel-panel');
 
   // ---- メッセージ (一番上) ----
-  const message = document.createElement('p');
-  message.classList.add('creel-panel__message');
-  message.dataset.testid = 'creel-message';
-  root.appendChild(message);
+  // GameFrame の message 欄が渡されたらそれを使う (メッセージ欄を1つにする)
+  const message = opts.message ?? (() => {
+    const m = document.createElement('p');
+    m.classList.add('creel-panel__message');
+    m.dataset.testid = 'creel-message';
+    root.appendChild(m);
+    return m;
+  })();
 
   // ---- 1. 依頼書 ----
   const orderBox = document.createElement('section');
@@ -75,7 +81,7 @@ export function createCreelPanel(parent: HTMLElement, opts: {
 
   // ---- 4. 道具とボタン ----
   const toolsBox = document.createElement('section');
-  toolsBox.classList.add('creel-section');
+  toolsBox.classList.add('creel-section', 'creel-section--tools');
   const toolsRow = document.createElement('div');
   toolsRow.classList.add('creel-tools');
   const removeBtn = makeToolButton('はずす', 'creel-tool-remove', () => opts.onAction({ type: 'selectRemove' }));
@@ -150,7 +156,7 @@ export function createCreelPanel(parent: HTMLElement, opts: {
       const rep = document.createElement('div');
       rep.classList.add('creel-order-repeat');
       rep.dataset.testid = 'creel-order-repeat';
-      rep.textContent = `↻ ここまでを ${times}回くりかえす(ぜんぶで ${s.answer.length}本)`;
+      rep.textContent = `↻ くりかえし × ${times}(ぜんぶで ${s.answer.length}本)`;
       orderTable.appendChild(rep);
     }
 
