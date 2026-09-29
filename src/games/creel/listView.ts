@@ -9,6 +9,7 @@ import { getContent } from '../../core/content/content';
 export function createListView(parent: HTMLElement, opts: {
   records: Records;
   content?: Content;
+  savedPuzzleId?: string | null; // 途中の状態が保存されているお題 (T1-15)
   onSelect: (puzzleId: string) => void;
   onExit: () => void;
 }): { destroy(): void } {
@@ -61,12 +62,19 @@ export function createListView(parent: HTMLElement, opts: {
     if (cleared) {
       starLabel.textContent = '★'.repeat(stars) + '☆'.repeat(Math.max(0, 3 - stars));
     }
+    // 途中の状態が保存されているお題は「途中」を出す (星の横)
+    const isSaved = opts.savedPuzzleId === puzzle.id;
+    if (isSaved) {
+      const saved = document.createElement('span');
+      saved.classList.add('creel-list__saved');
+      saved.textContent = '途中';
+      btn.appendChild(saved);
+    }
 
     btn.appendChild(stage);
     btn.appendChild(name);
     btn.appendChild(size);
     btn.appendChild(starLabel);
-
     if (cleared) {
       btn.addEventListener('click', () => opts.onSelect(puzzle.id));
     } else if (!firstUnclearedSeen) {

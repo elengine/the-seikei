@@ -600,6 +600,11 @@ body {
   color: var(--c-sumi-sub);
 }
 
+.creel-list__saved {
+  font-size: var(--fs-body);
+  color: var(--c-shu);
+}
+
 /* ゲーム画面の枠 (gameFrame) とゲーム画面 */
 .game-screen {
   height: 100%;
