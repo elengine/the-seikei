@@ -14,10 +14,10 @@ export interface CreelState {
   boxes: YarnTypeId[];               // 操作欄に出す箱
   placed: (YarnTypeId | null)[];     // 軸ごとに立っている糸
   tool: Tool;
-  checks: number;                    // 「たしかめる」を押した回数
+  checks: number;                    // 「確認する」を押した回数
   hints: number;
   marks: { wrong: number[]; empty: number[] } | null;   // 最後の判定の✕
-  inspected: number | null;          // 「しらべる」で吹き出しを出している軸
+  inspected: number | null;          // 「調べる」で吹き出しを出している軸
   done: boolean;
 }
 
@@ -88,7 +88,7 @@ export function reduce(s: CreelState, a: CreelAction): CreelState {
     case 'selectRemove':
       return { ...s, tool: { kind: 'remove' }, inspected: null };
     case 'selectInspect':
-      return { ...s, tool: { kind: 'inspect' } }; // しらべるを選ぶときは inspected を消さない
+      return { ...s, tool: { kind: 'inspect' } }; // 調べるを選ぶときは inspected を消さない
     case 'tapCell': {
       if (a.index < 0 || a.index >= s.placed.length) {
         return s; // 範囲外
@@ -111,7 +111,7 @@ export function reduce(s: CreelState, a: CreelAction): CreelState {
         };
         return { ...s, placed, marks, inspected: null };
       }
-      // しらべる: 立っているコーンの品番を吹き出しで見せる
+      // 調べる: 立っているコーンの品番を吹き出しで見せる
       return { ...s, inspected: s.placed[a.index] !== null ? a.index : null };
     }
     case 'check': {

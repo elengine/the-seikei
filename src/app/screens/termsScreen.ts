@@ -11,12 +11,12 @@ export function createTermsScreen(ctx: AppContext): Screen {
 
       const title = document.createElement('h1');
       title.classList.add('settings__title');
-      title.textContent = '呼び名をかえる';
+      title.textContent = '呼び名の変更';
       root.appendChild(title);
 
-      // 上部に「もどる」(設定へ)
+      // 上部に「戻る」(設定へ)
       const backBtn = createButton({
-        label: 'もどる',
+        label: '戻る',
         variant: 'secondary',
         onClick: () => {
           ctx.audio.play('tap');
@@ -49,7 +49,7 @@ export function createTermsScreen(ctx: AppContext): Screen {
           const actions = document.createElement('div');
           actions.classList.add('settings__actions');
           const changeBtn = createButton({
-            label: 'かえる',
+            label: '変更',
             variant: 'secondary',
             onClick: async () => {
               const v = await textInputDialog(root, { title: entry.key, initial: entry.value, maxLength: 10 });
@@ -64,7 +64,7 @@ export function createTermsScreen(ctx: AppContext): Screen {
           if (entry.overridden) {
             // 上書き中なら「元にもどす」
             const resetBtn = createButton({
-              label: '元にもどす',
+              label: '元に戻す',
               variant: 'secondary',
               onClick: async () => {
                 await ctx.terms.reset(entry.key);

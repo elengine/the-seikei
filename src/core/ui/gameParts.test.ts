@@ -25,12 +25,12 @@ describe('gameFrame', () => {
     return { parent, frame, onBack, onHelp };
   }
 
-  it('1. 「もどる」「あそびかた」で各コールバックが呼ばれる。destroy で DOM から消える', () => {
+  it('1. 「戻る」「遊び方」で各コールバックが呼ばれる。destroy で DOM から消える (期待値変更の理由: 管理者の指示で文言を変えたため)', () => {
     const { parent, frame, onBack, onHelp } = setup();
     expect(frame.root.isConnected).toBe(true);
 
-    const back = Array.from(parent.querySelectorAll('button')).find((b) => b.textContent === 'もどる');
-    const help = Array.from(parent.querySelectorAll('button')).find((b) => b.textContent === 'あそびかた');
+    const back = Array.from(parent.querySelectorAll('button')).find((b) => b.textContent === '戻る');
+    const help = Array.from(parent.querySelectorAll('button')).find((b) => b.textContent === '遊び方');
     expect(back).toBeDefined();
     expect(help).toBeDefined();
     back!.click();
@@ -119,12 +119,12 @@ describe('tutorialOverlay', () => {
     return { parent, p };
   }
 
-  it('2. 3ページで「つぎへ」2回、「はじめる」1回で解決する。onPage は2回。最初のページに戻るボタンはない', async () => {
+  it('2. 3ページで「次へ」2回、「始める」1回で解決する。onPage は2回。最初のページに戻るボタンはない (期待値変更の理由: 管理者の指示で文言を変えたため)', async () => {
     const onPage = vi.fn();
     const { parent, p } = setup(makeSpec(3), onPage);
 
     // 最初のページでは戻るボタンがない
-    const prevButtons = Array.from(parent.querySelectorAll('button')).filter((b) => b.textContent === 'もどる');
+    const prevButtons = Array.from(parent.querySelectorAll('button')).filter((b) => b.textContent === '戻る');
     expect(prevButtons).toHaveLength(0);
 
     let resolved = false;
@@ -132,8 +132,8 @@ describe('tutorialOverlay', () => {
       resolved = true;
     });
 
-    const next = () => Array.from(parent.querySelectorAll('button')).find((b) => b.textContent === 'つぎへ')!;
-    const start = () => Array.from(parent.querySelectorAll('button')).find((b) => b.textContent === 'はじめる')!;
+    const next = () => Array.from(parent.querySelectorAll('button')).find((b) => b.textContent === '次へ')!;
+    const start = () => Array.from(parent.querySelectorAll('button')).find((b) => b.textContent === '始める')!;
 
     next().click();
     await Promise.resolve(); // DOM 更新を待つ
@@ -142,7 +142,7 @@ describe('tutorialOverlay', () => {
 
     expect(onPage).toHaveBeenCalledTimes(2); // ページ送りのたびに onPage
 
-    // 最後のページでは「つぎへ」がなく「はじめる」がある
+    // 最後のページでは「次へ」がなく「始める」がある
     expect(next()).toBeUndefined();
     start().click();
     await vi.waitFor(() => {
@@ -154,22 +154,22 @@ describe('tutorialOverlay', () => {
     const { parent, p } = setup(makeSpec(2));
 
     const byLabel = (label: string) => Array.from(parent.querySelectorAll('button')).find((b) => b.textContent === label);
-    byLabel('つぎへ')!.click(); // 1 → 2
+    byLabel('次へ')!.click(); // 1 → 2
     await Promise.resolve();
 
-    const prev = byLabel('まえへ');
-    expect(prev).toBeDefined(); // 2ページ目には「まえへ」がある (ゲームを終える「もどる」と区別)
+    const prev = byLabel('前へ');
+    expect(prev).toBeDefined(); // 2ページ目には「前へ」がある (ゲームを終える「戻る」と区別)
     prev!.click();
     await Promise.resolve();
 
-    // 1ページ目に戻ると「つぎへ」があり、「まえへ」は消える
-    expect(byLabel('まえへ')).toBeUndefined();
+    // 1ページ目に戻ると「次へ」があり、「前へ」は消える
+    expect(byLabel('前へ')).toBeUndefined();
     // ページ数表示「1 / 2」
     expect(parent.textContent).toContain('1 / 2');
 
-    byLabel('つぎへ')!.click(); // 1 → 2
+    byLabel('次へ')!.click(); // 1 → 2
     await Promise.resolve();
-    byLabel('はじめる')!.click(); // 最後のページ → はじめる
+    byLabel('始める')!.click(); // 最後のページ → 始める
     await vi.waitFor(async () => {
       await p;
     });
@@ -293,7 +293,7 @@ describe('resultView', () => {
   });
 });
 
-describe('T1-10fix 追加修正3: 横長では「いまの帯の並び」を盤面の下に置く', () => {
+describe('T1-10fix 追加修正3: 横長では「現在の帯の並び」を盤面の下に置く (テスト名のみ変更: 管理者の指示で文言を変えたため)', () => {
   class FakeRO {
     cb: ResizeObserverCallback;
     constructor(cb: ResizeObserverCallback) {
@@ -455,7 +455,7 @@ describe('T1-12a: 結果の表示の柄の欄のクラス', () => {
     showResult(parent, {
       praise: '完璧です!',
       stars: 3,
-      lines: ['たしかめた回数 1回'],
+      lines: ['確認した回数 1回'],
       newPatternNames: ['紺の無地'],
       againLabel: 'もう一度',
       homeLabel: 'ホームへ',
@@ -464,7 +464,7 @@ describe('T1-12a: 結果の表示の柄の欄のクラス', () => {
     const names = parent.querySelector('.result-patterns .result-patterns__names');
     expect(label).not.toBeNull();
     expect(names).not.toBeNull();
-    expect(label?.textContent).toBe('あたらしく集めた柄');
+    expect(label?.textContent).toBe('新しく集めた柄');
     expect(names?.textContent).toBe('紺の無地');
   });
 });

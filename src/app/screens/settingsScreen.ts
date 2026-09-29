@@ -2,7 +2,7 @@ import type { AppContext } from '../context';
 import type { Screen } from '../screenManager';
 import { createButton, textInputDialog } from '../../core/ui/widgets';
 
-/** 設定画面。現在の値と「かえる」ボタンを1行ずつ並べる */
+/** 設定画面。現在の値と「変更」ボタンを1行ずつ並べる */
 export function createSettingsScreen(ctx: AppContext): Screen {
   return {
     mount(container: HTMLElement): void {
@@ -11,7 +11,7 @@ export function createSettingsScreen(ctx: AppContext): Screen {
 
       const title = document.createElement('h1');
       title.classList.add('settings__title');
-      title.textContent = 'せってい';
+      title.textContent = '設定';
       root.appendChild(title);
 
       function row(label: string): { row: HTMLDivElement; value: HTMLSpanElement; actions: HTMLDivElement } {
@@ -47,10 +47,10 @@ export function createSettingsScreen(ctx: AppContext): Screen {
           refresh();
         }
       };
-      const nameBtn = createButton({ label: 'かえる', variant: 'secondary', onClick: () => void nameInput() });
+      const nameBtn = createButton({ label: '変更', variant: 'secondary', onClick: () => void nameInput() });
       nameRow.actions.appendChild(nameBtn);
       rerender.fns.push(() => {
-        nameRow.value.textContent = ctx.settings.get().playerName === '' ? '（まだ）' : ctx.settings.get().playerName;
+        nameRow.value.textContent = ctx.settings.get().playerName === '' ? '（未設定）' : ctx.settings.get().playerName;
       });
       root.appendChild(nameRow.row);
 
@@ -63,7 +63,7 @@ export function createSettingsScreen(ctx: AppContext): Screen {
           refresh();
         }
       };
-      const shopBtn = createButton({ label: 'かえる', variant: 'secondary', onClick: () => void shopInput() });
+      const shopBtn = createButton({ label: '変更', variant: 'secondary', onClick: () => void shopInput() });
       shopRow.actions.appendChild(shopBtn);
       rerender.fns.push(() => {
         shopRow.value.textContent = ctx.settings.get().shopName;
@@ -146,10 +146,10 @@ export function createSettingsScreen(ctx: AppContext): Screen {
       rerender.fns.push(volumeButtons);
       root.appendChild(volumeRow.row);
 
-      // 呼び名をかえる (画面は T0-16)
-      const termsRow = row('呼び名をかえる');
+      // 呼び名の変更 (画面は T0-16)
+      const termsRow = row('呼び名の変更');
       const termsBtn = createButton({
-        label: 'かえる',
+        label: '変更',
         variant: 'secondary',
         onClick: () => {
           ctx.audio.play('tap');
@@ -178,9 +178,9 @@ export function createSettingsScreen(ctx: AppContext): Screen {
       adminArea.appendChild(adminBtn);
       root.appendChild(adminArea);
 
-      // もどる (ホームへ)
+      // 戻る (ホームへ)
       const backBtn = createButton({
-        label: 'もどる',
+        label: '戻る',
         variant: 'secondary',
         onClick: () => {
           ctx.audio.play('tap');

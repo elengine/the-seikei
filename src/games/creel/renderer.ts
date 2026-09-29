@@ -148,7 +148,7 @@ export function drawBoard(
         ctx.textBaseline = 'middle';
         ctx.fillText(color.symbol, center.x, center.y);
       }
-      // 5. 品番 (段階 1〜3 のみ、コーンの下)。収まらないときは描かない (「しらべる」で見られる)
+      // 5. 品番 (段階 1〜3 のみ、コーンの下)。収まらないときは描かない (「調べる」で見られる)
       if (showHinbanOnCone(s.stage) && yarn !== undefined) {
         const size = 20;
         ctx.font = `${size}px ${FONT_FAMILY}`;

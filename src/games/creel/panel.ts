@@ -6,7 +6,7 @@ import { toRuns, splitRepeat } from '../../core/domain/stripe';
 export interface CreelPanel {
   update(s: CreelState): void;   // 状態に合わせて表示を更新
   setMessage(text: string): void;
-  /** 「いまの帯の並び」の区画を target の中に移す。null なら操作欄の元の位置に戻す */
+  /** 「現在の帯の並び」の区画を target の中に移す。null なら操作欄の元の位置に戻す */
   placeBand(target: HTMLElement | null): void;
   destroy(): void;
 }
@@ -19,7 +19,7 @@ function selectedHinban(s: CreelState, content: Content): string | null {
   return content.yarns.get(s.tool.yarn)?.hinban ?? null;
 }
 
-/** 操作欄 (依頼書・いまの帯の並び・箱・道具とボタン) を作る */
+/** 操作欄 (依頼書・現在の帯の並び・箱・道具とボタン) を作る */
 export function createCreelPanel(parent: HTMLElement, opts: {
   content: Content;
   onAction: (a: CreelAction) => void;
@@ -53,12 +53,12 @@ export function createCreelPanel(parent: HTMLElement, opts: {
   orderBox.appendChild(orderTable);
   root.appendChild(orderBox);
 
-  // ---- 2. いまの帯の並び ----
+  // ---- 2. 現在の帯の並び ----
   const bandBox = document.createElement('section');
   bandBox.classList.add('creel-section');
   const bandTitle = document.createElement('h2');
   bandTitle.classList.add('creel-section__title');
-  bandTitle.textContent = 'いまの帯の並び';
+  bandTitle.textContent = '現在の帯の並び';
   bandBox.appendChild(bandTitle);
   const band = document.createElement('div');
   band.classList.add('creel-band');
@@ -84,13 +84,13 @@ export function createCreelPanel(parent: HTMLElement, opts: {
   toolsBox.classList.add('creel-section', 'creel-section--tools');
   const toolsRow = document.createElement('div');
   toolsRow.classList.add('creel-tools');
-  const removeBtn = makeToolButton('はずす', 'creel-tool-remove', () => opts.onAction({ type: 'selectRemove' }));
-  const inspectBtn = makeToolButton('しらべる', 'creel-tool-inspect', () => opts.onAction({ type: 'selectInspect' }));
+  const removeBtn = makeToolButton('外す', 'creel-tool-remove', () => opts.onAction({ type: 'selectRemove' }));
+  const inspectBtn = makeToolButton('調べる', 'creel-tool-inspect', () => opts.onAction({ type: 'selectInspect' }));
   toolsRow.appendChild(removeBtn);
   toolsRow.appendChild(inspectBtn);
   const checkBtn = document.createElement('button');
   checkBtn.type = 'button';
-  checkBtn.textContent = 'たしかめる';
+  checkBtn.textContent = '確認する';
   checkBtn.classList.add('btn', 'btn--primary', 'creel-tools__check');
   checkBtn.dataset.testid = 'creel-check';
   checkBtn.addEventListener('click', () => opts.onAction({ type: 'check' }));
@@ -156,11 +156,11 @@ export function createCreelPanel(parent: HTMLElement, opts: {
       const rep = document.createElement('div');
       rep.classList.add('creel-order-repeat');
       rep.dataset.testid = 'creel-order-repeat';
-      rep.textContent = `↻ くりかえし × ${times}`;
+      rep.textContent = `↻ 繰り返し × ${times}`;
       orderTable.appendChild(rep);
     }
 
-    // 2. いまの帯の並び (番号(上)+マス(下) の縦並びのまとまりを、普通の流れで並べる)
+    // 2. 現在の帯の並び (番号(上)+マス(下) の縦並びのまとまりを、普通の流れで並べる)
     band.textContent = '';
     for (let i = 0; i < s.placed.length; i++) {
       const item = document.createElement('div');
@@ -226,8 +226,8 @@ export function createCreelPanel(parent: HTMLElement, opts: {
     }
 
     // 4. 道具の ✓ (選んでいる方だけ)
-    removeBtn.textContent = `${s.tool.kind === 'remove' ? '✓ ' : ''}はずす`;
-    inspectBtn.textContent = `${s.tool.kind === 'inspect' ? '✓ ' : ''}しらべる`;
+    removeBtn.textContent = `${s.tool.kind === 'remove' ? '✓ ' : ''}外す`;
+    inspectBtn.textContent = `${s.tool.kind === 'inspect' ? '✓ ' : ''}調べる`;
   }
 
   return {
@@ -235,7 +235,7 @@ export function createCreelPanel(parent: HTMLElement, opts: {
       render(s);
     },
 
-    /** 「いまの帯の並び」の区画を target の中に移す。null なら操作欄の元の位置に戻す */
+    /** 「現在の帯の並び」の区画を target の中に移す。null なら操作欄の元の位置に戻す */
     placeBand(target: HTMLElement | null): void {
       if (target === null) {
         if (bandBox.parentElement !== root) {

@@ -2,7 +2,7 @@ import { setupCanvas, fitStage, onViewportChange, layoutOf } from '../viewport/v
 import type { StageFit, Layout } from '../viewport/viewport';
 
 /**
- * 全ゲームで使う画面の枠。上部の帯 (もどる・題名・あそびかた) と
+ * 全ゲームで使う画面の枠。上部の帯 (戻る・題名・遊び方) と
  * 盤面 (Canvas) と操作パネルを配置する。
  */
 export interface GameFrame {
@@ -37,8 +37,8 @@ export function createGameFrame(
   parent: HTMLElement,
   opts: {
     title: string; // 呼び出し側で terms.t() 済みの文字列
-    onBack: () => void; // 「もどる」(確認は呼び出し側で行う)
-    onHelp: () => void; // 「あそびかた」
+    onBack: () => void; // 「戻る」(確認は呼び出し側で行う)
+    onHelp: () => void; // 「遊び方」
     logicalW: number;
     logicalH: number;
     onStageResize?: (fit: StageFit) => void;
@@ -47,7 +47,7 @@ export function createGameFrame(
   const root = document.createElement('div');
   root.classList.add('game-frame');
 
-  // 上部の帯: 左「もどる」・中央に題名・右「あそびかた」
+  // 上部の帯: 左「戻る」・中央に題名・右「遊び方」
   const bar = document.createElement('div');
   bar.classList.add('game-frame__bar');
   bar.style.height = `${BAR_H}px`;
@@ -64,12 +64,12 @@ export function createGameFrame(
     return b;
   }
 
-  const back = barButton('もどる', opts.onBack);
+  const back = barButton('戻る', opts.onBack);
   back.classList.add('game-frame__bar-left');
   const title = document.createElement('span');
   title.classList.add('game-frame__title');
   title.textContent = opts.title;
-  const help = barButton('あそびかた', opts.onHelp);
+  const help = barButton('遊び方', opts.onHelp);
   help.classList.add('game-frame__bar-right');
   bar.appendChild(back);
   bar.appendChild(title);

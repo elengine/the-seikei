@@ -86,7 +86,7 @@ function drawCreel(ctx: CanvasRenderingContext2D, w: number, h: number): void {
   ctx.fillText('W-4812', w * 0.15, barY + h * 0.16);
 }
 
-/** 3ページ目: たしかめる の ✕ の略図 */
+/** 3ページ目: 確認する の ✕ の略図 */
 function drawCheck(ctx: CanvasRenderingContext2D, w: number, h: number): void {
   // マス 3つ
   const size = w * 0.14;
@@ -116,7 +116,7 @@ function drawCheck(ctx: CanvasRenderingContext2D, w: number, h: number): void {
 export const creelTutorial: TutorialSpec = {
   pages: [
     { draw: (ctx, w, h) => drawOrderSheet(ctx, w, h), text: '依頼書を見て、どの糸を何本立てるか確かめます' },
-    { draw: (ctx, w, h) => drawCreel(ctx, w, h), text: '品番の書かれた箱をえらんで、{{spindle}}をさわると{{cone}}が立ちます' },
-    { draw: (ctx, w, h) => drawCheck(ctx, w, h), text: '全部立てたら『たしかめる』。まちがいは ✕ で教えてくれます' },
+    { draw: (ctx, w, h) => drawCreel(ctx, w, h), text: '品番の書かれた箱を選び、{{spindle}}に触れると{{cone}}が立ちます' },
+    { draw: (ctx, w, h) => drawCheck(ctx, w, h), text: '全部立てたら「確認する」を押します。間違いは ✕ で示されます' },
   ],
 };

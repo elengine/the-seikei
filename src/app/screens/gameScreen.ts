@@ -60,9 +60,9 @@ export function createGameScreen(ctx: AppContext): Screen {
         const saved = await getSession(ctx, id);
         if (saved !== undefined) {
           const resumeChosen = await confirmDialog(root, {
-            message: '前に遊んでいたつづきから始めますか?',
-            okLabel: 'つづきから',
-            cancelLabel: 'はじめから',
+            message: '前回の続きから始めますか?',
+            okLabel: '続きから',
+            cancelLabel: '最初から',
           });
           if (disposed) {
             return; // 確認中に離れた
@@ -70,7 +70,7 @@ export function createGameScreen(ctx: AppContext): Screen {
           if (resumeChosen) {
             resume = saved.state;
           } else {
-            await ctx.repo.remove('sessions', id); // 「はじめから」なら途中保存を消す
+            await ctx.repo.remove('sessions', id); // 「最初から」なら途中保存を消す
           }
         }
         if (disposed) {
@@ -188,13 +188,13 @@ function mountGame(
       }
       // 成績欄は summary だけ (無ければ空)。「星 Nつ」は星の表示と重なるので出さない
       const lines = result.summary ?? [];
-      const praise = result.stars === 3 ? '完璧です!' : result.stars === 2 ? 'よくできました!' : 'できました!';
+      const praise = result.stars === 3 ? '完璧です!' : result.stars === 2 ? 'お見事です!' : '完成です!';
       const choice = await showResult(parent, {
         praise,
         stars: result.stars,
         lines,
         newPatternNames: newNames,
-        againLabel: 'つづけて遊ぶ',
+        againLabel: '続けて遊ぶ',
         homeLabel: 'ホームへ',
       });
       if (isDisposed()) {
@@ -215,9 +215,9 @@ function mountGame(
       const state = instance.suspend();
       if (state !== null && state !== undefined) {
         const goHome = await confirmDialog(parent, {
-          message: 'ホームにもどりますか? (つづきは保存されます)',
-          okLabel: 'ホームにもどる',
-          cancelLabel: 'つづける',
+          message: 'ホームに戻りますか?(途中の状態は保存されます)',
+          okLabel: 'ホームに戻る',
+          cancelLabel: '続ける',
         });
         if (isDisposed()) {
           return;
@@ -249,7 +249,7 @@ function mountGame(
   };
   document.addEventListener('visibilitychange', onVisibility);
 
-  // ---- 画面を離れるときの片付け (Screen.unmount と「つづけて遊ぶ」から呼ぶ) ----
+  // ---- 画面を離れるときの片付け (Screen.unmount と「続けて遊ぶ」から呼ぶ) ----
   const cleanupThis = (): void => {
     lastCleanup = null; // 二重呼び出し防止 (mount し直しで新しい cleanup が登録される)
     instance.unmount();

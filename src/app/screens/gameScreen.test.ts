@@ -121,7 +121,7 @@ describe('gameScreen', () => {
     expect(showTutorial).not.toHaveBeenCalled();
   });
 
-  it('途中保存があるとき「つづきから」を選ぶと、mount に resume が渡る', async () => {
+  it('途中保存があるとき「続きから」を選ぶと、mount に resume が渡る (テスト名のみ変更: 管理者の指示で文言を変えたため)', async () => {
     const ctx = await makeCtx();
     await ctx.settings.update({ tutorialSeen: { creel: true } });
     const state = { stage: 2 };
@@ -129,7 +129,7 @@ describe('gameScreen', () => {
     const { module, captured } = makeFakeModule('creel');
     registerGame(module);
     const screen = createGameScreen(ctx);
-    confirmAnswers.push(true); // 「つづきから」
+    confirmAnswers.push(true); // 「続きから」
     screen.mount(document.createElement('div'), { id: 'creel' });
     await vi.waitFor(() => {
       expect(captured.props?.resume).toEqual(state);
@@ -185,7 +185,7 @@ describe('gameScreen', () => {
     );
   });
 
-  it('onExit で suspend() が値を返すと確認が出て、「ホームにもどる」で途中保存される', async () => {
+  it('onExit で suspend() が値を返すと確認が出て、「ホームに戻る」で途中保存される (テスト名のみ変更: 管理者の指示で文言を変えたため)', async () => {
     const ctx = await makeCtx();
     let navigated = '';
     ctx.navigate = (path: string) => {
@@ -196,7 +196,7 @@ describe('gameScreen', () => {
     const { module, captured } = makeFakeModule('creel', state);
     registerGame(module);
     const screen = createGameScreen(ctx);
-    confirmAnswers.push(true); // 「ホームにもどる」
+    confirmAnswers.push(true); // 「ホームに戻る」
     screen.mount(document.createElement('div'), { id: 'creel' });
     await vi.waitFor(() => {
       expect(captured.props?.onExit).toBeDefined();

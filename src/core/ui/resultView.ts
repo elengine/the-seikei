@@ -52,7 +52,7 @@ export function showResult(
       patterns.classList.add('result-patterns');
       const label = document.createElement('p');
       label.classList.add('result-patterns__label');
-      label.textContent = 'あたらしく集めた柄';
+      label.textContent = '新しく集めた柄';
       patterns.appendChild(label);
       const names = document.createElement('p');
       names.classList.add('result-patterns__names');

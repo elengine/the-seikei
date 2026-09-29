@@ -27,7 +27,7 @@ export function createAdminScreen(ctx: AppContext): Screen {
       root.appendChild(title);
 
       const backBtn = createButton({
-        label: 'もどる',
+        label: '戻る',
         variant: 'secondary',
         onClick: () => {
           ctx.audio.play('tap');

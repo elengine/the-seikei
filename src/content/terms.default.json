@@ -1,6 +1,6 @@
 {
   "creel": { "value": "クリール", "description": "糸を巻いたコーンを立て並べる台" },
-  "cone": { "value": "コーン", "description": "糸を巻いた円すい形の巻き物" },
+  "cone": { "value": "コーン", "description": "糸を巻いた円錐形の巻き物" },
   "lease": { "value": "綾", "description": "糸の並び順を保つための交差" },
   "section": { "value": "帯", "description": "ドラムに巻く糸のひとまとまり" },
   "drum": { "value": "ドラム", "description": "桟を組んだかご状の胴。帯を順に巻き重ねる" },

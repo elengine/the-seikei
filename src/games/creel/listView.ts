@@ -4,7 +4,7 @@ import { getContent } from '../../core/content/content';
 
 /**
  * お題一覧。段階の順に大きなボタンで並べる。
- * 選べるのは、クリア済みのお題と、最初の未クリアのお題まで。その先は「まだ」で押せない。
+ * 選べるのは、クリア済みのお題と、最初の未クリアのお題まで。その先は「未解放」で押せない。
  */
 export function createListView(parent: HTMLElement, opts: {
   records: Records;
@@ -18,18 +18,18 @@ export function createListView(parent: HTMLElement, opts: {
   const root = document.createElement('div');
   root.classList.add('creel-list');
 
-  // 見出しと「もどる」
+  // 見出しと「戻る」
   const header = document.createElement('div');
   header.classList.add('creel-list__header');
   const backBtn = document.createElement('button');
   backBtn.type = 'button';
-  backBtn.textContent = 'もどる';
+  backBtn.textContent = '戻る';
   backBtn.classList.add('btn', 'btn--secondary');
   backBtn.dataset.testid = 'creel-list-back';
   backBtn.addEventListener('click', () => opts.onExit());
   const title = document.createElement('h1');
   title.classList.add('creel-list__title');
-  title.textContent = 'お題をえらぶ';
+  title.textContent = 'お題を選ぶ';
   header.appendChild(backBtn);
   header.appendChild(title);
   root.appendChild(header);
@@ -74,11 +74,11 @@ export function createListView(parent: HTMLElement, opts: {
       firstUnclearedSeen = true;
       btn.addEventListener('click', () => opts.onSelect(puzzle.id));
     } else {
-      // その先は「まだ」
+      // その先は「未解放」
       btn.disabled = true;
       const still = document.createElement('span');
       still.classList.add('creel-list__locked');
-      still.textContent = 'まだ';
+      still.textContent = '未解放';
       btn.appendChild(still);
     }
     list.appendChild(btn);

@@ -61,13 +61,13 @@ describe('createCreelModule', () => {
       onFinish: () => undefined,
       onExit: () => undefined,
     });
-    // s1 のボタンは押せる。s2 は「まだ」で disabled
+    // s1 のボタンは押せる。s2 は「未解放」で disabled (期待値変更の理由: 管理者の指示で文言を変えたため)
     const s1 = parent.querySelector<HTMLButtonElement>('[data-testid="creel-puzzle-s1"]');
     const s2 = parent.querySelector<HTMLButtonElement>('[data-testid="creel-puzzle-s2"]');
     expect(s1).not.toBeNull();
     expect(s1?.disabled).toBe(false);
     expect(s2?.disabled).toBe(true);
-    expect(s2?.textContent).toContain('まだ');
+    expect(s2?.textContent).toContain('未解放');
     // s1 の星の記録があると s2 が押せる
     const deps2 = makeDeps({
       records: {
@@ -84,7 +84,7 @@ describe('createCreelModule', () => {
     instance.unmount();
   });
 
-  it('プレイ: s1 で全部の軸をタップして立て、たしかめるを押すと、1.5秒後に onFinish が1回呼ばれる (stars 3・unlockedPatternIds は p-muji-kon)', () => {
+  it('プレイ: s1 で全部の軸をタップして立て、確認するを押すと、1.5秒後に onFinish が1回呼ばれる (stars 3・unlockedPatternIds は p-muji-kon) (テスト名のみ変更: 管理者の指示で文言を変えたため)', () => {
     const deps = makeDeps();
     const module = createCreelModule(deps);
     const parent = document.createElement('div');
@@ -111,7 +111,7 @@ describe('createCreelModule', () => {
       const px = toPx(fit, { x: cell.x + cell.w / 2, y: cell.y + cell.h / 2 });
       stage.dispatchEvent(new PointerEvent('pointerdown', { clientX: rect.left + px.x, clientY: rect.top + px.y, bubbles: true }));
     }
-    // たしかめる
+    // 確認する
     const checkBtn = parent.querySelector<HTMLButtonElement>('[data-testid="creel-check"]');
     checkBtn!.click();
     expect(onFinish).not.toHaveBeenCalled();

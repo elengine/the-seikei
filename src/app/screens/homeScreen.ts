@@ -52,7 +52,7 @@ export function createHomeScreen(ctx: AppContext): Screen {
       const footer = document.createElement('footer');
       footer.classList.add('home__footer');
       const settingsBtn = createButton({
-        label: 'せってい',
+        label: '設定',
         variant: 'secondary',
         onClick: () => {
           ctx.audio.play('tap');

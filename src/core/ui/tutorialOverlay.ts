@@ -3,19 +3,19 @@ import { setupCanvas } from '../viewport/viewport';
 
 /**
  * チュートリアルの表示。1ページに絵 (Canvas) と文を置き、
- * 最後のページで「はじめる」を押すと解決する。
+ * 最後のページで「始める」を押すと解決する。
  */
 export function showTutorial(
   parent: HTMLElement,
   spec: TutorialSpec,
   opts: {
-    nextLabel?: string; // 既定「つぎへ」
-    startLabel?: string; // 既定「はじめる」
+    nextLabel?: string; // 既定「次へ」
+    startLabel?: string; // 既定「始める」
     onPage?: () => void; // ページ送りのたび (効果音用)
   } = {},
 ): Promise<void> {
-  const nextLabel = opts.nextLabel ?? 'つぎへ';
-  const startLabel = opts.startLabel ?? 'はじめる';
+  const nextLabel = opts.nextLabel ?? '次へ';
+  const startLabel = opts.startLabel ?? '始める';
   const total = spec.pages.length;
 
   return new Promise((resolve) => {
@@ -69,12 +69,12 @@ export function showTutorial(
         p.draw(ctx, canvasW, canvasH); // draw には CSS px の幅・高さを渡す
       }
       actions.textContent = ''; // ボタンを作り直す
-      // 前のページへ戻るボタン (最初のページでは置かない)。ゲームを終える「もどる」と区別するため「まえへ」
+      // 前のページへ戻るボタン (最初のページでは置かない)。ゲームを終える「戻る」と区別するため「前へ」
       if (page > 0) {
         const prev = document.createElement('button');
         prev.type = 'button';
         prev.classList.add('btn', 'btn--secondary');
-        prev.textContent = 'まえへ';
+        prev.textContent = '前へ';
         prev.addEventListener('click', () => {
           if (page > 0) {
             page -= 1;
@@ -84,7 +84,7 @@ export function showTutorial(
         });
         actions.appendChild(prev);
       }
-      // 「つぎへ」または「はじめる」
+      // 「次へ」または「始める」
       const next = document.createElement('button');
       next.type = 'button';
       next.classList.add('btn', 'btn--primary');
