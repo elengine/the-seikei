@@ -1,8 +1,8 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-09-28T19:15:00+09:00",
+  "updated_at": "2026-09-28T19:30:00+09:00",
   "phase": "P0",
-  "current_task": "T1-07 (クリール立て:ルール)",
+  "current_task": "T1-07 整理",
   "done": [
     "T0-00",
     "T0-01",
@@ -32,12 +32,12 @@
     "T1-05",
     "T1-06",
     "T1-06 追加修正",
-    "T1-07"
+    "T1-07",
+    "T1-07 整理"
   ],
   "checks": {
-    "T1-07": {
-      "logic": "init/reduce/canHint/starsOf/showHinbanOnCone/isValidResume を純粋関数で実装。boxes は段階4以上で紛らわしい箱を品番昇順で追加。定数は params.ts",
-      "test": "12件 (本物データ、RED確認後実装)",
+    "T1-07 整理": {
+      "logic": "comparePlaced を削除し core/domain/stripe の compare を使用",
       "npm_test": "ok (208 passed / 11 skipped)",
       "npm_run_check": "ok"
     }

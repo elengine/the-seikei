@@ -272,6 +272,12 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - **npm_test**: ok (208 passed / 11 skipped)
 - **npm_run_check**: ok
 
+## T1-07 整理
+
+- logic.ts の局所実装 comparePlaced を削除し、core/domain/stripe の compare を使う形にそろえた (check アクションで使用)。テスト12件はそのまま通る。
+- npm_test: ok (208 passed / 11 skipped)
+- npm_run_check: ok
+
 ## notes (気づいた点・今後も守る注意点)
 
 - T0-01: npm registry の最新 typescript は 7.0.2 (dist-tags latest) だが typescript-eslint 8.70.1 の peer 依存 (>=4.8.4 <6.1.0) と衝突し ERESOLVE。typescript を ^5.9.3 (5.x 最新) にして解消。他パッケージは現時点の最新安定版 (^付き) のまま。

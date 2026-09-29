@@ -1,6 +1,6 @@
 import type { YarnTypeId, CreelPuzzle } from '../../core/domain/types';
 import type { Content } from '../../core/content/content';
-import { answerFor } from '../../core/domain/stripe';
+import { answerFor, compare } from '../../core/domain/stripe';
 import { STARS3_CHECKS_MAX, STARS2_CHECKS_MAX, HINT_MIN_CHECKS, CONFUSING_BOXES_FROM_STAGE } from './params';
 
 export type Tool = { kind: 'box'; yarn: YarnTypeId } | { kind: 'remove' } | { kind: 'inspect' };
@@ -115,7 +115,7 @@ export function reduce(s: CreelState, a: CreelAction): CreelState {
       return { ...s, inspected: s.placed[a.index] !== null ? a.index : null };
     }
     case 'check': {
-      const marks = comparePlaced(s.placed, s.answer);
+      const marks = compare(s.placed, s.answer);
       const done = marks.wrong.length === 0 && marks.empty.length === 0;
       return {
         ...s,
@@ -142,21 +142,6 @@ export function reduce(s: CreelState, a: CreelAction): CreelState {
     case 'clearInspect':
       return { ...s, inspected: null };
   }
-}
-
-/** placed と answer を比べる (core/domain/stripe の compare と同じ判定を局所で行う) */
-function comparePlaced(placed: (YarnTypeId | null)[], answer: YarnTypeId[]): { wrong: number[]; empty: number[] } {
-  const wrong: number[] = [];
-  const empty: number[] = [];
-  for (let i = 0; i < answer.length; i++) {
-    const p = placed[i];
-    if (p === null) {
-      empty.push(i);
-    } else if (p !== answer[i]) {
-      wrong.push(i);
-    }
-  }
-  return { wrong, empty };
 }
 
 /** ヒントを使えるか: done でなく、checks が HINT_MIN_CHECKS 以上で、marks に wrong か empty がある */
