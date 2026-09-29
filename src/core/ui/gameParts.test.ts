@@ -294,6 +294,23 @@ describe('resultView', () => {
 });
 
 describe('T1-10fix 追加修正3: 横長では「いまの帯の並び」を盤面の下に置く', () => {
+  class FakeRO {
+    cb: ResizeObserverCallback;
+    constructor(cb: ResizeObserverCallback) {
+      this.cb = cb;
+      (FakeRO as unknown as { last: FakeRO | null }).last = this;
+    }
+    observe(): void {}
+    unobserve(): void {}
+    disconnect(): void {}
+    static last: FakeRO | null = null;
+  }
+  const RORef = FakeRO as unknown as { last: FakeRO | null };
+  beforeEach(() => {
+    vi.stubGlobal('ResizeObserver', FakeRO);
+    RORef.last = null;
+  });
+
   function setupWithSize(w: number, h: number) {
     const parent = document.createElement('div');
     parent.getBoundingClientRect = () =>
@@ -353,6 +370,15 @@ describe('T1-10fix 追加修正3: 横長では「いまの帯の並び」を盤�
     const stageH1 = parseInt(stageBox.style.height, 10);
     expect(stageH1).toBe(bodyH - 190);
     expect(sizes.length).toBeGreaterThanOrEqual(2); // onStageResize が再び呼ばれる
+    frame.destroy();
+  });
+
+  it('footer の高さが変わったら Canvas を作り直す (ResizeObserver で footer を監視)', () => {
+    const { frame } = setupWithSize(1180, 820);
+    // footer が監視対象として登録されている
+    const ro = RORef.last;
+    expect(ro).not.toBeNull();
+    expect(() => ro!.cb([], ro as unknown as ResizeObserver)).not.toThrow(); // 高さ変化のコールバックが呼べる
     frame.destroy();
   });
 });

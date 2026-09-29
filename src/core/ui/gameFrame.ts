@@ -137,6 +137,15 @@ export function createGameFrame(
 
   parent.appendChild(root);
 
+  // footer の高さが変わったとき (中身が増えた/減ったとき) も、Canvas を作り直して onStageResize を呼ぶ
+  let ro: ResizeObserver | null = null;
+  if (typeof ResizeObserver !== 'undefined') {
+    ro = new ResizeObserver(() => {
+      applyLayout();
+    });
+    ro.observe(footer);
+  }
+
   // 画面サイズに合わせて自動的に調整する
   offViewport = onViewportChange(() => {
     resize();
@@ -157,6 +166,8 @@ export function createGameFrame(
     destroy(): void {
       offViewport?.();
       offViewport = null;
+      ro?.disconnect();
+      ro = null;
       root.remove(); // DOM から消える
     },
   };
