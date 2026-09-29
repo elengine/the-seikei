@@ -6,7 +6,7 @@ import { drawFabric, fabricSpecFor } from '../../core/ui/fabricPreview';
 import { getContent, type Content } from '../../core/content/content';
 import { drawBoard } from './renderer';
 import { createCreelPanel } from './panel';
-import { fromPx, hitTest, fontPx } from './geometry';
+import { fromPx, hitTest } from './geometry';
 import { init, reduce, starsOf, isValidResume } from './logic';
 import type { CreelState, CreelAction } from './logic';
 import { showTutorial } from '../../core/ui/tutorialOverlay';
@@ -82,10 +82,10 @@ export function createController(parent: HTMLElement, deps: GameDeps, props: Gam
         const w = 1000 * lastFit.scale;
         const h = 750 * lastFit.scale;
         const margin = 60 * lastFit.scale;
-        drawFabric(ctx, spec, { x: lastFit.offsetX + margin, y: lastFit.offsetY + margin, w: w - margin * 2, h: h - margin * 2 }, { threadPx: Math.max(4, fontPx(lastFit, 6)) });
+        drawFabric(ctx, spec, { x: lastFit.offsetX + margin, y: lastFit.offsetY + margin, w: w - margin * 2, h: h - margin * 2 }, { threadPx: 6 });
       }
       // 「できあがりました」(盤面の上端・生地の見本の上に出す)
-      const size = fontPx(lastFit, 44);
+      const size = 44; // 画面px
       ctx.font = `${size}px sans-serif`;
       ctx.fillStyle = '#FFFFFF';
       ctx.textAlign = 'center';

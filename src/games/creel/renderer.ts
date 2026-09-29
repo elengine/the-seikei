@@ -1,7 +1,7 @@
 import type { CreelState } from './logic';
 import type { Content } from '../../core/content/content';
 import { showHinbanOnCone } from './logic';
-import { CREEL_AREA, cellRect, fontPx, toPx } from './geometry';
+import { CREEL_AREA, cellRect, toPx } from './geometry';
 import { COLORS, FONT_FAMILY } from '../../core/ui/tokens';
 import { indexToCell } from '../../core/domain/stripe';
 
@@ -110,7 +110,7 @@ export function drawBoard(
       ctx.stroke();
       // コーンの中央に色の記号 (明るい色なら sumi、暗い色なら white)
       if (color !== undefined) {
-        const symSize = fontPx(fit, Math.max(20, rect.h * 0.16));
+        const symSize = Math.max(20, rect.h * 0.16 * fit.scale); // 画面px (マスの高さに比例)
         ctx.font = `${symSize}px ${FONT_FAMILY}`;
         ctx.fillStyle = isLightHex(hex) ? COLORS.sumi : COLORS.white;
         const center = toPx(fit, { x: rect.x + rect.w / 2, y: rect.y + rect.h * 0.55 });
@@ -120,7 +120,7 @@ export function drawBoard(
       }
       // 5. 品番 (段階 1〜3 のみ、コーンの下)
       if (showHinbanOnCone(s.stage) && yarn !== undefined) {
-        const size = fontPx(fit, 20);
+        const size = 20;
         ctx.font = `${size}px ${FONT_FAMILY}`;
         ctx.fillStyle = COLORS.sumi;
         ctx.textAlign = 'center';
@@ -142,7 +142,7 @@ export function drawBoard(
     // 7. 帯の番号 (1 始まり)。段階 1〜3 は全マス、段階 4〜5 は各段の最初のマスだけ
     const showNumber = s.stage <= 3 || indexToCell(i, s.cols).col === 0;
     if (showNumber) {
-      const size = fontPx(fit, 20);
+      const size = 20;
       ctx.font = `${size}px ${FONT_FAMILY}`;
       ctx.fillStyle = COLORS.sumiSub;
       ctx.textAlign = 'left';
@@ -215,7 +215,7 @@ function drawSpeech(
   hinban: string,
   spec: string,
 ): void {
-  const size = fontPx(fit, 20);
+  const size = 20;
   const pad = 10;
   const textW = Math.max(hinban.length, spec.length) * size * 0.6;
   const w = textW + pad * 2;

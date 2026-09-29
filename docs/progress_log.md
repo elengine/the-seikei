@@ -321,6 +321,7 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - **ブラウザ確認中の修正2**: gameFrame (createGameFrame) の CSS がどこにも無く、盤面の Canvas が既定の 150px 高さで描かれ、drawBoard が小さな fit で盤面全体が崩れる → base.css に .game-screen / .game-frame 系の CSS を追加 (縦積み+横割り、盤面は flex:1、panel は幅 34%)。テストはそのまま通る。
 - **ブラウザ確認中の修正3**: 412×915 (縦長) で盤面の幅が 0 になる (横割り CSS のまま panel が幅を取る) → base.css に portrait の media query を追加 (縦積み・盤面は幅 100%・panel は残り高さでスクロール)。テストはそのまま通る。
 - **ブラウザ確認中の修正4**: drawBoard の背景 (kinari) が論理座標のまま Canvas に塗られていた (fit 変換なし) → Canvas の実サイズで塗る形に修正。controller の「できあがりました」も盤面の上端に半透明の帯を敷いて白文字で描く形に修正。
+- **ブラウザ確認中の修正5 (文字が巨大になる問題)**: fontPx(fit, screenPx) は「論理サイズ」を返すが、fillText は toPx で変換した画面座標に描くため、文字だけが 1/scale 倍に描かれていた (縦長 scale 0.41 では約 2.4 倍) → renderer と controller の文字は「画面 px」を直接設定する形に統一 (品番・番号・記号・吹き出し・「できあがりました」は 20/44 画面px、コーンの記号はマスの高さに比例)。drawFabric の threadPx も画面px 固定 (6)。renderer.test の文字サイズの期待値も「設定値 >= 20 (画面px)」に変更 (NFR-U-01 の「画面上 20px 以上」と同じ意図)。
 - **test**: controller.test.ts 5件 (テストファースト・RED確認後実装)。jsdom+偽 GameDeps。お題一覧の s1 のみ押せる/記録で s2 まで/s1 完走で 1.5秒後に onFinish 1回 (stars 3・p-muji-kon)/onStateChange (一覧で null、操作のたび) と suspend/suspend は puzzleId を返す/resume で即プレイ画面/unmount 後はタイマー無し。fake timers + rAF 進め (gameFrame の fit 更新は viewport の rAF 経由のため resize dispatch 後に advanceTimersByTime(20))。
 - **npm_test**: ok (236 passed / 11 skipped)
 - **npm_run_check**: ok

@@ -101,13 +101,13 @@ describe('drawBoard', () => {
       inspected: 0,
     };
     drawBoard(ctx, fit, s, content, terms);
-    const minPx = 20 / fit.scale;
+    // 文字は画面 px で描く (NFR-U-01: 画面上 20px 以上) ので、font の設定値が 20 以上
     const fonts = calls.filter((c) => c.op === 'font').map((c) => c.args[0] as string);
     expect(fonts.length).toBeGreaterThan(0);
     for (const f of fonts) {
       const m = f.match(/(\d+(?:\.\d+)?)px/);
       expect(m).not.toBeNull();
-      expect(Number(m![1])).toBeGreaterThanOrEqual(minPx - 0.001);
+      expect(Number(m![1])).toBeGreaterThanOrEqual(20 - 0.001);
     }
   });
 
