@@ -226,4 +226,17 @@ describe('drawBoard', () => {
       expect(nums3.length).toBe(0);
     });
   });
+
+  it('番号: マスが低くてもコーンの上端が下がるので番号が描かれる。コーンが 24px 未満になるなら番号は描かれない', () => {
+    // 縦長相当: scale 0.4、マス (3段×8)。rect.h = 200 論理 → 80 画面。通常コーン上端 = y+14.4 画面、
+    // 番号下端 = y+20 → 重なる。コーン上端を下げると coneH = 0.78h - (20+2)/scale 論理…
+    const f = makeFit(0.4);
+    const { ctx, calls } = makeFakeCtx();
+    const puzzle = content.creelPuzzles.find((p) => p.id === 's5')!;
+    const s = init(puzzle, content);
+    drawBoard(ctx, f, s, content, terms);
+    // 段階5は各段の最初のマス (1, 9, 17) に番号
+    const nums = calls.filter((c) => c.op === 'fillText' && ['1', '9', '17'].includes(c.args[0] as string));
+    expect(nums.length).toBe(3);
+  });
 });

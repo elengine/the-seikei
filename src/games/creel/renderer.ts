@@ -17,12 +17,12 @@ function isLightHex(hex: string): boolean {
   return r * 0.299 + g * 0.587 + b * 0.114 > 140;
 }
 
-/** コーンの台形 (下が広い) の頂点。マスの rect (論理座標) から作る */
-function coneShape(rect: { x: number; y: number; w: number; h: number }): { x: number; y: number }[] {
+/** コーンの台形 (下が広い) の頂点。マスの rect (論理座標) から作る。topRatio は上端の位置 (0〜1) */
+function coneShape(rect: { x: number; y: number; w: number; h: number }, topRatio = 0.18): { x: number; y: number }[] {
   const cx = rect.x + rect.w / 2;
   const topW = rect.w * 0.36;
   const bottomW = rect.w * 0.6;
-  const top = rect.y + rect.h * 0.18;
+  const top = rect.y + rect.h * topRatio;
   const bottom = rect.y + rect.h * 0.78;
   return [
     { x: cx - topW / 2, y: top },
@@ -84,6 +84,7 @@ export function drawBoard(
 
   for (let i = 0; i < total; i++) {
     const rect = cellRect(i, s.rows, s.cols);
+    let coneTopRatio = 0.18; // 番号を描くマスでは、あとでコーンの上端を下げる
     const placed = s.placed[i] ?? null;
 
     // 3. 軸 (steel 色の短い縦線、マスの中央)
@@ -101,7 +102,7 @@ export function drawBoard(
       const yarn = content.yarns.get(placed);
       const color = content.colors.get(yarn?.color ?? placed);
       const hex = color !== undefined ? color.hex : '#000000';
-      const shape = coneShape(rect);
+      const shape = coneShape(rect, coneTopRatio);
       pathCone(ctx, fit, shape);
       ctx.fillStyle = hex;
       ctx.fill();
@@ -133,7 +134,7 @@ export function drawBoard(
       }
     } else {
       // 6. 空いている軸: コーンの形を点線の輪郭だけ
-      const shape = coneShape(rect);
+      const shape = coneShape(rect, coneTopRatio);
       pathCone(ctx, fit, shape);
       ctx.strokeStyle = COLORS.sumiSub;
       ctx.lineWidth = Math.max(1, 2 * fit.scale);
@@ -144,21 +145,24 @@ export function drawBoard(
 
     // 7. 帯の番号 (1 始まり)。段階 1〜3 は全マス、段階 4〜5 は各段の最初のマスだけ
     //    番号はマスの上端で左右中央に揃える。収まらないときは描かない。
-    //    コーンの上端は「番号の下端 + 2px」より下にする。コーンが 24px 未満になるなら番号を描かない。
+    //    番号を描くマスでは、コーンの上端を「番号の下端 + 2px」より下に下げる (番号とコーンが重ならない)。
+    //    下げた結果、コーンの高さが 24px 未満になるなら番号を描かない (上端は下げない)。
     const showNumber = s.stage <= 3 || indexToCell(i, s.cols).col === 0;
     if (showNumber) {
       const size = 20;
       ctx.font = `${size}px ${FONT_FAMILY}`;
       const cellScreenW = rect.w * fit.scale;
-      const cellScreenH = rect.h * fit.scale;
       const numText = String(i + 1);
       const fits = ctx.measureText(numText).width <= cellScreenW - 4;
-      // コーンの上端 (論理) は rect.y + rect.h * 0.18。番号の下端 + 2px (画面) との関係で判定
-      const numberBottomScreen = rect.y * fit.scale + size; // 番号はマス上端 (baseline top) なので下端は上端+size
-      const coneTopScreen = (rect.y + rect.h * 0.18) * fit.scale;
-      const coneHScreen = cellScreenH * (0.78 - 0.18);
-      const coneOk = coneTopScreen >= numberBottomScreen + 2 && coneHScreen >= 24;
-      if (fits && coneOk) {
+      // 番号の下端 (画面) = マス上端 + size。これより下にコーンの上端を置く
+      const numberBottomScreen = rect.y * fit.scale + size + 2;
+      // 必要な上端を論理に直す
+      const needTopLogical = numberBottomScreen / fit.scale;
+      const defaultTop = rect.y + rect.h * 0.18;
+      const shiftedTop = Math.max(defaultTop, needTopLogical);
+      const coneHScreen = (rect.y + rect.h * 0.78 - shiftedTop) * fit.scale;
+      if (fits && coneHScreen >= 24) {
+        coneTopRatio = (shiftedTop - rect.y) / rect.h;
         ctx.fillStyle = COLORS.sumiSub;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
