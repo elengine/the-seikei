@@ -361,7 +361,6 @@ describe('T1-15: プレイ画面の「戻る」でお題の一覧に戻る', () 
       document.body.appendChild(parent);
       const instance = module.mount(parent, { mode: 'standalone', onFinish: () => undefined, onExit: () => undefined });
       startS1(parent);
-      const checkBtn = parent.querySelector<HTMLButtonElement>('[data-testid="creel-check"]')!;
       // 「戻る」→ 確認が出ている状態で unmount
       parent.querySelector<HTMLButtonElement>('.game-frame__bar-left')!.click();
       instance.unmount();
