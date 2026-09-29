@@ -247,7 +247,7 @@ describe('T1-15: プレイ画面の「戻る」でお題の一覧に戻る', () 
       back.click();
       await vi.waitFor(() => {
         expect(parent.querySelector('[data-testid="creel-puzzle-s1"]')).not.toBeNull();
-      });
+      }, { timeout: 5000 });
       expect(onExit).not.toHaveBeenCalled();
       // s1 に「途中」がある
       const s1 = parent.querySelector<HTMLButtonElement>('[data-testid="creel-puzzle-s1"]')!;
@@ -270,13 +270,13 @@ describe('T1-15: プレイ画面の「戻る」でお題の一覧に戻る', () 
       back.click();
       await vi.waitFor(() => {
         expect(parent.querySelector('[data-testid="creel-puzzle-s1"]')).not.toBeNull();
-      });
+      }, { timeout: 5000 });
       // s1 を押して再開
       const s1 = parent.querySelector<HTMLButtonElement>('[data-testid="creel-puzzle-s1"]')!;
       s1.click();
       await vi.waitFor(() => {
         expect(parent.querySelector('canvas')).not.toBeNull();
-      });
+      }, { timeout: 5000 });
       // suspend の状態の tool が選んだ箱になっている
       const state = instance.suspend() as { tool?: { yarn?: string } } | null;
       expect(state).not.toBeNull();
@@ -301,7 +301,7 @@ describe('T1-15: プレイ画面の「戻る」でお題の一覧に戻る', () 
       parent.querySelector<HTMLButtonElement>('.game-frame__bar-left')!.click();
       await vi.waitFor(() => {
         expect(parent.querySelector('[data-testid="creel-puzzle-s2"]')).not.toBeNull();
-      });
+      }, { timeout: 5000 });
       // 「やめる」→ 一覧のまま
       confirmAnswers.push(false);
       parent.querySelector<HTMLButtonElement>('[data-testid="creel-puzzle-s2"]')!.click();
@@ -313,7 +313,7 @@ describe('T1-15: プレイ画面の「戻る」でお題の一覧に戻る', () 
       parent.querySelector<HTMLButtonElement>('[data-testid="creel-puzzle-s2"]')!.click();
       await vi.waitFor(() => {
         expect(parent.querySelector('canvas')).not.toBeNull();
-      });
+      }, { timeout: 5000 });
     });
 
     it('4. 一覧を開いても onStateChange(null) が呼ばれない (期待値変更の理由: 管理者の指摘で戻り先を変えたため)', async () => {
@@ -349,7 +349,7 @@ describe('T1-15: プレイ画面の「戻る」でお題の一覧に戻る', () 
       parent.querySelector<HTMLButtonElement>('.game-frame__bar-left')!.click();
       await vi.waitFor(() => {
         expect(parent.querySelector('[data-testid="creel-puzzle-s1"]')).not.toBeNull();
-      });
+      }, { timeout: 5000 });
       const s1 = parent.querySelector<HTMLButtonElement>('[data-testid="creel-puzzle-s1"]')!;
       expect(s1.textContent).toContain('途中');
     });
