@@ -540,9 +540,7 @@ describe('T1-11c: 回転したときの配置の遅れ (parent を ResizeObserve
   });
 
   function frameCleanup(parent: HTMLElement): void {
-    // frame を消すヘルパー: destroy は createGameFrame の戻り値から
-    const frames = parent.querySelectorAll('.game-frame');
-    for (const f of frames) {
+    for (const f of Array.from(parent.querySelectorAll('.game-frame'))) {
       f.remove();
     }
   }
