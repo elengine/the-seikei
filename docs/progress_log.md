@@ -278,6 +278,16 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - npm_test: ok (208 passed / 11 skipped)
 - npm_run_check: ok
 
+## T1-08
+
+- **geometry**: `src/games/creel/geometry.ts (約60行)` — LOGICAL_W 1000 / LOGICAL_H 750 / CREEL_AREA {60,90,880,600}。toPx (scale 倍+offset) / fromPx (逆変換) / cellRect (CREEL_AREA を rows×cols 等分、indexToCell 対応) / hitTest (マス全体を当たり、CREEL_AREA 外は null) / fontPx (screenPx/scale)。座標変換はこのファイルだけが行う (02_architecture 7章)。
+- **renderer**: `src/games/creel/renderer.ts (約250行)` — drawBoard。描く順番は仕様どおり: ①kinari 背景 ②machine 色の左右の柱+各段の下の横棒 (machineLight で明るい面) ③steel 色の軸 ④立っているコーン=下が広い台形を糸の色で塗り+sumi 輪郭、中央に symbol (明るい色なら sumi、暗い色なら white の文字) ⑤段階1〜3 はコーンの下に品番 ⑥空き軸は点線の台形輪郭 (sumiSub) ⑦帯の番号は段階1〜3 全マス・段階4〜5 は各段の最初だけ (1 始まり、sumiSub) ⑧marks の wrong/empty に shu の太い ✕ ⑨inspected は白地・sumi 枠の吹き出しに品番と spec (上に出せないときは下、しっぽ付き)。
+- **見た目**: 灰みの緑 (machine #8C9A7E / machineLight #A9B39C) の枠。文字はすべて fontPx(fit, 20) 以上 (画面上 20px 以上、NFR-U-01)。色は COLORS と内容データの hex のみ (数値の直書きなし。台形の比率など形状の数値のみ)。
+- **test**: geometry.test.ts 7件 (往復一致 / 24マス中心の hitTest / CREEL_AREA 外 null / fontPx 戻し 20 / 等分と indexToCell 対応)。renderer.test.ts 7件 (偽 ctx。点線 6マスぶん / wrong 2つで shu の stroke 4本 / font はすべて 20px 相当以上 / kinari 背景 / コーン fill+品番+symbol / 段階4 は品番なし / 吹き出しに品番と spec)。RED確認後実装。
+- **npm_test**: ok (222 passed / 11 skipped)
+- **npm_run_check**: ok
+- **browser_check**: 見た目の確認は T1-10 で行う (仕様どおり)
+
 ## notes (気づいた点・今後も守る注意点)
 
 - T0-01: npm registry の最新 typescript は 7.0.2 (dist-tags latest) だが typescript-eslint 8.70.1 の peer 依存 (>=4.8.4 <6.1.0) と衝突し ERESOLVE。typescript を ^5.9.3 (5.x 最新) にして解消。他パッケージは現時点の最新安定版 (^付き) のまま。
