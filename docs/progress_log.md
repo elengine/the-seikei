@@ -310,6 +310,18 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - **npm_run_check**: ok
 - **見た目**: T1-10 のブラウザ確認で、1180×820 と 412×915 の段階5で番号と上の段が重ならないことを確かめる。
 
+## T1-10
+
+- **index.ts**: `createCreelModule(deps): GameModule` — id 'creel'、titleTermKey 'game.creel'、phase 'P1'、embeddable true、tutorial は tutorial.ts の creelTutorial。mount: resume が isValidResume を満たせばプレイ画面、mode:'job' は difficulty 1→1段/2→2段/3→3段・8軸のお題 (jobPuzzle) をその場で作ってプレイ画面、それ以外はお題一覧。お題一覧の onSelect でプレイ画面に切り替え、モジュールの suspend はプレイ中は controller の状態・一覧のあいだは null、unmount はプレイ中なら controller を片付けて list も消す。
+- **listView.ts**: 「お題をえらぶ」見出し+「もどる」(props.onExit)。creelPuzzles を段階順に大きなボタン (段階 N / 柄の名前 / N段 × N本 / クリア済みなら★☆)。星は records.get('creel').best['puzzle:<id>']。クリア済み+最初の未クリアまで押せ、その先は「まだ」で disabled。
+- **controller.ts**: createGameFrame (題名 terms.t('game.creel')、論理 1000×750)。盤面は drawBoard、操作欄は createCreelPanel。stage の pointerdown で fromPx → hitTest → tapCell (当たりが無ければ何もしない)。操作のたび reduce → refresh (盤面描き直し+panel.update+メッセージ) → props.onStateChange(s)。効果音: tapCell/selectBox/selectRemove で tap、check は marks があれば gentleNo・無ければ fanfare、hint で ok。メッセージ: 最初「依頼書のとおりに、{{cone}}を立ててください」(terms.render)、失敗後「✕ のところを直してください」、checks>=2 で「 (ヒントも使えます)」を添える。done: 操作欄を隠し (panel.style.display='none')、drawFabric を大きく重ねて「できあがりました」、1.5秒後に onFinish (gameId 'creel'、stars=starsOf、stats { checks, hints, 'puzzle:<id>': stars }、unlockedPatternIds [patternId]、summary はたしかめた回数・ヒントを使った回数、finishedAt=clock.now())。もどる=props.onExit (確認と保存は gameScreen 側)、あそびかた=showTutorial。suspend: 完了後は null・プレイ中は状態。unmount: タイマー解除+stage のリスナー解除+panel.destroy+frame.destroy。
+- **tutorial.ts**: 3ページ。Canvas の略図 (1: 依頼書の表、2: クリールの軸とコーンと箱、3: ✕ のマス)。文は仕様どおり ({{spindle}}/{{cone}} は terms.render で置換)。
+- **main.ts**: boot 後に registerGame(createCreelModule(gameDepsFrom(ctx)))。getContent().problems が空でなければ1件ずつ logger.log('warn', …)。
+- **test**: controller.test.ts 5件 (テストファースト・RED確認後実装)。jsdom+偽 GameDeps。お題一覧の s1 のみ押せる/記録で s2 まで/s1 完走で 1.5秒後に onFinish 1回 (stars 3・p-muji-kon)/onStateChange (一覧で null、操作のたび) と suspend/suspend は puzzleId を返す/resume で即プレイ画面/unmount 後はタイマー無し。fake timers + rAF 進め (gameFrame の fit 更新は viewport の rAF 経由のため resize dispatch 後に advanceTimersByTime(20))。
+- **npm_test**: ok (236 passed / 11 skipped)
+- **npm_run_check**: ok
+- **browser_check**: 3つの画面の大きさでスクリーンショットを添付して報告する。
+
 ## notes (気づいた点・今後も守る注意点)
 
 - T0-01: npm registry の最新 typescript は 7.0.2 (dist-tags latest) だが typescript-eslint 8.70.1 の peer 依存 (>=4.8.4 <6.1.0) と衝突し ERESOLVE。typescript を ^5.9.3 (5.x 最新) にして解消。他パッケージは現時点の最新安定版 (^付き) のまま。

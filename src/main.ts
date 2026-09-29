@@ -10,6 +10,10 @@ import { createSettingsScreen } from './app/screens/settingsScreen';
 import { createTermsScreen } from './app/screens/termsScreen';
 import { createAdminScreen } from './app/screens/adminScreen';
 import { createGameScreen } from './app/screens/gameScreen';
+import { registerGame } from './core/game/registry';
+import { createCreelModule } from './games/creel';
+import { gameDepsFrom } from './app/context';
+import { getContent } from './core/content/content';
 
 // Service Worker を登録する (registerType: 'prompt'。お父さん向けの画面では案内を出さず、
 // 次回起動時に自動で切り替わる。管理者メニューの「今すぐ新しい版に切り替える」ボタンからも切り替えられる)
@@ -69,6 +73,15 @@ async function main(): Promise<void> {
     },
     { once: true },
   );
+
+  // ゲームの登録 (クリール立て)。内容データの問題があればログに残す
+  registerGame(createCreelModule(gameDepsFrom(ctx)));
+  const contentProblems = getContent().problems;
+  if (contentProblems.length > 0) {
+    for (const problem of contentProblems) {
+      ctx.logger.log('warn', `内容データ: ${problem}`);
+    }
+  }
 
   // ルート: / → ホーム、/settings → 設定、/settings/terms → 呼び名、/admin → 管理者
   const routes: Route[] = [
