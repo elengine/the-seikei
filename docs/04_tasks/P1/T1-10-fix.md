@@ -145,3 +145,52 @@ layout(): 'landscape' | 'portrait';        // いまの配置
 - `npm run check`・`npm test`・`npm run build` が成功する。
 - 上のブラウザ確認の数字とスクリーンショットを、Discord と `docs/progress_log.md` に報告した(出どころとして、コミットの番号を書く)。
 - 文字は画面上 20px 以上、押せる部品は 64px 以上のまま(下げて詰めていない)。
+
+---
+
+# 追加修正4:確認役の確認で見つかった3点
+
+- 出どころ:ルビーの完了報告(Discord のルビーのスレッド、2026-09-29 22:14、報告コミット `d3436bf`)を、確認役が本番と同じビルドで確かめた結果。
+- 受け入れたもの:追加修正1〜3 と追し1〜7(`a701521`〜`0ba7183`)。1180×820 の段階5は、メッセージが2行になっても操作欄のスクロールがないことを確認した。
+- 進め方:下の A・B・C を1つのコミットにしてよい。失敗を再現するテストを先に書き、RED を確認してから直す。
+
+## 変更してよいファイル
+
+`src/games/creel/renderer.ts`、`src/games/creel/renderer.test.ts`、`src/games/creel/panel.ts`、`src/games/creel/panel.test.ts`、`src/games/creel/controller.ts`、`src/core/ui/gameFrame.ts`、`src/core/ui/gameParts.test.ts`、`src/styles/base.css`(creel の節と game-frame の節のみ)、`PROGRESS.json`、`docs/progress_log.md`
+
+## A. 高精細な画面で、吹き出しが Canvas の右からはみ出す(不具合)
+
+- 原因:`drawSpeech` は、枠を Canvas の内側に収めるときに `ctx.canvas.width` を使っている。`setupCanvas` は Canvas の実寸を「画面の幅 × devicePixelRatio」にして、描く座標は画面 px のままにしている。そのため、iPad やスマホ(devicePixelRatio が 2 以上)では、右の端の値が2倍になり、収める処理が効かない。
+- 確認役の測定:412×915 で devicePixelRatio を 2 にし、右の端のコーンで「しらべる」を使った。枠が x=302、幅 126 で、右の端が 428 になり、画面の幅 412 を 16px 越えた。ルビーの道具は devicePixelRatio が 1 なので、この不具合が出ない。
+- 直し方:枠を収める右の端には、Canvas の画面上の幅(`ctx.canvas.clientWidth`)を使う。`clientWidth` が 0 のとき(テストの環境など)だけ、`ctx.canvas.width` を使う。
+- テスト(`renderer.test.ts`):偽の ctx の canvas を `{ width: 824, height: 1010, clientWidth: 412, clientHeight: 505 }` にする。右の端のコーンで吹き出しを出したとき、`strokeRect` の「x + 幅」が 408 以下になる。
+
+## B. 960×720 の段階5で、「たしかめる」が画面の外に出る
+
+確認役の測定(メッセージが2行のとき):操作欄の見えている高さ 624px、中身 724px。100px あふれて、「はずす・しらべる・たしかめる・ヒント」が見えない。内訳は、枠のメッセージ欄(空)24 + 余白 12、ゲームのメッセージ 58、依頼書 259(くりかえしの行が2行に折り返して 48)、箱 211、道具とボタン 136。
+
+1. **メッセージ欄を1つにする。** T1-09 の仕様「GameFrame の message 欄があればそれを使う」のとおり、`createCreelPanel` の opts に `message?: HTMLElement` を足す。渡されたときは、その要素にメッセージを書き、`creel-panel__message` は作らない。`controller.ts` は `frame.message` を渡す。
+2. **くりかえしの行を短くする。** 文字を「↻ くりかえし × N(ぜんぶで M本)」に変える。依頼書の行の「× 5」とそろえる。960×720 で1行に収まらない場合は、「(ぜんぶで M本)」を外し、「↻ くりかえし × N」だけにしてよい。その場合は、どちらにしたかを報告する。
+3. **横長で操作欄があふれるときも、「道具とボタン」の区画は常に見えるようにする。** 横長では、道具とボタンの区画を `position: sticky; bottom: 0` にし、背景を操作欄と同じ色で塗る(下の区画が透けない)。縦長は今までどおり(操作欄の中を縦にスクロールする)。
+
+- テスト(`panel.test.ts`):
+  - `message` を渡すと、`setMessage` の文字がその要素に入り、`creel-panel__message` が無い。渡さないときは、今までどおり。
+  - s5 のくりかえしの行が「くりかえし」「× 2」を含む(「24本」を残した場合は、それも含む)。
+  - 前のテスト「s5 で『2回』と『24本』を含む」「s3 で『2回』と『16本』を含む」は、この変更に合わせて期待値を変えてよい(理由:確認役が文字を変えたため)。
+- ブラウザ確認(本番と同じビルド、ポートは固定):
+  - 960×720 の段階5で、「たしかめる」を2回押して、メッセージを2行にした状態で測る。「はずす・しらべる・たしかめる・ヒント」がスクロールなしで見えること。操作欄の `scrollHeight` と `clientHeight` を報告する。あふれが残っても、道具が見えていれば合格。
+  - 1180×820 の段階5で、スクロールがないこと(`scrollHeight` ≦ `clientHeight`)が、今までどおりであること。
+
+## C. 盤面の列の高さの計算で、列の gap(12px)が引かれていない(小さな食い違い)
+
+- 確認役の測定:1180×820 で `stageBox.style.height` が 541px なのに、実際の高さは 529px だった。flex で縮むため見た目の問題は出ていないが、計算と実際がずれている。
+- 直し方:
+  - footer に中身があるとき:Canvas の高さ = 盤面の列の高さ − footer の高さ − 列の gap(`getComputedStyle` の `rowGap`。測れないときは 0)。
+  - footer が空(子が無い)のとき:footer を `display: none` にする。Canvas の高さは盤面の列の高さのまま(ほかのゲームで今までと同じ)。
+- テスト(`gameParts.test.ts`):footer が空のときは非表示で、Canvas の高さが列の高さと同じ。中身があるときは「列の高さ − footer の高さ − gap」。
+
+## 完了条件
+
+- A・B・C のテストを先に書き、RED を確認してから直した。
+- `npm run check`・`npm test`・`npm run build` が成功する。
+- B のブラウザ確認の数字と、960×720・1180×820 の段階5のスクリーンショットを、Discord と `docs/progress_log.md` に報告した(コミットの番号を書く)。
