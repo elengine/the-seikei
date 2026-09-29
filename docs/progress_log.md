@@ -567,3 +567,5 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 
 - **412×915(プレイ画面)**:題名「クリール立て」は **20px・1行**(高さ 28px)。横のはみ出しなし(`scrollWidth` 412 = `clientWidth`)。
 - **1180×820(プレイ画面)**:題名は **28px のまま**。見た目は変更前と同じ。
+
+- **T1-14 の追し(`97cc469`・`391a921`)**:CI のみテストが失敗した。原因は、テストで mount した管理者画面の診断欄が `ctx.repo.getMeta()` と `__APP_VERSION__` を読むのに、テストの偽の repo と global の代用が無かったため(処理の順序の都合でローカルでは表面化しなかった)。テストの偽 repo に `getMeta` を足し、`vi.stubGlobal` で `__APP_VERSION__` も代用して解消。あわせて保存の確認を `vi.waitFor` で確実にした(`97cc469`)。CI success(`391a921`)。
