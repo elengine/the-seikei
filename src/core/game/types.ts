@@ -29,6 +29,7 @@ export interface GameResult {
   stars: 1 | 2 | 3;
   stats: Record<string, number>;
   unlockedPatternIds: string[];
+  summary?: string[]; // 結果画面にそのまま表示する文 (例「たしかめた回数 1回」)
   finishedAt: string;
 }
 

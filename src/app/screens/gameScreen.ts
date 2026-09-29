@@ -16,8 +16,15 @@ const SAVE_INTERVAL_MS = 1000; // onStateChange の保存は1秒に1回まで
 
 /** ゲーム画面 (#/games/:id)。開く → チュートリアル → 再開の確認 → 遊ぶ → 結果 → 記録 */
 export function createGameScreen(ctx: AppContext): Screen {
+  // 現在 mount しているゲームの片付け (instance.unmount、イベント解除、保留中の保存)。Screen.unmount から呼ぶ
+  let cleanup: (() => void) | null = null;
+  // 離れたあとはチュートリアルや確認ダイアログの続きを行わない
+  let disposed = false;
+
   return {
     mount(container: HTMLElement, params: Record<string, string> = {}): void {
+      cleanup = null;
+      disposed = false;
       // /games/:id の id は screenManager が解決して params['id'] に入れる
       const rawId = params['id'];
       const known: GameId[] = ['creel', 'winding', 'beaming', 'shop'];
@@ -42,6 +49,9 @@ export function createGameScreen(ctx: AppContext): Screen {
         const settings = ctx.settings.get();
         if (settings.tutorialSeen[id] !== true) {
           await showTutorial(root, module.tutorial);
+          if (disposed) {
+            return; // 表示中に離れた
+          }
           await ctx.settings.update({ tutorialSeen: { ...settings.tutorialSeen, [id]: true } });
         }
 
@@ -54,19 +64,38 @@ export function createGameScreen(ctx: AppContext): Screen {
             okLabel: 'つづきから',
             cancelLabel: 'はじめから',
           });
+          if (disposed) {
+            return; // 確認中に離れた
+          }
           if (resumeChosen) {
             resume = saved.state;
           } else {
             await ctx.repo.remove('sessions', id); // 「はじめから」なら途中保存を消す
           }
         }
+        if (disposed) {
+          return;
+        }
 
-        mountGame(ctx, root, module, resume, () => root);
+        mountGame(
+          ctx,
+          root,
+          module,
+          resume,
+          (nextCleanup) => {
+            cleanup = nextCleanup;
+          },
+          () => disposed,
+        );
       })();
     },
 
     unmount(): void {
-      // instance とイベントは mountGame の cleanup が管理する (ここでは container ごと取り除かれる)
+      disposed = true;
+      if (cleanup !== null) {
+        cleanup(); // instance.unmount、visibilitychange の解除、保留中の途中保存
+        cleanup = null;
+      }
     },
   };
 }
@@ -76,19 +105,21 @@ async function getSession(ctx: AppContext, id: GameId): Promise<SessionData | un
   return rec !== undefined && rec.deletedAt === undefined ? rec.data : undefined;
 }
 
-/** ゲーム本体を mount し、onStateChange / onFinish / onExit / visibilitychange をつなぐ */
+/** ゲーム本体を mount し、onStateChange / onFinish / onExit / visibilitychange をつなぐ。cleanup を registerCleanup で渡す */
 function mountGame(
   ctx: AppContext,
   parent: HTMLElement,
   module: GameModule,
   resume: unknown,
-  getContainer: () => HTMLElement,
+  registerCleanup: (cleanup: () => void) => void,
+  isDisposed: () => boolean,
 ): void {
   const gameId = module.id;
+  let lastCleanup: (() => void) | null = null; // この mountGame が登録した cleanup
   const box = document.createElement('div');
   box.classList.add('game-screen__stage');
-  getContainer().textContent = '';
-  getContainer().appendChild(box);
+  parent.textContent = '';
+  parent.appendChild(box);
 
   // ---- onStateChange: 1秒に1回までまとめて保存。null なら消す ----
   let pendingState: unknown = undefined;
@@ -133,7 +164,7 @@ function mountGame(
   const onFinish = (result: Parameters<GameProps['onFinish']>[0]): void => {
     void (async () => {
       await ctx.repo.remove('sessions', gameId); // 途中保存を消す
-      // stats の中で 'puzzle:' で始まるキーだけ成績に残す
+      // stats の中で 'puzzle:' で始まるキーだけ成績に残す (表示は summary を使う)
       const puzzleStats: Record<string, number> = {};
       for (const [key, value] of Object.entries(result.stats)) {
         if (key.startsWith('puzzle:')) {
@@ -155,11 +186,9 @@ function mountGame(
           }
         }
       }
+      // 成績欄は summary だけ (無ければ空)。「星 Nつ」は星の表示と重なるので出さない
+      const lines = result.summary ?? [];
       const praise = result.stars === 3 ? '完璧です!' : result.stars === 2 ? 'よくできました!' : 'できました!';
-      const lines = [`星 ${result.stars}つ`];
-      for (const [key, value] of Object.entries(puzzleStats)) {
-        lines.push(`${key.replace(/^puzzle:/, '')} ${value}`);
-      }
       const choice = await showResult(parent, {
         praise,
         stars: result.stars,
@@ -168,8 +197,12 @@ function mountGame(
         againLabel: 'つづけて遊ぶ',
         homeLabel: 'ホームへ',
       });
+      if (isDisposed()) {
+        return; // 結果表示中に離れた
+      }
       if (choice === 'again') {
-        mountGame(ctx, parent, module, undefined, getContainer); // mount し直す
+        lastCleanup?.(); // 前のゲームを片付けてから mount し直す
+        mountGame(ctx, parent, module, undefined, registerCleanup, isDisposed);
       } else {
         ctx.navigate('/');
       }
@@ -186,6 +219,9 @@ function mountGame(
           okLabel: 'ホームにもどる',
           cancelLabel: 'つづける',
         });
+        if (isDisposed()) {
+          return;
+        }
         if (!goHome) {
           return; // つづける
         }
@@ -213,18 +249,17 @@ function mountGame(
   };
   document.addEventListener('visibilitychange', onVisibility);
 
-  // unmount 時に解除するため、box に解除処理を記憶させる
-  const observer = new MutationObserver(() => {
-    if (!box.isConnected) {
-      instance.unmount();
-      document.removeEventListener('visibilitychange', onVisibility);
-      if (saveTimer !== null) {
-        clearTimeout(saveTimer);
-        saveTimer = null;
-        void flushState(); // 残っていた状態を保存してから離れる
-      }
-      observer.disconnect();
+  // ---- 画面を離れるときの片付け (Screen.unmount と「つづけて遊ぶ」から呼ぶ) ----
+  const cleanupThis = (): void => {
+    lastCleanup = null; // 二重呼び出し防止 (mount し直しで新しい cleanup が登録される)
+    instance.unmount();
+    document.removeEventListener('visibilitychange', onVisibility);
+    if (saveTimer !== null) {
+      clearTimeout(saveTimer);
+      saveTimer = null;
     }
-  });
-  observer.observe(parent, { childList: true, subtree: false });
+    void flushState(); // 保留中の状態を保存してから離れる
+  };
+  lastCleanup = cleanupThis;
+  registerCleanup(cleanupThis);
 }

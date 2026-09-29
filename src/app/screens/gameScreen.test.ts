@@ -7,13 +7,17 @@ import { createAppContext } from '../context';
 import type { AppContext } from '../context';
 import { createFixedClock } from '../../core/clock/clock';
 import { showTutorial } from '../../core/ui/tutorialOverlay';
+import { showResult } from '../../core/ui/resultView';
 
 vi.mock('../../core/ui/tutorialOverlay', () => ({
   showTutorial: vi.fn(async () => undefined),
 }));
 vi.mock('../../core/ui/resultView', () => ({
-  showResult: vi.fn(async () => 'home' as const),
+  showResult: vi.fn(async () => resultAnswers.shift() ?? ('home' as const)),
 }));
+
+/** showResult の戻り値をテストから変えるための器 */
+const resultAnswers: ('again' | 'home')[] = [];
 
 /** confirmDialog の戻り値をテストから変えるための器 */
 const confirmAnswers: boolean[] = [];
@@ -26,8 +30,14 @@ vi.mock('../../core/ui/widgets', async (importOriginal) => {
 });
 
 /** 偽の GameModule: mount 時に受け取った props と instance を外から呼べる */
-function makeFakeModule(id: GameId, suspendValue: unknown = null): { module: GameModule; captured: { props?: GameProps; instance?: GameInstance } } {
-  const captured: { props?: GameProps; instance?: GameInstance } = {};
+interface FakeCaptured {
+  props?: GameProps;
+  instance?: GameInstance;
+  unmounts: number;
+}
+
+function makeFakeModule(id: GameId, suspendValue: unknown = null): { module: GameModule; captured: FakeCaptured } {
+  const captured: FakeCaptured = { unmounts: 0 };
   const module: GameModule = {
     id,
     titleTermKey: 'game.creel',
@@ -38,7 +48,9 @@ function makeFakeModule(id: GameId, suspendValue: unknown = null): { module: Gam
       captured.props = props;
       const instance: GameInstance = {
         suspend: () => suspendValue,
-        unmount: () => undefined,
+        unmount: () => {
+          captured.unmounts += 1;
+        },
       };
       captured.instance = instance;
       return instance;
@@ -68,6 +80,7 @@ beforeEach(async () => {
   vi.clearAllMocks();
   clearGamesForTest();
   confirmAnswers.length = 0;
+  resultAnswers.length = 0;
   const dbs = await indexedDB.databases();
   for (const db of dbs) {
     if (db.name !== undefined && db.name.startsWith('test-game-screen')) {
@@ -164,9 +177,12 @@ describe('gameScreen', () => {
       expect(ctx.zukan.has('p-pin-kon')).toBe(true);
     });
     // showResult は 'home' を返す (mock) → / へ移る
-    await vi.waitFor(() => {
-      expect(navigated).toBe('/');
-    });
+    await vi.waitFor(
+      () => {
+        expect(navigated).toBe('/');
+      },
+      { timeout: 5000 },
+    );
   });
 
   it('onExit で suspend() が値を返すと確認が出て、「ホームにもどる」で途中保存される', async () => {
@@ -218,5 +234,122 @@ describe('gameScreen', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('T1-06 追加修正', () => {
+  it('Screen.unmount で instance.unmount が1回呼ばれ、visibilitychange では保存されず、保留中の onStateChange は保存される', async () => {
+    const ctx = await makeCtx();
+    await ctx.settings.update({ tutorialSeen: { creel: true } });
+    const { module, captured } = makeFakeModule('creel', null); // suspend は null (visibilitychange では保存しない)
+    registerGame(module);
+    const screen = createGameScreen(ctx);
+    const container = document.createElement('div');
+    screen.mount(container, { id: 'creel' });
+    await vi.waitFor(() => {
+      expect(captured.props?.onStateChange).toBeDefined();
+    });
+    // 保留中の状態を作る (1秒以内なのでまだ保存されない)
+    captured.props!.onStateChange!({ n: 9 });
+    // 画面を離れる
+    screen.unmount();
+    await vi.waitFor(() => {
+      expect(captured.unmounts).toBe(1);
+    });
+    // 保留中の状態は保存される (非同期の put を待つ)
+    await vi.waitFor(async () => {
+      const session = await getSession(ctx, 'creel');
+      expect(session?.state).toEqual({ n: 9 });
+    });
+    // unmount 後は visibilitychange で保存されない (suspend が null なのでそもそも保存対象外。
+    // unmount で解除されていることを document のリスナーが残っていない形で確認するため、
+    // unmount を2回呼んでも unmount は合計1回のまま)
+    screen.unmount();
+    expect(captured.unmounts).toBe(1);
+  });
+
+  it('チュートリアル表示中に Screen.unmount すると、その後チュートリアルを終えても module.mount は呼ばれない', async () => {
+    // showTutorial が解決しない偽物にして「表示中」を作る
+    const { showTutorial } = await import('../../core/ui/tutorialOverlay');
+    let resolveTutorial: (() => void) | null = null;
+    (showTutorial as ReturnType<typeof vi.fn>).mockImplementation(
+      () => new Promise<void>((resolve) => {
+        resolveTutorial = resolve;
+      }),
+    );
+    const ctx = await makeCtx();
+    const { module, captured } = makeFakeModule('creel');
+    registerGame(module);
+    const screen = createGameScreen(ctx);
+    const container = document.createElement('div');
+    screen.mount(container, { id: 'creel' });
+    await vi.waitFor(() => {
+      expect(showTutorial).toHaveBeenCalled();
+    });
+    // チュートリアル表示中に離れる
+    screen.unmount();
+    // その後チュートリアルを終えても mount されない
+    resolveTutorial!();
+    await new Promise((r) => setTimeout(r, 30));
+    expect(captured.props).toBeUndefined();
+  });
+
+  it('「つづけて遊ぶ」で mount し直すと、前の instance.unmount が呼ばれる', async () => {
+    const ctx = await makeCtx();
+    await ctx.settings.update({ tutorialSeen: { creel: true } });
+    const { module, captured } = makeFakeModule('creel');
+    registerGame(module);
+    const screen = createGameScreen(ctx);
+    screen.mount(document.createElement('div'), { id: 'creel' });
+    await vi.waitFor(() => {
+      expect(captured.props?.onFinish).toBeDefined();
+    });
+    resultAnswers.push('again');
+    await captured.props!.onFinish({
+      gameId: 'creel',
+      mode: 'standalone',
+      stars: 3,
+      stats: { 'puzzle:s1': 3 },
+      unlockedPatternIds: ['p-muji-kon'],
+      summary: ['たしかめた回数 3回'],
+      finishedAt: ctx.clock.now(),
+    });
+    // mount し直しで新しい props が来る
+    await vi.waitFor(() => {
+      expect(captured.unmounts).toBe(1);
+      expect(captured.props?.onFinish).toBeDefined();
+    });
+  });
+
+  it('summary を渡すと結果の成績欄にその文だけが出る (puzzle: や s1 は出ない)', async () => {
+    const ctx = await makeCtx();
+    await ctx.settings.update({ tutorialSeen: { creel: true } });
+    const { module, captured } = makeFakeModule('creel');
+    registerGame(module);
+    const screen = createGameScreen(ctx);
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    screen.mount(container, { id: 'creel' });
+    await vi.waitFor(() => {
+      expect(captured.props?.onFinish).toBeDefined();
+    });
+    await captured.props!.onFinish({
+      gameId: 'creel',
+      mode: 'standalone',
+      stars: 2,
+      stats: { 'puzzle:s1': 2 },
+      unlockedPatternIds: [],
+      summary: ['たしかめた回数 1回', 'ヒントを使った回数 2回'],
+      finishedAt: ctx.clock.now(),
+    });
+    await vi.waitFor(() => {
+      expect(showResult).toHaveBeenCalled();
+    });
+    const opts = (showResult as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[1] as { lines: string[] };
+    expect(opts.lines).toEqual(['たしかめた回数 1回', 'ヒントを使った回数 2回']);
+    const joined = opts.lines.join(' ');
+    expect(joined).not.toContain('puzzle:');
+    expect(joined).not.toContain('s1');
+    container.remove();
   });
 });

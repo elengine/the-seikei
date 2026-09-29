@@ -252,6 +252,15 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - **npm_run_check**: ok
 - **browser_check**: ゲームはまだ無いため T1-10 で実施 (仕様どおり)。
 
+## T1-06 追加修正
+
+- **cleanup**: MutationObserver を廃止。mountGame は cleanup (instance.unmount + visibilitychange 解除 + 保留中の onStateChange の flush) を registerCleanup で返し、createGameScreen が保持して Screen.unmount() から呼ぶ。「つづけて遊ぶ」の mount し直しでも前の cleanup を先に呼ぶ (mountGame 内 lastCleanup、二重呼び出し防止)。
+- **disposed**: createGameScreen に disposed フラグ。Screen.unmount 後はチュートリアルの後の続き・確認ダイアログの後の続き・結果表示後の遷移を行わない (isDisposed() を mountGame に渡す)。
+- **summary**: GameResult に省略できる summary?: string[] を追加。結果の成績欄は summary だけ (無ければ空)。「星 Nつ」の行は削除 (星表示と重複)。records には従来どおり stats の 'puzzle:' キーを記録。
+- **test**: 4件追加 (Screen.unmount で instance.unmount 1回+保留保存+2度目は何もしない / チュートリアル中 unmount で以後 mount されない / つづけて遊ぶで前 unmount / summary だけが成績欄に出る)。
+- **npm_test**: ok (196 passed / 11 skipped)
+- **npm_run_check**: ok
+
 ## notes (気づいた点・今後も守る注意点)
 
 - T0-01: npm registry の最新 typescript は 7.0.2 (dist-tags latest) だが typescript-eslint 8.70.1 の peer 依存 (>=4.8.4 <6.1.0) と衝突し ERESOLVE。typescript を ^5.9.3 (5.x 最新) にして解消。他パッケージは現時点の最新安定版 (^付き) のまま。
