@@ -118,8 +118,8 @@ export function createGameFrame(
       // 上:盤面 (残り高さの 60%)・下:panel。footer は使わないので隠す
       footer.style.display = 'none';
       stageCol.style.width = `${innerW}px`;
-      stageCol.style.height = `${bodyInnerH}px`;
       const stageH = Math.floor(bodyInnerH * 0.6);
+      stageCol.style.height = `${stageH}px`; // 縦長では盤面の列は盤面だけ (footer は隠す)
       stageBox.style.width = '100%';
       stageBox.style.height = `${stageH}px`;
       panel.style.width = `${innerW}px`;
