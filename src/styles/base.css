@@ -529,7 +529,7 @@ body {
     overflow-y: auto;
   }
 
-  .game-frame__title {
+  .game-frame__bar .game-frame__title {
     font-size: var(--fs-body);
   }
 }
