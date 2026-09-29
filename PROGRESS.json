@@ -1,8 +1,8 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-09-28T15:30:00+09:00",
+  "updated_at": "2026-09-28T16:00:00+09:00",
   "phase": "P0",
-  "current_task": "T1-04 (生地の見本 FabricPreview)",
+  "current_task": "T1-04 追加修正 (tone)",
   "done": [
     "T0-00",
     "T0-01",
@@ -27,14 +27,16 @@
     "T1-01",
     "T1-02",
     "T1-03",
-    "T1-04"
+    "T1-04",
+    "T1-04 追加修正"
   ],
   "checks": {
-    "T1-04": {
-      "fabric_preview": "drawFabric (threadPx 既定3px、市松で経糸/緯糸交互、外周1px sumiSub 枠、save→clip→restore) / fabricSpecFor (plan→hex 展開)",
-      "test": "5件 (偽 ctx で記録検証)",
-      "browser_check": "本物データ5柄を一時描画し縞を確認 (コミット外)。スクショ報告済み",
-      "npm_test": "ok (175 passed / 11 skipped)",
+    "T1-04 追加修正": {
+      "tone": "YarnType に tone?: number (-30〜30)。loadContent は範囲外・非数値を読み飛ばし。fabricSpecFor は toneHex で明るさ反映 (盤面コーンは未変更)",
+      "yarns_json": "kon-c 18 / kon-b -10 / hai-b 12 / charcoal-b -12",
+      "test": "4件追加 (RED確認後 GREEN)",
+      "browser_check": "シャドーストライプの濃淡の縞をスクショ確認",
+      "npm_test": "ok (179 passed / 11 skipped)",
       "npm_run_check": "ok"
     }
   },

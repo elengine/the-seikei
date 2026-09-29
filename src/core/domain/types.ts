@@ -2,7 +2,7 @@ export type ColorId = string;
 export interface YarnColor { id: ColorId; name: string; hex: string; symbol: string; }
 
 export type YarnTypeId = string;
-export interface YarnType { id: YarnTypeId; color: ColorId; hinban: string; spec: string; }
+export interface YarnType { id: YarnTypeId; color: ColorId; hinban: string; spec: string; tone?: number; }
 
 export interface StripeRun { yarn: YarnTypeId; count: number; }
 export type StripePlan = StripeRun[];

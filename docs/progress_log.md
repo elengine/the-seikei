@@ -219,6 +219,15 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - **npm_test**: ok (175 passed / 11 skipped)
 - **npm_run_check**: ok
 
+## T1-04 追加修正
+
+- **tone**: `YarnType` に省略できる `tone?: number` (-30〜30、正は明るく負は暗く) を追加。loadContent は tone が数値でない・範囲外の糸を読み飛ばして problems に記録。yarns.json は kon-c tone:18 / kon-b tone:-10 / hai-b tone:12 / charcoal-b tone:-12。
+- **fabric_preview_tone**: fabricSpecFor は糸の tone に応じて hex の明るさを変えた色を経糸に使う (toneHex: 正は白方向へ 255-c 比率、負は黒方向へ c 比率で補間。tone 無しは元の色)。盤面のコーンは同じ色のまま (ゲームの難しさのため)。
+- **test**: content.test.ts 2件 (範囲外・非数値は読み飛ばし+連鎖4行 / 境界値 -30 と省略は通る)。fabricPreview.test.ts 2件 (正の tone で各チャンネル明るい+tone 無しは元の hex / 負の tone で暗い)。
+- **browser_check**: シャドーストライプ (kon-a #1F2A44 + kon-c #475066) を threadPx 8 で一時描画し、濃淡の縞が見えることをスクリーンショットで確認。5柄の比較でもシャドーストライプの縞が分かる。盤面コーンは未変更。検証後サーバー停止。
+- **npm_test**: ok (179 passed / 11 skipped)
+- **npm_run_check**: ok
+
 ## notes (気づいた点・今後も守る注意点)
 
 - T0-01: npm registry の最新 typescript は 7.0.2 (dist-tags latest) だが typescript-eslint 8.70.1 の peer 依存 (>=4.8.4 <6.1.0) と衝突し ERESOLVE。typescript を ^5.9.3 (5.x 最新) にして解消。他パッケージは現時点の最新安定版 (^付き) のまま。

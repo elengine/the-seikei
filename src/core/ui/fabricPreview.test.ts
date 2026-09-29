@@ -107,6 +107,53 @@ describe('fabricSpecFor', () => {
     };
   }
 
+  it('tone があると hex の明るさが変わり、正の tone は明るくなる (kon-a と kon-c で違い)', () => {
+    const content = fakeContent([{ id: 'kon', hex: '#1F2A44' }]);
+    content.yarns.set('kon-a', { id: 'kon-a', color: 'kon', hinban: 'W-4812', spec: 'ウール 2/48' });
+    content.yarns.set('kon-c', { id: 'kon-c', color: 'kon', hinban: 'W-5310', spec: 'ウール紡毛 1/20', tone: 18 });
+    const pattern: Pattern = {
+      id: 'p1',
+      name: 'シャドーストライプ',
+      plan: [{ yarn: 'kon-a', count: 4 }, { yarn: 'kon-c', count: 4 }],
+      weft: 'kon',
+      era: { from: 1967, to: 2004 },
+      description: '説明',
+      difficulty: 2,
+    };
+    const spec = fabricSpecFor(pattern, content);
+    expect(spec.warp.slice(0, 4)).toEqual(Array(4).fill('#1F2A44')); // tone 無しは元の色
+    expect(spec.warp.slice(4, 8)).toEqual(Array(4).fill(spec.warp[4]!)); // 4本とも同じ色
+    expect(spec.warp[4]).not.toBe('#1F2A44'); // tone で変わっている
+    // 明るさの比較: 各チャンネルが元より大きい (正の tone は明るく)
+    const orig = [0x1F, 0x2A, 0x44];
+    const toned = spec.warp[4]!;
+    for (let i = 0; i < 3; i++) {
+      const ch = parseInt(toned.slice(1 + i * 2, 3 + i * 2), 16);
+      expect(ch).toBeGreaterThan(orig[i]!);
+    }
+  });
+
+  it('負の tone は暗くなる', () => {
+    const content = fakeContent([{ id: 'kon', hex: '#1F2A44' }]);
+    content.yarns.set('kon-b', { id: 'kon-b', color: 'kon', hinban: 'W-4821', spec: 'ウール 2/60', tone: -10 });
+    const pattern: Pattern = {
+      id: 'p1',
+      name: 'シャドーストライプ',
+      plan: [{ yarn: 'kon-b', count: 2 }],
+      weft: 'kon',
+      era: { from: 1967, to: 2004 },
+      description: '説明',
+      difficulty: 2,
+    };
+    const spec = fabricSpecFor(pattern, content);
+    const orig = [0x1F, 0x2A, 0x44];
+    const toned = spec.warp[0]!;
+    for (let i = 0; i < 3; i++) {
+      const ch = parseInt(toned.slice(1 + i * 2, 3 + i * 2), 16);
+      expect(ch).toBeLessThan(orig[i]!);
+    }
+  });
+
   it('柄の plan が色の配列に展開される (kon×7, shiro×1 → 紺7つ・白1つ)', () => {
     const content = fakeContent([
       { id: 'kon', hex: '#1F2A44' },

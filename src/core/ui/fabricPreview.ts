@@ -48,7 +48,23 @@ export function drawFabric(
   }
 }
 
-/** 内容データから FabricSpec を作る (plan の糸 → 色をたどって hex にする) */
+/** hex (#RRGGBB) の明るさを tone% (-30〜30、正は明るく、負は暗く) 変える */
+function toneHex(hex: string, tone: number | undefined): string {
+  if (tone === undefined || tone === 0) {
+    return hex;
+  }
+  if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) {
+    return hex; // 6桁の hex でなければそのまま
+  }
+  const channels = [0, 1, 2].map((i) => parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16));
+  const toned = channels.map((c) => {
+    const v = tone >= 0 ? c + (255 - c) * (tone / 100) : c * (1 + tone / 100);
+    return Math.max(0, Math.min(255, Math.round(v)));
+  });
+  return `#${toned.map((c) => c.toString(16).padStart(2, '0')).join('')}`;
+}
+
+/** 内容データから FabricSpec を作る (plan の糸 → 色をたどって hex にする。tone があれば明るさを変える) */
 export function fabricSpecFor(pattern: Pattern, content: Content): FabricSpec {
   const warp: ColorHex[] = [];
   for (const run of pattern.plan) {
@@ -56,8 +72,9 @@ export function fabricSpecFor(pattern: Pattern, content: Content): FabricSpec {
     const colorId: ColorId = yarn !== undefined ? yarn.color : run.yarn;
     const color = content.colors.get(colorId);
     const hex = color !== undefined ? color.hex : '#000000';
+    const toned = toneHex(hex, yarn?.tone);
     for (let n = 0; n < run.count; n++) {
-      warp.push(hex);
+      warp.push(toned);
     }
   }
   const weftColor = content.colors.get(pattern.weft);

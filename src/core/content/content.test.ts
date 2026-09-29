@@ -51,6 +51,28 @@ describe('loadContent', () => {
     expect(content.problems).toHaveLength(1);
   });
 
+  it('tone が数値でない、または -30〜30 の外なら糸を読み飛ばして problems に入れる', () => {
+    const raw = validRaw();
+    const yarns = raw.yarns as unknown[];
+    (yarns[0] as { tone: unknown }).tone = 'あかるい'; // 数値でない
+    yarns.push({ id: 'kon-b', color: 'kon', hinban: 'W-4821', spec: 'ウール 2/60', tone: 40 }); // 範囲外
+    const content = loadContent(raw);
+    expect(content.yarns.size).toBe(0); // kon-a も kon-b も読み飛ばし
+    // 糸2行 + 糸を参照する柄1行 + 柄を参照するお題1行 (連鎖)
+    expect(content.problems).toHaveLength(4);
+  });
+
+  it('tone が -30〜30 の数値なら読み込まれる (省略してもよい)', () => {
+    const raw = validRaw();
+    const yarns = raw.yarns as unknown[];
+    (yarns[0] as { tone: unknown }).tone = 18;
+    yarns.push({ id: 'kon-b', color: 'kon', hinban: 'W-4821', spec: 'ウール 2/60' }); // tone なし
+    yarns.push({ id: 'kon-c', color: 'kon', hinban: 'W-5310', spec: 'ウール紡毛 1/20', tone: -30 }); // 境界
+    const content = loadContent(raw);
+    expect(content.yarns.size).toBe(3);
+    expect(content.problems).toHaveLength(0);
+  });
+
   it('同じ品番が2つの糸に使われていたら、後の方を読み飛ばして problems に入れる', () => {
     const raw = validRaw();
     (raw.yarns as unknown[]).push({

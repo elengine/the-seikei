@@ -173,7 +173,17 @@ function readYarn(item: unknown): YarnType | null {
   if (!isStr(o.id) || !isStr(o.color) || !isStr(o.hinban) || !isStr(o.spec)) {
     return null;
   }
-  return { id: o.id, color: o.color, hinban: o.hinban, spec: o.spec };
+  // tone は省略できる。-30〜30 の数値でなければ読み飛ばす (呼び出し側で problems に記録)
+  if (o.tone !== undefined) {
+    if (typeof o.tone !== 'number' || !Number.isFinite(o.tone) || o.tone < -30 || o.tone > 30) {
+      return null;
+    }
+  }
+  const yarn: YarnType = { id: o.id, color: o.color, hinban: o.hinban, spec: o.spec };
+  if (o.tone !== undefined) {
+    yarn.tone = o.tone;
+  }
+  return yarn;
 }
 
 function readEra(v: unknown): { from: number; to: number } | null {
