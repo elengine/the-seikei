@@ -162,6 +162,16 @@ export function createGameFrame(
     });
     ro.observe(footer);
   }
+  // footer の子の増減も見張る。footer が空のあいだは display: none で大きさが 0 のままのため、
+  // 子を足しても ResizeObserver が呼ばれない (縦長→横長に回したときに帯の並びが消える原因)。
+  // 子の増減は MutationObserver で受け取り、applyLayout で footer を表に戻す。
+  let mo: MutationObserver | null = null;
+  if (typeof MutationObserver !== 'undefined') {
+    mo = new MutationObserver(() => {
+      applyLayout();
+    });
+    mo.observe(footer, { childList: true });
+  }
 
   // 画面サイズに合わせて自動的に調整する
   offViewport = onViewportChange(() => {
@@ -185,6 +195,8 @@ export function createGameFrame(
       offViewport = null;
       ro?.disconnect();
       ro = null;
+      mo?.disconnect();
+      mo = null;
       root.remove(); // DOM から消える
     },
   };

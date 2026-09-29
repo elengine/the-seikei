@@ -208,18 +208,17 @@ describe('createCreelPanel', () => {
       expect(rows.length).toBe(4);
       const rep = parent.querySelector('[data-testid="creel-order-repeat"]');
       expect(rep).not.toBeNull();
-      expect(rep?.textContent).toContain('くりかえし');
-      expect(rep?.textContent).toContain('× 2');
+      // 期待値を変えた理由: 確認役が文字を変えたため (「(ぜんぶで M本)」を外した)
+      expect(rep?.textContent).toBe('↻ くりかえし × 2');
       panel.destroy();
     });
 
-    it('s3: 行が2つ。くりかえしの行があり、「くりかえし」「× 2」を含む(期待値変更の理由: 確認役が文字を変えたため)', () => {
+    it('s3: 行が2つ。くりかえしの行が「↻ くりかえし × 2」(期待値変更の理由: 確認役が文字を変えたため)', () => {
       const { parent, panel } = render('s3');
       const rows = Array.from(parent.querySelectorAll('[data-testid="creel-order-row"]'));
       expect(rows.length).toBe(2);
       const rep = parent.querySelector('[data-testid="creel-order-repeat"]');
-      expect(rep?.textContent).toContain('くりかえし');
-      expect(rep?.textContent).toContain('× 2');
+      expect(rep?.textContent).toBe('↻ くりかえし × 2');
       panel.destroy();
     });
 
@@ -338,8 +337,8 @@ describe('createCreelPanel', () => {
       panel.update(stateOf('s5'));
       const rep = parent.querySelector('[data-testid="creel-order-repeat"]');
       expect(rep).not.toBeNull();
-      expect(rep?.textContent).toContain('くりかえし');
-      expect(rep?.textContent).toContain('× 2');
+      // 期待値を変えた理由: 確認役が文字を変えたため (追加修正5)
+      expect(rep?.textContent).toBe('↻ くりかえし × 2');
       panel.destroy();
     });
   });

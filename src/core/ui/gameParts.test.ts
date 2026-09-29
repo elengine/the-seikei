@@ -415,4 +415,35 @@ describe('T1-10fix 追加修正3: 横長では「いまの帯の並び」を盤�
       frame.destroy();
     });
   });
+
+  describe('追加修正5 A: footer の子の増減を MutationObserver で見張る', () => {
+    it('footer に子を足すと、microtask のあとに display が none でなくなり、Canvas が作り直される', async () => {
+      const { frame } = setupWithSize(1180, 820);
+      expect(frame.footer.style.display).toBe('none'); // 空 → 非表示
+      frame.footer.appendChild(document.createElement('div'));
+      await Promise.resolve(); // MutationObserver (microtask) を待つ
+      expect(frame.footer.style.display).not.toBe('none');
+      frame.destroy();
+    });
+
+    it('子を取り除くと、footer は再び display: none になる', async () => {
+      const { frame } = setupWithSize(1180, 820);
+      const child = document.createElement('div');
+      frame.footer.appendChild(child);
+      await Promise.resolve();
+      expect(frame.footer.style.display).not.toBe('none');
+      child.remove();
+      await Promise.resolve();
+      expect(frame.footer.style.display).toBe('none');
+      frame.destroy();
+    });
+
+    it('destroy の後に footer の子を変えても、display は変わらない (解除されている)', async () => {
+      const { frame } = setupWithSize(1180, 820);
+      frame.destroy();
+      frame.footer.appendChild(document.createElement('div'));
+      await Promise.resolve();
+      expect(frame.footer.style.display).toBe('none'); // 変わらない
+    });
+  });
 });

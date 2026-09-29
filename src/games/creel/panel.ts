@@ -156,7 +156,7 @@ export function createCreelPanel(parent: HTMLElement, opts: {
       const rep = document.createElement('div');
       rep.classList.add('creel-order-repeat');
       rep.dataset.testid = 'creel-order-repeat';
-      rep.textContent = `↻ くりかえし × ${times}(ぜんぶで ${s.answer.length}本)`;
+      rep.textContent = `↻ くりかえし × ${times}`;
       orderTable.appendChild(rep);
     }
 
