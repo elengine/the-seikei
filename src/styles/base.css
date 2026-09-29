@@ -666,6 +666,11 @@ body {
     flex-direction: column;
   }
 
+  .game-frame__stage-col {
+    width: 100%;
+    flex: none; /* 操作欄を押し潰さない */
+  }
+
   .game-frame__stage {
     width: 100%;
     flex: none;
@@ -674,6 +679,7 @@ body {
   .game-frame__panel {
     width: 100%;
     min-width: 0;
-    flex: 1;
+    flex: none;
+    overflow-y: auto;
   }
 }
