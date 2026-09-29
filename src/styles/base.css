@@ -632,3 +632,21 @@ body {
   min-height: 2.4em;
   margin-bottom: var(--gap);
 }
+
+/* 縦長では盤面を上・操作欄を下に重ねる (gameFrame の inline style に合わせる) */
+@media (orientation: portrait) {
+  .game-frame__body {
+    flex-direction: column;
+  }
+
+  .game-frame__stage {
+    width: 100%;
+    flex: none;
+  }
+
+  .game-frame__panel {
+    width: 100%;
+    min-width: 0;
+    flex: 1;
+  }
+}

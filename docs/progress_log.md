@@ -319,6 +319,7 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - **main.ts**: boot 後に registerGame(createCreelModule(gameDepsFrom(ctx)))。getContent().problems が空でなければ1件ずつ logger.log('warn', …)。
 - **ブラウザ確認中の修正**: お題一覧でお題を押すと、一覧が消えずにプレイ画面が下に追記される不具合 → index.ts の onSelect で list.destroy() を呼んでから createController する形に修正 (テスト5件はそのまま通る)。お題一覧の CSS (creel-list) を base.css の creel 節に追加 (大きなボタン・段階/柄名/段×軸/星)。
 - **ブラウザ確認中の修正2**: gameFrame (createGameFrame) の CSS がどこにも無く、盤面の Canvas が既定の 150px 高さで描かれ、drawBoard が小さな fit で盤面全体が崩れる → base.css に .game-screen / .game-frame 系の CSS を追加 (縦積み+横割り、盤面は flex:1、panel は幅 34%)。テストはそのまま通る。
+- **ブラウザ確認中の修正3**: 412×915 (縦長) で盤面の幅が 0 になる (横割り CSS のまま panel が幅を取る) → base.css に portrait の media query を追加 (縦積み・盤面は幅 100%・panel は残り高さでスクロール)。テストはそのまま通る。
 - **test**: controller.test.ts 5件 (テストファースト・RED確認後実装)。jsdom+偽 GameDeps。お題一覧の s1 のみ押せる/記録で s2 まで/s1 完走で 1.5秒後に onFinish 1回 (stars 3・p-muji-kon)/onStateChange (一覧で null、操作のたび) と suspend/suspend は puzzleId を返す/resume で即プレイ画面/unmount 後はタイマー無し。fake timers + rAF 進め (gameFrame の fit 更新は viewport の rAF 経由のため resize dispatch 後に advanceTimersByTime(20))。
 - **npm_test**: ok (236 passed / 11 skipped)
 - **npm_run_check**: ok
