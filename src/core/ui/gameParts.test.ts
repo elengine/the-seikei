@@ -447,3 +447,24 @@ describe('T1-10fix 追加修正3: 横長では「いまの帯の並び」を盤�
     });
   });
 });
+
+describe('T1-12a: 結果の表示の柄の欄のクラス', () => {
+  it('柄の欄の2つの p に result-patterns__label (太字) と result-patterns__names のクラスが付く', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    showResult(parent, {
+      praise: '完璧です!',
+      stars: 3,
+      lines: ['たしかめた回数 1回'],
+      newPatternNames: ['紺の無地'],
+      againLabel: 'もう一度',
+      homeLabel: 'ホームへ',
+    });
+    const label = parent.querySelector('.result-patterns .result-patterns__label');
+    const names = parent.querySelector('.result-patterns .result-patterns__names');
+    expect(label).not.toBeNull();
+    expect(names).not.toBeNull();
+    expect(label?.textContent).toBe('あたらしく集めた柄');
+    expect(names?.textContent).toBe('紺の無地');
+  });
+});

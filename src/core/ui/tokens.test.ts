@@ -75,3 +75,44 @@ describe('tokens と base.css の CSS 変数の一致', () => {
     expect(root.get('--fs-number')).toBe(`${FONT.large.number}px`);
   });
 });
+
+describe('T1-12a: 文字の大きさの指定が無い所 (結果の表示・チュートリアル)', () => {
+  function cssText(): string {
+    const path = join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css');
+    return readFileSync(path, 'utf-8');
+  }
+
+  function escapeRe(s: string): string {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  function hasDeclaration(selector: string, prop: string, valuePart: string): boolean {
+    const css = cssText();
+    const re = new RegExp(`${escapeRe(selector)}\\s*\\{([^}]*)\\}`);
+    const m = css.match(re);
+    if (m === null) {
+      return false;
+    }
+    const block = m[1]!;
+    return new RegExp(`${prop}\\s*:\\s*[^;]*${escapeRe(valuePart)}`).test(block);
+  }
+
+  it('body の宣言に font-size: var(--fs-body) がある', () => {
+    expect(hasDeclaration('body', 'font-size', 'var(--fs-body)')).toBe(true);
+  });
+
+  it.each([
+    '.result__praise',
+    '.result-stars',
+    '.result__lines',
+    '.result-patterns',
+    '.tutorial__text',
+    '.tutorial__counter',
+  ])('%s の宣言があり、font-size に var(--fs- を含む', (selector) => {
+    const css = cssText();
+    const re = new RegExp(`${selector.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}\\s*\\{([^}]*)\\}`);
+    const m = css.match(re);
+    expect(m, `selector not found: ${selector}`).not.toBeNull();
+    expect(m![1]).toMatch(/font-size\s*:\s*(calc\()?\s*var\(--fs-/);
+  });
+});

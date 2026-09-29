@@ -10,6 +10,7 @@ body {
   user-select: none;
   -webkit-touch-callout: none;
   overscroll-behavior: none;
+  font-size: var(--fs-body);
 }
 
 :root {
@@ -697,4 +698,48 @@ body {
     flex: none;
     overflow-y: auto;
   }
+}
+
+.result__praise {
+  font-size: var(--fs-heading);
+  font-weight: bold;
+  text-align: center;
+  margin: 0;
+}
+
+.result-stars {
+  font-size: calc(var(--fs-number) * 1.5);
+  text-align: center;
+  color: var(--c-wood);
+  margin: 0;
+  letter-spacing: 0.1em;
+}
+
+.result__lines {
+  font-size: var(--fs-body);
+  line-height: 1.5;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.result-patterns {
+  font-size: var(--fs-body);
+}
+
+.result-patterns__label,
+.result-patterns__names {
+  margin: 0;
+}
+
+.result-patterns__label {
+  font-weight: bold;
+}
+
+.tutorial__text {
+  font-size: var(--fs-body);
+}
+
+.tutorial__counter {
+  font-size: var(--fs-body);
 }

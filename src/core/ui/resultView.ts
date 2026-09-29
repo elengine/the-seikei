@@ -51,9 +51,11 @@ export function showResult(
       const patterns = document.createElement('div');
       patterns.classList.add('result-patterns');
       const label = document.createElement('p');
+      label.classList.add('result-patterns__label');
       label.textContent = 'あたらしく集めた柄';
       patterns.appendChild(label);
       const names = document.createElement('p');
+      names.classList.add('result-patterns__names');
       names.textContent = opts.newPatternNames.join('・');
       patterns.appendChild(names);
       box.appendChild(patterns);
