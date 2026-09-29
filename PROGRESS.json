@@ -1,8 +1,8 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-09-28T16:00:00+09:00",
+  "updated_at": "2026-09-28T16:30:00+09:00",
   "phase": "P0",
-  "current_task": "T1-04 追加修正 (tone)",
+  "current_task": "T1-05 (図鑑の登録窓口と成績の記録)",
   "done": [
     "T0-00",
     "T0-01",
@@ -28,15 +28,15 @@
     "T1-02",
     "T1-03",
     "T1-04",
-    "T1-04 追加修正"
+    "T1-04 追加修正",
+    "T1-05"
   ],
   "checks": {
-    "T1-04 追加修正": {
-      "tone": "YarnType に tone?: number (-30〜30)。loadContent は範囲外・非数値を読み飛ばし。fabricSpecFor は toneHex で明るさ反映 (盤面コーンは未変更)",
-      "yarns_json": "kon-c 18 / kon-b -10 / hai-b 12 / charcoal-b -12",
-      "test": "4件追加 (RED確認後 GREEN)",
-      "browser_check": "シャドーストライプの濃淡の縞をスクショ確認",
-      "npm_test": "ok (179 passed / 11 skipped)",
+    "T1-05": {
+      "zukan": "createZukanRegistry — zukan コレクション id=patternId、新規は isNew=true、入手済みは count+1。キャッシュ+repo.subscribe で外部変更を読み直し",
+      "records": "createRecords — records コレクション id=gameId、add は plays+1・bestStars/best は大きい方。get は無ければ 0。repo.subscribe 対応",
+      "test": "7件 (zukan 3 / records 4、fake-indexeddb をテストごとに削除して独立)",
+      "npm_test": "ok (186 passed / 11 skipped)",
       "npm_run_check": "ok"
     }
   },

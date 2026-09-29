@@ -228,6 +228,15 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - **npm_test**: ok (179 passed / 11 skipped)
 - **npm_run_check**: ok
 
+## T1-05
+
+- **zukan**: `src/core/zukanRegistry/zukan.ts (63行)` — createZukanRegistry(repo, clock)。zukan コレクション id=patternId。未入手は {obtainedAt: now, source, count: 1} で isNew=true、入手済みは count+1 で isNew=false。キャッシュ+repo.subscribe('zukan') で外部変更を読み直し onChange。has/all は同期。
+- **records**: `src/core/game/records.ts (64行)` — createRecords(repo)。records コレクション id=gameId。add は plays+1、bestStars は大きい方、best はキーごとに大きい方。get は無ければ {bestStars:0, plays:0, best:{}}。repo.subscribe('records') で外部変更を読み直し onChange。
+- **test**: zukan.test.ts 3件 (isNew true→false+count2 / 作り直しても has / 直接 put が has+onChange 反映)。records.test.ts 4件 (add 2回で plays2 bestStars3 best max / 低い星で下がらない / 無いゲームは 0 / 直接 put 反映)。
+- **test_note**: fake-indexeddb はテストごとに deleteDatabase して独立させた。zukan は zukan コレクション (union ルール)、records は max ルールで merge に登録済み。
+- **npm_test**: ok (186 passed / 11 skipped)
+- **npm_run_check**: ok
+
 ## notes (気づいた点・今後も守る注意点)
 
 - T0-01: npm registry の最新 typescript は 7.0.2 (dist-tags latest) だが typescript-eslint 8.70.1 の peer 依存 (>=4.8.4 <6.1.0) と衝突し ERESOLVE。typescript を ^5.9.3 (5.x 最新) にして解消。他パッケージは現時点の最新安定版 (^付き) のまま。
