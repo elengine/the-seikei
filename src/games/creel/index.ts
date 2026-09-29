@@ -52,11 +52,13 @@ export function createCreelModule(deps: GameDeps): GameModule {
 
       // お題一覧を開く (お題一覧のあいだは途中保存を消しておく)
       props.onStateChange?.(null);
+      container.textContent = '';
       const list = createListView(container, {
         records: deps.records,
         content,
         onSelect: (puzzleId: string) => {
-          // お題が選ばれたらプレイ画面に切り替える
+          // お題が選ばれたら一覧を消してプレイ画面に切り替える
+          list.destroy();
           const instance = createController(container, deps, props, {
             puzzleId,
             content,

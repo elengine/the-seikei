@@ -496,3 +496,75 @@ body {
     overflow-y: auto;
   }
 }
+
+/* お題一覧 */
+.creel-list {
+  padding: var(--gap);
+  overflow-y: auto;
+}
+
+.creel-list__header {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  margin-bottom: var(--gap);
+}
+
+.creel-list__title {
+  margin: 0;
+  font-size: var(--fs-heading);
+  color: var(--c-sumi);
+}
+
+.creel-list__items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+.creel-list__item {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: var(--gap);
+  min-height: var(--btn-min-h);
+  padding: 8px 16px;
+  background: var(--c-white);
+  border: 3px solid var(--c-machine-dark);
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: var(--fs-body);
+  color: var(--c-sumi);
+  cursor: pointer;
+  text-align: left;
+}
+
+.creel-list__item:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.creel-list__stage {
+  font-size: var(--fs-body);
+  font-weight: 700;
+  color: var(--c-machine-dark);
+}
+
+.creel-list__name {
+  font-size: var(--fs-body);
+}
+
+.creel-list__size {
+  font-size: var(--fs-body);
+  color: var(--c-sumi-sub);
+}
+
+.creel-list__stars {
+  font-size: var(--fs-body);
+  color: var(--c-wood);
+}
+
+.creel-list__locked {
+  font-size: var(--fs-body);
+  color: var(--c-sumi-sub);
+}
