@@ -37,12 +37,13 @@ describe('T1-14 C: バックアップの書き出しで、データの読み出�
     let thrown: unknown = null;
     try {
       await btn!.click();
-      await new Promise((r) => setTimeout(r, 20));
+      await vi.waitFor(() => {
+        expect(errors).toHaveLength(1);
+      });
     } catch (e) {
       thrown = e;
     }
     expect(thrown).toBeNull();
-    expect(errors).toHaveLength(1);
     expect(errors[0]).toContain('バックアップの書き出しに失敗');
   });
 });
