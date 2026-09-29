@@ -57,9 +57,9 @@ export function drawBoard(
   void terms;
   const total = s.rows * s.cols;
 
-  // 1. 背景 (kinari)
+  // 1. 背景 (kinari)。Canvas 全体を塗る (画面座標)
   ctx.fillStyle = COLORS.kinari;
-  ctx.fillRect(0, 0, LOGICAL_W_PX, LOGICAL_H_PX);
+  ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
   // 2. クリールの枠: 左右に太い柱、各段の下に横の棒 (machine 色。明るい面は machineLight)
   const pillarW = 26;
@@ -174,9 +174,6 @@ export function drawBoard(
   }
 }
 
-const LOGICAL_W_PX = 1000;
-const LOGICAL_H_PX = 750;
-
 /** 論理座標の四角形を塗る */
 function drawRect(
   ctx: CanvasRenderingContext2D,
@@ -225,7 +222,7 @@ function drawSpeech(
   const h = size * 2.6 + pad * 2;
   // マスの上に出す (上端に来る場合は下に出す)
   let x = rect.x + rect.w / 2 - w / 2;
-  x = Math.max(4, Math.min(x, LOGICAL_W_PX - w - 4));
+  x = Math.max(4, Math.min(x, 1000 - w - 4)); // 論理幅 1000 の中に収める
   const above = rect.y > h + 20;
   const y = above ? rect.y - h - 12 : rect.y + rect.h + 12;
   const p = toPx(fit, { x, y });

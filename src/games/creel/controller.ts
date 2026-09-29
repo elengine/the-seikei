@@ -84,14 +84,18 @@ export function createController(parent: HTMLElement, deps: GameDeps, props: Gam
         const margin = 60 * lastFit.scale;
         drawFabric(ctx, spec, { x: lastFit.offsetX + margin, y: lastFit.offsetY + margin, w: w - margin * 2, h: h - margin * 2 }, { threadPx: Math.max(4, fontPx(lastFit, 6)) });
       }
-      // 「できあがりました」
+      // 「できあがりました」(盤面の上端・生地の見本の上に出す)
       const size = fontPx(lastFit, 44);
       ctx.font = `${size}px sans-serif`;
-      ctx.fillStyle = '#2B2A24';
+      ctx.fillStyle = '#FFFFFF';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       const cx = lastFit.offsetX + 500 * lastFit.scale;
-      const cy = lastFit.offsetY + 60 * lastFit.scale;
+      const cy = lastFit.offsetY + 44 * lastFit.scale;
+      // 見やすいように帯を敷いてから文字
+      ctx.fillStyle = 'rgba(43, 42, 36, 0.75)';
+      ctx.fillRect(lastFit.offsetX, cy - size * 0.9, 1000 * lastFit.scale, size * 1.8);
+      ctx.fillStyle = '#FFFFFF';
       ctx.fillText('できあがりました', cx, cy);
     }
   }

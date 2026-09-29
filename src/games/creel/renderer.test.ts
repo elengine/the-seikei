@@ -14,6 +14,7 @@ function makeFakeCtx() {
   const calls: { op: string; args: unknown[]; fill?: string; stroke?: string; font?: string; lineWidth?: number; lineDash?: number[] }[] = [];
   const state = { fill: '', stroke: '', font: '', lineWidth: 1, lineDash: [] as number[] };
   const ctx = {
+    canvas: { width: 800, height: 600 },
     get fillStyle() {
       return state.fill;
     },
