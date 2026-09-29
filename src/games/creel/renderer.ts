@@ -97,6 +97,35 @@ export function drawBoard(
     ctx.lineTo(axisBottom.x, axisBottom.y);
     ctx.stroke();
 
+    // 帯の番号の判定 (1 始まり)。段階 1〜3 は全マス、段階 4〜5 は各段の最初のマスだけ。
+    // コーンの描画 (4. と 6.) の前に判定し、番号を描くマスでは coneTopRatio を下げる
+    //    番号はマスの上端で左右中央に揃える。収まらないときは描かない。
+    //    番号を描くマスでは、コーンの上端を「番号の下端 + 2px」より下に下げる (番号とコーンが重ならない)。
+    //    下げた結果、コーンの高さが 24px 未満になるなら番号を描かない (上端は下げない)。
+    const showNumber = s.stage <= 3 || indexToCell(i, s.cols).col === 0;
+    if (showNumber) {
+      const size = 20;
+      ctx.font = `${size}px ${FONT_FAMILY}`;
+      const cellScreenW = rect.w * fit.scale;
+      const numText = String(i + 1);
+      const fits = ctx.measureText(numText).width <= cellScreenW - 4;
+      // 番号の下端 (画面) = マス上端 + size。これより下にコーンの上端を置く
+      const numberBottomScreen = rect.y * fit.scale + size + 2;
+      // 必要な上端を論理に直す
+      const needTopLogical = numberBottomScreen / fit.scale;
+      const defaultTop = rect.y + rect.h * 0.18;
+      const shiftedTop = Math.max(defaultTop, needTopLogical);
+      const coneHScreen = (rect.y + rect.h * 0.78 - shiftedTop) * fit.scale;
+      if (fits && coneHScreen >= 24) {
+        coneTopRatio = (shiftedTop - rect.y) / rect.h;
+        ctx.fillStyle = COLORS.sumiSub;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        const p = toPx(fit, { x: rect.x + rect.w / 2, y: rect.y });
+        ctx.fillText(numText, p.x, p.y);
+      }
+    }
+
     if (placed !== null) {
       // 4. 立っているコーン (台形を糸の色で塗り、sumi の輪郭線)
       const yarn = content.yarns.get(placed);
@@ -141,34 +170,6 @@ export function drawBoard(
       ctx.setLineDash([6 * fit.scale, 5 * fit.scale]);
       ctx.stroke();
       ctx.setLineDash([]);
-    }
-
-    // 7. 帯の番号 (1 始まり)。段階 1〜3 は全マス、段階 4〜5 は各段の最初のマスだけ
-    //    番号はマスの上端で左右中央に揃える。収まらないときは描かない。
-    //    番号を描くマスでは、コーンの上端を「番号の下端 + 2px」より下に下げる (番号とコーンが重ならない)。
-    //    下げた結果、コーンの高さが 24px 未満になるなら番号を描かない (上端は下げない)。
-    const showNumber = s.stage <= 3 || indexToCell(i, s.cols).col === 0;
-    if (showNumber) {
-      const size = 20;
-      ctx.font = `${size}px ${FONT_FAMILY}`;
-      const cellScreenW = rect.w * fit.scale;
-      const numText = String(i + 1);
-      const fits = ctx.measureText(numText).width <= cellScreenW - 4;
-      // 番号の下端 (画面) = マス上端 + size。これより下にコーンの上端を置く
-      const numberBottomScreen = rect.y * fit.scale + size + 2;
-      // 必要な上端を論理に直す
-      const needTopLogical = numberBottomScreen / fit.scale;
-      const defaultTop = rect.y + rect.h * 0.18;
-      const shiftedTop = Math.max(defaultTop, needTopLogical);
-      const coneHScreen = (rect.y + rect.h * 0.78 - shiftedTop) * fit.scale;
-      if (fits && coneHScreen >= 24) {
-        coneTopRatio = (shiftedTop - rect.y) / rect.h;
-        ctx.fillStyle = COLORS.sumiSub;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
-        const p = toPx(fit, { x: rect.x + rect.w / 2, y: rect.y });
-        ctx.fillText(numText, p.x, p.y);
-      }
     }
 
     // 8. marks: wrong と empty のマスに shu の太い ✕
