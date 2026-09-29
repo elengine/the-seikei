@@ -1,8 +1,8 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-09-28T18:45:00+09:00",
+  "updated_at": "2026-09-28T19:15:00+09:00",
   "phase": "P0",
-  "current_task": "T1-06 追加修正 (cleanup と summary)",
+  "current_task": "T1-07 (クリール立て:ルール)",
   "done": [
     "T0-00",
     "T0-01",
@@ -31,14 +31,14 @@
     "T1-04 追加修正",
     "T1-05",
     "T1-06",
-    "T1-06 追加修正"
+    "T1-06 追加修正",
+    "T1-07"
   ],
   "checks": {
-    "T1-06 追加修正": {
-      "cleanup": "MutationObserver 廃止。mountGame の cleanup を Screen.unmount から呼ぶ。つづけて遊ぶでも前 cleanup を先に呼ぶ",
-      "disposed": "unmount 後はチュートリアル・確認・結果表示の続きを行わない",
-      "summary": "GameResult.summary? を追加し成績欄は summary のみ (「星 Nつ」行は削除)",
-      "test": "4件追加 (196 passed / 11 skipped)",
+    "T1-07": {
+      "logic": "init/reduce/canHint/starsOf/showHinbanOnCone/isValidResume を純粋関数で実装。boxes は段階4以上で紛らわしい箱を品番昇順で追加。定数は params.ts",
+      "test": "12件 (本物データ、RED確認後実装)",
+      "npm_test": "ok (208 passed / 11 skipped)",
       "npm_run_check": "ok"
     }
   },

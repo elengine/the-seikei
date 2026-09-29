@@ -261,6 +261,17 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - **npm_test**: ok (196 passed / 11 skipped)
 - **npm_run_check**: ok
 
+## T1-07
+
+- **logic**: `src/games/creel/logic.ts (約190行)` — Tool/CreelState/CreelAction 型。init (answer=answerFor、placed は null 埋め、tool は answer の最初の糸の箱、boxes=boxesFor)、reduce (純粋 reducer、done の後は不変)。tapCell は箱=立てる(または立て替え)/はずす=null/しらべる=inspected に index (null の軸は null)。marks があれば操作した index を取り除く。check は checks+1 と compare、両方ゼロなら done=true+marks=null。hint は canHint が true のとき最小 index を正解にし hints+1 (done にはしない)。canHint は done でなく checks>=HINT_MIN_CHECKS(2) で marks に wrong/empty あり。selectBox/selectRemove で inspected を null に戻す。
+- **boxes**: answer の糸を初出順に。段階4以上 (CONFUSING_BOXES_FROM_STAGE) は「answer の糸と同じ色で answer に無い糸」を品番の昇順で後ろに足す (s4 は kon-a, kon-c, kon-b)。
+- **stars**: checks<=STARS3_CHECKS_MAX(1) かつ hints 0 なら 3、checks<=STARS2_CHECKS_MAX(3) かつ hints 0 なら 2、他は 1。params.ts に定数を置く。
+- **isValidResume**: 形検査 (puzzleId 文字列、placed/answer が rows*cols と同長、placed 要素は null か文字列、done でない) + puzzleId が内容データに存在。
+- **test**: logic.test.ts 12件 (本物の内容データ。仕様書テスト1〜8 をすべてカバー。RED確認後実装)。
+- **test_note**: s1 は箱が kon-a しか無いため wrong を作る状態は手で作った (仕様の意図=wrong/empty の消え方の確認)。check の compare は logic 内に局所実装 (core/domain/stripe の compare と同じ判定。placed と answer を別々に持つ state のため)。
+- **npm_test**: ok (208 passed / 11 skipped)
+- **npm_run_check**: ok
+
 ## notes (気づいた点・今後も守る注意点)
 
 - T0-01: npm registry の最新 typescript は 7.0.2 (dist-tags latest) だが typescript-eslint 8.70.1 の peer 依存 (>=4.8.4 <6.1.0) と衝突し ERESOLVE。typescript を ^5.9.3 (5.x 最新) にして解消。他パッケージは現時点の最新安定版 (^付き) のまま。
