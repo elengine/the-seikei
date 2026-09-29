@@ -1,8 +1,8 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-09-28T16:30:00+09:00",
+  "updated_at": "2026-09-28T18:00:00+09:00",
   "phase": "P0",
-  "current_task": "T1-05 (図鑑の登録窓口と成績の記録)",
+  "current_task": "T1-06 (ゲーム画面の土台)",
   "done": [
     "T0-00",
     "T0-01",
@@ -29,15 +29,17 @@
     "T1-03",
     "T1-04",
     "T1-04 追加修正",
-    "T1-05"
+    "T1-05",
+    "T1-06"
   ],
   "checks": {
-    "T1-05": {
-      "zukan": "createZukanRegistry — zukan コレクション id=patternId、新規は isNew=true、入手済みは count+1。キャッシュ+repo.subscribe で外部変更を読み直し",
-      "records": "createRecords — records コレクション id=gameId、add は plays+1・bestStars/best は大きい方。get は無ければ 0。repo.subscribe 対応",
-      "test": "7件 (zukan 3 / records 4、fake-indexeddb をテストごとに削除して独立)",
-      "npm_test": "ok (186 passed / 11 skipped)",
-      "npm_run_check": "ok"
+    "T1-06": {
+      "game_screen": "createGameScreen — /games/:id、チュートリアル→再開確認→mount、onStateChange 1秒まとめ保存、onFinish で記録+図鑑+結果表示、onExit/visibilitychange で suspend 保存、unmount で解除",
+      "context": "AppContext に zukan/records、gameDepsFrom を追加。types.ts に onStateChange/GameDeps。homeScreen は #/games/<id> へ、main にルート追加",
+      "test": "6件 (偽 GameModule で確認。confirmDialog は hoisted mock)",
+      "npm_test": "ok (192 passed / 11 skipped)",
+      "npm_run_check": "ok",
+      "browser_check": "T1-10 で実施 (仕様どおり)"
     }
   },
   "notes": [

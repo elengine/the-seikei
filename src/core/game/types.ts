@@ -1,3 +1,8 @@
+import type { Terms } from '../terms/terms';
+import type { AudioPlayer } from '../audio/audio';
+import type { Records } from '../game/records';
+import type { Clock } from '../clock/clock';
+
 export type GameId = 'creel' | 'winding' | 'beaming' | 'shop';
 
 export interface TutorialPage {
@@ -31,8 +36,18 @@ export interface GameProps {
   mode: 'standalone' | 'job'; // 単独プレイか、経営シミュレーションの仕事か
   job?: JobSpec; // mode='job' のときの注文内容(本数・長さ・柄など)
   resume?: unknown; // 途中保存からの再開データ
+  onStateChange?: (state: unknown) => void; // 途中保存してほしい状態が変わったとき(ゲームが呼ぶ)
   onFinish: (result: GameResult) => void;
   onExit: () => void; // 途中でホームへ戻る
+}
+
+/** ゲームが使ってよい共通の道具。ゲームは AppContext を直接受け取らず、これだけを使う */
+export interface GameDeps {
+  terms: Terms;
+  audio: AudioPlayer;
+  records: Records;
+  clock: Clock;
+  log: (level: 'info' | 'warn' | 'error', message: string) => void;
 }
 
 export interface GameInstance {

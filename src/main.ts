@@ -9,6 +9,7 @@ import { createHomeScreen } from './app/screens/homeScreen';
 import { createSettingsScreen } from './app/screens/settingsScreen';
 import { createTermsScreen } from './app/screens/termsScreen';
 import { createAdminScreen } from './app/screens/adminScreen';
+import { createGameScreen } from './app/screens/gameScreen';
 
 // Service Worker を登録する (registerType: 'prompt'。お父さん向けの画面では案内を出さず、
 // 次回起動時に自動で切り替わる。管理者メニューの「今すぐ新しい版に切り替える」ボタンからも切り替えられる)
@@ -74,6 +75,7 @@ async function main(): Promise<void> {
     { pattern: '/', create: () => createHomeScreen(ctx) },
     { pattern: '/settings', create: () => createSettingsScreen(ctx) },
     { pattern: '/settings/terms', create: () => createTermsScreen(ctx) },
+    { pattern: '/games/:id', create: () => createGameScreen(ctx) },
     { pattern: '/admin', create: () => createAdminScreen(ctx) },
   ];
   const screens = createScreenManager(app, routes);

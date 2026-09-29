@@ -237,6 +237,21 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - **npm_test**: ok (186 passed / 11 skipped)
 - **npm_run_check**: ok
 
+## T1-06
+
+- **game_screen**: `src/app/screens/gameScreen.ts (約230行)` — createGameScreen(ctx)。mount(container, params) で params['id'] を受け取る (screenManager の /games/:id ルートが解決)。無効 id・未登録ゲームは '/' へ。流れ: チュートリアル (settings.tutorialSeen が true でなければ showTutorial → update で true を保存) → sessions に途中保存があれば confirmDialog (つづきから/はじめから、はじめからなら削除) → module.mount(box, { mode:'standalone', resume, onStateChange, onFinish, onExit })。
+- **on_state_change**: 1秒に1回までまとめて sessions (id=ゲームid) に {state, savedAt} を保存。null なら削除。onExit・visibilitychange(hidden) では instance.suspend() の結果を即保存 (null ならホームへ直接)。onFinish は 途中保存削除 → records.add (stats の 'puzzle:' キーのみ) → zukan.unlock (新規入手の柄名を収集) → showResult (praise/星/成績行/あたらしく集めた柄、つづけて遊ぶ/ホームへ) → again は mount し直し、home は '/' へ。
+- **unmount**: MutationObserver で box が DOM から外れたら instance.unmount + visibilitychange 解除 + 保留中の状態を flush。
+- **context**: AppContext に zukan / records を追加し createAppContext で生成。gameDepsFrom(ctx) を追加 (terms/audio/records/clock/log)。
+- **types**: GameProps に onStateChange? を追加、GameDeps を追加。
+- **home_screen**: ゲームボタンが #/games/<id> へ navigate (押した音は従来どおり)。
+- **main**: ルート '/games/:id' を追加。
+- **test**: gameScreen.test.ts 6件 (チュートリアル表示+tutorialSeen 保存 / seen なら非表示 / つづきからで resume を渡す / onFinish で消す+records+zukan+/ へ移動 / onExit で suspend 保存 / onStateChange 3回→1秒後に最後の1回だけ保存)。偽 GameModule を registry に登録して確認。
+- **test_note**: confirmDialog は hoisted vi.mock で confirmAnswers 配列から返す。fake timers は shouldAdvanceTime: true (fake-indexeddb と併用時のデッドロック回避)。
+- **npm_test**: ok (192 passed / 11 skipped)
+- **npm_run_check**: ok
+- **browser_check**: ゲームはまだ無いため T1-10 で実施 (仕様どおり)。
+
 ## notes (気づいた点・今後も守る注意点)
 
 - T0-01: npm registry の最新 typescript は 7.0.2 (dist-tags latest) だが typescript-eslint 8.70.1 の peer 依存 (>=4.8.4 <6.1.0) と衝突し ERESOLVE。typescript を ^5.9.3 (5.x 最新) にして解消。他パッケージは現時点の最新安定版 (^付き) のまま。

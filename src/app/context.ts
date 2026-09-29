@@ -10,7 +10,12 @@ import { createAudioPlayer } from '../core/audio/audio';
 import type { AudioPlayer } from '../core/audio/audio';
 import { createLogger } from '../core/log/log';
 import type { Logger } from '../core/log/log';
+import { createZukanRegistry } from '../core/zukanRegistry/zukan';
+import type { ZukanRegistry } from '../core/zukanRegistry/zukan';
+import { createRecords } from '../core/game/records';
+import type { Records } from '../core/game/records';
 import { applyFontScale } from '../core/ui/tokens';
+import type { GameDeps } from '../core/game/types';
 
 /**
  * 画面から使う共通の道具 (保存、用語、音、設定、画面移動) を1つにまとめたもの。
@@ -23,6 +28,8 @@ export interface AppContext {
   settings: SettingsService;
   audio: AudioPlayer;
   logger: Logger;
+  zukan: ZukanRegistry;
+  records: Records;
   navigate(path: string): void;
 }
 
@@ -48,6 +55,8 @@ export async function createAppContext(opts: {
   });
 
   const logger = await createLogger(repo, opts.clock);
+  const zukan = await createZukanRegistry(repo, opts.clock);
+  const records = await createRecords(repo);
 
   // settings の fontScale を反映し、変更時にも追従させる
   function applyFont(s: { fontScale: 'large' | 'xlarge' }): void {
@@ -66,6 +75,19 @@ export async function createAppContext(opts: {
     settings,
     audio,
     logger,
+    zukan,
+    records,
     navigate: opts.navigate,
+  };
+}
+
+/** AppContext からゲーム用の GameDeps を作る。各ゲームは createXxxModule(deps) の形で使う */
+export function gameDepsFrom(ctx: AppContext): GameDeps {
+  return {
+    terms: ctx.terms,
+    audio: ctx.audio,
+    records: ctx.records,
+    clock: ctx.clock,
+    log: (level, message) => ctx.logger.log(level, message),
   };
 }

@@ -41,6 +41,7 @@ export function createHomeScreen(ctx: AppContext): Screen {
             variant: 'primary',
             onClick: () => {
               ctx.audio.play('tap');
+              ctx.navigate(`/games/${m.id}`);
             },
           });
           games.appendChild(btn);
