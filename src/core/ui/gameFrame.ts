@@ -182,6 +182,9 @@ export function createGameFrame(
       applyLayout();
     });
     ro.observe(footer);
+    // parent の大きさも見張る。Safari では回転の直後の resize のときにまだ新しい大きさになっていないことがあり、
+    // 古い大きさのまま配置されるのを防ぐ
+    ro.observe(parent);
   }
   // footer の子の増減も見張る。footer が空のあいだは display: none で大きさが 0 のままのため、
   // 子を足しても ResizeObserver が呼ばれない (縦長→横長に回したときに帯の並びが消える原因)。

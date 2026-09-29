@@ -480,3 +480,70 @@ describe('T1-12b: splitWidths (余白と隙間を引いた幅の計算)', () => 
     expect(r.stageColW).toBe(Math.floor(1144 * 0.65));
   });
 });
+
+describe('T1-11c: 回転したときの配置の遅れ (parent を ResizeObserver で見張る)', () => {
+  class RecordingRO {
+    cb: ResizeObserverCallback;
+    observed: Element[] = [];
+    constructor(cb: ResizeObserverCallback) {
+      this.cb = cb;
+      (RecordingRO as unknown as { last: RecordingRO | null }).last = this;
+    }
+    observe(target: Element): void {
+      this.observed.push(target);
+    }
+    unobserve(): void {}
+    disconnect(): void {}
+    fire(): void {
+      this.cb([], this as unknown as ResizeObserver);
+    }
+    static last: RecordingRO | null = null;
+  }
+  const RORef = RecordingRO as unknown as { last: RecordingRO | null };
+  beforeEach(() => {
+    vi.stubGlobal('ResizeObserver', RecordingRO);
+    RORef.last = null;
+  });
+
+  function setupWithSize(w: number, h: number) {
+    const parent = document.createElement('div');
+    parent.getBoundingClientRect = () =>
+      ({ width: w, height: h, top: 0, left: 0, right: w, bottom: h, x: 0, y: 0, toJSON: () => undefined });
+    document.body.appendChild(parent);
+    const onStageResize = vi.fn();
+    const frame = createGameFrame(parent, {
+      title: 'クリール立て',
+      onBack: () => undefined,
+      onHelp: () => undefined,
+      logicalW: 1000,
+      logicalH: 750,
+      onStageResize,
+    });
+    return { parent, frame, onStageResize };
+  }
+
+  it('parent が ResizeObserver で observe されている', () => {
+    const { parent } = setupWithSize(1180, 820);
+    const ro = RORef.last;
+    expect(ro).not.toBeNull();
+    expect(ro!.observed).toContain(parent);
+    frameCleanup(parent);
+  });
+
+  it('偽の ResizeObserver の通知を送ると onStageResize が呼ばれる', () => {
+    const { parent, onStageResize } = setupWithSize(1180, 820);
+    const ro = RORef.last!;
+    const callsBefore = onStageResize.mock.calls.length;
+    ro.fire();
+    expect(onStageResize.mock.calls.length).toBeGreaterThan(callsBefore);
+    frameCleanup(parent);
+  });
+
+  function frameCleanup(parent: HTMLElement): void {
+    // frame を消すヘルパー: destroy は createGameFrame の戻り値から
+    const frames = parent.querySelectorAll('.game-frame');
+    for (const f of frames) {
+      f.remove();
+    }
+  }
+});

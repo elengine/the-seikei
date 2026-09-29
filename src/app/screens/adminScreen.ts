@@ -41,28 +41,42 @@ export function createAdminScreen(ctx: AppContext): Screen {
         label: 'バックアップを書き出す',
         variant: 'primary',
         onClick: async () => {
-          try {
-            const backup = await ctx.repo.exportAll();
-            const json = JSON.stringify(backup, null, 2);
-            const file = new File([json], backupFileName(new Date()), { type: 'application/json' });
-            const canShare = typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] });
-            if (canShare) {
+          const backup = await ctx.repo.exportAll();
+          const json = JSON.stringify(backup, null, 2);
+          const file = new File([json], backupFileName(new Date()), { type: 'application/json' });
+          const saveByDownload = (): void => {
+            // a 要素の download で保存する
+            const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = file.name;
+            a.click();
+            setTimeout(() => {
+              URL.revokeObjectURL(url);
+            }, 5000);
+          };
+          const canShare = typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] });
+          if (canShare) {
+            try {
+              // Safari は、利用者の操作から時間が空くと share() を NotAllowedError で断ることがある。
+              // そのときは a 要素の download で保存する。利用者が共有を閉じた (AbortError) ときは何もしない
               await navigator.share({ files: [file], title: '整経ゲームのバックアップ' });
-            } else {
-              // a 要素の download で保存する
-              const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = file.name;
-              a.click();
-              setTimeout(() => {
-                URL.revokeObjectURL(url);
-              }, 5000);
+              ctx.logger.log('info', `バックアップを書き出しました (${file.name})`);
+            } catch (e) {
+              if (e instanceof DOMException && e.name === 'AbortError') {
+                ctx.logger.log('info', 'バックアップの共有をやめました');
+                return;
+              }
+              if (e instanceof DOMException && e.name === 'NotAllowedError') {
+                saveByDownload();
+                ctx.logger.log('info', `バックアップをダウンロードに切り替えて保存しました (${file.name})`);
+                return;
+              }
+              ctx.logger.log('error', `バックアップの書き出しに失敗: ${String(e)}`);
             }
+          } else {
+            saveByDownload();
             ctx.logger.log('info', `バックアップを書き出しました (${file.name})`);
-          } catch (e) {
-            ctx.logger.log('error', `バックアップの書き出しに失敗: ${String(e)}`);
-            void e;
           }
         },
       });
