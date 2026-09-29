@@ -288,6 +288,18 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - **npm_run_check**: ok
 - **browser_check**: 見た目の確認は T1-10 で行う (仕様どおり)
 
+## T1-09
+
+- **panel**: `src/games/creel/panel.ts (約220行)` — createCreelPanel(parent, { content, onAction }): { update(s), setMessage(text), destroy() }。DOM は4つの section (依頼書 / いまの帯の並び / 箱 / 道具とボタン) + 一番上のメッセージ欄。update(s) は全セクションを作り直さず、各セクションの中身を作り直す (textContent='' → 作り直しは状態から計算した表示のみ、DOM 構造は不変)。
+- 依頼書: toRuns(answer) を1行ずつ「品番 × N」。選んでいる箱と同じ品番の行は藍の太枠 (--c-ai)。色の記号と名前も出す。
+- いまの帯の並び: placed を番号順に四角 (32px)。立っている糸は色の hex 塗り+symbol、明るい色なら sumi・暗い色なら white の文字。空きは点線枠。marks の wrong/empty は右上に shu の ✕ (creel-cross-<index>)。
+- 箱: boxesFor の順に段ボール色 (--c-box、:root に追加。薄い茶 #d8c3a5) のボタン「品番 / 記号+名前」。選んでいる箱 (tool.kind==='box' && tool.yarn) は藍の地・白文字・✓。押すと onAction({type:'selectBox', yarn})。
+- 道具: 「はずす」「しらべる」ボタン (選んでいる方に ✓)、「たしかめる」(btn--primary)、「ヒント」(btn--secondary、canHint(s) が false のとき disabled)。
+- **css**: base.css に「/* creel */」節を追加のみ (既存の行は変えない)。--c-box (段ボールの薄い茶) を :root に追加のみ。縦長 (orientation: portrait) では .creel-panel を overflow-y: auto にして操作欄の中だけ縦にスクロール。
+- **test**: panel.test.ts 8件 (RED確認後実装)。s2 で: 依頼書2行 (W-4812 × 7 / W-2200 × 1) / 箱2つで ✓ が tool に従って移る / 依頼書の selected クラスが tool に従う / 帯のマス数と ✕ (wrong 1 + empty 7、index0 は ✕ なし) / ヒントボタンの disabled と canHint / destroy で消える / setMessage / はずす・しらべる・たしかめる の onAction と ✓。
+- **npm_test**: ok (230 passed / 11 skipped)
+- **npm_run_check**: ok
+
 ## notes (気づいた点・今後も守る注意点)
 
 - T0-01: npm registry の最新 typescript は 7.0.2 (dist-tags latest) だが typescript-eslint 8.70.1 の peer 依存 (>=4.8.4 <6.1.0) と衝突し ERESOLVE。typescript を ^5.9.3 (5.x 最新) にして解消。他パッケージは現時点の最新安定版 (^付き) のまま。

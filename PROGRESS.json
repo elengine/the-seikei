@@ -1,8 +1,8 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-09-28T20:00:00+09:00",
+  "updated_at": "2026-09-28T21:00:00+09:00",
   "phase": "P0",
-  "current_task": "T1-08 (座標と盤面の描画)",
+  "current_task": "T1-09 (操作欄の DOM)",
   "done": [
     "T0-00",
     "T0-01",
@@ -34,16 +34,16 @@
     "T1-06 追加修正",
     "T1-07",
     "T1-07 整理",
-    "T1-08"
+    "T1-08",
+    "T1-09"
   ],
   "checks": {
-    "T1-08": {
-      "geometry": "LOGICAL 1000×750 / CREEL_AREA / toPx・fromPx / cellRect / hitTest / fontPx",
-      "renderer": "drawBoard 9手順 (kinari 背景・machine 柱+横棒・steel 軸・コーン台形+symbol・品番・点線・番号・✕・吹き出し)。文字は画面 20px 以上",
-      "test": "14件 (geometry 7 / renderer 7、RED確認後実装)",
-      "npm_test": "ok (222 passed / 11 skipped)",
-      "npm_run_check": "ok",
-      "browser_check": "T1-10 で実施"
+    "T1-09": {
+      "panel": "createCreelPanel: update/setMessage/destroy。4 section (依頼書・帯の並び・箱・道具) + メッセージ欄。update は中身のみ作り直し",
+      "css": "base.css に /* creel */ 節を追加のみ。--c-box 追加。portrait は操作欄内スクロール",
+      "test": "8件 (RED確認後実装)",
+      "npm_test": "ok (230 passed / 11 skipped)",
+      "npm_run_check": "ok"
     }
   },
   "notes": [

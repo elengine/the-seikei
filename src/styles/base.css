@@ -37,6 +37,9 @@ body {
   --fs-button: 22px;
   --fs-heading: 28px;
   --fs-number: 32px;
+
+  /* creel の部品で使う色 */
+  --c-box: #d8c3a5; /* 段ボール箱の薄い茶 */
 }
 
 :root[data-font='xlarge'] {
@@ -327,4 +330,165 @@ body {
   color: var(--c-shu);
   text-align: center;
   margin: 0;
+}
+
+/* creel */
+.creel-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  min-height: 0;
+}
+
+.creel-panel__message {
+  margin: 0;
+  font-size: var(--fs-body);
+  min-height: 2.6em;
+  color: var(--c-sumi);
+}
+
+.creel-section__title {
+  margin: 0 0 4px;
+  font-size: var(--fs-body);
+  font-weight: bold;
+  color: var(--c-sumi);
+}
+
+/* 依頼書の表 */
+.creel-order {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.creel-order-row {
+  display: grid;
+  grid-template-columns: minmax(6em, auto) 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border: 2px solid transparent;
+  border-radius: var(--radius, 12px);
+  font-size: var(--fs-body);
+}
+
+.creel-order-row--selected {
+  border: 4px solid var(--c-ai);
+}
+
+.creel-order-row__hinban {
+  font-size: var(--fs-number);
+  font-weight: bold;
+}
+
+/* いまの帯の並び */
+.creel-band {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.creel-cell {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  min-width: 28px;
+  min-height: 28px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+.creel-cell--empty {
+  border: 2px dashed var(--c-sumi-sub);
+  background: transparent;
+}
+
+.creel-cell__num {
+  position: absolute;
+  top: -14px;
+  left: 0;
+  font-size: var(--fs-body);
+  color: var(--c-sumi-sub);
+}
+
+.creel-cell__cross {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--c-shu);
+  font-size: 22px;
+  font-weight: bold;
+  pointer-events: none;
+}
+
+/* 箱 (段ボール) */
+.creel-boxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.creel-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-height: var(--btn-min-h);
+  min-width: 120px;
+  padding: 6px 12px;
+  background: var(--c-box, #D8C3A5);
+  color: var(--c-sumi);
+  border: 2px solid var(--c-sumi);
+  border-radius: var(--radius, 12px);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.creel-box:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.creel-box__hinban {
+  font-size: var(--fs-number);
+  font-weight: bold;
+  line-height: 1.2;
+}
+
+.creel-box__label {
+  font-size: var(--fs-body);
+}
+
+.creel-box--selected {
+  background: var(--c-ai);
+  color: #FFFFFF;
+}
+
+/* 道具とボタン */
+.creel-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.creel-tools .btn {
+  min-height: var(--btn-min-h);
+}
+
+.creel-tools__check {
+  flex: 1;
+  min-width: 140px;
+}
+
+/* 縦長では操作欄の中だけ縦にスクロールできる */
+@media (orientation: portrait) {
+  .creel-panel {
+    overflow-y: auto;
+  }
 }
