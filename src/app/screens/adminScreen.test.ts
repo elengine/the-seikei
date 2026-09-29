@@ -6,6 +6,7 @@ describe('T1-14 C: バックアップの書き出しで、データの読み出�
   beforeAll(() => {
     // vite の define で置き換えられるビルドの識別 (テスト環境では未定義)
     vi.stubGlobal('__BUILD_ID__', 'test-build');
+    vi.stubGlobal('__APP_VERSION__', 'test');
   });
 
   it('exportAll が失敗しても例外が外に出ず、ログに error が1件残る', async () => {
@@ -15,6 +16,8 @@ describe('T1-14 C: バックアップの書き出しで、データの読み出�
         exportAll: vi.fn(async () => {
           throw new Error('読み出しに失敗');
         }),
+        // mount 中の診断欄が読む meta (テスト対象外)
+        getMeta: vi.fn(async () => undefined),
       },
       logger: {
         entries: vi.fn(() => []),
