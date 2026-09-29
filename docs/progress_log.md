@@ -300,6 +300,16 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - **npm_test**: ok (230 passed / 11 skipped)
 - **npm_run_check**: ok
 
+## T1-09 追加修正
+
+- 管理者指摘: 「帯の番号がマスの上に position: absolute(top: -14px) ではみ出していて、番号は 20px なのに段の間は 6px のため、折り返すと上の段のマスに重なる (最大24本なので iPad 横でも折り返す)」。
+- **panel.ts**: 帯を「番号(上)+マス(下)」の縦並びのまとまり (div.creel-item、data-testid="creel-item-<i>") にし、普通の流れ (flex wrap) で並べる。番号 (span.creel-num、data-testid="creel-num-<i>") はマスの外・まとまりの中の1つ目。マスの中の position: absolute の番号は削除。
+- **base.css**: .creel-band に gap: 10px (縦横とも 8px 以上) + align-items: flex-end。.creel-item を追加 (縦並び)。.creel-num を追加 (--fs-body、absolute なし)。.creel-cell を 40px 四方に、中の記号を --fs-body に。.creel-cell__cross を --fs-body に (マスに収まる)。.creel-cell__num (absolute) は削除。
+- **test**: 追加1件 — まとまり (creel-item) が placed と同じ数、各まとまりの中に番号が1つ (1 始まり) とマスが1つ、番号のクラスが creel-num (absolute の creel-cell__num でない)。
+- **npm_test**: ok (231 passed / 11 skipped)
+- **npm_run_check**: ok
+- **見た目**: T1-10 のブラウザ確認で、1180×820 と 412×915 の段階5で番号と上の段が重ならないことを確かめる。
+
 ## notes (気づいた点・今後も守る注意点)
 
 - T0-01: npm registry の最新 typescript は 7.0.2 (dist-tags latest) だが typescript-eslint 8.70.1 の peer 依存 (>=4.8.4 <6.1.0) と衝突し ERESOLVE。typescript を ^5.9.3 (5.x 最新) にして解消。他パッケージは現時点の最新安定版 (^付き) のまま。

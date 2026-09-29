@@ -141,9 +141,19 @@ export function createCreelPanel(parent: HTMLElement, opts: {
       orderTable.appendChild(row);
     }
 
-    // 2. いまの帯の並び (番号順に四角。立っている糸は色+記号、空きは点線枠、marks は ✕)
+    // 2. いまの帯の並び (番号(上)+マス(下) の縦並びのまとまりを、普通の流れで並べる)
     band.textContent = '';
     for (let i = 0; i < s.placed.length; i++) {
+      const item = document.createElement('div');
+      item.classList.add('creel-item');
+      item.dataset.testid = `creel-item-${i}`;
+      // 番号 (上)
+      const num = document.createElement('span');
+      num.classList.add('creel-num');
+      num.dataset.testid = `creel-num-${i}`;
+      num.textContent = String(i + 1);
+      item.appendChild(num);
+      // マス (下)
       const cell = document.createElement('div');
       cell.classList.add('creel-cell');
       cell.dataset.testid = `creel-cell-${i}`;
@@ -160,10 +170,6 @@ export function createCreelPanel(parent: HTMLElement, opts: {
       } else {
         cell.classList.add('creel-cell--empty');
       }
-      const num = document.createElement('span');
-      num.classList.add('creel-cell__num');
-      num.textContent = String(i + 1);
-      cell.appendChild(num);
       if (s.marks !== null && (s.marks.wrong.includes(i) || s.marks.empty.includes(i))) {
         const cross = document.createElement('span');
         cross.classList.add('creel-cell__cross');
@@ -171,7 +177,8 @@ export function createCreelPanel(parent: HTMLElement, opts: {
         cross.textContent = '✕';
         cell.appendChild(cross);
       }
-      band.appendChild(cell);
+      item.appendChild(cell);
+      band.appendChild(item);
     }
 
     // 3. 箱 (段ボール色。選んでいる箱は藍の地・白文字・✓)

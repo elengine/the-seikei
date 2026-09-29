@@ -95,6 +95,31 @@ describe('createCreelPanel', () => {
     panel.destroy();
   });
 
+  it('帯の番号は各マスのまとまり (creel-item) の中に1つずつあり、position: absolute を使っていない', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const panel = createCreelPanel(parent, { content, onAction: () => undefined });
+    panel.update(s2State());
+    // まとまり (番号+マスの縦並び) が placed と同じ数ある
+    const items = Array.from(parent.querySelectorAll('[data-testid^="creel-item-"]'));
+    expect(items).toHaveLength(8);
+    // 各まとまりの中に番号が1つあり、1 始まりの番号が入っている
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]!;
+      const num = item.querySelector('[data-testid^="creel-num-"]');
+      expect(num).not.toBeNull();
+      expect(num?.textContent).toBe(String(i + 1));
+      // まとまりの中にマスが1つある
+      expect(item.querySelector(`[data-testid="creel-cell-${i}"]`)).not.toBeNull();
+    }
+    // 番号は position: absolute を使わない (CSS クラスで確かめる)
+    for (const num of items.map((it) => it.querySelector('[data-testid^="creel-num-"]'))) {
+      expect(num?.classList.contains('creel-num')).toBe(true);
+      expect(num?.classList.contains('creel-cell__num')).toBe(false);
+    }
+    panel.destroy();
+  });
+
   it('canHint が false の状態ではヒントボタンが disabled、true になると押せる', () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);

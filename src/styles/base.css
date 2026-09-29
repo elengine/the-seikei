@@ -381,37 +381,41 @@ body {
   font-weight: bold;
 }
 
-/* いまの帯の並び */
+/* いまの帯の並び: 各帯は「番号(上)+マス(下)」の縦並びのまとまり。普通の流れで並べる */
 .creel-band {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.creel-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.creel-num {
+  font-size: var(--fs-body);
+  line-height: 1.2;
+  color: var(--c-sumi-sub);
 }
 
 .creel-cell {
   position: relative;
-  width: 32px;
-  height: 32px;
-  min-width: 28px;
-  min-height: 28px;
+  width: 40px;
+  height: 40px;
   border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  font-size: var(--fs-body);
 }
 
 .creel-cell--empty {
   border: 2px dashed var(--c-sumi-sub);
   background: transparent;
-}
-
-.creel-cell__num {
-  position: absolute;
-  top: -14px;
-  left: 0;
-  font-size: var(--fs-body);
-  color: var(--c-sumi-sub);
 }
 
 .creel-cell__cross {
@@ -421,7 +425,7 @@ body {
   align-items: center;
   justify-content: center;
   color: var(--c-shu);
-  font-size: 22px;
+  font-size: var(--fs-body);
   font-weight: bold;
   pointer-events: none;
 }

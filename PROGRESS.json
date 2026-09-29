@@ -1,8 +1,8 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-09-28T21:00:00+09:00",
+  "updated_at": "2026-09-28T21:40:00+09:00",
   "phase": "P0",
-  "current_task": "T1-09 (操作欄の DOM)",
+  "current_task": "T1-09 追加修正 (いまの帯の並びの見た目)",
   "done": [
     "T0-00",
     "T0-01",
@@ -35,14 +35,14 @@
     "T1-07",
     "T1-07 整理",
     "T1-08",
-    "T1-09"
+    "T1-09",
+    "T1-09 追加修正"
   ],
   "checks": {
-    "T1-09": {
-      "panel": "createCreelPanel: update/setMessage/destroy。4 section (依頼書・帯の並び・箱・道具) + メッセージ欄。update は中身のみ作り直し",
-      "css": "base.css に /* creel */ 節を追加のみ。--c-box 追加。portrait は操作欄内スクロール",
-      "test": "8件 (RED確認後実装)",
-      "npm_test": "ok (230 passed / 11 skipped)",
+    "T1-09 追加修正": {
+      "band": "帯を番号(上)+マス(下)のまとまり (creel-item) に。absolute の番号は廃止。gap 10px・マス 40px・記号と ✕ は --fs-body",
+      "test": "追加1件 (まとまり構造と番号のクラス)",
+      "npm_test": "ok (231 passed / 11 skipped)",
       "npm_run_check": "ok"
     }
   },
