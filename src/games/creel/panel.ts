@@ -1,7 +1,7 @@
 import type { Content } from '../../core/content/content';
 import type { CreelState, CreelAction } from './logic';
 import { canHint } from './logic';
-import { toRuns } from '../../core/domain/stripe';
+import { toRuns, splitRepeat } from '../../core/domain/stripe';
 
 export interface CreelPanel {
   update(s: CreelState): void;   // 状態に合わせて表示を更新
@@ -114,10 +114,14 @@ export function createCreelPanel(parent: HTMLElement, opts: {
     // ヒントの押せる見た目
     hintBtn.disabled = !canHint(s);
 
-    // 1. 依頼書 (toRuns を1行ずつ。選んでいる箱と同じ品番の行を藍の太枠に)
+    // 1. 依頼書。くりかえし (times>=2 かつ unit.length>=2) なら「1リピート分」の表にして、
+    //    その下に「↻ ここまでを N 回くりかえす(ぜんぶで M 本)」の1行を足す
     const selHinban = selectedHinban(s, content);
     orderTable.textContent = '';
-    for (const run of toRuns(s.answer)) {
+    const { unit, times } = splitRepeat(s.answer);
+    const useRepeat = times >= 2 && unit.length >= 2;
+    const runs = toRuns(useRepeat ? unit : s.answer);
+    for (const run of runs) {
       const yarn = content.yarns.get(run.yarn);
       const color = yarn !== undefined ? content.colors.get(yarn.color) : undefined;
       const row = document.createElement('div');
@@ -139,6 +143,13 @@ export function createCreelPanel(parent: HTMLElement, opts: {
       row.appendChild(colorLabel);
       row.appendChild(count);
       orderTable.appendChild(row);
+    }
+    if (useRepeat) {
+      const rep = document.createElement('div');
+      rep.classList.add('creel-order-repeat');
+      rep.dataset.testid = 'creel-order-repeat';
+      rep.textContent = `↻ ここまでを ${times}回くりかえす(ぜんぶで ${s.answer.length}本)`;
+      orderTable.appendChild(rep);
     }
 
     // 2. いまの帯の並び (番号(上)+マス(下) の縦並びのまとまりを、普通の流れで並べる)

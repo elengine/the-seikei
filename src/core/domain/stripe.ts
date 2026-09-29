@@ -33,6 +33,35 @@ export function toRuns(seq: YarnTypeId[]): StripeRun[] {
   return runs;
 }
 
+/**
+ * 糸の列を、「1リピート分」と「くりかえしの回数」に分ける。
+ * unit.length は seq.length を割り切る最も短い長さで、seq が unit のくりかえしになっているもの。
+ * くりかえしが無ければ unit は seq 全体、times は 1。seq が空なら { unit: [], times: 1 }。
+ */
+export function splitRepeat(seq: YarnTypeId[]): { unit: YarnTypeId[]; times: number } {
+  const n = seq.length;
+  if (n === 0) {
+    return { unit: [], times: 1 };
+  }
+  // n を割り切る最も短い長さ u で、seq が unit のくりかえしになっているものを探す
+  for (let u = 1; u <= n; u++) {
+    if (n % u !== 0) {
+      continue;
+    }
+    let ok = true;
+    for (let i = u; i < n; i++) {
+      if (seq[i] !== seq[i - u]) {
+        ok = false;
+        break;
+      }
+    }
+    if (ok) {
+      return { unit: seq.slice(0, u), times: n / u };
+    }
+  }
+  return { unit: [...seq], times: 1 };
+}
+
 /** 帯の番号 → クリールの位置(上の段から、各段は左から)。i は 段*列数+列 */
 export function indexToCell(i: number, cols: number): { row: number; col: number } {
   return { row: Math.floor(i / cols), col: i % cols };

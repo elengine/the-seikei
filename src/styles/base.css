@@ -358,7 +358,7 @@ body {
 .creel-order {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0;
 }
 
 .creel-order-row {
@@ -366,10 +366,11 @@ body {
   grid-template-columns: minmax(6em, auto) 1fr auto;
   align-items: center;
   gap: 8px;
-  padding: 4px 8px;
+  padding: 0 8px;
   border: 2px solid transparent;
   border-radius: var(--radius, 12px);
   font-size: var(--fs-body);
+  line-height: 1.2;
 }
 
 .creel-order-row--selected {
@@ -379,6 +380,14 @@ body {
 .creel-order-row__hinban {
   font-size: var(--fs-number);
   font-weight: bold;
+}
+
+/* くりかえしの行 (「↻ ここまでを N 回くりかえす」) */
+.creel-order-repeat {
+  font-size: var(--fs-body);
+  line-height: 1.2;
+  padding: 2px 8px;
+  color: var(--c-sumi-sub);
 }
 
 /* いまの帯の並び: 各帯は「番号(上)+マス(下)」の縦並びのまとまり。普通の流れで並べる */

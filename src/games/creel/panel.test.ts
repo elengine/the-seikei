@@ -185,4 +185,69 @@ describe('createCreelPanel', () => {
     expect(onAction).toHaveBeenCalledWith({ type: 'check' });
     panel.destroy();
   });
+
+  describe('追加修正2: 依頼書を「1リピート分 + くりかえし N 回」で表示', () => {
+    function stateOf(id: string): CreelState {
+      const puzzle = content.creelPuzzles.find((p) => p.id === id)!;
+      return init(puzzle, content);
+    }
+
+    function render(id: string): { parent: HTMLElement; panel: ReturnType<typeof createCreelPanel> } {
+      const parent = document.createElement('div');
+      document.body.appendChild(parent);
+      const panel = createCreelPanel(parent, { content, onAction: () => undefined });
+      panel.update(stateOf(id));
+      return { parent, panel };
+    }
+
+    it('s5: 依頼書の行が4つ。くりかえしの行があり、「2回」と「24本」を含む', () => {
+      const { parent, panel } = render('s5');
+      const rows = Array.from(parent.querySelectorAll('[data-testid="creel-order-row"]'));
+      expect(rows.length).toBe(4);
+      const rep = parent.querySelector('[data-testid="creel-order-repeat"]');
+      expect(rep).not.toBeNull();
+      expect(rep?.textContent).toContain('2回');
+      expect(rep?.textContent).toContain('24本');
+      panel.destroy();
+    });
+
+    it('s3: 行が2つ。くりかえしの行があり、「2回」と「16本」を含む', () => {
+      const { parent, panel } = render('s3');
+      const rows = Array.from(parent.querySelectorAll('[data-testid="creel-order-row"]'));
+      expect(rows.length).toBe(2);
+      const rep = parent.querySelector('[data-testid="creel-order-repeat"]');
+      expect(rep?.textContent).toContain('2回');
+      expect(rep?.textContent).toContain('16本');
+      panel.destroy();
+    });
+
+    it('s2: 行が2つ (W-4812 × 7、W-2200 × 1)。くりかえしの行は無い', () => {
+      const { parent, panel } = render('s2');
+      const rows = Array.from(parent.querySelectorAll('[data-testid="creel-order-row"]'));
+      expect(rows.length).toBe(2);
+      expect(parent.querySelector('[data-testid="creel-order-repeat"]')).toBeNull();
+      panel.destroy();
+    });
+
+    it('s1: 行が1つ。くりかえしの行は無い', () => {
+      const { parent, panel } = render('s1');
+      const rows = Array.from(parent.querySelectorAll('[data-testid="creel-order-row"]'));
+      expect(rows.length).toBe(1);
+      expect(parent.querySelector('[data-testid="creel-order-repeat"]')).toBeNull();
+      panel.destroy();
+    });
+
+    it('s5 で選んでいる箱と同じ品番の行が2つとも選択中になる', () => {
+      const parent = document.createElement('div');
+      document.body.appendChild(parent);
+      const panel = createCreelPanel(parent, { content, onAction: () => undefined });
+      panel.update(stateOf('s5'));
+      const rows = Array.from(parent.querySelectorAll('[data-testid="creel-order-row"]'));
+      // s5 の依頼書は unit (12本) のラン: kon-a ×5, kon-b ×1, kon-a ×5, mizu-a ×1
+      const selected = rows.filter((r) => r.className.includes('creel-order-row--selected'));
+      // 初期 tool は boxes[0]。s5 の箱は kon-a, kon-b, mizu-a (answer の糸 + 紛らわしい箱)。kon-a が選ばれているはず
+      expect(selected.length).toBe(2);
+      panel.destroy();
+    });
+  });
 });

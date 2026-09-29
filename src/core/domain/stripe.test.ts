@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { expandPlan, toRuns, indexToCell, cellToIndex, answerFor, compare } from './stripe';
+import { expandPlan, toRuns, indexToCell, cellToIndex, answerFor, compare, splitRepeat } from './stripe';
 import { getContent } from '../content/content';
 
 describe('expandPlan', () => {
@@ -94,5 +94,32 @@ describe('answerFor (本物の内容データ)', () => {
     const puzzle = content.creelPuzzles.find((p) => p.id === 's1')!;
     const answer = answerFor(puzzle, content.patterns.get('p-muji-kon')!);
     expect(answer).toEqual(Array(6).fill('kon-a'));
+  });
+});
+
+describe('splitRepeat (追加修正2)', () => {
+  it('[a,a,a,b,a,a,a,b] → unit [a,a,a,b]、times 2', () => {
+    expect(splitRepeat(['a', 'a', 'a', 'b', 'a', 'a', 'a', 'b'])).toEqual({ unit: ['a', 'a', 'a', 'b'], times: 2 });
+  });
+
+  it('[a,a,a,a,a,a] → unit [a]、times 6', () => {
+    expect(splitRepeat(['a', 'a', 'a', 'a', 'a', 'a'])).toEqual({ unit: ['a'], times: 6 });
+  });
+
+  it('[a,a,b] → unit [a,a,b]、times 1', () => {
+    expect(splitRepeat(['a', 'a', 'b'])).toEqual({ unit: ['a', 'a', 'b'], times: 1 });
+  });
+
+  it('[] → unit []、times 1', () => {
+    expect(splitRepeat([])).toEqual({ unit: [], times: 1 });
+  });
+
+  it('p-alt-kon (expandPlan(plan, 24)) → unit の長さ 12、times 2', () => {
+    const content = getContent();
+    const pattern = content.patterns.get('p-alt-kon')!;
+    const seq = expandPlan(pattern.plan, 24);
+    const r = splitRepeat(seq);
+    expect(r.unit).toHaveLength(12);
+    expect(r.times).toBe(2);
   });
 });
