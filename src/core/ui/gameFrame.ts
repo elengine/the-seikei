@@ -10,6 +10,8 @@ export interface GameFrame {
   stage: HTMLCanvasElement; // 盤面
   panel: HTMLElement; // 操作と情報の欄
   message: HTMLElement; // panel 内のメッセージ欄
+  footer: HTMLElement; // 盤面 (Canvas) の下の欄。横長のときだけ使う
+  layout(): 'landscape' | 'portrait'; // いまの配置
   resize(): void; // 画面サイズに合わせて配置と Canvas を調整
   destroy(): void; // 監視の解除と DOM の削除
 }
@@ -64,12 +66,19 @@ export function createGameFrame(
   body.classList.add('game-frame__body');
   const stageBox = document.createElement('div');
   stageBox.classList.add('game-frame__stage');
+  const footer = document.createElement('div');
+  footer.classList.add('game-frame__footer');
   const panel = document.createElement('div');
   panel.classList.add('game-frame__panel');
   const message = document.createElement('div');
   message.classList.add('game-frame__message');
   panel.appendChild(message);
-  body.appendChild(stageBox);
+  // 盤面の列 (横長のとき): Canvas の上・footer の下
+  const stageCol = document.createElement('div');
+  stageCol.classList.add('game-frame__stage-col');
+  stageCol.appendChild(stageBox);
+  stageCol.appendChild(footer);
+  body.appendChild(stageCol);
   body.appendChild(panel);
   root.appendChild(body);
 
@@ -87,16 +96,24 @@ export function createGameFrame(
     const bodyH = Math.max(0, innerH - BAR_H);
     body.style.height = `${bodyH}px`;
     if (layout === 'landscape') {
-      // 左:盤面 (残り幅の 65%)・右:panel
-      const stageW = Math.floor(innerW * 0.65);
-      stageBox.style.width = `${stageW}px`;
-      stageBox.style.height = `${bodyH}px`;
-      panel.style.width = `${innerW - stageW}px`;
+      // 左:盤面の列 (Canvas の上・footer の下)・右:panel
+      footer.style.display = '';
+      stageCol.style.width = `${Math.floor(innerW * 0.65)}px`;
+      stageCol.style.height = `${bodyH}px`;
+      // footer の高さは中身 (実際に測れるなら) から取る。測れないときは CSS で決まっている高さ
+      const footerH = footer.getBoundingClientRect().height;
+      const stageH = Math.max(0, bodyH - footerH);
+      stageBox.style.width = '100%';
+      stageBox.style.height = `${stageH}px`;
+      panel.style.width = `${innerW - Math.floor(innerW * 0.65)}px`;
       panel.style.height = `${bodyH}px`;
     } else {
-      // 上:盤面 (残り高さの 60%)・下:panel
+      // 上:盤面 (残り高さの 60%)・下:panel。footer は使わないので隠す
+      footer.style.display = 'none';
+      stageCol.style.width = `${innerW}px`;
+      stageCol.style.height = `${bodyH}px`;
       const stageH = Math.floor(bodyH * 0.6);
-      stageBox.style.width = `${innerW}px`;
+      stageBox.style.width = '100%';
       stageBox.style.height = `${stageH}px`;
       panel.style.width = `${innerW}px`;
       panel.style.height = `${bodyH - stageH}px`;
@@ -131,6 +148,11 @@ export function createGameFrame(
     stage,
     panel,
     message,
+    footer,
+    layout(): 'landscape' | 'portrait' {
+      const rect = parent.getBoundingClientRect();
+      return layoutOf({ width: Math.max(0, rect.width), height: Math.max(0, rect.height) });
+    },
     resize,
     destroy(): void {
       offViewport?.();

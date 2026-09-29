@@ -6,6 +6,8 @@ import { toRuns, splitRepeat } from '../../core/domain/stripe';
 export interface CreelPanel {
   update(s: CreelState): void;   // 状態に合わせて表示を更新
   setMessage(text: string): void;
+  /** 「いまの帯の並び」の区画を target の中に移す。null なら操作欄の元の位置に戻す */
+  placeBand(target: HTMLElement | null): void;
   destroy(): void;
 }
 
@@ -227,12 +229,25 @@ export function createCreelPanel(parent: HTMLElement, opts: {
       render(s);
     },
 
+    /** 「いまの帯の並び」の区画を target の中に移す。null なら操作欄の元の位置に戻す */
+    placeBand(target: HTMLElement | null): void {
+      if (target === null) {
+        if (bandBox.parentElement !== root) {
+          // 元の位置 (依頼書の下) に戻す。root の子のうち依頼書の次に入れる
+          orderBox.insertAdjacentElement('afterend', bandBox);
+        }
+      } else if (bandBox.parentElement !== target) {
+        target.appendChild(bandBox);
+      }
+    },
+
     setMessage(text: string): void {
       message.textContent = text;
     },
 
     destroy(): void {
-      root.remove();
+      root.remove(); // bandBox は root の子 or 移動先の子。root.remove() で画面から消えるが、
+      bandBox.remove(); // 移動先 (footer など) に残らないように取り除く
     },
   };
 }

@@ -617,10 +617,28 @@ body {
   padding: var(--gap);
 }
 
+/* 盤面の列 (横長): Canvas の上・footer (いまの帯の並び) の下 */
+.game-frame__stage-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  min-width: 0;
+  min-height: 0;
+}
+
 .game-frame__stage {
   flex: 1;
   min-width: 0;
   min-height: 0;
+}
+
+/* 盤面の下の欄 (横長のときだけ使う。縦長では gameFrame が display:none にする) */
+.game-frame__footer {
+  flex: none;
+}
+
+.game-frame__footer .creel-band {
+  flex-wrap: wrap;
 }
 
 .game-frame__stage canvas {

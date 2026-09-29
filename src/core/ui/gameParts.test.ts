@@ -292,3 +292,67 @@ describe('resultView', () => {
     });
   });
 });
+
+describe('T1-10fix 追加修正3: 横長では「いまの帯の並び」を盤面の下に置く', () => {
+  function setupWithSize(w: number, h: number) {
+    const parent = document.createElement('div');
+    parent.getBoundingClientRect = () =>
+      ({ width: w, height: h, top: 0, left: 0, right: w, bottom: h, x: 0, y: 0, toJSON: () => undefined });
+    document.body.appendChild(parent);
+    const frame = createGameFrame(parent, {
+      title: 'クリール立て',
+      onBack: () => undefined,
+      onHelp: () => undefined,
+      logicalW: 1000,
+      logicalH: 750,
+    });
+    return { parent, frame };
+  }
+
+  it('横長: layout() が landscape。footer があり、縦長配置と違い CSS で隠れていない', () => {
+    const { frame } = setupWithSize(1180, 820);
+    expect(frame.layout()).toBe('landscape');
+    expect(frame.footer.style.display).not.toBe('none');
+    frame.destroy();
+  });
+
+  it('縦長: layout() が portrait。footer は display:none', () => {
+    const { frame } = setupWithSize(412, 915);
+    expect(frame.layout()).toBe('portrait');
+    expect(frame.footer.style.display).toBe('none');
+    frame.destroy();
+  });
+
+  it('横長で footer に中身を足すと Canvas の高さが「盤面の列の高さ − footer の高さ」になり、onStageResize が呼ばれる', () => {
+    const sizes: { w: number; h: number }[] = [];
+    const parent = document.createElement('div');
+    parent.getBoundingClientRect = () =>
+      ({ width: 1180, height: 820, top: 0, left: 0, right: 1180, bottom: 820, x: 0, y: 0, toJSON: () => undefined });
+    document.body.appendChild(parent);
+    const frame = createGameFrame(parent, {
+      title: 'クリール立て',
+      onBack: () => undefined,
+      onHelp: () => undefined,
+      logicalW: 1000,
+      logicalH: 750,
+      onStageResize: (fit) => {
+        sizes.push({ w: Math.round(fit.scale * 1000), h: Math.round(fit.scale * 750) });
+      },
+    });
+    // jsdom では clientHeight が測れないので、Canvas の入れ物 (stageBox) に設定した CSS の高さで判定する
+    const stageBox = frame.stage.parentElement!;
+    const stageH0 = parseInt(stageBox.style.height, 10);
+    const bodyH = 820 - 72; // BAR_H (上部の帯の高さ)
+    expect(stageH0).toBe(bodyH); // footer が空なら今までどおり
+
+    // footer に 190px の帯の並びを足す
+    frame.footer.style.height = '190px';
+    frame.footer.getBoundingClientRect = () =>
+      ({ width: 1180, height: 190, top: 0, left: 0, right: 1180, bottom: 190, x: 0, y: 0, toJSON: () => undefined });
+    frame.resize();
+    const stageH1 = parseInt(stageBox.style.height, 10);
+    expect(stageH1).toBe(bodyH - 190);
+    expect(sizes.length).toBeGreaterThanOrEqual(2); // onStageResize が再び呼ばれる
+    frame.destroy();
+  });
+});

@@ -16,6 +16,11 @@ beforeEach(() => {
   document.body.textContent = '';
 });
 
+function stateOf(id: string): CreelState {
+  const puzzle = content.creelPuzzles.find((p) => p.id === id)!;
+  return init(puzzle, content);
+}
+
 describe('createCreelPanel', () => {
   it('s2 の状態で update すると、依頼書が2行 (W-4812 × 7、W-2200 × 1)', () => {
     const parent = document.createElement('div');
@@ -187,10 +192,7 @@ describe('createCreelPanel', () => {
   });
 
   describe('追加修正2: 依頼書を「1リピート分 + くりかえし N 回」で表示', () => {
-    function stateOf(id: string): CreelState {
-      const puzzle = content.creelPuzzles.find((p) => p.id === id)!;
-      return init(puzzle, content);
-    }
+
 
     function render(id: string): { parent: HTMLElement; panel: ReturnType<typeof createCreelPanel> } {
       const parent = document.createElement('div');
@@ -248,6 +250,60 @@ describe('createCreelPanel', () => {
       // 初期 tool は boxes[0]。s5 の箱は kon-a, kon-b, mizu-a (answer の糸 + 紛らわしい箱)。kon-a が選ばれているはず
       expect(selected.length).toBe(2);
       panel.destroy();
+    });
+  });
+
+  describe('T1-10fix 追加修正3: placeBand', () => {
+    function make(id: string) {
+      const parent = document.createElement('div');
+      document.body.appendChild(parent);
+      const panel = createCreelPanel(parent, { content, onAction: () => undefined });
+      panel.update(stateOf(id));
+      return { parent, panel };
+    }
+
+    it('placeBand(el) で「いまの帯の並び」の区画が el の中に移る', () => {
+      const { panel } = make('s1');
+      const target = document.createElement('div');
+      document.body.appendChild(target);
+      panel.placeBand(target);
+      const band = target.querySelector('[data-testid="creel-band"]');
+      expect(band).not.toBeNull();
+      panel.destroy();
+    });
+
+    it('placeBand(null) で元の位置 (操作欄) に戻る', () => {
+      const { parent, panel } = make('s1');
+      const target = document.createElement('div');
+      document.body.appendChild(target);
+      panel.placeBand(target);
+      panel.placeBand(null);
+      expect(parent.querySelector('[data-testid="creel-band"]')).not.toBeNull();
+      expect(target.querySelector('[data-testid="creel-band"]')).toBeNull();
+      panel.destroy();
+    });
+
+    it('移しても帯の番号の構造は変わらない (creel-item のまとまりに番号が1つ)', () => {
+      const { panel } = make('s2');
+      const target = document.createElement('div');
+      document.body.appendChild(target);
+      panel.placeBand(target);
+      const band = target.querySelector('[data-testid="creel-band"]')!;
+      const items = Array.from(band.querySelectorAll('.creel-item'));
+      expect(items.length).toBe(8); // s2 は 8本
+      for (const item of items) {
+        expect(item.querySelectorAll('.creel-num').length).toBe(1);
+      }
+      panel.destroy();
+    });
+
+    it('destroy で移した先 (el) からも消える', () => {
+      const { panel } = make('s1');
+      const target = document.createElement('div');
+      document.body.appendChild(target);
+      panel.placeBand(target);
+      panel.destroy();
+      expect(target.querySelector('[data-testid="creel-band"]')).toBeNull();
     });
   });
 });

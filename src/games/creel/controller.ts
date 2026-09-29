@@ -53,7 +53,13 @@ export function createController(parent: HTMLElement, deps: GameDeps, props: Gam
     logicalH: 750,
     onStageResize: (fit) => {
       lastFit = fit;
+      // 配置が変わるたび、横長なら「いまの帯の並び」を盤面の下 (footer) に移す
       if (panelReady) {
+        if (frame.layout() === 'landscape') {
+          panel.placeBand(frame.footer);
+        } else {
+          panel.placeBand(null);
+        }
         render();
       }
     },
@@ -190,6 +196,12 @@ export function createController(parent: HTMLElement, deps: GameDeps, props: Gam
 
   // ---- 初期表示 ----
   panelReady = true;
+  // 初回の配置も決める (横長なら帯の並びを footer へ)
+  if (frame.layout() === 'landscape') {
+    panel.placeBand(frame.footer);
+  } else {
+    panel.placeBand(null);
+  }
   refresh();
 
   return {
