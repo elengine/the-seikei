@@ -194,3 +194,43 @@ layout(): 'landscape' | 'portrait';        // いまの配置
 - A・B・C のテストを先に書き、RED を確認してから直した。
 - `npm run check`・`npm test`・`npm run build` が成功する。
 - B のブラウザ確認の数字と、960×720・1180×820 の段階5のスクリーンショットを、Discord と `docs/progress_log.md` に報告した(コミットの番号を書く)。
+
+---
+
+# 追加修正5:画面を回したときに「いまの帯の並び」が消える、ほか1点
+
+- 出どころ:ルビーの完了報告(Discord のルビーのスレッド、2026-09-29 22:40、コミット `8d47f52`・報告 `c78664b`)を、確認役が本番と同じビルドで確かめた結果。
+- 受け入れたもの:追加修正4 の A(吹き出しの収め先)と C(列の gap)、B のうちメッセージ欄を1つにしたことと、道具の区画を下に固定したこと。
+- 進め方:下の A・B を1つのコミットにしてよい。失敗を再現するテストを先に書き、RED を確認してから直す。
+
+## 変更してよいファイル
+
+`src/core/ui/gameFrame.ts`、`src/core/ui/gameParts.test.ts`、`src/games/creel/panel.ts`、`src/games/creel/panel.test.ts`、`PROGRESS.json`、`docs/progress_log.md`
+
+## A. 縦長から横長に回すと、「いまの帯の並び」が画面から消える(不具合)
+
+- 確認役の再現:820×1180(iPad 縦)で段階5を開き、1180×820(iPad 横)に変えた。帯の並びは footer に移ったが、footer が `display: none` のままで、画面のどこにも表示されなかった。3秒待っても戻らなかった。Canvas は盤面の列の高さいっぱい(724px)のまま。
+- 原因:`applyLayout` は、footer が空のときに footer を隠す。そのあと `onStageResize` の中で、controller が帯の並びを footer に移す。footer は隠れたままなので大きさが 0 のまま変わらず、ResizeObserver が呼ばれない。そのため、footer を表に戻す処理が走らない。最初から横長で開いたときは、ResizeObserver の最初の1回の通知で直るため、気づきにくい。
+- 直し方:`gameFrame.ts` で、footer の子の増減を MutationObserver(`childList`)で見張り、変わったら `applyLayout` を呼ぶ。`destroy` で解除する。ほかのゲームでも同じように働く。
+- テスト(`gameParts.test.ts`):
+  1. 横長の配置で footer が空のとき、footer は `display: none`。footer に子を足すと、次の microtask のあと(`await Promise.resolve()` など)に `display` が `none` でなくなり、`onStageResize` が呼ばれる。
+  2. その子を取り除くと、footer は再び `display: none` になる。
+  3. `destroy` の後に footer の子を変えても、`onStageResize` が呼ばれない。
+
+## B. 960×720 で、くりかえしの行が2行に折り返す
+
+- 確認役の測定:「↻ くりかえし × 2(ぜんぶで 24本)」が 960×720 で2行(48px)になった。ルビーの報告では1行だったので、ブラウザや端末の文字(フォント)の違いで、幅が変わるとみられる。父の iPad の文字でも、同じことが起こりうる。
+- 直し方:文字を、常に「↻ くりかえし × N」にする(「(ぜんぶで M本)」を外す)。
+- テスト(`panel.test.ts`):s5 のくりかえしの行の文字が「↻ くりかえし × 2」と同じ。s3 は「↻ くりかえし × 2」。期待値の変更の理由は「確認役が文字を変えたため」。
+
+## ブラウザ確認(本番と同じビルド、ポートは固定)
+
+1. 820×1180 で段階5を開き、1180×820 に変える。「いまの帯の並び」が盤面の下に見えること。もう一度 820×1180 に戻すと、操作欄の中に見えること。もう一度 1180×820 にしても見えること。それぞれ footer の `style.display` と、帯の並びの区画がどこにあるか(footer か操作欄か)を報告する。
+2. 960×720 の段階5で、「たしかめる」を2回押して、メッセージを2行にした状態で、くりかえしの行の高さ(1行なら 30px 以下)と、操作欄の `scrollHeight`・`clientHeight` を報告する。
+3. 1180×820 の段階5で、操作欄のスクロールがないこと(今までどおり)。
+
+## 完了条件
+
+- A・B のテストを先に書き、RED を確認してから直した。
+- `npm run check`・`npm test`・`npm run build` が成功する。
+- ブラウザ確認の数字を、Discord と `docs/progress_log.md` に報告した(コミットの番号を書く)。
