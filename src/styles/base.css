@@ -336,7 +336,7 @@ body {
 .creel-panel {
   display: flex;
   flex-direction: column;
-  gap: var(--gap);
+  gap: 8px;
   min-height: 0;
 }
 
@@ -386,7 +386,7 @@ body {
 .creel-order-repeat {
   font-size: var(--fs-body);
   line-height: 1.2;
-  padding: 2px 8px;
+  padding: 0 8px;
   color: var(--c-sumi-sub);
 }
 
@@ -656,7 +656,7 @@ body {
 .game-frame__message {
   font-size: var(--fs-body);
   color: var(--c-sumi);
-  min-height: 2.4em;
+  min-height: 1.2em;
   margin-bottom: var(--gap);
 }
 
