@@ -20,6 +20,9 @@ const DRUM_BULGE = 10;
 /** ドラムの桟の数 (円筒の周りに等間隔に並ぶ。正面に 10〜12 本見える。T2-10 追加修正) */
 export const SLAT_COUNT = 24;
 
+/** ピン (横木) の静止時の角度 (rad)。正面から少し左に来るように (T2-10 追加修正 b) */
+export const PIN_ANGLE0 = -0.9;
+
 /** 4. ドラム: 縦向き円筒。明るさの勾配は横向き (中央を明るく、左右の端を暗く)。
  * drumAngle (ラジアン) で桟が横に流れて回って見える (T2-10b)。見た目だけの値で State には入らない */
 export function drawDrum(
@@ -126,53 +129,66 @@ export function drawDrum(
     ctx.globalAlpha = 1;
   }
 
-  // 端の丸い面 (灰色の金属の円盤) は上と下。放射状の腕
-  for (const ey of [y - fontPx(fit, 4), y + h - fontPx(fit, 4)]) {
-    const rx = (rightX - leftX) / 2;
-    const cy = ey + fontPx(fit, 4);
-    ctx.fillStyle = COLORS.steel;
+  // 上の端: 楕円の上半分の弧だけ (胴の上の縁が山なりになる。面は見せない) (T2-10 追加修正 b)
+  const rx = (rightX - leftX) / 2;
+  const topCy = y + fontPx(fit, 0);
+  ctx.strokeStyle = COLORS.sumiSub;
+  ctx.lineWidth = fontPx(fit, 2);
+  ctx.beginPath();
+  ctx.ellipse(cx, topCy, rx, fontPx(fit, 12), 0, Math.PI, Math.PI * 2);
+  ctx.stroke();
+  // 下の端: 楕円の面の全体 (灰色の金属の円盤) + 放射状の腕 (drumAngle で回す)
+  const botCy = y + h;
+  ctx.fillStyle = COLORS.steel;
+  ctx.beginPath();
+  ctx.ellipse(cx, botCy, rx, fontPx(fit, 12), 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = COLORS.sumiSub;
+  ctx.lineWidth = fontPx(fit, 2);
+  for (let a = 0; a < 6; a++) {
+    const ang = drumAngle + (Math.PI / 3) * a;
     ctx.beginPath();
-    ctx.ellipse(x + w / 2, cy, rx, fontPx(fit, 12), 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = COLORS.sumiSub;
-    ctx.lineWidth = fontPx(fit, 2);
-    for (let a = 0; a < 6; a++) {
-      const ang = drumAngle + (Math.PI / 3) * a; // スポークも drumAngle だけ回す (T2-10b)
-      ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.lineTo(cx + Math.cos(ang) * rx * 0.85, cy + Math.sin(ang) * fontPx(fit, 10));
-      ctx.stroke();
-    }
+    ctx.moveTo(cx, botCy);
+    ctx.lineTo(cx + Math.cos(ang) * rx * 0.85, botCy + Math.sin(ang) * fontPx(fit, 10));
+    ctx.stroke();
   }
 
-  // ピン (灰みの緑の縦木 + 鋼のピン。帯ごとに1本。ドラムの左の縁に沿って縦に)
-  ctx.fillStyle = COLORS.machineDark;
-  ctx.fillRect(PIN_RAIL_X, y, fontPx(fit, 10), h + fontPx(fit, 16)); // 縦木の左の端は geometry の PIN_RAIL_X (T2-10 追加修正)
-  for (let i = 0; i < s.sections; i++) {
-    const py = drumSectionPinY(i, s.sections);
-    ctx.fillStyle = COLORS.steel;
-    ctx.fillRect(PIN_RAIL_X - fontPx(fit, 2), py - fontPx(fit, 3), fontPx(fit, 12), fontPx(fit, 6));
-    // 巻いている帯のピンには糸の束が掛かる
-    if (i === s.current && s.phase === 'winding') {
-      ctx.strokeStyle = base;
-      ctx.lineWidth = fontPx(fit, 1.5);
-      ctx.beginPath();
-      for (let k = 0; k < 4; k++) {
-        ctx.moveTo(PIN_RAIL_X + fontPx(fit, 10), py - fontPx(fit, 5) + fontPx(fit, 2.5) * k);
-        ctx.lineTo(PIN_RAIL_X - fontPx(fit, 2), py - fontPx(fit, 5) + fontPx(fit, 2.5) * k);
+  // ピン (灰みの緑の縦木 + 鋼のピン。帯ごとに1本)。実物ではドラムに付いているので、
+  // ドラムと一緒に回る: θpin = drumAngle + PIN_ANGLE0。正面の x は 中心 + 半径 × sin θpin、
+  // 大きさは cos θpin 倍。裏側 (cos θpin ≤ 0) は描かない (T2-10 追加修正 b)
+  const thPin = drumAngle + PIN_ANGLE0;
+  const cosPin = Math.cos(thPin);
+  const pinX = cx + radius * Math.sin(thPin);
+  if (cosPin > 0) {
+    ctx.fillStyle = COLORS.machineDark;
+    ctx.fillRect(pinX - (fontPx(fit, 10) * cosPin) / 2, y, Math.max(3, fontPx(fit, 10) * cosPin), h + fontPx(fit, 16));
+    for (let i = 0; i < s.sections; i++) {
+      const py = drumSectionPinY(i, s.sections);
+      ctx.fillStyle = COLORS.steel;
+      ctx.fillRect(pinX - fontPx(fit, 2) * cosPin, py - fontPx(fit, 3), Math.max(4, fontPx(fit, 12) * cosPin), fontPx(fit, 6));
+      // 巻いている帯のピンには糸の束が掛かる
+      if (i === s.current && s.phase === 'winding') {
+        ctx.strokeStyle = base;
+        ctx.lineWidth = fontPx(fit, 1.5);
+        ctx.beginPath();
+        for (let k = 0; k < 4; k++) {
+          ctx.moveTo(pinX + fontPx(fit, 5) * cosPin, py - fontPx(fit, 5) + fontPx(fit, 2.5) * k);
+          ctx.lineTo(pinX - fontPx(fit, 12) * cosPin, py - fontPx(fit, 5) + fontPx(fit, 2.5) * k);
+        }
+        ctx.stroke();
       }
-      ctx.stroke();
     }
   }
 
-  // 結び目 (巻き終えた帯の区画の左の端) + 結ぶ演出の輪
+  // 結び目 (巻き終えた帯の区画のピンの位置) + 結ぶ演出の輪。ピンと同じ角度で回る (T2-10 追加修正 b)
   for (let i = 0; i < s.sections; i++) {
-    const kx = x + fontPx(fit, 14);
+    const kx = pinX;
     const ky = drumSectionY(i, s.sections) + h / s.sections / 2;
-    if (i < s.current || s.phase === 'done') {
+    const onFront = cosPin > 0;
+    if ((i < s.current || s.phase === 'done') && onFront) {
       drawKnot(ctx, fit, kx, ky, base);
     }
-    if (i === s.current && s.phase === 'cutting') {
+    if (i === s.current && s.phase === 'cutting' && onFront) {
       // 結ぶ演出: 輪が大きく広がってから結び目の束に縮む (tieProgress 0→1)
       const p = Math.min(1, Math.max(0, tieProgress));
       if (p > 0 && p < 1) {

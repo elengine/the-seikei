@@ -7,7 +7,7 @@ import type { FakeRecorder } from './renderer.test.helpers';
 
 // 偽の ctx (呼ばれた命令を記録する) は helpers に置く
 import { makeFakeCtx } from './renderer.test.helpers';
-import { SLAT_COUNT } from './renderer.parts';
+import { SLAT_COUNT, PIN_ANGLE0 } from './renderer.parts';
 import { init, reduce } from './logic';
 import type { WindingState } from './logic';
 import { loadContent } from '../../core/content/content';
@@ -223,10 +223,11 @@ describe('winding renderer T2-08 (盤面の絵を実物らしくする)', () => 
     }
     expect(s.current).toBe(2);
     drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
-    // 結び目の束 = 小さな輪 (arc) の集まり。帯の区画の左の端 (x = DRUM_AREA.x + 14 付近) で描かれる
+    // 結び目の束 = 小さな輪 (arc) の集まり。ピンと同じ角度の位置 (pinX) で描かれる (T2-10 追加修正 b)
+    const pinX = DRUM_AREA.x + DRUM_AREA.w / 2 + (DRUM_AREA.w / 2 + 10) * Math.sin(PIN_ANGLE0);
     const knots = rec.ops.filter(
       (op) => op.k === 'arc' && typeof op.args?.[0] === 'number' &&
-        Math.abs((op.args[0] as number) - (580 + 14)) < 8,
+        Math.abs((op.args[0] as number) - pinX) < 8,
     );
     // 束 1 個 = 輪 5 個 → current 2 個 = 10 個以上
     expect(knots.length).toBeGreaterThanOrEqual(10);
@@ -309,10 +310,11 @@ describe('winding renderer T2-08-fix a (ドラムの向き・台の移動・結�
       // cut の直前 (phase 'cutting'・current 0) で演出を見る (cut を送ると current が進む)
       expect(s.phase).toBe('cutting');
       drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0, tieProgress: p });
-      // 結びの輪の arc 半径の最大 (帯1の区画の左の端 x 付近)
+      // 結びの輪の arc 半径の最大 (ピンの位置 x 付近。T2-10 追加修正 b でピンと同じ角度に)
+      const pinX = DRUM_AREA.x + DRUM_AREA.w / 2 + (DRUM_AREA.w / 2 + 10) * Math.sin(PIN_ANGLE0);
       const arcs = rec.ops.filter(
         (op) => op.k === 'arc' && typeof op.args?.[0] === 'number' &&
-          (op.args[0] as number) > 580 && (op.args[0] as number) < 612 && (op.args[2] as number) > 12,
+          Math.abs((op.args[0] as number) - pinX) < 10 && (op.args[2] as number) > 12,
       ).map((op) => (op.args![2] ?? 0) as number);
       // 輪は p=0 (描かない) では無くてもよいが、p=0.5 と p=1 (束は輪 5 個 半径 5) とは比べる
       const maxR = arcs.reduce((m, r) => Math.max(m, r ?? 0), 0);
@@ -530,5 +532,70 @@ describe('winding renderer T2-10 追加修正 a (桟の数)', () => {
         f.y >= sy0 && f.y < sy1,
     );
     expect(slats.length).toBeGreaterThanOrEqual(10);
+  });
+});
+
+describe('winding renderer T2-10 追加修正 b (上下の端・結び目とピンも回る)', () => {
+  const fit = { scale: 1, offsetX: 0, offsetY: 0 };
+
+  /** ellipse の呼ばれ方を集める */
+  function ellipses(rec: FakeRecorder): Array<{ x: number; y: number; rx: number; ry: number }> {
+    return rec.ops
+      .filter((op) => op.k === 'ellipse')
+      .map((op) => ({ x: (op.args?.[0] as number) ?? 0, y: (op.args?.[1] as number) ?? 0, rx: (op.args?.[2] as number) ?? 0, ry: (op.args?.[3] as number) ?? 0 }));
+  }
+
+  it('5. ellipse の面を塗る (fill) は下の端の1回だけ。上の端は弧を描くだけ', () => {
+    const s = windingState();
+    const { ctx, rec } = makeFakeCtx();
+    drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0, drumAngle: 0 });
+    // ellipse の直後に fill が来る = 面を塗っている
+    const filled: Array<{ y: number; rx: number }> = [];
+    for (let i = 0; i < rec.ops.length; i++) {
+      const op = rec.ops[i]!;
+      if (op.k === 'ellipse' && rec.ops[i + 1]?.k === 'fill') {
+        filled.push({ y: (op.args?.[1] as number) ?? 0, rx: (op.args?.[2] as number) ?? 0 });
+      }
+    }
+    const disks = filled.filter(
+      (e) => Math.abs(e.rx - (DRUM_AREA.w / 2 + 10)) < 1 &&
+        e.y >= DRUM_AREA.y && e.y <= DRUM_AREA.y + DRUM_AREA.h + 1,
+    );
+    expect(disks.length).toBe(1); // 下の端だけ
+    expect(Math.abs(disks[0]!.y - (DRUM_AREA.y + DRUM_AREA.h))).toBeLessThan(1);
+  });
+
+  it('6. drumAngle を変えると結び目の輪の x が変わる (結び目もドラムと一緒に回る)', () => {
+    const s = windingState();
+    const s1 = { ...s, phase: 'cutting' as const, current: 0 };
+    const collectKnotX = (angle: number): number[] => {
+      const { ctx, rec } = makeFakeCtx();
+      drawBoard(ctx, fit, s1, content, { threadCount: 8, show: 'red', timeMs: 0, drumAngle: angle, tieProgress: 0.5 });
+      // 結びの輪 = 区画1の中の半径 12 超の arc
+      return rec.ops
+        .filter((op) => op.k === 'arc' && (op.args?.[2] as number) > 12 &&
+          (op.args?.[1] as number) >= drumSectionY(0, s.sections) && (op.args?.[1] as number) < drumSectionY(1, s.sections))
+        .map((op) => Math.round((op.args?.[0] as number) ?? 0));
+    };
+    const a = collectKnotX(0.2);
+    const b = collectKnotX(1.1);
+    expect(a.length).toBeGreaterThan(0);
+    expect(a).not.toEqual(b);
+  });
+
+  it('6b. cos θpin ≤ 0 (裏側) の角度では、結び目もピンも描かれない', () => {
+    const s = windingState();
+    const s1 = { ...s, phase: 'cutting' as const, current: 0 };
+    // θpin = drumAngle + PIN_ANGLE0。cos ≤ 0 になる drumAngle を PIN_ANGLE0 から求める
+    const back = Math.PI - PIN_ANGLE0 + 0.2; // cos(θpin) < 0 になる角度
+    const { ctx, rec } = makeFakeCtx();
+    drawBoard(ctx, fit, s1, content, { threadCount: 8, show: 'red', timeMs: 0, drumAngle: back, tieProgress: 0.5 });
+    const ky0 = drumSectionY(0, s.sections);
+    const ky1 = drumSectionY(1, s.sections);
+    const rings = rec.ops.filter(
+      (op) => op.k === 'arc' && (op.args?.[2] as number) > 12 &&
+        (op.args?.[1] as number) >= ky0 && (op.args?.[1] as number) < ky1,
+    );
+    expect(rings.length).toBe(0);
   });
 });

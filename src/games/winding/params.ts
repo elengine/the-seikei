@@ -94,6 +94,13 @@ export function BREAK_MAX_THREADS(level: Level): number {
 /** ドラムが回って見える角度の進み方 (速さ1あたりのラジアン/秒。T2-10 追加修正。ペダル 50 (速さ 20) で 1秒に 5 ラジアン ≒ 0.8 回転) */
 export const DRUM_TURN_PER_SPEED = 0.25;
 
+/** 角速度が目標の 9 割に達するまでの時間 (ms)。速くなるとき。T2-10 追加修正 b (イージング) */
+export const DRUM_EASE_UP_MS = 600;
+/** 遅くなるとき (ms) */
+export const DRUM_EASE_DOWN_MS = 400;
+/** 糸が切れて機械が止まるとき (ms)。急に止める */
+export const DRUM_STOP_MS = 250;
+
 /** 帯の縞1本の高さ (論理座標。柄の並びを区画の中で繰り返す。T2-08 追加修正2) */
 export const STRIPE_H = 6;
 

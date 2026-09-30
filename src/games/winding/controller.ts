@@ -3,6 +3,7 @@ import type { StageFit } from '../../core/viewport/viewport';
 import { createGameFrame } from '../../core/ui/gameFrame';
 import { showTutorial } from '../../core/ui/tutorialOverlay';
 import { drawBoard } from './renderer';
+import { PIN_ANGLE0 } from './renderer.parts';
 import { createWindingPanel } from './panel';
 import { fromPx, hitEnd } from './geometry';
 import { getContent, type Content } from '../../core/content/content';
@@ -10,9 +11,10 @@ import { init, reduce, seedFromText } from './logic';
 import { speedOf } from '../../core/mechanics/pedal';
 import { messageFor, soundFor, resultOf } from './messages';
 import type { WindingState, WindingAction, Level } from './logic';
-import { MESSAGE_HOLD_MS, DRUM_TURN_PER_SPEED, TENSION } from './params';
+import { MESSAGE_HOLD_MS, DRUM_TURN_PER_SPEED, DRUM_EASE_UP_MS, DRUM_EASE_DOWN_MS, DRUM_STOP_MS, TENSION } from './params';
 
 const TIE_ANIM_MS = 1000; // 帯の端を結ぶ演出の長さ
+const PIN_TURN_MS = 800; // 結ぶ前にピンを正面へ回す時間 (0.6〜1 秒のまんなか)
 const DONE_WAIT_MS = 1500; // done のあと結果を出すまでの見せる時間
 const SAVE_INTERVAL_MS = 1000; // 途中保存は1秒に1回まで
 
@@ -43,6 +45,10 @@ export function createWindingController(parent: HTMLElement, deps: GameDeps, pro
   let doneTimer: ReturnType<typeof setTimeout> | null = null;
   let tieProgress = 0; // 帯の端を結ぶ演出 (0〜1、進行中は 0 超)
 let drumAngle = 0; // ドラムが回って見える角度 (ラジアン。見た目だけの値。State には入らない。T2-10b)
+let drumOmega = 0; // 角速度 (rad/s)。目標へなめらかに近づける (T2-10 追加修正 b)
+let drumStopping = false; // 糸が切れて急停止する途中か
+let pinTurnMs = -1; // 結ぶ前の、ピンを正面へ回す演出の経過時間 (-1 は回していない)
+let pinTurnPrevEased = 0; // 前フレームの ease の値 (角速度を決めるのに使う)
   let tieElapsedMs = 0; // 結びの演出の経過時間 (rAF の時刻で進める)
   let tieRunning = false; // 結びの演出中か
   let nowMs = 0; // いまの rAF の時刻 (時刻が必要な処理に渡す)
@@ -233,23 +239,55 @@ let drumAngle = 0; // ドラムが回って見える角度 (ラジアン。見�
     const dtMs = lastFrameMs === null ? 0 : Math.max(0, ms - lastFrameMs);
     lastFrameMs = ms;
     if (dtMs > 0) {
+      if (pinTurnMs >= 0) {
+        pinTurnMs += dtMs;
+      }
       if (tieRunning) {
         stepTieAnimation(dtMs);
       }
-      // ドラムが回って見える角度 (速さ 0 のときは進まない。T2-10b)
+      // ドラムが回って見える角度。角速度は目標へなめらかに近づける (重いドラムの手応え。T2-10 追加修正 b)。
+      // 糸が切れたときだけ急に止める (DRUM_STOP_MS)
       {
         const speed = speedOf(s.pedal, TENSION);
-        if (speed > 0 && s.phase === 'winding') {
-          drumAngle += speed * DRUM_TURN_PER_SPEED * (dtMs / 1000);
+        const winding = s.phase === 'winding';
+        let target = winding && speed > 0 ? speed * DRUM_TURN_PER_SPEED : 0;
+        if (pinTurnMs >= 0) {
+          // ピンを正面の少し左 (sin θpin = -0.5) へなめらかに回す (T2-10 追加修正 b)
+          const k = Math.min(1, pinTurnMs / PIN_TURN_MS);
+          const eased = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2; // ease-in-out
+          const pinTarget = -Math.PI / 6; // sin = -0.5
+          const goal = pinTarget - PIN_ANGLE0;
+          target = goal * Math.max(0, (eased - pinTurnPrevEased) / Math.max(0.001, dtMs / PIN_TURN_MS)) * (PIN_TURN_MS / 1000) / Math.max(0.001, PIN_TURN_MS / 1000);
+          pinTurnPrevEased = eased;
+          if (k >= 1) {
+            pinTurnMs = -1;
+            pinTurnPrevEased = 0;
+            target = 0;
+          }
         }
+        const easeMs = drumStopping ? DRUM_STOP_MS : target > drumOmega ? DRUM_EASE_UP_MS : DRUM_EASE_DOWN_MS;
+        // DRUM_EASE_MS は「目標の 9 割に達するまでの時間」(管理者の指定値)。係数は指数で近づける
+        const alpha = 1 - Math.exp(-dtMs / (easeMs / 2.3));
+        drumOmega += (target - drumOmega) * alpha;
+        if (target === 0 && drumOmega < 0.05) {
+          drumOmega = 0; // ほぼ止まったら 0 に落とす
+          drumStopping = false;
+        }
+        drumAngle += drumOmega * (dtMs / 1000);
       }
       const prev = s;
       const next = reduce(s, { type: 'tick', dtMs });
       if (next !== prev) {
         s = next;
         if (s.phase === 'broken' && prev.phase !== 'broken') {
-          // 糸が切れた: 機械の止まる音 ('broken' に変わった瞬間の1回だけ)
+          // 糸が切れた: 機械の止まる音 ('broken' に変わった瞬間の1回だけ)。ドラムは急停止
+          drumStopping = true;
           deps.audio.play('stop');
+        }
+        if (s.phase === 'cutting' && prev.phase !== 'cutting') {
+          // 帯を巻き終えた: ピンが正面に来るまでドラムを回してから結ぶ (T2-10 追加修正 b)
+          pinTurnMs = 0;
+          pinTurnPrevEased = 0;
         }
         updateMessage(prev, s);
         refresh();

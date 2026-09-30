@@ -707,6 +707,8 @@ describe('winding module T2-10 追加修正 a (ドラムの回る速さ・drumAn
       btn(container, '踏み込む')!.click();
     }
     await vi.waitFor(() => expect(lastDrawOpts()?.drumAngle).toBeDefined());
+    raf.advance(1);
+    raf.advance(60); // まず定常まで回す (イージングの立ち上がりを含めない。T2-10 追加修正 b)
     const before = lastDrawOpts()!.drumAngle!;
     // 1 秒 (62フレーム × 16ms)
     raf.advance(62);
@@ -726,5 +728,83 @@ describe('winding module T2-10 追加修正 a (ドラムの回る速さ・drumAn
     raf.advance(30);
     const after = lastDrawOpts()!.drumAngle!;
     expect(after).toBe(before);
+  });
+});
+
+describe('winding module T2-10 追加修正 b (なめらかな回り方・結ぶときの回転)', () => {
+  let raf: ReturnType<typeof installFakeRaf>;
+
+  beforeEach(() => {
+    document.body.textContent = '';
+    raf = installFakeRaf();
+    drawBoardCalls.length = 0;
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      canvas: document.createElement('canvas'),
+    } as unknown as CanvasRenderingContext2D);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  async function setup(): Promise<HTMLElement> {
+    const { deps } = await makeDeps();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const module = createWindingModule(deps);
+    module.mount(container, makeProps());
+    return container;
+  }
+
+  const btn = (container: HTMLElement, label: string): HTMLButtonElement | undefined =>
+    Array.from(container.querySelectorAll('button')).find((b) => b.textContent === label);
+
+  async function startWinding(): Promise<HTMLElement> {
+    const container = await setup();
+    container.querySelector<HTMLButtonElement>('button[data-testid="winding-level-1"]')!.click();
+    await vi.waitFor(() => expect(btn(container, '巻き始める')).toBeDefined());
+    btn(container, '巻き始める')!.click();
+    return container;
+  }
+
+  it('7. ペダル 100 直後の1フレームは角速度が目標の半分より小さい。0.6 秒で目標の 9 割以上', async () => {
+    const container = await startWinding();
+    for (let i = 0; i < 10; i++) {
+      btn(container, '踏み込む')!.click();
+    }
+    await vi.waitFor(() => expect(lastDrawOpts()?.drumAngle).toBeDefined());
+    raf.advance(1); // lastFrameMs を埋める (dtMs 0 のフレーム)
+    const a0 = lastDrawOpts()!.drumAngle!;
+    raf.advance(1); // 1フレーム (16ms)
+    const a1 = lastDrawOpts()!.drumAngle!;
+    // 目標: speed 40 × 0.25 = 10 rad/s → 1フレームで 0.16 rad。半分より小さいこと
+    expect(a1 - a0).toBeLessThan(0.16 / 2);
+    // 0.6 秒後、角速度が目標の 9 割以上 (直近 4 フレーム = 0.064 秒の差分から測る)
+    raf.advance(35);
+    const a2 = lastDrawOpts()!.drumAngle!;
+    raf.advance(4);
+    const a3 = lastDrawOpts()!.drumAngle!;
+    const omega = (a3 - a2) / 0.064;
+    expect(omega).toBeGreaterThanOrEqual(10 * 0.9);
+  });
+
+  it('7b. ペダルを 0 に戻すと 0.4 秒ほどで止まる (DRUM_EASE_MS 遅いとき 400)', async () => {
+    const container = await startWinding();
+    for (let i = 0; i < 10; i++) {
+      btn(container, '踏み込む')!.click();
+    }
+    await vi.waitFor(() => expect(lastDrawOpts()?.drumAngle).toBeDefined());
+    raf.advance(1);
+    raf.advance(40); // 十分回す
+    // ペダル 0 (「戻す」×10)
+    for (let i = 0; i < 10; i++) {
+      btn(container, '戻す')!.click();
+    }
+    const a0 = lastDrawOpts()!.drumAngle!;
+    raf.advance(40); // 0.64 秒
+    const a1 = lastDrawOpts()!.drumAngle!;
+    // 0.64 秒でほぼ止まっている (0.4 秒の緩みで残りは僅か)。目標 0 のときの累積は 0.64 秒で 10×0.4/2 程度以下
+    expect(a1 - a0).toBeLessThan(10 * 0.4 / 2 + 0.01);
   });
 });
