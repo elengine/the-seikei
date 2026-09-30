@@ -136,6 +136,23 @@ export function createCreelPanel(parent: HTMLElement, opts: {
 
   parent.appendChild(root);
 
+  /** 紙の芯の色の表示 (16px の丸と「芯:赤」の文字。色だけに頼らない) */
+  function coreTag(coreId: string | undefined): HTMLElement | null {
+    const core = coreId !== undefined ? content.cores.get(coreId) : undefined;
+    if (core === undefined) {
+      return null;
+    }
+    const tag = document.createElement('span');
+    tag.classList.add('core-tag');
+    const dot = document.createElement('span');
+    dot.classList.add('core-dot');
+    dot.style.background = core.hex;
+    dot.setAttribute('aria-hidden', 'true');
+    tag.appendChild(dot);
+    tag.appendChild(document.createTextNode(`芯:${core.name}`));
+    return tag;
+  }
+
   /** 何本目から何本目か (例「(1〜4本目)」「(5本目)」) */
   function rangeText(start: number, count: number): string {
     return count === 1 ? `(${start}本目)` : `(${start}〜${start + count - 1}本目)`;
@@ -183,11 +200,21 @@ export function createCreelPanel(parent: HTMLElement, opts: {
       row.appendChild(hinban);
       row.appendChild(colorLabel);
       row.appendChild(count);
+      // 下の段: 芯の色と、何本目か (段階1〜3)
+      const sub = document.createElement('div');
+      sub.classList.add('creel-order-row__sub');
+      const tag = coreTag(yarn?.core);
+      if (tag !== null) {
+        sub.appendChild(tag);
+      }
       if (showRange) {
         const range = document.createElement('span');
         range.classList.add('creel-order-row__range');
         range.textContent = rangeText(start, run.count);
-        row.appendChild(range);
+        sub.appendChild(range);
+      }
+      if (sub.childElementCount > 0) {
+        row.appendChild(sub);
       }
       start += run.count;
       orderTable.appendChild(row);
@@ -231,6 +258,11 @@ export function createCreelPanel(parent: HTMLElement, opts: {
       label.textContent = `${selected ? '✓ ' : ''}${color?.symbol ?? ''} ${color?.name ?? ''}`;
       btn.appendChild(hinban);
       btn.appendChild(label);
+      const tag = coreTag(yarn?.core);
+      if (tag !== null) {
+        tag.classList.add('creel-box__core');
+        btn.appendChild(tag);
+      }
       boxes.appendChild(btn);
     }
 

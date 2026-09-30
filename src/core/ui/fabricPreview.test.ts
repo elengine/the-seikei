@@ -101,6 +101,7 @@ describe('fabricSpecFor', () => {
   function fakeContent(colors: { id: ColorId; hex: string }[]): Content {
     return {
       colors: new Map(colors.map((c) => [c.id, { id: c.id, name: c.id, hex: c.hex, symbol: '●' }])),
+      cores: new Map(),
       yarns: new Map(),
       patterns: new Map(),
       creelPuzzles: [],
@@ -110,8 +111,8 @@ describe('fabricSpecFor', () => {
 
   it('tone があると hex の明るさが変わり、正の tone は明るくなる (kon-a と kon-c で違い)', () => {
     const content = fakeContent([{ id: 'kon', hex: '#1F2A44' }]);
-    content.yarns.set('kon-a', { id: 'kon-a', color: 'kon', hinban: 'W-4812', spec: 'ウール 2/48' });
-    content.yarns.set('kon-c', { id: 'kon-c', color: 'kon', hinban: 'W-5310', spec: 'ウール紡毛 1/20', tone: 18 });
+    content.yarns.set('kon-a', { id: 'kon-a', color: 'kon', hinban: 'W-4812', spec: 'ウール 2/48', core: 'green' });
+    content.yarns.set('kon-c', { id: 'kon-c', color: 'kon', hinban: 'W-5310', spec: 'ウール紡毛 1/20', tone: 18, core: 'red' });
     const pattern: Pattern = {
       id: 'p1',
       name: 'シャドーストライプ',
@@ -136,7 +137,7 @@ describe('fabricSpecFor', () => {
 
   it('負の tone は暗くなる', () => {
     const content = fakeContent([{ id: 'kon', hex: '#1F2A44' }]);
-    content.yarns.set('kon-b', { id: 'kon-b', color: 'kon', hinban: 'W-4821', spec: 'ウール 2/60', tone: -10 });
+    content.yarns.set('kon-b', { id: 'kon-b', color: 'kon', hinban: 'W-4821', spec: 'ウール 2/60', tone: -10, core: 'green' });
     const pattern: Pattern = {
       id: 'p1',
       name: 'シャドーストライプ',
@@ -170,8 +171,8 @@ describe('fabricSpecFor', () => {
       difficulty: 1,
     };
     // plan の yarn (YarnTypeId) は糸→色をたどって色にするため、yarns も用意する
-    content.yarns.set('kon-a', { id: 'kon-a', color: 'kon', hinban: 'W-4812', spec: 'ウール 2/48' });
-    content.yarns.set('shiro-a', { id: 'shiro-a', color: 'shiro', hinban: 'W-2200', spec: 'ウール 2/48' });
+    content.yarns.set('kon-a', { id: 'kon-a', color: 'kon', hinban: 'W-4812', spec: 'ウール 2/48', core: 'green' });
+    content.yarns.set('shiro-a', { id: 'shiro-a', color: 'shiro', hinban: 'W-2200', spec: 'ウール 2/48', core: 'green' });
     const spec = fabricSpecFor(pattern, content);
     expect(spec.warp).toEqual([
       '#1F2A44', '#1F2A44', '#1F2A44', '#1F2A44', '#1F2A44', '#1F2A44', '#1F2A44', '#F2F0EA',

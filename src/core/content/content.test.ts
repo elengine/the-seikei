@@ -2,10 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { loadContent, getContent } from './content';
 
 /** 検査に通る正しい1件分のデータ (個別のテストで壊して使う) */
-function validRaw(): { colors: unknown; yarns: unknown; patterns: unknown; creelPuzzles: unknown } {
+function validRaw(): { colors: unknown; yarns: unknown; patterns: unknown; creelPuzzles: unknown; cores?: unknown } {
   return {
     colors: [{ id: 'kon', name: '紺', hex: '#1F2A44', symbol: '●' }],
-    yarns: [{ id: 'kon-a', color: 'kon', hinban: 'W-4812', spec: 'ウール 2/48' }],
+    yarns: [{ id: 'kon-a', color: 'kon', hinban: 'W-4812', spec: 'ウール 2/48', core: 'green' }],
     patterns: [
       {
         id: 'p1',
@@ -55,7 +55,7 @@ describe('loadContent', () => {
     const raw = validRaw();
     const yarns = raw.yarns as unknown[];
     (yarns[0] as { tone: unknown }).tone = 'あかるい'; // 数値でない
-    yarns.push({ id: 'kon-b', color: 'kon', hinban: 'W-4821', spec: 'ウール 2/60', tone: 40 }); // 範囲外
+    yarns.push({ id: 'kon-b', color: 'kon', hinban: 'W-4821', spec: 'ウール 2/60', tone: 40, core: 'red' }); // 範囲外
     const content = loadContent(raw);
     expect(content.yarns.size).toBe(0); // kon-a も kon-b も読み飛ばし
     // 糸2行 + 糸を参照する柄1行 + 柄を参照するお題1行 (連鎖)
@@ -66,8 +66,8 @@ describe('loadContent', () => {
     const raw = validRaw();
     const yarns = raw.yarns as unknown[];
     (yarns[0] as { tone: unknown }).tone = 18;
-    yarns.push({ id: 'kon-b', color: 'kon', hinban: 'W-4821', spec: 'ウール 2/60' }); // tone なし
-    yarns.push({ id: 'kon-c', color: 'kon', hinban: 'W-5310', spec: 'ウール紡毛 1/20', tone: -30 }); // 境界
+    yarns.push({ id: 'kon-b', color: 'kon', hinban: 'W-4821', spec: 'ウール 2/60', core: 'red' }); // tone なし
+    yarns.push({ id: 'kon-c', color: 'kon', hinban: 'W-5310', spec: 'ウール紡毛 1/20', tone: -30, core: 'yellow' }); // 境界
     const content = loadContent(raw);
     expect(content.yarns.size).toBe(3);
     expect(content.problems).toHaveLength(0);
@@ -80,6 +80,7 @@ describe('loadContent', () => {
       color: 'kon',
       hinban: 'W-4812', // kon-a と同じ品番
       spec: 'ウール 2/60',
+      core: 'red',
     });
     const content = loadContent(raw);
     expect(content.yarns.size).toBe(1); // 後の方 (kon-b) は読み飛ばし
@@ -143,5 +144,54 @@ describe('T1-16: お題15題・糸の色11色', () => {
         expect(dup).toBe(true);
       }
     }
+  });
+});
+
+describe('PU-06a: 紙の芯の色', () => {
+  const content = getContent();
+
+  it('cores.json から6色が読み込まれ、problems は空', () => {
+    expect(content.cores.size).toBe(6);
+    expect(content.cores.get('red')?.hex).toBe('#A33A22');
+    expect(content.problems).toEqual([]);
+  });
+
+  it('全部の糸に core があり、cores.json にある', () => {
+    for (const y of content.yarns.values()) {
+      expect(content.cores.has(y.core), `${y.id} の芯 ${y.core}`).toBe(true);
+    }
+  });
+
+  it('同じ色の糸どうしは、芯の色が違う', () => {
+    const seen = new Map<string, string>();
+    for (const y of content.yarns.values()) {
+      const key = `${y.color}/${y.core}`;
+      expect(seen.has(key), `${y.id} と ${seen.get(key)} が同じ色 (${y.color}) で同じ芯 (${y.core})`).toBe(false);
+      seen.set(key, y.id);
+    }
+  });
+
+  it('cores に無い芯の糸は読み飛ばされ、problems に入る', () => {
+    const raw = validRaw();
+    (raw.yarns as { core: string }[])[0]!.core = 'purple';
+    const c = loadContent(raw);
+    expect(c.yarns.size).toBe(0);
+    expect(c.problems.some((p) => p.includes('kon-a') && p.includes('purple'))).toBe(true);
+  });
+
+  it('同じ色で同じ芯の糸は、後の方が読み飛ばされ、problems に入る', () => {
+    const raw = validRaw();
+    (raw.yarns as unknown[]).push({ id: 'kon-b', color: 'kon', hinban: 'W-4821', spec: 'ウール 2/60', core: 'green' });
+    const c = loadContent(raw);
+    expect(c.yarns.has('kon-a')).toBe(true);
+    expect(c.yarns.has('kon-b')).toBe(false);
+    expect(c.problems.some((p) => p.includes('kon-b') && p.includes('芯'))).toBe(true);
+  });
+
+  it('core が無い糸は形が正しくないとして読み飛ばされる', () => {
+    const raw = validRaw();
+    delete (raw.yarns as { core?: string }[])[0]!.core;
+    const c = loadContent(raw);
+    expect(c.yarns.size).toBe(0);
   });
 });

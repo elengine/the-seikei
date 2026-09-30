@@ -382,3 +382,10 @@ describe('PU-01b: 書体の埋め込み', () => {
     expect(cssText().trimStart().startsWith('@font-face')).toBe(true);
   });
 });
+
+describe('PU-06a: メッセージ欄の地の色', () => {
+  it('COLORS.messageBg は 07 の値 (#F3F0E6)。base.css の --c-message-bg と一致する (全色の一致のテストが見る)', () => {
+    expect(COLORS.messageBg).toBe('#F3F0E6');
+    expect(cssVars(':root').get('--c-message-bg')).toBeDefined();
+  });
+});

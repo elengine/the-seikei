@@ -1,0 +1,32 @@
+[
+ {
+  "id": "green",
+  "name": "緑",
+  "hex": "#3E6B4A"
+ },
+ {
+  "id": "red",
+  "name": "赤",
+  "hex": "#A33A22"
+ },
+ {
+  "id": "blue",
+  "name": "青",
+  "hex": "#2F5E8C"
+ },
+ {
+  "id": "yellow",
+  "name": "黄",
+  "hex": "#C9A227"
+ },
+ {
+  "id": "brown",
+  "name": "茶",
+  "hex": "#7A5234"
+ },
+ {
+  "id": "white",
+  "name": "白",
+  "hex": "#F2EFE6"
+ }
+]

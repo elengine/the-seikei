@@ -2,7 +2,10 @@ export type ColorId = string;
 export interface YarnColor { id: ColorId; name: string; hex: string; symbol: string; }
 
 export type YarnTypeId = string;
-export interface YarnType { id: YarnTypeId; color: ColorId; hinban: string; spec: string; tone?: number; }
+export type CoreId = string;
+/** 糸を巻いた紙の芯の色。品番の見分けの手がかり (同じ色の糸どうしは芯の色を変える) */
+export interface CoreColor { id: CoreId; name: string; hex: string; }
+export interface YarnType { id: YarnTypeId; color: ColorId; hinban: string; spec: string; tone?: number; core: CoreId; }
 
 export interface StripeRun { yarn: YarnTypeId; count: number; }
 export type StripePlan = StripeRun[];

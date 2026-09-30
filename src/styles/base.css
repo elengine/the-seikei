@@ -70,7 +70,7 @@ body {
   --c-post: #6e8a5e;
   --c-post-light: #86a276;
   --c-post-dark: #4f6843;
-  --c-message-bg: #f3f0e6; /* メッセージ欄の地 (07_ui_design 7 節) */
+  --c-message-bg: #f3f0e6;
 
   /* 余白・角・画面の余白・上端の縞 (07_ui_design 4・5.1) */
   --sp-1: 4px;
@@ -664,10 +664,41 @@ body {
 }
 
 /* 何本目から何本目か (段階1〜3) */
-.creel-order-row__range {
+.creel-order-row__sub {
   grid-column: 1 / -1; /* 幅が狭くても収まるよう、行の下の段に置く */
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--sp-3);
   font-size: var(--fs-body);
   color: var(--c-muted);
+}
+
+.creel-order-row__range {
+  font-size: var(--fs-body);
+  color: var(--c-muted);
+}
+
+/* 紙の芯の色 (16px の丸 + 「芯:赤」) */
+.core-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-body);
+  color: var(--c-sumi-sub);
+  font-weight: 400;
+}
+
+.core-dot {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid var(--c-sumi-sub);
+  box-sizing: border-box;
+}
+
+.btn.creel-box--selected .core-tag {
+  color: var(--c-white);
 }
 
 /* くりかえしの行 (「↻ 繰り返し × N」) */

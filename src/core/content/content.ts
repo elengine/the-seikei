@@ -1,18 +1,21 @@
-import type { ColorId, YarnColor, YarnTypeId, YarnType, Pattern, CreelPuzzle } from '../domain/types';
+import type { ColorId, CoreId, CoreColor, YarnColor, YarnTypeId, YarnType, Pattern, CreelPuzzle } from '../domain/types';
 import colorsJson from '../../content/colors.json';
 import yarnsJson from '../../content/yarns.json';
 import patternsJson from '../../content/patterns.json';
 import creelPuzzlesJson from '../../content/creelPuzzles.json';
+import coresJson from '../../content/cores.json';
 
 export interface Content {
   colors: Map<ColorId, YarnColor>;
+  cores: Map<CoreId, CoreColor>; // 紙の芯の色
   yarns: Map<YarnTypeId, YarnType>;
   patterns: Map<string, Pattern>;
   creelPuzzles: CreelPuzzle[];    // stage の昇順
   problems: string[];             // 読み飛ばした項目の説明(管理者向け)
 }
 
-export function loadContent(raw: { colors: unknown; yarns: unknown; patterns: unknown; creelPuzzles: unknown }): Content {
+/** cores を渡さないときは、同梱の cores.json を使う */
+export function loadContent(raw: { colors: unknown; yarns: unknown; patterns: unknown; creelPuzzles: unknown; cores?: unknown }): Content {
   const problems: string[] = [];
   const colors = new Map<ColorId, YarnColor>();
   const yarns = new Map<YarnTypeId, YarnType>();
@@ -36,7 +39,28 @@ export function loadContent(raw: { colors: unknown; yarns: unknown; patterns: un
     problems.push('colors が配列ではないため、すべて読み飛ばしました');
   }
 
+  // ---- cores (紙の芯の色) ----
+  const cores = new Map<CoreId, CoreColor>();
+  const rawCores = raw.cores ?? coresJson;
+  if (Array.isArray(rawCores)) {
+    for (const item of rawCores) {
+      const c = readCore(item);
+      if (c === null) {
+        problems.push(`芯の色を読み飛ばしました (形が正しくありません): ${jsonOf(item)}`);
+        continue;
+      }
+      if (cores.has(c.id)) {
+        problems.push(`芯の色 ${c.id} を読み飛ばしました (id が重複)`);
+        continue;
+      }
+      cores.set(c.id, c);
+    }
+  } else {
+    problems.push('cores が配列ではないため、すべて読み飛ばしました');
+  }
+
   // ---- yarns ----
+  const colorCoreOwners = new Map<string, YarnTypeId>(); // 「色/芯」 → 先に登録した糸の id (同じ色の糸どうしは芯の色を変える)
   if (Array.isArray(raw.yarns)) {
     for (const item of raw.yarns) {
       const y = readYarn(item);
@@ -48,6 +72,10 @@ export function loadContent(raw: { colors: unknown; yarns: unknown; patterns: un
         problems.push(`糸 ${y.id} を読み飛ばしました (色 ${y.color} が存在しません)`);
         continue;
       }
+      if (!cores.has(y.core)) {
+        problems.push(`糸 ${y.id} を読み飛ばしました (芯の色 ${y.core} が存在しません)`);
+        continue;
+      }
       if (yarns.has(y.id)) {
         problems.push(`糸 ${y.id} を読み飛ばしました (id が重複)`);
         continue;
@@ -57,8 +85,15 @@ export function loadContent(raw: { colors: unknown; yarns: unknown; patterns: un
         problems.push(`糸 ${y.id} を読み飛ばしました (品番 ${y.hinban} が糸 ${hinbanOwners.get(y.hinban)} と重複)`);
         continue;
       }
+      const colorCore = `${y.color}/${y.core}`;
+      if (colorCoreOwners.has(colorCore)) {
+        // 芯の色で見分けるため、同じ色の糸どうしの芯の色は重複させない。後の方を読み飛ばす
+        problems.push(`糸 ${y.id} を読み飛ばしました (色 ${y.color} の糸 ${colorCoreOwners.get(colorCore)} と芯の色 ${y.core} が同じ)`);
+        continue;
+      }
       yarns.set(y.id, y);
       hinbanOwners.set(y.hinban, y.id);
+      colorCoreOwners.set(colorCore, y.id);
     }
   } else {
     problems.push('yarns が配列ではないため、すべて読み飛ばしました');
@@ -118,7 +153,7 @@ export function loadContent(raw: { colors: unknown; yarns: unknown; patterns: un
   // stage の昇順に並べる (同じ stage は入力の順を保つ)
   creelPuzzles.sort((a, b) => a.stage - b.stage);
 
-  return { colors, yarns, patterns, creelPuzzles, problems };
+  return { colors, cores, yarns, patterns, creelPuzzles, problems };
 }
 
 let cached: Content | null = null;
@@ -131,6 +166,7 @@ export function getContent(): Content {
       yarns: yarnsJson,
       patterns: patternsJson,
       creelPuzzles: creelPuzzlesJson,
+      cores: coresJson,
     });
   }
   return cached;
@@ -165,12 +201,23 @@ function readColor(item: unknown): YarnColor | null {
   return { id: o.id, name: o.name, hex: o.hex, symbol: o.symbol };
 }
 
+function readCore(item: unknown): CoreColor | null {
+  if (typeof item !== 'object' || item === null) {
+    return null;
+  }
+  const o = item as Record<string, unknown>;
+  if (!isStr(o.id) || !isStr(o.name) || !isStr(o.hex)) {
+    return null;
+  }
+  return { id: o.id, name: o.name, hex: o.hex };
+}
+
 function readYarn(item: unknown): YarnType | null {
   if (typeof item !== 'object' || item === null) {
     return null;
   }
   const o = item as Record<string, unknown>;
-  if (!isStr(o.id) || !isStr(o.color) || !isStr(o.hinban) || !isStr(o.spec)) {
+  if (!isStr(o.id) || !isStr(o.color) || !isStr(o.hinban) || !isStr(o.spec) || !isStr(o.core)) {
     return null;
   }
   // tone は省略できる。-30〜30 の数値でなければ読み飛ばす (呼び出し側で problems に記録)
@@ -179,7 +226,7 @@ function readYarn(item: unknown): YarnType | null {
       return null;
     }
   }
-  const yarn: YarnType = { id: o.id, color: o.color, hinban: o.hinban, spec: o.spec };
+  const yarn: YarnType = { id: o.id, color: o.color, hinban: o.hinban, spec: o.spec, core: o.core };
   if (o.tone !== undefined) {
     yarn.tone = o.tone;
   }

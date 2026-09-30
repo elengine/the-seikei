@@ -374,3 +374,22 @@ describe('T1-20: ヒントボタンの文字に条件を出す', () => {
     panel.destroy();
   });
 });
+
+describe('PU-06a: 依頼書の行と箱に紙の芯の色を出す', () => {
+  it('依頼書の行と箱に「芯:赤」のような名前と、16px の丸が出る', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const panel = createCreelPanel(parent, { content, onAction: () => undefined });
+    panel.update(stateOf('s2'));
+    const kon = content.yarns.get('kon-a')!;
+    const coreName = content.cores.get(kon.core)!.name;
+    const row = parent.querySelector('[data-testid="creel-order-row"]')!;
+    expect(row.textContent).toContain(`芯:${coreName}`);
+    expect(row.querySelector('.core-dot')).not.toBeNull();
+    const box = parent.querySelector('.creel-box')!;
+    expect(box.textContent).toContain(`芯:${coreName}`);
+    const dot = box.querySelector<HTMLElement>('.core-dot')!;
+    expect(dot.style.background).not.toBe('');
+    panel.destroy();
+  });
+});
