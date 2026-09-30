@@ -45,10 +45,7 @@ export function createCreelModule(deps: GameDeps): GameModule {
         const list = createListView(container, {
           records: deps.records,
           content,
-          savedPuzzleId:
-            savedState !== null && savedState !== undefined && typeof savedState === 'object' && 'puzzleId' in savedState
-              ? String((savedState as { puzzleId: unknown }).puzzleId)
-              : null,
+          savedPuzzleId: savedPuzzleId(),
           onSelect: (puzzleId: string) => {
             void selectPuzzle(puzzleId);
           },
@@ -57,12 +54,37 @@ export function createCreelModule(deps: GameDeps): GameModule {
         currentList = list;
       };
 
+      /** 途中の状態の puzzleId (無ければ null) */
+      const savedPuzzleId = (): string | null =>
+        savedState !== null && savedState !== undefined && typeof savedState === 'object' && 'puzzleId' in savedState
+          ? String((savedState as { puzzleId: unknown }).puzzleId)
+          : null;
+
+      /** プレイ画面を開く。resume は呼び出し側で明示する (props.resume を流用しない) */
+      const startPlay = (puzzleId: string, resume: CreelState | undefined): void => {
+        currentList?.destroy();
+        currentList = null;
+        // プレイ画面の「戻る」をお題一覧への戻りに変える。完了時は途中の状態を消す
+        const controllerProps: GameProps = {
+          ...wrappedProps,
+          resume, // ...wrappedProps のあとに上書き (mount の props.resume を残さない)
+          onExit: onBackFromPlay,
+          onFinish: (result: Parameters<GameProps['onFinish']>[0]) => {
+            savedState = null;
+            props.onFinish?.(result);
+          },
+        };
+        current = createController(container, deps, controllerProps, {
+          puzzleId,
+          resume,
+          content,
+          tutorial: creelTutorial,
+        });
+      };
+
       /** 別のお題を選んだときの確認 (途中のお題があれば出す) */
       async function selectPuzzle(puzzleId: string): Promise<void> {
-        const resumePuzzleId =
-          savedState !== null && savedState !== undefined && typeof savedState === 'object' && 'puzzleId' in savedState
-            ? String((savedState as { puzzleId: unknown }).puzzleId)
-            : null;
+        const resumePuzzleId = savedPuzzleId();
         if (resumePuzzleId !== null && resumePuzzleId !== puzzleId) {
           const start = await confirmDialog(container, {
             message: '途中のお題があります。新しいお題を始めると、途中の状態は消えます。始めますか?',
@@ -76,22 +98,12 @@ export function createCreelModule(deps: GameDeps): GameModule {
             return; // 一覧のまま
           }
         }
-        currentList?.destroy();
-        currentList = null;
-        // プレイ画面の「戻る」をお題一覧への戻りに変える。完了時は途中の状態を消す
-        const controllerProps: GameProps = {
-          ...wrappedProps,
-          onExit: onBackFromPlay,
-          onFinish: (result: Parameters<GameProps['onFinish']>[0]) => {
-            savedState = null;
-            props.onFinish?.(result);
-          },
-        };
-        current = createController(container, deps, controllerProps, {
-          puzzleId,
-          content,
-          tutorial: creelTutorial,
-        });
+        // 選んだお題が途中のお題なら、その状態から再開する
+        const resume =
+          resumePuzzleId === puzzleId && isValidResume(savedState as CreelState, content)
+            ? (savedState as CreelState)
+            : undefined;
+        startPlay(puzzleId, resume);
       }
 
       /** プレイ画面の「戻る」の処理。お題の一覧に戻る (仕事モードは今までどおり onExit) */
@@ -140,23 +152,23 @@ export function createCreelModule(deps: GameDeps): GameModule {
         });
       }
 
-      // 途中保存からの再開 (isValidResume を満たすときだけ)
+      // 途中保存からの再開 (isValidResume を満たすときだけ。props.resume は最初の1回だけ使う)
       if (props.resume !== undefined && isValidResume(props.resume, content)) {
-        // プレイ画面の「戻る」をお題一覧への戻りに変える。完了時は途中の状態を消す
-        const controllerProps: GameProps = {
-          ...wrappedProps,
-          onExit: onBackFromPlay,
-          onFinish: (result: Parameters<GameProps['onFinish']>[0]) => {
-            savedState = null;
-            props.onFinish?.(result);
+        startPlay(props.resume.puzzleId, props.resume);
+        return {
+          suspend(): unknown {
+            return current !== null ? current.suspend() : null;
+          },
+          unmount(): void {
+            disposed = true;
+            if (current !== null) {
+              current.unmount();
+              current = null;
+            }
+            currentList?.destroy();
+            currentList = null;
           },
         };
-        return createController(container, deps, controllerProps, {
-          puzzleId: props.resume.puzzleId,
-          resume: props.resume,
-          content,
-          tutorial: creelTutorial,
-        });
       }
 
       // お題一覧を開く (途中の状態は消さない。T1-15)

@@ -257,7 +257,7 @@ describe('T1-15: プレイ画面の「戻る」でお題の一覧に戻る', () 
       expect(s1.textContent).toContain('途中');
     });
 
-    it('2. 「途中」のお題を押すと、操作した状態から再開する', async () => {
+    it('2. 「途中」のお題を押すと、操作した状態から再開する (最初の状態と違う操作で確かめる)', async () => {
       const deps = makeDeps();
       const module = createCreelModule(deps);
       const parent = document.createElement('div');
@@ -265,9 +265,8 @@ describe('T1-15: プレイ画面の「戻る」でお題の一覧に戻る', () 
       const onStateChange = vi.fn();
       const instance = module.mount(parent, { mode: 'standalone', onFinish: () => undefined, onExit: () => undefined, onStateChange });
       startS1(parent);
-      // 最初の箱を選んでおく (s1 は糸の選択が1種類ぶんだけ出る)
-      const boxes = parent.querySelectorAll<HTMLButtonElement>('[data-testid^="creel-box-"]');
-      boxes[0]!.click();
+      // 最初の状態と違う操作: 「外す」を選ぶ (箱のままでは再開しなくても通るため)
+      parent.querySelector<HTMLButtonElement>('[data-testid="creel-tool-remove"]')!.click();
       confirmAnswers.push(true); // 「一覧に戻る」
       const back = parent.querySelector<HTMLButtonElement>('.game-frame__bar-left')!;
       back.click();
@@ -280,10 +279,10 @@ describe('T1-15: プレイ画面の「戻る」でお題の一覧に戻る', () 
       await vi.waitFor(() => {
         expect(parent.querySelector('canvas')).not.toBeNull();
       }, { timeout: 5000 });
-      // suspend の状態の tool が選んだ箱になっている
-      const state = instance.suspend() as { tool?: { yarn?: string } } | null;
+      // suspend の状態の tool が「外す」になっている (途中の状態からの再開)
+      const state = instance.suspend() as { tool?: { kind?: string } } | null;
       expect(state).not.toBeNull();
-      expect(state?.tool?.yarn).toBe('kon-a');
+      expect(state?.tool?.kind).toBe('remove');
     });
 
     it('3. 途中のお題があるとき別のお題を押すと確認が出る。「やめる」なら一覧のまま、「始める」なら新しいお題が始まる', async () => {
@@ -430,5 +429,77 @@ describe('T1-16: 追加したお題の箱と依頼書', () => {
     expect(joined).toContain('W-6340'); // ao-a
     expect(joined).toContain('W-6430'); // ao-b (似た品番)
     expect(joined).toContain('W-2200'); // shiro-a
+  });
+});
+
+describe('T1-15 追加修正: 一覧から選んだお題が正しい状態で始まる', () => {
+  /** s1 を開いてプレイ画面にし、stub も済ませる (T1-15 describe の startS1 と同じ) */
+  function startS1Fix(parent: HTMLElement): void {
+    const s1 = parent.querySelector<HTMLButtonElement>('[data-testid="creel-puzzle-s1"]')!;
+    s1.click();
+    const stage = parent.querySelector('canvas')!;
+    const stageBox = stage.parentElement!;
+    stubClientSize(stageBox, 600, 400);
+    stubRect(stage, 600, 400);
+    window.dispatchEvent(new Event('resize'));
+    vi.advanceTimersByTime(20);
+  }
+
+  it('1. 最初から開き、s1 で「外す」を選ぶ → 一覧に戻る → s1 を押す → suspend の tool.kind が remove', async () => {
+    const deps = makeDeps();
+    const module = createCreelModule(deps);
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const instance = module.mount(parent, { mode: 'standalone', onFinish: () => undefined, onExit: () => undefined });
+    startS1Fix(parent);
+    // 「外す」を選ぶ (最初の状態と違う操作)
+    const remove = parent.querySelector<HTMLButtonElement>('[data-testid="creel-tool-remove"]')!;
+    remove.click();
+    // 戻る → 一覧に戻る
+    confirmAnswers.push(true);
+    parent.querySelector<HTMLButtonElement>('.game-frame__bar-left')!.click();
+    await vi.waitFor(() => {
+      expect(parent.querySelector('[data-testid="creel-puzzle-s1"]')).not.toBeNull();
+    }, { timeout: 5000 });
+    // s1 (途中) を押して再開
+    parent.querySelector<HTMLButtonElement>('[data-testid="creel-puzzle-s1"]')!.click();
+    await vi.waitFor(() => {
+      expect(parent.querySelector('canvas')).not.toBeNull();
+    }, { timeout: 5000 });
+    // suspend の tool.kind が remove (途中の状態からの再開)
+    const state = instance.suspend() as { tool?: { kind?: string } } | null;
+    expect(state).not.toBeNull();
+    expect(state?.tool?.kind).toBe('remove');
+  });
+
+  it('2. s1 の星がある記録で s1-2 を resume して開く → 一覧に戻る → s1 を押し「始める」→ puzzleId が s1', async () => {
+    const deps = makeDeps({
+      records: {
+        get: (gameId: string) =>
+          gameId === 'creel' ? { bestStars: 3, plays: 1, best: { 'puzzle:s1': 3 } } : { bestStars: 0, plays: 0, best: {} },
+      } as unknown as GameDeps['records'],
+    });
+    const module = createCreelModule(deps);
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const s12 = content.creelPuzzles.find((p) => p.id === 's1-2')!;
+    const state = init(s12, content);
+    const instance = module.mount(parent, { mode: 'standalone', resume: state, onFinish: () => undefined, onExit: () => undefined });
+    expect(parent.querySelector('canvas')).not.toBeNull();
+    // 一覧に戻る
+    confirmAnswers.push(true);
+    parent.querySelector<HTMLButtonElement>('.game-frame__bar-left')!.click();
+    await vi.waitFor(() => {
+      expect(parent.querySelector('[data-testid="creel-puzzle-s1"]')).not.toBeNull();
+    }, { timeout: 5000 });
+    // s1 を押し、「始める」
+    confirmAnswers.push(true);
+    parent.querySelector<HTMLButtonElement>('[data-testid="creel-puzzle-s1"]')!.click();
+    await vi.waitFor(() => {
+      expect(parent.querySelector('canvas')).not.toBeNull();
+    }, { timeout: 5000 });
+    // suspend の puzzleId が s1
+    const suspendState = instance.suspend() as { puzzleId?: string } | null;
+    expect(suspendState?.puzzleId).toBe('s1');
   });
 });
