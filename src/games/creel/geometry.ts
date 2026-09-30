@@ -40,7 +40,31 @@ export function cellRect(index: number, rows: number, cols: number): { x: number
   };
 }
 
-/** 論理座標の点 → 帯の番号 (マス全体を当たりとする。CREEL_AREA の外は null) */
+/** 軸の間隔 (論理座標)。横と縦の間隔の小さい方 */
+export function pegPitch(rows: number, cols: number): number {
+  return Math.min(CREEL_AREA.w / cols, CREEL_AREA.h / rows);
+}
+
+/** 軸の丸の中心 (論理座標)。番号は上の段から、各段は左から。マスの中心と同じ */
+export function pegCenter(index: number, rows: number, cols: number): { x: number; y: number } {
+  const r = cellRect(index, rows, cols);
+  return { x: r.x + r.w / 2, y: r.y + r.h / 2 };
+}
+
+/** チーズの半径 (論理座標)。軸の間隔の 0.4 倍 (隣の丸と重ならない) */
+export function pegRadius(rows: number, cols: number): number {
+  return pegPitch(rows, cols) * 0.4;
+}
+
+/** 柱の中心の x (論理座標)。列の境目に、左から i = 0〜cols の cols + 1 本 */
+export function postX(i: number, cols: number): number {
+  return CREEL_AREA.x + (i * CREEL_AREA.w) / cols;
+}
+
+/**
+ * 論理座標の点 → 帯の番号。軸の丸の中心から、軸の間隔の 0.6 倍以内なら当たり。
+ * CREEL_AREA の外と、それより遠い所は null。
+ */
 export function hitTest(p: { x: number; y: number }, rows: number, cols: number): number | null {
   if (p.x < CREEL_AREA.x || p.x >= CREEL_AREA.x + CREEL_AREA.w) {
     return null;
@@ -53,7 +77,9 @@ export function hitTest(p: { x: number; y: number }, rows: number, cols: number)
   if (row < 0 || row >= rows || col < 0 || col >= cols) {
     return null;
   }
-  return row * cols + col;
+  const index = row * cols + col;
+  const c = pegCenter(index, rows, cols);
+  return Math.hypot(p.x - c.x, p.y - c.y) <= pegPitch(rows, cols) * 0.6 ? index : null;
 }
 
 /** 画面上で screenPx になる論理サイズ */

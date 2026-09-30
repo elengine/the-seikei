@@ -5,6 +5,10 @@ import type { CreelState } from './logic';
 import { getContent } from '../../core/content/content';
 import { fitStage, type StageFit } from '../../core/viewport/viewport';
 import { COLORS } from '../../core/ui/tokens';
+import { pegRadius } from './geometry';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const content = getContent();
 const terms = { t: (k: string) => k };
@@ -117,11 +121,11 @@ describe('drawBoard', () => {
     }
   });
 
-  it('背景は kinari 色で塗られる', () => {
+  it('背景は奥の地 (creelBack。kinariDeep より少し暗い色) で塗られる', () => {
     const { ctx, calls } = makeFakeCtx();
     drawBoard(ctx, fit, s1Empty(), content, terms);
     const bg = calls.find((c) => c.op === 'fillRect');
-    expect(bg?.fill).toBe('#F7F3E8');
+    expect(bg?.fill).toBe(COLORS.creelBack);
   });
 
   it('立っているコーンは塗りつぶし (fill) があり、段階1〜3 は品番の文字が出る', () => {
@@ -262,5 +266,99 @@ describe('drawBoard', () => {
         expect(x + w).toBeLessThanOrEqual(408); // Canvas の画面幅 412 - 余白 4
       }
     });
+  });
+});
+
+/** fill の直前の arc (丸) と、そのときの塗りの色の組 */
+function filledCircles(calls: ReturnType<typeof makeFakeCtx>['calls']): { r: number; x: number; y: number; fill: string }[] {
+  const out: { r: number; x: number; y: number; fill: string }[] = [];
+  let lastArc: { r: number; x: number; y: number } | null = null;
+  for (const c of calls) {
+    if (c.op === 'beginPath') {
+      lastArc = null;
+    } else if (c.op === 'arc') {
+      lastArc = { x: c.args[0] as number, y: c.args[1] as number, r: c.args[2] as number };
+    } else if (c.op === 'fill' && lastArc !== null) {
+      out.push({ ...lastArc, fill: c.fill ?? '' });
+    }
+  }
+  return out;
+}
+
+describe('PU-06b: 正面から見たクリールの絵', () => {
+  const f = makeFit(0.65);
+
+  it('立てた軸に、糸の色の大きな丸 → 芯の色の丸 (チーズの 0.4 倍の半径) → 中央の暗い穴 (sumi) の順に描かれる', () => {
+    const { ctx, calls } = makeFakeCtx();
+    const s = { ...s1Empty(), placed: ['kon-a', null, null, null, null, null] };
+    drawBoard(ctx, f, s, content, terms);
+    const circles = filledCircles(calls);
+    const kon = content.colors.get('kon')!.hex;
+    const coreHex = content.cores.get(content.yarns.get('kon-a')!.core)!.hex;
+    const r = pegRadius(1, 6) * f.scale;
+    const body = circles.findIndex((c) => c.fill === kon);
+    const core = circles.findIndex((c, i) => i > body && c.fill === coreHex);
+    const hole = circles.findIndex((c, i) => i > core && c.fill === COLORS.sumi);
+    expect(body).toBeGreaterThanOrEqual(0);
+    expect(core).toBeGreaterThan(body);
+    expect(hole).toBeGreaterThan(core);
+    expect(circles[body]!.r).toBeCloseTo(r, 4);
+    expect(circles[core]!.r).toBeCloseTo(r * 0.4, 4);
+    expect(circles[hole]!.r).toBeLessThan(circles[core]!.r);
+    // 三つとも同じ中心 (軸の丸の中心)
+    expect(circles[core]!.x).toBeCloseTo(circles[body]!.x, 4);
+    expect(circles[hole]!.y).toBeCloseTo(circles[body]!.y, 4);
+  });
+
+  it('右下へずらした影 (sumi の 18% の透明度) が、糸の丸より先に描かれる', () => {
+    const { ctx, calls } = makeFakeCtx();
+    const s = { ...s1Empty(), placed: ['kon-a', null, null, null, null, null] };
+    drawBoard(ctx, f, s, content, terms);
+    const circles = filledCircles(calls);
+    const kon = content.colors.get('kon')!.hex;
+    const body = circles.findIndex((c) => c.fill === kon);
+    const shadow = circles.findIndex((c) => c.fill.startsWith('rgba(43, 42, 36, 0.18'));
+    expect(shadow).toBeGreaterThanOrEqual(0);
+    expect(shadow).toBeLessThan(body);
+    expect(circles[shadow]!.x).toBeGreaterThan(circles[body]!.x);
+    expect(circles[shadow]!.y).toBeGreaterThan(circles[body]!.y);
+  });
+
+  it('白っぽい糸には sumiSub の輪郭線 (画面上 1.5px 以上)。紺には付けない', () => {
+    const shiro = makeFakeCtx();
+    const puzzle = content.creelPuzzles.find((p) => p.id === 's2')!;
+    const s = { ...init(puzzle, content), placed: ['shiro-a', null, null, null, null, null, null, null] as CreelState['placed'] };
+    drawBoard(shiro.ctx, f, s, content, terms);
+    const outline = shiro.calls.filter((c) => c.op === 'stroke' && c.stroke === COLORS.sumiSub && (c.lineWidth ?? 0) >= 1.5);
+    expect(outline.length).toBeGreaterThan(0);
+    const kon = makeFakeCtx();
+    drawBoard(kon.ctx, f, { ...s, placed: ['kon-a', null, null, null, null, null, null, null] }, content, terms);
+    // 紺の丸の輪郭は sumiSub の太い線にならない (空いた軸の点線は sumiSub ではなく line)
+    const konOutline = kon.calls.filter((c) => c.op === 'stroke' && c.stroke === COLORS.sumiSub && (c.lineWidth ?? 0) >= 1.5);
+    expect(konOutline.length).toBeLessThan(outline.length);
+  });
+
+  it('空いた軸に、点線の丸と、中央の木の色の丸 (woodLight)', () => {
+    const { ctx, calls } = makeFakeCtx();
+    drawBoard(ctx, f, s1Empty(), content, terms);
+    const wood = filledCircles(calls).filter((c) => c.fill === COLORS.woodLight);
+    expect(wood).toHaveLength(6);
+    expect(calls.filter((c) => c.op === 'setLineDash' && (c.args[0] as number[]).length > 0)).toHaveLength(6);
+  });
+
+  it('柱は列の数 + 1 本 (明るい面 postLight と暗い面 postDark がそれぞれ)', () => {
+    const { ctx, calls } = makeFakeCtx();
+    drawBoard(ctx, f, s1Empty(), content, terms); // s1 は 6 列
+    expect(calls.filter((c) => c.op === 'fillRect' && c.fill === COLORS.postLight)).toHaveLength(7);
+    expect(calls.filter((c) => c.op === 'fillRect' && c.fill === COLORS.postDark)).toHaveLength(7);
+  });
+
+  it('renderer.ts と renderer.parts.ts に、# で始まる色の直書きが無い', () => {
+    const dir = dirname(fileURLToPath(import.meta.url));
+    for (const name of ['renderer.ts', 'renderer.parts.ts']) {
+      const src = readFileSync(join(dir, name), 'utf-8');
+      const matches = src.match(/['"`]#[0-9A-Fa-f]{3,8}['"`]/g) ?? [];
+      expect(matches, `${name} の直書きの色: ${matches.join(', ')}`).toHaveLength(0);
+    }
   });
 });

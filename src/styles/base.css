@@ -71,6 +71,7 @@ body {
   --c-post-light: #86a276;
   --c-post-dark: #4f6843;
   --c-message-bg: #f3f0e6;
+  --c-creel-back: #e6decb;
 
   /* 余白・角・画面の余白・上端の縞 (07_ui_design 4・5.1) */
   --sp-1: 4px;

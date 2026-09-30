@@ -23,6 +23,7 @@ export const COLORS = {
   machineLight: '#A9B39C',
   steel: '#B8BEC4',
   messageBg: '#F3F0E6',
+  creelBack: '#E6DECB',
   post: '#6E8A5E',
   postLight: '#86A276',
   postDark: '#4F6843',

@@ -1,22 +1,8 @@
 import type { TutorialSpec } from '../../core/game/types';
 import { COLORS, FONT_FAMILY } from '../../core/ui/tokens';
+import { drawCheese } from './renderer.parts';
 
 /** チュートリアルの絵。コーン・軸・依頼書の表の略図を Canvas で描く */
-
-function drawCone(ctx: CanvasRenderingContext2D, cx: number, baseY: number, h: number, w: number, hex: string): void {
-  // 下が広い台形 + 上に丸い糸の山
-  ctx.beginPath();
-  ctx.moveTo(cx - w / 2, baseY);
-  ctx.lineTo(cx - w * 0.3, baseY - h);
-  ctx.lineTo(cx + w * 0.3, baseY - h);
-  ctx.lineTo(cx + w / 2, baseY);
-  ctx.closePath();
-  ctx.fillStyle = hex;
-  ctx.fill();
-  ctx.strokeStyle = COLORS.sumi;
-  ctx.lineWidth = 2;
-  ctx.stroke();
-}
 
 /** 1ページ目: 依頼書の表の略図 */
 function drawOrderSheet(ctx: CanvasRenderingContext2D, w: number, h: number): void {
@@ -47,35 +33,36 @@ function drawOrderSheet(ctx: CanvasRenderingContext2D, w: number, h: number): vo
   ctx.fillText('依頼書', x0 + tw * 0.1, y0 + th * 0.15);
 }
 
-/** 2ページ目: クリールの軸とコーンの略図 */
+/** 2ページ目: クリールを正面から見た略図 (緑の柱・軸の丸・チーズ)。チーズは手前から軸に差し込む */
 function drawCreel(ctx: CanvasRenderingContext2D, w: number, h: number): void {
-  // 台 (横棒)
-  const barY = h * 0.72;
-  ctx.fillStyle = COLORS.machine;
-  ctx.fillRect(w * 0.15, barY, w * 0.7, h * 0.07);
-  // 軸 2本
-  for (const cx of [w * 0.4, w * 0.6]) {
-    ctx.strokeStyle = COLORS.steel;
-    ctx.lineWidth = 6;
-    ctx.beginPath();
-    ctx.moveTo(cx, barY);
-    ctx.lineTo(cx, barY - h * 0.35);
-    ctx.stroke();
+  // 奥の地と、左右と真ん中の緑の柱
+  ctx.fillStyle = COLORS.creelBack;
+  ctx.fillRect(w * 0.08, h * 0.08, w * 0.84, h * 0.6);
+  const postW = w * 0.025;
+  for (const x of [w * 0.1, w * 0.5, w * 0.9]) {
+    ctx.fillStyle = COLORS.postLight;
+    ctx.fillRect(x - postW, h * 0.06, postW, h * 0.64);
+    ctx.fillStyle = COLORS.postDark;
+    ctx.fillRect(x, h * 0.06, postW, h * 0.64);
   }
-  // 立っているコーン (紺) と空の軸
-  drawCone(ctx, w * 0.4, barY - h * 0.02, h * 0.3, w * 0.14, COLORS.ai);
-  ctx.setLineDash([6, 5]);
-  ctx.strokeStyle = COLORS.sumiSub;
-  ctx.lineWidth = 2;
+  // 軸 2つ: 左はチーズを立てた軸、右は空いた軸 (点線の丸と、中央の木の色の丸)
+  const cy = h * 0.38;
+  const r = h * 0.2;
+  drawCheese(ctx, w * 0.3, cy, r, COLORS.ai, COLORS.shu);
+  const cx = w * 0.7;
+  ctx.strokeStyle = COLORS.woodLight;
+  ctx.lineWidth = 3;
+  ctx.setLineDash([8, 6]);
   ctx.beginPath();
-  ctx.moveTo(w * 0.6 - w * 0.07, barY - h * 0.02);
-  ctx.lineTo(w * 0.6 - w * 0.04, barY - h * 0.3);
-  ctx.lineTo(w * 0.6 + w * 0.04, barY - h * 0.3);
-  ctx.lineTo(w * 0.6 + w * 0.07, barY - h * 0.02);
-  ctx.closePath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.stroke();
   ctx.setLineDash([]);
-  // 箱
+  ctx.fillStyle = COLORS.woodLight;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r * 0.24, 0, Math.PI * 2);
+  ctx.fill();
+  // 箱 (手前)
+  const barY = h * 0.72;
   ctx.fillStyle = COLORS.machineLight;
   ctx.fillRect(w * 0.12, barY + h * 0.09, w * 0.22, h * 0.14);
   ctx.strokeStyle = COLORS.sumi;

@@ -8,6 +8,9 @@ import {
   cellRect,
   hitTest,
   fontPx,
+  pegCenter,
+  pegRadius,
+  postX,
 } from './geometry';
 import type { StageFit } from '../../core/viewport/viewport';
 import { indexToCell } from '../../core/domain/stripe';
@@ -98,5 +101,67 @@ describe('fontPx', () => {
       // 論理サイズ logical は画面では logical * scale になる
       expect(logical * fit.scale).toBeCloseTo(20, 6);
     }
+  });
+});
+
+describe('PU-06b: 軸の丸・チーズの半径・柱', () => {
+  it('pegCenter は上の段から・左から並び、マスの中心と同じ', () => {
+    const rows = 2;
+    const cols = 8;
+    const first = pegCenter(0, rows, cols);
+    const second = pegCenter(1, rows, cols);
+    const nextRow = pegCenter(cols, rows, cols);
+    expect(second.x).toBeGreaterThan(first.x);
+    expect(second.y).toBe(first.y);
+    expect(nextRow.x).toBe(first.x);
+    expect(nextRow.y).toBeGreaterThan(first.y);
+    for (let i = 0; i < rows * cols; i++) {
+      const r = cellRect(i, rows, cols);
+      expect(pegCenter(i, rows, cols)).toEqual({ x: r.x + r.w / 2, y: r.y + r.h / 2 });
+    }
+  });
+
+  it('pegRadius は軸の間隔の 0.4 倍。隣の丸と重ならず、段階5 (3段×8) の横長 (scale 0.65) でも直径が画面上 48px 以上', () => {
+    const rows = 3;
+    const cols = 8;
+    const r = pegRadius(rows, cols);
+    const pitch = Math.min(CREEL_AREA.w / cols, CREEL_AREA.h / rows);
+    expect(r).toBeCloseTo(pitch * 0.4, 6);
+    expect(r * 2).toBeLessThan(pitch);
+    expect(r * 2 * 0.65).toBeGreaterThanOrEqual(48);
+  });
+
+  it('postX は列の境目に cols + 1 本。左端が CREEL_AREA の左、右端が右', () => {
+    const cols = 6;
+    const xs = Array.from({ length: cols + 1 }, (_, i) => postX(i, cols));
+    expect(xs).toHaveLength(cols + 1);
+    expect(xs[0]).toBe(CREEL_AREA.x);
+    expect(xs[cols]).toBe(CREEL_AREA.x + CREEL_AREA.w);
+    for (let i = 1; i < xs.length; i++) {
+      expect(xs[i]! - xs[i - 1]!).toBeCloseTo(CREEL_AREA.w / cols, 6);
+    }
+  });
+
+  it('hitTest: 軸の中心で当たり、隣の軸との中間より先では隣の軸。軸の間隔の 0.6 倍より遠い所 (マスの角) は null', () => {
+    const rows = 3;
+    const cols = 8;
+    const c0 = pegCenter(0, rows, cols);
+    const c1 = pegCenter(1, rows, cols);
+    expect(hitTest(c0, rows, cols)).toBe(0);
+    // 0 と 1 の中間より少し手前は 0、少し先は 1
+    const mid = (c0.x + c1.x) / 2;
+    expect(hitTest({ x: mid - 3, y: c0.y }, rows, cols)).toBe(0);
+    expect(hitTest({ x: mid + 3, y: c0.y }, rows, cols)).toBe(1);
+    // マスの角 (中心から遠い) は外れ
+    const cell = cellRect(0, rows, cols);
+    expect(hitTest({ x: cell.x + 2, y: cell.y + 2 }, rows, cols)).toBeNull();
+    // 中心から軸の間隔の 0.6 倍以内なら当たる
+    const pitch = Math.min(CREEL_AREA.w / cols, CREEL_AREA.h / rows);
+    expect(hitTest({ x: c0.x, y: c0.y - pitch * 0.55 }, rows, cols)).toBe(0);
+  });
+
+  it('hitTest の当たりは、段階5 (3段×8) の横長 (scale 0.65) で画面上 64px 四方以上', () => {
+    const pitch = Math.min(CREEL_AREA.w / 8, CREEL_AREA.h / 3);
+    expect(pitch * 0.6 * 2 * 0.65).toBeGreaterThanOrEqual(64);
   });
 });
