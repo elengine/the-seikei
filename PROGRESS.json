@@ -1,8 +1,8 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-09-30T19:05:00+09:00",
+  "updated_at": "2026-09-30T19:30:00+09:00",
   "phase": "P0",
-  "current_task": "T2-08 追加修正b (操作欄のあふれ・メーターの幅)",
+  "current_task": "T2-09 (a: 張りと目標の時間 / b: 複数の糸切れ)",
   "done": [
     "T0-00",
     "T0-01",
@@ -63,13 +63,14 @@
     "T1-20",
     "T2-07",
     "T2-08",
-    "T2-08 追加修正a"
+    "T2-08 追加修正a",
+    "T2-08 追加修正b"
   ],
   "checks": [
     {
-      "task": "T2-08-fix a",
+      "task": "T2-08-fix b",
       "check": 0,
-      "test": "428 passed / 11 skipped",
+      "test": "432 passed / 11 skipped",
       "build": "ok"
     }
   ],

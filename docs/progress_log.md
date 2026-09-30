@@ -1075,3 +1075,18 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
   - 51%: 帯1の区画に横の縞 (薄い)、未巻きは桟、糸の上に流れる印
   - 結ぶ演出の途中: 帯1の左端に大きく広がった輪
   - 結び終え: 台と筬が帯2の高さへ移動、帯1は濃い縞＋縁取り＋左端の結び目の束、帯2のピンに糸の束
+
+## 2026-09-30 T2-08 追加修正b: 操作欄のあふれ・メーターの幅
+
+- やったこと (base.css の pedal・winding・game-frame の節):
+  - メッセージ欄 (.game-frame__message) は position: sticky; top: 0 で操作欄の上に固定 (背景は操作欄と同じ kinari。z-index 1)。スクロールしても隠れない
+  - 主ボタンの区画 (.winding-panel__actions) は position: sticky; bottom: 0 で操作欄の下に固定 (背景は kinari)
+  - 横あふれ: .pedal__row に min-width: 0・max-width: 100%。ペダルの溝は width 180・min-width 120・flex 0 1 auto で縮む。横木 (.pedal__bar) に max-width: calc(100% - 8px)。ボタンは min-width 96px (高さは var(--btn-min-h) のまま)・white-space: nowrap。あふれのもう1つの原因だった .tension-meter にも min-width: 0・max-width: 100%
+  - 張りの状態の文字 (.meter__state) は width: 5.5em・flex: none で固定幅 (一番長い「▲ 強すぎ」に合わせる)
+- テスト (先に RED を確認): tokens.test.ts に4件 (メッセージの sticky top 0・主ボタンの sticky bottom 0・ペダルの列の縮みと最小幅・状態の文字の固定幅)
+- 報告直前の確認: npm run check エラー0 / npm test 432 passed・11 skipped / npm run build 成功 / git status に余計なファイルなし
+- コミット: 3bc6ae3 (CI success)
+- ブラウザ確認 (スクショは Discord 報告に添付):
+  - 960×720 (帯を巻き終えた状態): 修正前は scrollW 313 > clientW 309 で横あふれ。修正後は scrollW = clientW (あふれなし)。操作欄を一番下までスクロールしても、メッセージは上 (msgTop 0) に見え、「帯の端を結ぶ」は操作欄の下端に固定で見える
+  - 1180×820: scrollH = clientH 724・横あふれなし (今までどおりスクロールなしで収まる)
+  - 412×915 (縦長): 横あふれなし (scrollW = clientW 388)。メーターの帯の幅は状態の文字が変わっても 268px で不変 (state は width 5.5em = 64px 固定)

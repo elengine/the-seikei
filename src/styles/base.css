@@ -895,6 +895,9 @@ button {
   display: flex;
   flex-direction: column;
   gap: var(--gap);
+  /* 操作欄の幅を超えない (T2-08 追加修正b) */
+  min-width: 0;
+  max-width: 100%;
 }
 
 .meter__band {
