@@ -178,12 +178,10 @@ describe('winding geometry T2-10a (糸の道筋と切れ端の位置)', () => {
   it('2. along を増やすと y は糸の高さから筬の高さの間にあり、y < 50 にならない', () => {
     for (const current of [0, 2]) {
       for (let t = 0; t < 8; t++) {
-        let prevY = -Infinity;
         for (let a = 0; a <= 1; a += 0.1) {
           const p = pointOnPath(t, 8, a, current, 3);
           expect(p.y).toBeGreaterThanOrEqual(50);
           expect(p.y).toBeLessThanOrEqual(Math.max(threadY(t, 8), tableY(current, 3)) + 1);
-          prevY = p.y;
         }
       }
     }

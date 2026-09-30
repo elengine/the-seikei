@@ -5,7 +5,7 @@ import { COLORS, FONT_FAMILY } from '../../core/ui/tokens';
 import { speedOf } from '../../core/mechanics/pedal';
 import { TENSION, SECTION_LENGTH } from './params';
 import type { StageFit } from '../../core/viewport/viewport';
-import { CREEL_AREA, TABLE_AREA, DRUM_AREA, TOP_AREA, CREEL_END_X, DRUM_END_X, REED_X, THREAD_SHEET_HALF, REED_RISE, threadY, threadPath, drumSectionY, tableY, pointOnPath, toPx, fontPx } from './geometry';
+import { CREEL_AREA, TABLE_AREA, DRUM_AREA, TOP_AREA, REED_X, THREAD_SHEET_HALF, REED_RISE, threadY, threadPath, drumSectionY, tableY, pointOnPath, toPx, fontPx } from './geometry';
 import { drawDrum, drawBrokenThread } from './renderer.parts';
 
 /**
