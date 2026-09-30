@@ -1,6 +1,6 @@
 import type { WindingState } from './logic';
 import type { Content } from '../../core/content/content';
-import { CREEL_AREA, DRUM_AREA, TOP_AREA, CREEL_END_X, DRUM_END_X, toPx, fontPx } from './geometry';
+import { CREEL_AREA, DRUM_AREA, TOP_AREA, CREEL_END_X, DRUM_END_X, fontPx } from './geometry';
 import { qualities } from './logic';
 
 /**
@@ -134,7 +134,7 @@ export function drawBoard(
     // 巻き終えた帯・巻いている帯は柄の色の縞。厚み = 巻いた長さの割合
     const isCurrent = i === s.current;
     const len = s.lengths[i] ?? 0;
-    const thickness = (len / sectionLengthOf(s)) * DRUM_AREA.h;
+    const thickness = (len / sectionLengthOf()) * DRUM_AREA.h;
     if (isCurrent && s.phase === 'ready') continue; // まだ巻いていない帯のピンは何も掛かっていない
     if (len > 0 || (!isCurrent && i < s.current)) {
       const h = i < s.current || s.phase === 'done' ? DRUM_AREA.h : Math.max(0, thickness);
@@ -168,7 +168,7 @@ export function drawBoard(
   ctx.arc(dialX, dialY, dialR, 0, Math.PI * 2);
   ctx.stroke();
   const len = s.lengths[s.current] ?? 0;
-  const ratio = Math.min(1, Math.max(0, len / sectionLengthOf(s)));
+  const ratio = Math.min(1, Math.max(0, len / sectionLengthOf()));
   const angle = -Math.PI / 2 + ratio * Math.PI * 2;
   ctx.beginPath();
   ctx.moveTo(dialX, dialY);
@@ -264,8 +264,7 @@ function drawKnot(
   }
 }
 
-/** 1本の帯の長さ (logic.ts と同じ値。循環 import を避けるためここでは SECTION_LENGTH を直に使わない) */
-function sectionLengthOf(s: WindingState): number {
-  // SECTION_LENGTH = MAX_SPEED * 0.5 * 20 (params.ts)。state からは出せないので同じ式を置く
+/** 1本の帯の長さ (params.ts の SECTION_LENGTH と同じ値) */
+function sectionLengthOf(): number {
   return 400;
 }
