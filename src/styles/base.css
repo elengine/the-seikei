@@ -946,3 +946,40 @@ button {
   margin: 0 auto;
 }
 
+
+/* 縦長ではペダルの溝を低くして、操作欄をスクロールなしで見えるようにする (T2-07 追加修正b) */
+@media (max-aspect-ratio: 4/5) {
+  .pedal__groove {
+    height: 160px;
+  }
+
+  .winding-panel,
+  .winding-panel__pedal,
+  .pedal-control,
+  .tension-meter,
+  .game-frame__panel {
+    gap: 8px;
+  }
+
+  .game-frame__message {
+    margin-bottom: 8px;
+    min-height: 0;
+    line-height: 1.3;
+  }
+
+  .tension-meter {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .tension-meter .meter__label,
+  .tension-meter .meter__state {
+    width: auto;
+    flex: none;
+  }
+
+  .tension-meter .meter__band {
+    flex: 1;
+  }
+}
+
