@@ -25,6 +25,11 @@
 6. **`npm run check` が失敗している。** 確認役の環境で、使っていない変数(`toPx`、`i`、`s`)の3件のエラーが出た。GitHub の自動テスト(CI)も、`b7a6cb3` と `a7ca577` で失敗している。T2-05 の報告には「check エラー0」とあったが、実際には失敗していた。
    - 直し方:上の 1〜5 を直したうえで、`npm run check` を**報告の直前に**実行し、エラーが0であることを確かめる。push のあと、CI が success になったことも確かめてから報告する。
 
+7. **(T2-06 の件)ペダルの横木が、状態に合わせて戻らない。** 操作欄の `update(s)` は、ペダルの押せる・押せないは切り替えるが、横木の位置(`pedal.setValue`)を状態に合わせていない。糸が切れた瞬間・帯を巻き終えたとき・裏に回ったときに、ルールではペダルが 0 になるのに、画面の横木は元の位置に残る。
+   - 直し方:`src/games/winding/panel.ts` の `update(s)` で `pedal.setValue(s.pedal.pedal)` を呼ぶ(`setValue` は onChange を呼ばないので、繰り返しにはならない)。
+   - テスト(`src/games/winding/panel.test.ts`):ペダル 60 の状態で update したあと、ペダル 0 の状態で update すると、表示の数字が「速さ 0」になる。
+   - このため、`src/games/winding/panel.ts` と `panel.test.ts` も変更してよい。
+
 ## テスト(renderer.test.ts。偽の ctx に `save`・`restore`・`translate`・`scale` の記録を足す)
 
 1. `drawBoard` の中で `save` → `translate(fit.offsetX, fit.offsetY)` → `scale(fit.scale, fit.scale)` が呼ばれ、最後に `restore` が呼ばれる。
