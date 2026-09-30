@@ -211,3 +211,17 @@ describe('T1-18: 細い画面での設定画面の2段表示', () => {
     expect(m![1]).not.toContain('overflow-wrap: anywhere');
   });
 });
+
+describe('T1-19: 設定画面の今の値の大きさ', () => {
+  it('.settings__value は var(--fs-label) の濃い色。空のときは薄い色のクラス', () => {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
+    const m = css.match(/\.settings__value\s*\{([^}]*)\}/);
+    expect(m).not.toBeNull();
+    expect(m![1]).toContain('font-size: var(--fs-label)');
+    expect(m![1]).toContain('color: var(--c-sumi)');
+    // 空のときのクラス
+    const m2 = css.match(/\.settings__value--empty\s*\{([^}]*)\}/);
+    expect(m2, 'empty class rule').not.toBeNull();
+    expect(m2![1]).toContain('color: var(--c-sumi-sub)');
+  });
+});

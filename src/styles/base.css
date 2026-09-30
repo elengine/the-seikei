@@ -255,9 +255,13 @@ body {
 }
 
 .settings__value {
-  font-size: var(--fs-body);
-  color: var(--c-sumi-sub);
+  font-size: var(--fs-label);
+  color: var(--c-sumi);
   overflow-wrap: break-word;
+}
+
+.settings__value--empty {
+  color: var(--c-sumi-sub);
 }
 
 .settings__actions {
@@ -317,6 +321,25 @@ body {
   display: flex;
   flex-direction: column;
   gap: var(--gap);
+}
+
+/* T1-19: 「整経の用語」と「ゲームの名前」の区画 */
+.terms__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+.terms__section + .terms__section {
+  border-top: 1px solid var(--c-steel);
+  margin-top: 24px;
+  padding-top: 24px;
+}
+
+.terms__head {
+  font-size: var(--fs-label);
+  font-weight: 700;
+  margin: 0;
 }
 
 .terms__row {

@@ -119,3 +119,28 @@ describe('T1-17: 設定画面の「戻る」と「管理者」の配置', () => 
     expect(divider?.classList.contains('settings__divider')).toBe(true);
   });
 });
+
+describe('T1-19: 設定画面の今の値 (お名前・屋号)', () => {
+  beforeEach(() => {
+    document.body.textContent = '';
+  });
+
+  it('お名前が空のとき、値の要素に空を表すクラスが付き、入れたあとは付かない', async () => {
+    const ctx = await makeCtx();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const screen = createSettingsScreen(ctx);
+    screen.mount(container, {});
+    const nameRow = Array.from(document.querySelectorAll('.settings__row'))[0]!;
+    const value = nameRow.querySelector('.settings__value')!;
+    // 初期は空 → 空を表すクラスが付く
+    expect(value.classList.contains('settings__value--empty')).toBe(true);
+    expect(value.textContent).toBe('（未設定）');
+    // 値を入れる → クラスが付かない (画面は再描画されるので、同じ ctx で mount し直して確かめる)
+    await ctx.settings.update({ playerName: 'テスト屋さん' });
+    screen.mount(container, {});
+    const value2 = Array.from(document.querySelectorAll('.settings__row'))[0]!.querySelector('.settings__value')!;
+    expect(value2.classList.contains('settings__value--empty')).toBe(false);
+    expect(value2.textContent).toBe('テスト屋さん');
+  });
+});

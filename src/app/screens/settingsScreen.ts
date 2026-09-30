@@ -63,7 +63,9 @@ export function createSettingsScreen(ctx: AppContext): Screen {
       const nameBtn = createButton({ label: '変更', variant: 'secondary', onClick: () => void nameInput() });
       nameRow.actions.appendChild(nameBtn);
       rerender.fns.push(() => {
-        nameRow.value.textContent = ctx.settings.get().playerName === '' ? '（未設定）' : ctx.settings.get().playerName;
+        const name = ctx.settings.get().playerName;
+        nameRow.value.textContent = name === '' ? '（未設定）' : name;
+        nameRow.value.classList.toggle('settings__value--empty', name === '');
       });
       root.appendChild(nameRow.row);
 
@@ -79,7 +81,9 @@ export function createSettingsScreen(ctx: AppContext): Screen {
       const shopBtn = createButton({ label: '変更', variant: 'secondary', onClick: () => void shopInput() });
       shopRow.actions.appendChild(shopBtn);
       rerender.fns.push(() => {
-        shopRow.value.textContent = ctx.settings.get().shopName;
+        const shop = ctx.settings.get().shopName;
+        shopRow.value.textContent = shop === '' ? '（未設定）' : shop;
+        shopRow.value.classList.toggle('settings__value--empty', shop === '');
       });
       root.appendChild(shopRow.row);
 
