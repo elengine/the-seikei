@@ -899,3 +899,32 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
   テストの期待値は変えていない (テストの追加と、restore が必ずしも最後の op でないことの確認方法の修正のみ)。
 - 報告直前の確認: npm run check エラー0 / npm test 377 passed・11 skipped / npm run build 成功。
 - CI: success (3796eb7)。
+
+
+## 2026-09-30 T1-19: 設定画面の今の値の大きさ、呼び名の変更画面の区分け
+
+- やったこと:
+  - A. 設定画面: .settings__value を var(--fs-label) (24px。特大では 28px) の濃い色 (--c-sumi) に。
+    太さは普通のまま。値が無いとき (「（未設定）」) だけは薄い色にするため、
+    settings__value--empty クラスを付けた (お名前・屋号の両方)。
+  - B. 呼び名の変更画面: 見出し「整経の用語」(キーが game. で始まらないもの。初期値ファイルの順) と
+    見出し「ゲームの名前」(キーが game. で始まるもの。初期値ファイルの順) の2つの区画に分けた。
+    見出しは h2 (terms__head)、--fs-label の太字。区画のあいだに区切りの線 (1px --c-steel) と
+    上下 24px の余白。行のキーは「変更」ボタンの testId (data-testid) に入れて判別できるようにした。
+  - C. 小さな直し:
+    1. 入力の画面の題名を entry.key から「『今の呼び名』の呼び名」(例:「『クリール』の呼び名」) に変えた。
+    2. 「戻る」を題名と同じ行の左 (settings__bar) に移した (設定画面と同じ形)。
+- テスト (先に書いて RED を確認): tokens.test.ts に1件 (settings__value が fs-label・濃い色、
+  --empty が薄い色)。settingsScreen.test.ts に1件 (お名前が空のとき --empty が付き、
+  入れたあとは付かない。更新後の画面は再 mount で確かめた)。termsScreen.test.ts を新規に3件
+  (見出しが2つ・1つ目に game. が無く2つ目だけ、入力の画面の題名にキーが無く今の呼び名が含まれる、
+  戻るが題名と同じ見出しの中)。
+- 報告直前の確認: npm run check エラー0 / npm test 382 passed・11 skipped / npm run build 成功。
+- ブラウザ確認 (build → preview 4173、SW 掃除のうえ新規タブ):
+  - 1180×820・412×915 の設定画面と呼び名の変更画面で、20px 未満の文字は無し。
+    横のはみ出し無し (scrollWidth = clientWidth)。
+  - お名前を入れた状態: 今の値が 24px の濃い色 (rgb(43,42,36))。空のときは薄い色 (--empty)。
+  - 呼び名の変更画面: 見出し2つ。1つ目の区画のキーは creel・cone・lease・section など (game. 無し)、
+    2つ目は game.creel・game.winding・game.beaming など (game. のみ)。
+  - 入力の画面の題名は「『クリール』の呼び名」(キーの英字は出ない)。「戻る」は題名と同じ行の左。
+- CI: success (コミット 08eedb2 の push のあとに確認)。
