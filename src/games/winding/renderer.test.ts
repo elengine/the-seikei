@@ -43,7 +43,7 @@ function brokenState(seed = 99): WindingState {
 
 /** 偽の ctx に shu (#B03A2E) の線 (strokeStyle) が描かれたか */
 function hasShuStroke(rec: FakeRecorder): boolean {
-  return rec.ops.some((op, i) => op.k === 'style' && op.v === '#B03A2E');
+  return rec.ops.some((op) => op.k === 'style' && op.v === '#B03A2E');
 }
 
 describe('winding renderer (T2-05)', () => {
