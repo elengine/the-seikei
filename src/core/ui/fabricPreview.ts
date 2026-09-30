@@ -80,3 +80,28 @@ export function fabricSpecFor(pattern: Pattern, content: Content): FabricSpec {
   const weftColor = content.colors.get(pattern.weft);
   return { warp, weft: weftColor !== undefined ? weftColor.hex : '#000000' };
 }
+
+/** 一覧の行の見本 (size px 四角の小さな生地)。経糸の色の並び (1リピート) を縦縞で見せる。Canvas を使わない */
+export function createFabricSwatch(pattern: Pattern | undefined, content: Content, size = 40): HTMLElement {
+  const swatch = document.createElement('span');
+  swatch.classList.add('fabric-swatch');
+  swatch.setAttribute('aria-hidden', 'true');
+  swatch.style.width = `${size}px`;
+  swatch.style.height = `${size}px`;
+  if (pattern !== undefined) {
+    const { warp } = fabricSpecFor(pattern, content);
+    // 同じ色が続く所をまとめて、色の境目ごとに止めた線形グラデーションにする
+    const stops: string[] = [];
+    let start = 0;
+    for (let i = 1; i <= warp.length; i++) {
+      if (i === warp.length || warp[i] !== warp[start]) {
+        stops.push(`${warp[start]} ${(start / warp.length) * 100}% ${(i / warp.length) * 100}%`);
+        start = i;
+      }
+    }
+    if (stops.length > 0) {
+      swatch.style.background = `linear-gradient(90deg, ${stops.join(', ')})`;
+    }
+  }
+  return swatch;
+}

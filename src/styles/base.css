@@ -804,83 +804,6 @@ body {
   }
 }
 
-/* お題一覧 */
-.creel-list {
-  padding: var(--gap);
-  overflow-y: auto;
-}
-
-.creel-list__header {
-  display: flex;
-  align-items: center;
-  gap: var(--gap);
-  margin-bottom: var(--gap);
-}
-
-.creel-list__title {
-  margin: 0;
-  font-size: var(--fs-heading);
-  color: var(--c-sumi);
-}
-
-.creel-list__items {
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap);
-}
-
-.creel-list__item {
-  display: grid;
-  grid-template-columns: auto 1fr auto auto;
-  align-items: center;
-  gap: var(--gap);
-  min-height: var(--btn-min-h);
-  padding: 8px 16px;
-  background: var(--c-white);
-  border: 3px solid var(--c-machine-dark);
-  border-radius: var(--radius);
-  font-family: inherit;
-  font-size: var(--fs-body);
-  color: var(--c-sumi);
-  cursor: pointer;
-  text-align: left;
-}
-
-.creel-list__item:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.creel-list__stage {
-  font-size: var(--fs-body);
-  font-weight: 700;
-  color: var(--c-machine-dark);
-}
-
-.creel-list__name {
-  font-size: var(--fs-body);
-}
-
-.creel-list__size {
-  font-size: var(--fs-body);
-  color: var(--c-sumi-sub);
-}
-
-.creel-list__stars {
-  font-size: var(--fs-body);
-  color: var(--c-wood);
-}
-
-.creel-list__locked {
-  font-size: var(--fs-body);
-  color: var(--c-sumi-sub);
-}
-
-.creel-list__saved {
-  font-size: var(--fs-body);
-  color: var(--c-shu);
-}
-
 /* ゲーム画面の枠 (gameFrame) とゲーム画面 */
 .game-screen {
   height: 100%;
@@ -1253,17 +1176,6 @@ button {
   padding-top: var(--gap);
 }
 
-/* winding-list (T2-07: ドラム巻きの難易度の一覧。配置はクリール立ての一覧の形を流用) */
-.winding-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap-lg);
-  padding: var(--pad);
-  max-width: 720px;
-  margin: 0 auto;
-}
-
-
 /* 縦長ではペダルの溝を低くして、操作欄をスクロールなしで見えるようにする (T2-07 追加修正b) */
 @media (max-aspect-ratio: 4/5) {
   .pedal__groove {
@@ -1537,5 +1449,56 @@ button {
 @media (max-width: 599px) {
   .home__games {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* お題・難易度の一覧 (PU-04。クリール立てとドラム巻きで共通) */
+.list-screen {
+  height: 100%;
+  box-sizing: border-box;
+  overflow-y: auto;
+}
+
+.list-notice {
+  margin: 0 0 var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-small);
+  background: var(--c-ai-tint);
+  color: var(--c-ai);
+  font-size: var(--fs-body);
+  font-weight: 700;
+}
+
+.list-notice:empty {
+  display: none;
+}
+
+.list-section {
+  margin-bottom: var(--sp-6);
+}
+
+.list-rows {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-3);
+}
+
+.list-row__saved {
+  flex: none;
+  font-size: var(--fs-body);
+  font-weight: 700;
+  color: var(--c-shu);
+}
+
+.fabric-swatch {
+  display: block;
+  box-sizing: border-box;
+  border: 1px solid var(--c-sumi-sub);
+  border-radius: var(--r-small);
+}
+
+@media (min-width: 900px) {
+  .list-rows {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

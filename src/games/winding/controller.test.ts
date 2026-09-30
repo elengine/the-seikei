@@ -106,9 +106,9 @@ describe('winding module (T2-07)', () => {
     const b0 = btns();
     expect(b0).toHaveLength(3);
     expect(b0[0]!.disabled).toBe(false);
-    expect(b0[1]!.disabled).toBe(true);
-    expect(b0[2]!.disabled).toBe(true);
-    expect(b0[1]!.textContent).toContain('未解放');
+    expect(b0[1]!.classList.contains('list-row--locked')).toBe(true); // 未解放は disabled でなく、鍵の行 (押すと理由)
+    expect(b0[2]!.classList.contains('list-row--locked')).toBe(true);
+    expect(b0[1]!.dataset.reason).toBe('前のお題をクリアすると遊べます');
     // 初級をクリアした記録を入れる
     await deps.records.add('winding', 3, { 'level:1': 3 });
     container.textContent = '';
@@ -116,7 +116,7 @@ describe('winding module (T2-07)', () => {
     const b1 = btns();
     expect(b1[0]!.disabled).toBe(false);
     expect(b1[1]!.disabled).toBe(false);
-    expect(b1[2]!.disabled).toBe(true);
+    expect(b1[2]!.classList.contains('list-row--locked')).toBe(true);
     expect(b1[0]!.textContent).toContain('★');
     instance.unmount();
   });
@@ -604,7 +604,7 @@ describe('winding module T2-09 追加修正a (引っかかりのメッセージ�
   it('1. 引っかかったら、引っかかりのメッセージがすぐ出て、2秒ほど出続ける (張りの文には戻らない)', async () => {
     // 引っかかりは乱数で起きる。種を固定して、引っかかりが起きるまで tick を進める
     const { msg, btn } = await setup();
-    btn('初級帯 3本');
+    btn('初級帯 3本次はこれ'); // 一覧の行の文字 (名前・補足・状態)
     raf.advance(2);
     btn('巻き始める');
     raf.advance(2);
@@ -622,7 +622,7 @@ describe('winding module T2-09 追加修正a (引っかかりのメッセージ�
 
   it('2. 引っかかりが戻りきってから 500ms たつと、張りの文に戻る', async () => {
     const { btn, msg } = await setup();
-    btn('初級帯 3本');
+    btn('初級帯 3本次はこれ'); // 一覧の行の文字 (名前・補足・状態)
     raf.advance(2);
     btn('巻き始める');
     raf.advance(2);
@@ -646,7 +646,7 @@ describe('winding module T2-09 追加修正a (引っかかりのメッセージ�
     const plays2: string[] = [];
     const orig = deps.audio.play.bind(deps.audio);
     deps.audio.play = (n: Parameters<typeof deps.audio.play>[0]) => { plays2.push(n); return orig(n); };
-    btn('初級帯 3本');
+    btn('初級帯 3本次はこれ'); // 一覧の行の文字 (名前・補足・状態)
     raf.advance(2);
     btn('巻き始める');
     raf.advance(2);

@@ -6,10 +6,10 @@ import { createCardArt, gameStatusText } from './homeCards';
 
 /** 準備中のゲーム (名前は用語辞書の項目。無いものは固定の文字) */
 const COMING_SOON: { termKey?: string; fixedName?: string; summary: string }[] = [
-  { fixedName: '糸割り', summary: 'コーンの本数と長さを合わせる' },
-  { termKey: 'game.beaming', summary: 'ドラムの糸をビームに巻き返す' },
-  { termKey: 'game.shop', summary: '注文を受けて一日を切り盛りする' },
-  { termKey: 'game.zukan', summary: '集めた柄を見返す' },
+  { fixedName: '糸割り', summary: '決まった長さずつ巻き分ける' },
+  { termKey: 'game.beaming', summary: 'ドラムからビームへ巻き返す' },
+  { termKey: 'game.shop', summary: '注文を受けて、仕事を回す' },
+  { termKey: 'game.zukan', summary: '仕上げた柄を集めて眺める' },
 ];
 
 /** 「準備中です」を出しておく時間 (ミリ秒) */

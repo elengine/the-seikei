@@ -88,8 +88,8 @@ describe('createCreelModule', () => {
     const s2 = parent.querySelector<HTMLButtonElement>('[data-testid="creel-puzzle-s2"]');
     expect(s1).not.toBeNull();
     expect(s1?.disabled).toBe(false);
-    expect(s2?.disabled).toBe(true);
-    expect(s2?.textContent).toContain('未解放');
+    expect(s2?.classList.contains('list-row--locked')).toBe(true); // 未解放は disabled でなく、鍵の行 (押すと理由)
+    expect(s2?.dataset.reason).toBe('前のお題をクリアすると遊べます');
     // s1 の星の記録があると s2 が押せる
     const deps2 = makeDeps({
       records: {
@@ -105,7 +105,7 @@ describe('createCreelModule', () => {
     const s1b2 = parent2.querySelector<HTMLButtonElement>('[data-testid="creel-puzzle-s1-2"]');
     expect(s1b2?.disabled).toBe(false);
     const s2b = parent2.querySelector<HTMLButtonElement>('[data-testid="creel-puzzle-s2"]');
-    expect(s2b?.disabled).toBe(true);
+    expect(s2b?.classList.contains('list-row--locked')).toBe(true);
     instance.unmount();
   });
 

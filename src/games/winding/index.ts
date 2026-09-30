@@ -7,6 +7,7 @@ import type { Level } from './params';
 import { SECTIONS, STANDALONE_PATTERN } from './params';
 import type { WindingState } from './logic';
 import { confirmDialog } from '../../core/ui/widgets';
+import { showTutorial } from '../../core/ui/tutorialOverlay';
 
 /**
  * ドラム巻きのゲームモジュール (P2 T2-07・追加修正a)。
@@ -116,7 +117,11 @@ export function createWindingModule(deps: GameDeps): GameModule {
         container.textContent = '';
         currentList = createListView(container, {
           records: deps.records,
+          title: deps.terms.t('game.winding'),
           savedLevel: savedLevel(),
+          onTutorial: () => {
+            void showTutorial(container, windingTutorial, { renderText: (s) => deps.terms.render(s) });
+          },
           onSelect: (level: Level) => {
             void selectLevel(level);
           },

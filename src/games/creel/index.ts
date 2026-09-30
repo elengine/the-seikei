@@ -5,6 +5,7 @@ import { createController } from './controller';
 import { creelTutorial } from './tutorial';
 import { isValidResume } from './logic';
 import { confirmDialog } from '../../core/ui/widgets';
+import { showTutorial } from '../../core/ui/tutorialOverlay';
 import type { CreelState } from './logic';
 
 /**
@@ -46,7 +47,11 @@ export function createCreelModule(deps: GameDeps): GameModule {
         const list = createListView(container, {
           records: deps.records,
           content,
+          title: deps.terms.t('game.creel'),
           savedPuzzleId: savedPuzzleId(),
+          onTutorial: () => {
+            void showTutorial(container, creelTutorial, { renderText: (s) => deps.terms.render(s) });
+          },
           onSelect: (puzzleId: string) => {
             void selectPuzzle(puzzleId);
           },
