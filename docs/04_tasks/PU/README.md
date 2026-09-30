@@ -9,7 +9,9 @@
 
 - この PU のタスクは、**Claude(別の Claude Code の会話)が実装する**(管理者の許可。AGENTS.md「役割」)。ルビーは P2(ドラム巻き)の作業を続ける。
 - 作業の決まりは `docs/04_tasks/00_rules.md` と同じ(テストを先に書く、変更してよいファイルの外に手を入れない、報告は `docs/progress_log.md` と `PROGRESS.json`、秘密情報を書かない)。違いは次のとおり。
-  - Discord には報告しない(報告は `docs/progress_log.md` とコミットで行う。確認役が読む)。
+  - Discord には報告しない(報告はコミットと、下の報告のファイルで行う。確認役が読む)。
+  - **`PROGRESS.json` と `docs/progress_log.md` は変えない。** ルビーも同時に書き足すファイルなので、取り込むたびにぶつかるため。報告は **`docs/progress_log_pu.md`**(PU 専用。新規)に書く。各 PU 仕様書の「共通:`PROGRESS.json`、`docs/progress_log.md`」は、`docs/progress_log_pu.md` と読み替える。
+  - `git rebase` でぶつかった(コンフリクト)ときは、**相手(ルビー)の変更を消さない。** 両方を残して解決できない場合は、rebase を中止(`git rebase --abort`)して止まり、報告する。
   - `main` に直接 push する(`git pull --rebase` のあと `git push`)。ルビーも `main` に push しているので、**push の前に必ず `git pull --rebase` し、`npm run check`・`npm test`・`npm run build` を通してから push する。**
   - 1つのタスクが終わったら、報告のコミット(件名に「報告」を入れる)を push して止まり、確認役の確認を待つ。確認役が次のタスクを指示する。
   - 仕様書・AGENTS.md・07_ui_design.md は変えない(誤りを見つけたら報告に書く)。
