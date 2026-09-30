@@ -764,3 +764,31 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
   jsdom に無い setPointerCapture の stub、disabled は root の class に付くので root を見るように修正)。
 - テスト全体: 345 passed / 11 skipped。npm run check エラー0。npm run build 成功。
 - ブラウザ確認は T2-07 でまとめて行う (仕様書どおり)。
+
+
+## 2026-09-30 T2-04: ドラム巻きのルール (games/winding/logic.ts)
+
+- やったこと:
+  - src/games/winding/params.ts (新規): 難易度ごとの数値をここだけに置いた。
+    MAX_SPEED 40、SECTION_LENGTH 400 (pedal 50 で 20 秒)、SECTIONS 3/5/7、
+    RANGE 30〜70/38〜62/44〜56、BREAK_RATE 0.01/0.02/0.04、
+    STANDALONE_PATTERN p-pin-kon/p-chalk-char/p-alt-kon、
+    TENSION (T2-01 の初期値)、BREAK (T2-02 の初期値)、MAX_TICK_MS 100、STARS3 0.8、STARS2 0.6。
+    (SECTIONS などは Record でなく関数にした。noUncheckedIndexedAccess で
+    Record への [level] の参照が undefined になり得るため)
+  - src/games/winding/logic.ts (新規): init・reduce (start/setPedal/tick/tapEnd/cut/pausePedal)・
+    qualities・starsOf・isValidResume・lastTapResult。すべて純粋関数 (元の s は変更しない)。
+    - tick: dtMs を MAX_TICK_MS (100) で丸める。noise を進め、progress から張りを計算して保存。
+      speed > 0 なら lengths・windMs (範囲内なら okMs も) を進め、糸切れの判定 (stepBreak)。
+      切れたら phase 'broken'・breaks+1・ペダル 0 (実物どおり)。
+      SECTION_LENGTH 以上で 'cutting'・ペダル 0。
+    - setPedal は 'winding' のときだけ。pausePedal は 'done' を除くどの phase でもペダル 0。
+      cut は 'cutting' のときだけ (最後なら 'done')。'done' の後はどの操作でも変わらない。
+    - isValidResume: phase・level・sections・current・配列3つの長さと値・数値の範囲を確かめる。
+  - src/games/winding/logic.test.ts (新規): 仕様書のテスト 1〜10。
+- テスト (先に書いて RED を確認: logic.ts が無く import 失敗): 10件。
+  - テスト4で 'cutting' にならなかったのは、補助の windToCut が pedal 50 用の回数 (201回) で
+    打ち切っていたため。pedal 40 は遅いので 500 回に増やした (テストの補助の修正。期待値の変更ではない)。
+  - テスト5は同じ種 seed 99 で2回実行して同じ結果 (決まった回で切れる) も確認。
+- テスト全体: 355 passed / 11 skipped。npm run check エラー0。npm run build 成功。
+- 画面を持たない純粋関数なので、ブラウザ確認の対象は無し (確認のしかた: テスト)。
