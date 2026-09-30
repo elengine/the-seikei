@@ -192,6 +192,29 @@ describe('gameScreen', () => {
     );
   });
 
+  it('onFinish で、level: で始まる stats も成績に残す (ドラム巻きの難易度の星)', async () => {
+    const ctx = await makeCtx();
+    await ctx.settings.update({ tutorialSeen: { winding: true } });
+    const { module, captured } = makeFakeModule('winding');
+    registerGame(module);
+    const screen = createGameScreen(ctx);
+    screen.mount(document.createElement('div'), { id: 'winding' });
+    await vi.waitFor(() => {
+      expect(captured.props?.onFinish).toBeDefined();
+    });
+    await captured.props!.onFinish({
+      gameId: 'winding',
+      mode: 'standalone',
+      stars: 2,
+      stats: { 'level:1': 2, breaks: 1 },
+      unlockedPatternIds: [],
+      finishedAt: ctx.clock.now(),
+    });
+    await vi.waitFor(() => {
+      expect(ctx.records.get('winding').best).toEqual({ 'level:1': 2 });
+    });
+  });
+
   it('onExit で suspend() が値を返すと確認が出て、「ホームに戻る」で途中保存される (テスト名のみ変更: 管理者の指示で文言を変えたため)', async () => {
     const ctx = await makeCtx();
     let navigated = '';

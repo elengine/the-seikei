@@ -164,10 +164,10 @@ function mountGame(
   const onFinish = (result: Parameters<GameProps['onFinish']>[0]): void => {
     void (async () => {
       await ctx.repo.remove('sessions', gameId); // 途中保存を消す
-      // stats の中で 'puzzle:' で始まるキーだけ成績に残す (表示は summary を使う)
+      // stats の中で 'puzzle:' か 'level:' で始まるキーだけ成績に残す (表示は summary を使う)
       const puzzleStats: Record<string, number> = {};
       for (const [key, value] of Object.entries(result.stats)) {
-        if (key.startsWith('puzzle:')) {
+        if (key.startsWith('puzzle:') || key.startsWith('level:')) {
           puzzleStats[key] = value;
         }
       }
