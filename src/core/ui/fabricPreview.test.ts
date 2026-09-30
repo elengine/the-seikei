@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { drawFabric, fabricSpecFor } from './fabricPreview';
 import type { ColorId, Pattern } from '../domain/types';
 import type { Content } from '../content/content';
+import { COLORS } from './tokens';
 
 /** fillRect / fillStyle / save / clip / restore を記録する偽の ctx */
 function makeFakeCtx() {
@@ -92,7 +93,7 @@ describe('drawFabric', () => {
       { warp: ['#FF0000'], weft: '#0000FF' },
       { x: 2, y: 3, w: 10, h: 8 },
     );
-    expect(rects[rects.length - 1]).toMatchObject({ x: 2, y: 3, w: 10, h: 8, fill: 'stroke:#5A574C' });
+    expect(rects[rects.length - 1]).toMatchObject({ x: 2, y: 3, w: 10, h: 8, fill: `stroke:${COLORS.sumiSub}` });
   });
 });
 

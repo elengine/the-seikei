@@ -21,16 +21,53 @@ body {
 :root {
   /* 色 (03_basic_design 2.1) */
   --c-kinari: #f7f3e8;
+  --c-kinari-deep: #efe9da;
+  --c-white: #ffffff;
+  --c-line: #d9d2c0;
+  --c-line-soft: #efe9da;
   --c-sumi: #2b2a24;
-  --c-sumi-sub: #5a574c;
+  --c-sumi-sub: #4a473f;
+  --c-muted: #6b675c;
+  --c-ai: #1f3a5f;
+  --c-ai-pressed: #16304f;
+  --c-ai-shadow: #0f2138;
+  --c-btn-shadow: #c9c1ac;
+  --c-ai-tint: #dce3ec;
+  --c-wood: #8a5a3b;
+  --c-wood-light: #b08a5e;
+  --c-gold: #b07a1e;
+  --c-star-off: #e2dbc8;
+  --c-shu: #a33a22;
+  --c-lock-border: #8d96a5;
   --c-machine-dark: #4f5b47;
   --c-machine: #8c9a7e;
   --c-machine-light: #a9b39c;
-  --c-wood: #8a5a3c;
   --c-steel: #b8bec4;
-  --c-shu: #b03a2e;
-  --c-ai: #2f4a6d;
-  --c-white: #ffffff;
+  --c-post: #6e8a5e;
+  --c-post-light: #86a276;
+  --c-post-dark: #4f6843;
+
+  /* 余白・角・画面の余白・上端の縞 (07_ui_design 4・5.1) */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-7: 32px;
+  --sp-8: 48px;
+  --r-small: 8px;
+  --r-button: 12px;
+  --r-card: 14px;
+  --r-dialog: 16px;
+  --page-pad: 48px;
+  --stripe-top: repeating-linear-gradient(
+    90deg,
+    var(--c-ai) 0 14px,
+    var(--c-kinari) 14px 18px,
+    var(--c-ai) 18px 22px,
+    var(--c-kinari) 22px 30px
+  );
 
   /* 大きさと間隔 (03_basic_design 2.3) */
   --gap: 12px;
@@ -1007,3 +1044,15 @@ button {
   }
 }
 
+/* 画面の左右の余白 (:root の --page-pad を狭い画面で上書きする) */
+@media (max-width: 899px) {
+  :root {
+    --page-pad: 32px;
+  }
+}
+
+@media (max-width: 599px) {
+  :root {
+    --page-pad: 16px;
+  }
+}

@@ -4,6 +4,7 @@ import { init } from './logic';
 import type { CreelState } from './logic';
 import { getContent } from '../../core/content/content';
 import { fitStage, type StageFit } from '../../core/viewport/viewport';
+import { COLORS } from '../../core/ui/tokens';
 
 const content = getContent();
 const terms = { t: (k: string) => k };
@@ -93,7 +94,7 @@ describe('drawBoard', () => {
     const s = { ...s1Empty(), marks: { wrong: [0, 2], empty: [] } };
     drawBoard(ctx, fit, s, content, terms);
     // ✕ は stroke 2本で 1組。wrong 2つ → shu 色で stroke 4回
-    const shuStrokes = calls.filter((c) => c.op === 'stroke' && c.stroke === '#B03A2E');
+    const shuStrokes = calls.filter((c) => c.op === 'stroke' && c.stroke === COLORS.shu);
     expect(shuStrokes.length).toBe(4);
   });
 

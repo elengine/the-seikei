@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { COLORS, FONT, FONT_FAMILY, SIZE } from './tokens';
+import { COLORS, FONT, FONT_FAMILY, RADIUS, SIZE, SPACE } from './tokens';
 
 /** base.css を読み、指定セレクタの宣言ブロックから CSS 変数を取り出す */
 function cssVars(selector: string): Map<string, string> {
@@ -18,7 +18,7 @@ function cssVars(selector: string): Map<string, string> {
   if (block === undefined) {
     throw new Error(`empty block for selector: ${selector}`);
   }
-  for (const dm of block.matchAll(/(--[a-z-]+)\s*:\s*([^;]+);/g)) {
+  for (const dm of block.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g)) {
     vars.set(dm[1]!, dm[2]!.trim());
   }
   return vars;
@@ -31,19 +31,11 @@ function norm(hex: string): string {
 describe('tokens と base.css の CSS 変数の一致', () => {
   it('COLORS の全色が :root の --c-* 変数と一致する (16進の大小文字は無視)', () => {
     const root = cssVars(':root');
-    const varName: Record<keyof typeof COLORS, string> = {
-      kinari: '--c-kinari',
-      sumi: '--c-sumi',
-      sumiSub: '--c-sumi-sub',
-      machineDark: '--c-machine-dark',
-      machine: '--c-machine',
-      machineLight: '--c-machine-light',
-      wood: '--c-wood',
-      steel: '--c-steel',
-      shu: '--c-shu',
-      ai: '--c-ai',
-      white: '--c-white',
-    };
+    const kebab = (name: string): string => `--c-${name.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}`;
+    const varName = Object.fromEntries(Object.keys(COLORS).map((k) => [k, kebab(k)])) as Record<
+      keyof typeof COLORS,
+      string
+    >;
     for (const [key, cssVar] of Object.entries(varName) as Array<[keyof typeof COLORS, string]>) {
       const cssValue = root.get(cssVar);
       expect(cssValue, `${cssVar} is missing in base.css :root`).toBeDefined();
@@ -278,5 +270,79 @@ describe('T2-08 追加修正2 (メーターの帯の box-sizing)', () => {
     const m = css.match(/\.meter__band\s*\{[^}]*\}/);
     expect(m).not.toBeNull();
     expect(m![0]).toContain('box-sizing: border-box');
+  });
+});
+
+describe('PU-01a: 色・余白・角・上端の縞', () => {
+  function cssText(): string {
+    return readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
+  }
+
+  it('07 の 2 節の色 (ai・sumiSub・wood・shu と新しい色)', () => {
+    expect(COLORS.ai).toBe('#1F3A5F');
+    expect(COLORS.sumiSub).toBe('#4A473F');
+    expect(COLORS.wood).toBe('#8A5A3B');
+    expect(COLORS.shu).toBe('#A33A22');
+    expect(COLORS.kinariDeep).toBe('#EFE9DA');
+    expect(COLORS.muted).toBe('#6B675C');
+    expect(COLORS.post).toBe('#6E8A5E');
+  });
+
+  it('kebab 名の変数が :root に全部ある (kinariDeep → --c-kinari-deep)', () => {
+    const root = cssVars(':root');
+    expect(root.get('--c-kinari-deep')).toBeDefined();
+    expect(root.get('--c-ai-pressed')).toBeDefined();
+    expect(root.get('--c-lock-border')).toBeDefined();
+  });
+
+  it('SPACE と --sp-1〜--sp-8 が一致する', () => {
+    expect(SPACE).toEqual([4, 8, 12, 16, 20, 24, 32, 48]);
+    const root = cssVars(':root');
+    SPACE.forEach((v, i) => {
+      expect(root.get(`--sp-${i + 1}`)).toBe(`${v}px`);
+    });
+  });
+
+  it('RADIUS と --r-* が一致する', () => {
+    expect(RADIUS).toEqual({ small: 8, button: 12, card: 14, dialog: 16 });
+    const root = cssVars(':root');
+    for (const [k, v] of Object.entries(RADIUS)) {
+      expect(root.get(`--r-${k}`)).toBe(`${v}px`);
+    }
+  });
+
+  it('--page-pad は 48px、899px 以下で 32px、599px 以下で 16px', () => {
+    expect(cssVars(':root').get('--page-pad')).toBe('48px');
+    const css = cssText();
+    expect(css).toMatch(/@media \(max-width: 899px\)\s*\{\s*:root\s*\{[^}]*--page-pad:\s*32px/);
+    expect(css).toMatch(/@media \(max-width: 599px\)\s*\{[\s\S]*?--page-pad:\s*16px/);
+  });
+
+  it('--stripe-top は repeating-linear-gradient (藍 14・地 4・藍 4・地 8)', () => {
+    const v = cssVars(':root').get('--stripe-top');
+    expect(v).toBeDefined();
+    expect(v).toContain('repeating-linear-gradient');
+    expect(v).toContain('var(--c-ai) 0 14px');
+    expect(v).toContain('var(--c-kinari) 14px 18px');
+    expect(v).toContain('var(--c-ai) 18px 22px');
+    expect(v).toContain('var(--c-kinari) 22px 30px');
+  });
+
+  describe('文字と地の明るさの比 4.5 以上', () => {
+    const lum = (hex: string): number => {
+      const ch = [1, 3, 5].map((i) => {
+        const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+        return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * ch[0]! + 0.7152 * ch[1]! + 0.0722 * ch[2]!;
+    };
+    const ratio = (a: string, b: string): number => {
+      const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+      return (hi! + 0.05) / (lo! + 0.05);
+    };
+    it.each(['sumi', 'sumiSub', 'muted', 'ai'] as const)('%s は kinari と white の上で 4.5 以上', (name) => {
+      expect(ratio(COLORS[name], COLORS.kinari)).toBeGreaterThanOrEqual(4.5);
+      expect(ratio(COLORS[name], COLORS.white)).toBeGreaterThanOrEqual(4.5);
+    });
   });
 });

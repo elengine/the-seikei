@@ -1,16 +1,37 @@
 export const COLORS = {
   kinari: '#F7F3E8',
+  kinariDeep: '#EFE9DA',
+  white: '#FFFFFF',
+  line: '#D9D2C0',
+  lineSoft: '#EFE9DA',
   sumi: '#2B2A24',
-  sumiSub: '#5A574C',
+  sumiSub: '#4A473F',
+  muted: '#6B675C',
+  ai: '#1F3A5F',
+  aiPressed: '#16304F',
+  aiShadow: '#0F2138',
+  btnShadow: '#C9C1AC',
+  aiTint: '#DCE3EC',
+  wood: '#8A5A3B',
+  woodLight: '#B08A5E',
+  gold: '#B07A1E',
+  starOff: '#E2DBC8',
+  shu: '#A33A22',
+  lockBorder: '#8D96A5',
   machineDark: '#4F5B47',
   machine: '#8C9A7E',
   machineLight: '#A9B39C',
-  wood: '#8A5A3C',
   steel: '#B8BEC4',
-  shu: '#B03A2E',
-  ai: '#2F4A6D',
-  white: '#FFFFFF',
+  post: '#6E8A5E',
+  postLight: '#86A276',
+  postDark: '#4F6843',
 } as const;
+
+/** 余白の刻み (--sp-1〜--sp-8) */
+export const SPACE = [4, 8, 12, 16, 20, 24, 32, 48] as const;
+
+/** 角の丸み (--r-*) */
+export const RADIUS = { small: 8, button: 12, card: 14, dialog: 16 } as const;
 
 export type FontScale = 'large' | 'xlarge';
 

@@ -45,9 +45,9 @@ function brokenState(seed = 99): WindingState {
   return s;
 }
 
-/** 偽の ctx に shu (#B03A2E) の線 (strokeStyle) が描かれたか */
+/** 偽の ctx に shu の線 (strokeStyle) が描かれたか */
 function hasShuStroke(rec: FakeRecorder): boolean {
-  return rec.ops.some((op) => op.k === 'style' && op.v === '#B03A2E');
+  return rec.ops.some((op) => op.k === 'style' && op.v === COLORS.shu);
 }
 
 describe('winding renderer (T2-05)', () => {
@@ -64,13 +64,13 @@ describe('winding renderer (T2-05)', () => {
     const broken = brokenState();
     drawBoard(ctx, fit, broken, content, { threadCount: 8, show: 'red', timeMs: 0 });
     // ランプの直前の fillStyle が shu
-    expect(rec.fillStyleLog).toContain('#B03A2E');
+    expect(rec.fillStyleLog).toContain(COLORS.shu);
     const rec2 = makeFakeCtx();
     const winding = windingState();
     drawBoard(rec2.ctx, fit, winding, content, { threadCount: 8, show: 'red', timeMs: 0 });
     // 消灯は灰色
     expect(rec2.rec.fillStyleLog).toContain('#B8BEC4');
-    expect(rec2.rec.fillStyleLog).not.toContain('#B03A2E');
+    expect(rec2.rec.fillStyleLog).not.toContain(COLORS.shu);
   });
 
   it("'done' で帯の数だけ表面が描かれる", () => {
@@ -292,7 +292,7 @@ describe('winding renderer T2-08-fix a (ドラムの向き・台の移動・結�
     drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
     // current 0 の区画の中心 = (90 + 290) / 2 = 190。台の板の y はその付近
     const woodY = rec.ops.filter(
-      (op) => op.k === 'style' && op.v === '#8A5A3C',
+      (op) => op.k === 'style' && op.v === COLORS.wood,
     );
     expect(woodY.length).toBeGreaterThan(0);
   });
