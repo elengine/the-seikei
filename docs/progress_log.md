@@ -673,3 +673,20 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
      高さ 64px (スクショ t17_settings_1180.png、t17_settings_412.png、t17_settings_412_bottom.png)。
   3. ホーム画面: お名前を入れて「テスト屋さん、こんにちは」が 24px (スクショ t17_home_1180.png、t17_home_412.png)。
   4. 「特大」に切り替えると、項目名・あいさつとも 28px (スクショ t17_home_xlarge_1180.png)。
+
+
+## 2026-09-30 T1-18: 細い画面で設定の今の値が縦に折れるのを直す
+
+- やったこと (base.css の設定画面の節のみ):
+  - @media (max-width: 599px) を追加: .settings__row を grid-template-columns: 1fr auto の2段にし、
+    .settings__label に grid-column: 1 / -1 (1段目に項目名、2段目に今の値とボタン)。
+  - .settings__value の overflow-wrap を anywhere → break-word に (単語の途中で1文字ずつ折らない)。
+  - 600px 以上は3列のまま変えていない。
+- テスト (先に RED を確認): tokens.test.ts に2件追加
+  (media query 内に .settings__row と .settings__label の規則・grid-column: 1 / -1 がある。
+  .settings__value が break-word で anywhere でない)。RED 2件 → GREEN。
+- テスト全体: 324 passed / 11 skipped。npm run check エラー0。npm run build 成功。
+- ブラウザ確認 (npm run build → vite preview 4173、SW 掃除のうえ新規タブ):
+  1. 412×915: 項目名が1段目、今の値とボタンが2段目。「（未設定）」「整経所」とも高さ 28px (1行) で読める (スクショ t18_settings_412.png)。
+  2. 360×800: 同じく2段で1行。scrollWidth 360 = clientWidth 360 (横のはみ出し無し) (スクショ t18_settings_360.png)。
+  3. 1180×820・820×1180: 項目名と今の値が同じ行 (3列のまま) (スクショ t18_settings_1180.png、t18_settings_820.png)。
