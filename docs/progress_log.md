@@ -737,3 +737,30 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
     running では ignored も確認。
 - テスト全体: 337 passed / 11 skipped。npm run check エラー0。npm run build 成功。
 - 画面を持たない純粋関数なので、ブラウザ確認の対象は無し (確認のしかた: テスト)。
+
+
+## 2026-09-30 T2-03: ペダルの横木と張りのメーターの部品 (core/ui/pedalControl.ts)
+
+- やったこと:
+  - src/core/ui/pedalControl.ts (新規):
+    - createPedalControl: 縦長の溝 (.pedal__groove、高さ 260px) の中を横長の木の棒
+      (.pedal__bar、幅 180px・高さ 64px、木の色 --c-wood) が上下に動く。
+      一番上が 0 (止まる)、一番下が 100 (速い)。押し下げるほど速い。
+      溝の中を押すとその位置の値、押したまま動かすと追従、指を離しても位置を保つ。
+      pointerdown で setPointerCapture、pointermove は捕まえている間だけ、
+      pointerup・pointercancel で離す。溝と横木に touch-action: none (iPad 対策)。
+      「踏み込む」(+10)「戻す」(-10) のボタン (min-height 64px)。
+      値は横木の横に文字でも出す (「速さ 50」)。setEnabled(false) で薄く表示し操作を受け付けない。
+      setValue は onChange を呼ばない。
+    - createTensionMeter: 横長の帯 (.meter__band) の 0〜100 の上に、適正範囲を緑
+      (--c-machine-light) で塗り (.meter__zone)、今の張りを縦の針 (.meter__needle) で示す。
+      帯の下に文字で状態を出す (「○ 適正」「▲ 強すぎ」「▼ 弱い」。色だけに頼らない)。
+      文字は --fs-body。
+  - src/styles/base.css: 末尾に「/* pedal (T2-03) */」の節を追加 (既存の行は変えていない)。
+  - src/core/ui/pedalControl.test.ts (新規): 仕様書のテスト 1〜7 (jsdom)。
+    getBoundingClientRect を偽物にして溝の上端 0・下端 100・真ん中 50 を確かめた。
+- テスト (先に書いて RED を確認: pedalControl.ts が無く import 失敗): 8件。
+  テストの期待値は変えていない (テスト側の不備の修正のみ:
+  jsdom に無い setPointerCapture の stub、disabled は root の class に付くので root を見るように修正)。
+- テスト全体: 345 passed / 11 skipped。npm run check エラー0。npm run build 成功。
+- ブラウザ確認は T2-07 でまとめて行う (仕様書どおり)。
