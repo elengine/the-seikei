@@ -4,7 +4,7 @@ import { initPedal, setPedal, speedOf, tensionOf, stepNoise } from '../../core/m
 import type { PedalState } from '../../core/mechanics/pedal';
 import { initBreak, stepBreak, tapEnd } from '../../core/mechanics/breakage';
 import type { BreakState } from '../../core/mechanics/breakage';
-import { MAX_SPEED, SECTION_LENGTH, RANGE, BREAK_RATE, TENSION, BREAK, MAX_TICK_MS, STARS3, STARS2 } from './params';
+import { SECTION_LENGTH, RANGE, BREAK_RATE, TENSION, BREAK, MAX_TICK_MS, STARS3, STARS2 } from './params';
 import type { Level } from './params';
 
 
@@ -218,6 +218,3 @@ export function lastTapResult(
   if (!wasFirst && isFirst) return 'first';
   return null;
 }
-
-// MAX_SPEED は params.ts を通して使う (この行は参照を保つため)
-void MAX_SPEED;

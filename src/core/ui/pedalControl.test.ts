@@ -40,13 +40,36 @@ describe('pedalControl (T2-03)', () => {
     pc.destroy();
   });
 
-  it('1. 溝の上端を押すと 0、下端で 100、真ん中で 50 (押し下げるほど速い)', () => {
-    pointer(groove, 'pointerdown', 200, 200); // 上端
+  it('1. 溝の上端から32px (横木の中心が来る位置) を押すと 0、下端から32px で 100、真ん中で 50 (押し下げるほど速い)', () => {
+    // 確認役が横木の位置の計算を直したため、押した位置から値を求める範囲は
+    // (横木の高さの半分 32px を上下から除いた範囲) に変わった
+    pointer(groove, 'pointerdown', 200, 232); // 上端 + 32px
     expect(onChange).toHaveBeenLastCalledWith(0);
-    pointer(groove, 'pointerdown', 200, 440); // 下端
+    pointer(groove, 'pointerdown', 200, 408); // 下端 - 32px
     expect(onChange).toHaveBeenLastCalledWith(100);
     pointer(groove, 'pointerdown', 200, 320); // 真ん中
     expect(onChange).toHaveBeenLastCalledWith(50);
+  });
+
+  it("T2-03-fix: 「踏み込む」「戻す」に btn (btn--secondary) のクラスがある", () => {
+    const btns = Array.from(document.body.querySelectorAll('button'));
+    const plus = btns.find((b) => b.textContent === '踏み込む')!;
+    const minus = btns.find((b) => b.textContent === '戻す')!;
+    expect(plus.className).toContain('btn');
+    expect(plus.className).toContain('btn--secondary');
+    expect(minus.className).toContain('btn');
+    expect(minus.className).toContain('btn--secondary');
+  });
+
+  it('T2-03-fix: 値 0 で横木の上端が 0px、値 100 で 176px (240 - 64) になる', () => {
+    const bar = document.body.querySelector('.pedal__bar') as HTMLElement;
+    pc.setValue(0);
+    const top0 = bar.style.top;
+    pc.setValue(100);
+    const top100 = bar.style.top;
+    // top は px で、0 なら 0px、100 なら (240-64)=176px
+    expect(top0).toBe('0px');
+    expect(top100).toBe('176px');
   });
 
   it('2. pointermove は pointerdown の後だけ onChange を呼ぶ。pointerup の後は呼ばない', () => {

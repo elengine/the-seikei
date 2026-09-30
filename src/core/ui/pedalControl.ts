@@ -45,21 +45,26 @@ export function createPedalControl(
   valueLabel.className = 'pedal__value';
   valueLabel.textContent = '速さ 0';
 
-  // 「踏み込む」(+10)「戻す」(-10) のボタン
+  // 「踏み込む」(+10)「戻す」(-10) のボタン。溝の右に縦に並べる
+  // (横木を下げるほど速いので、下のボタンが速くする方)
   const plus = document.createElement('button');
   plus.type = 'button';
-  plus.className = 'pedal__btn';
+  plus.className = 'btn btn--secondary pedal__btn';
   plus.textContent = '踏み込む';
   const minus = document.createElement('button');
   minus.type = 'button';
-  minus.className = 'pedal__btn';
+  minus.className = 'btn btn--secondary pedal__btn';
   minus.textContent = '戻す';
+
+  const buttons = document.createElement('div');
+  buttons.className = 'pedal__buttons';
+  buttons.appendChild(minus);
+  buttons.appendChild(plus);
 
   const row = document.createElement('div');
   row.className = 'pedal__row';
-  row.appendChild(minus);
   row.appendChild(groove);
-  row.appendChild(plus);
+  row.appendChild(buttons);
 
   root.appendChild(label);
   root.appendChild(row);
@@ -68,16 +73,21 @@ export function createPedalControl(
 
   /** 溝の中の位置 (0〜100) を、横木の見た目に映す */
   function render(): void {
-    // 一番上が 0、一番下が 100。溝の高さから横木の位置を決める
-    bar.style.top = `${value}%`;
+    // 横木の上端 = (溝の高さ − 横木の高さ) × 値 / 100 (はみ出さない)
+    const grooveH = groove.clientHeight || 240;
+    const barH = bar.clientHeight || 64;
+    bar.style.top = `${((grooveH - barH) * value) / 100}px`;
     valueLabel.textContent = `速さ ${Math.round(value)}`;
   }
 
-  /** 溝の中の1点 (clientY) を値に直す */
+  /** 溝の中の1点 (clientY) を値に直す。横木の中心が指の位置に来る */
   function valueFromEvent(e: PointerEvent): number {
     const rect = groove.getBoundingClientRect();
-    if (rect.height <= 0) return value;
-    const ratio = (e.clientY - rect.top) / rect.height;
+    const barH = bar.clientHeight || 64;
+    const usable = rect.height - barH; // 横木の高さぶんを除く
+    if (usable <= 0) return value;
+    const half = barH / 2;
+    const ratio = (e.clientY - rect.top - half) / usable;
     return clamp100(ratio * 100);
   }
 

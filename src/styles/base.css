@@ -813,9 +813,9 @@ button {
 
 .pedal__groove {
   position: relative;
-  width: 200px;
+  width: 180px;
   height: 260px;
-  background: var(--c-kinari-dark, #EDE7D5);
+  background: var(--c-white);
   border: 2px solid var(--c-steel);
   border-radius: var(--radius);
   touch-action: none;
@@ -824,12 +824,18 @@ button {
 .pedal__bar {
   position: absolute;
   left: 50%;
-  transform: translate(-50%, -50%);
-  width: 180px;
+  transform: translateX(-50%);
+  width: 160px;
   height: 64px;
   background: var(--c-wood);
   border-radius: 8px;
   touch-action: none;
+}
+
+.pedal__buttons {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
 }
 
 .pedal__value {
@@ -860,7 +866,7 @@ button {
   width: 320px;
   max-width: 100%;
   height: 24px;
-  background: var(--c-kinari-dark, #EDE7D5);
+  background: var(--c-white);
   border: 2px solid var(--c-steel);
   border-radius: var(--radius);
 }
