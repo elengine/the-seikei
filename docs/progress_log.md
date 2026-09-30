@@ -1164,3 +1164,21 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
   - 帯1を巻き終えて結ぶと、区画に細い縞が繰り返し現れ、結び目の束が白い縁取りで見分けられる。台と筬は帯2の高さへ移動 (スクショ添付)
   - 960×720: 操作欄 scrollWidth 309 = clientWidth 309 (横あふれ解消)。meter__band は border-box で 309px に収まる
   - 遊び方の1ページ目: ドラムの軸が縦、巻いた帯は一番上の区画に横の縞 (スクショ添付)
+
+## 2026-10-01 T2-10 (a・b) ルビー
+
+### a. 糸の道筋と切れ端の位置 (`d1147a3`・`493d95d`)
+- 糸の線の頂点を geometry.ts の `threadPath` 1つで決め、糸の描画と流れる印 (`pointOnPath`) の両方が同じ道筋を使うようにした (位置がずれる不具合の防止)
+- 切れ端 (`endPoint`) は道筋の「まっすぐ横に進む区間」の上へ: クリール側 x290・ドラム側 x360 (差 70)。筬と台は右へ (REED_X 520・TABLE_AREA x430)
+- テスト: geometry 3件 (点が道筋の上・y の範囲・切れ端が区間の上) を RED → GREEN
+
+### b. ドラムが回って見える (`b043fd6`→`8df5028`)
+- renderer.parts.ts: 桟を円筒の周りに等間隔 (`SLAT_COUNT` 10本) に並べ、`drumAngle` で sin/cos して横に流す。裏側 (cos θ ≤ 0) は描かない
+- 巻いた帯の面にも回る筋 (明るい縦の線) を同じ式で流す。円盤のスポークも `drumAngle` で回す
+- controller.ts: `drumAngle` (見た目だけの値。State には入らない) を speed × `DRUM_TURN_PER_SPEED` (0.1 rad/s per speed) で進め、renderer に渡す
+- テスト: renderer 3件 (angle で桟の位置が変わる・裏側は描かない・帯の上に筋) を RED → GREEN
+
+### 検証
+- npm run check エラー0 / npm test **469 passed・11 skipped** / build 成功
+- CI: a は `493d95d` success、b は eslint error 2回 (`b043fd6`→rebase `da3aba9`→`8df5028`) success
+- ブラウザ (1180×820): 帯を巻くと桟が横に流れ・裏側の桟が消え・円盤のスポークが回る。切れ端は糸の線の上に乗る。スクショ /opt/data/tmp/t210/
