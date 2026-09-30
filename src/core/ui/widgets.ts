@@ -1,24 +1,144 @@
+type ButtonIcon = 'back' | 'next' | 'check' | 'settings';
+
 interface ButtonOpts {
   label: string;
-  variant?: 'primary' | 'secondary';
+  variant?: 'primary' | 'secondary' | 'danger'; // 既定は 'secondary'
+  size?: 'normal' | 'large'; // 既定: primary は 'large' (72px)、ほかは 'normal' (64px)
+  icon?: ButtonIcon; // 線の SVG。文字の前 (back・check・settings) か後ろ (next)
+  lockedReason?: string; // 指定すると「押せない」形。押すと onLocked(lockedReason) を呼ぶ
+  onLocked?: (reason: string) => void;
+  sound?: boolean; // 既定 true
   onClick: () => void;
   testId?: string;
 }
 
-/** 大きいボタン (主: machineDark 地・白文字 / 副: 白地・藍の枠と文字) */
+/** 線の SVG (currentColor)。24x24 の枠 */
+const ICON_SHAPES: Record<ButtonIcon, string[]> = {
+  back: ['M15 5 L8 12 L15 19'],
+  next: ['M9 5 L16 12 L9 19'],
+  check: ['M5 12.5 L10 17.5 L19 7'],
+  settings: ['M4 7 H20', 'M4 12 H20', 'M4 17 H20', 'M9 4.5 V9.5', 'M15 9.5 V14.5', 'M8 14.5 V19.5'],
+};
+
+function createIcon(icon: ButtonIcon): SVGElement {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('width', '24');
+  svg.setAttribute('height', '24');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '2.5');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.classList.add('btn__icon');
+  for (const d of ICON_SHAPES[icon]) {
+    const path = document.createElementNS(ns, 'path');
+    path.setAttribute('d', d);
+    svg.appendChild(path);
+  }
+  return svg;
+}
+
+/** 押せない形のボタンの状態 (理由と、押したときの呼び出し先) */
+const lockState = new WeakMap<HTMLButtonElement, { reason: string | null; onLocked?: (reason: string) => void }>();
+
+let buttonSound: () => void = () => {};
+
+/** boot で1回だけ呼ぶ。ボタンを押したときの音 */
+export function setButtonSound(play: () => void): void {
+  buttonSound = play;
+}
+
+/** 押せない形にする (理由を渡す) / 元に戻す (null) */
+export function setLockedReason(btn: HTMLButtonElement, reason: string | null): void {
+  const st = lockState.get(btn);
+  if (st === undefined) {
+    return;
+  }
+  st.reason = reason;
+  btn.classList.toggle('btn--locked', reason !== null);
+  if (reason === null) {
+    btn.removeAttribute('aria-disabled');
+  } else {
+    btn.setAttribute('aria-disabled', 'true');
+  }
+}
+
+/** ボタン (主: 藍の塗り / 副: 白地・藍の枠 / 危険: 白地・朱の枠)。押せない形は lockedReason で作る */
 export function createButton(opts: ButtonOpts): HTMLButtonElement {
+  const variant = opts.variant ?? 'secondary';
+  const size = opts.size ?? (variant === 'primary' ? 'large' : 'normal');
   const btn = document.createElement('button');
   btn.type = 'button';
-  btn.textContent = opts.label;
-  btn.classList.add('btn');
-  btn.classList.add(opts.variant === 'secondary' ? 'btn--secondary' : 'btn--primary');
+  btn.classList.add('btn', `btn--${variant}`);
+  if (size === 'large') {
+    btn.classList.add('btn--large');
+  }
+  const icon = opts.icon !== undefined ? createIcon(opts.icon) : null;
+  if (icon !== null && opts.icon !== 'next') {
+    btn.appendChild(icon);
+  }
+  btn.appendChild(document.createTextNode(opts.label));
+  if (icon !== null && opts.icon === 'next') {
+    btn.appendChild(icon);
+  }
   if (opts.testId !== undefined) {
     btn.dataset.testid = opts.testId;
   }
+  lockState.set(btn, { reason: null, onLocked: opts.onLocked });
+  setLockedReason(btn, opts.lockedReason ?? null);
   btn.addEventListener('click', () => {
+    const st = lockState.get(btn);
+    if (st?.reason != null) {
+      st.onLocked?.(st.reason);
+      return;
+    }
+    if (opts.sound !== false) {
+      buttonSound();
+    }
     opts.onClick();
   });
   return btn;
+}
+
+interface ChoiceOpts<T extends string> {
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (v: T) => void;
+  ariaLabel: string;
+}
+
+/** 選ぶもの (横につながった枠。選んだものは藍の塗り・白文字・先頭に ✓) */
+export function createChoice<T extends string>(opts: ChoiceOpts<T>): { root: HTMLElement; setValue(v: T): void } {
+  const root = document.createElement('div');
+  root.classList.add('choice');
+  root.setAttribute('role', 'group');
+  root.setAttribute('aria-label', opts.ariaLabel);
+  const items = opts.options.map((o) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.classList.add('choice__item');
+    const check = document.createElement('span');
+    check.classList.add('choice__check');
+    b.appendChild(check);
+    b.appendChild(document.createTextNode(o.label));
+    b.addEventListener('click', () => {
+      opts.onChange(o.value);
+    });
+    root.appendChild(b);
+    return { value: o.value, b, check };
+  });
+  function setValue(v: T): void {
+    for (const it of items) {
+      const on = it.value === v;
+      it.b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      it.check.textContent = on ? '✓' : '';
+    }
+  }
+  setValue(opts.value);
+  return { root, setValue };
 }
 
 interface DialogBase {

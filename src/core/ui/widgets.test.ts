@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createButton, confirmDialog, textInputDialog } from './widgets';
+import { createButton, createChoice, setButtonSound, setLockedReason, confirmDialog, textInputDialog } from './widgets';
 import { applyFontScale } from './tokens';
 
 // .btn:disabled の確認は CSS のため jsdom では判定できない (getComputedStyle 非対応)。
@@ -24,7 +24,7 @@ function clickButton(root: ParentNode, testId: string): HTMLButtonElement {
 describe('createButton', () => {
   it('1. クリックすると onClick が1回呼ばれる。variant ごとにクラスが付く', () => {
     const onClick = vi.fn();
-    const primary = createButton({ label: 'はじめる', onClick, testId: 'b1' });
+    const primary = createButton({ label: 'はじめる', onClick, testId: 'b1', variant: 'primary' });
     expect(primary.tagName).toBe('BUTTON');
     expect(primary.textContent).toBe('はじめる');
     expect(primary.dataset.testid).toBe('b1');
@@ -207,5 +207,136 @@ describe('T1-17: 確認の画面のボタンの並び', () => {
     const block = css.slice(i, css.indexOf('}', i));
     expect(block).toContain('justify-content: space-between');
     expect(block).toContain('gap: calc(var(--gap) * 2)');
+  });
+});
+
+describe('PU-01c: createButton の種類・押せない形・音', () => {
+  it('3つの種類で正しいクラスが付く。既定は secondary。primary の既定の大きさは large', () => {
+    const p = createButton({ label: 'a', variant: 'primary', onClick: () => {} });
+    const s = createButton({ label: 'b', variant: 'secondary', onClick: () => {} });
+    const d = createButton({ label: 'c', variant: 'danger', onClick: () => {} });
+    const def = createButton({ label: 'd', onClick: () => {} });
+    expect(p.classList.contains('btn--primary')).toBe(true);
+    expect(s.classList.contains('btn--secondary')).toBe(true);
+    expect(d.classList.contains('btn--danger')).toBe(true);
+    expect(def.classList.contains('btn--secondary')).toBe(true);
+    expect(def.classList.contains('btn--primary')).toBe(false);
+    expect(p.classList.contains('btn--large')).toBe(true);
+    expect(s.classList.contains('btn--large')).toBe(false);
+    const big = createButton({ label: 'e', variant: 'secondary', size: 'large', onClick: () => {} });
+    expect(big.classList.contains('btn--large')).toBe(true);
+    const small = createButton({ label: 'f', variant: 'primary', size: 'normal', onClick: () => {} });
+    expect(small.classList.contains('btn--large')).toBe(false);
+  });
+
+  it('icon: 文字の前 (back) か後ろ (next) に線の SVG が付く。文字は残る', () => {
+    const back = createButton({ label: '戻る', icon: 'back', onClick: () => {} });
+    expect(back.querySelector('svg')).not.toBeNull();
+    expect(back.firstElementChild?.tagName.toLowerCase()).toBe('svg');
+    expect(back.textContent).toBe('戻る');
+    const next = createButton({ label: '開く', icon: 'next', onClick: () => {} });
+    expect(next.lastElementChild?.tagName.toLowerCase()).toBe('svg');
+    expect(next.textContent).toBe('開く');
+  });
+
+  it('lockedReason があると .btn--locked が付き、disabled は無く、押すと onLocked が理由付きで呼ばれ onClick は呼ばれない', () => {
+    const onClick = vi.fn();
+    const onLocked = vi.fn();
+    const btn = createButton({ label: 'ヒント', lockedReason: '2回確認すると使えます', onLocked, onClick });
+    expect(btn.classList.contains('btn--locked')).toBe(true);
+    expect(btn.hasAttribute('disabled')).toBe(false);
+    btn.click();
+    expect(onLocked).toHaveBeenCalledTimes(1);
+    expect(onLocked).toHaveBeenCalledWith('2回確認すると使えます');
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it('setLockedReason(btn, null) で元に戻り、onClick が呼ばれる。理由を後から付けることもできる', () => {
+    const onClick = vi.fn();
+    const onLocked = vi.fn();
+    const btn = createButton({ label: 'ヒント', lockedReason: '理由', onLocked, onClick });
+    setLockedReason(btn, null);
+    expect(btn.classList.contains('btn--locked')).toBe(false);
+    btn.click();
+    expect(onClick).toHaveBeenCalledTimes(1);
+    expect(onLocked).not.toHaveBeenCalled();
+    setLockedReason(btn, '別の理由');
+    expect(btn.classList.contains('btn--locked')).toBe(true);
+    btn.click();
+    expect(onLocked).toHaveBeenCalledWith('別の理由');
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it('setButtonSound を設定すると押すたびに1回呼ばれる。sound: false なら呼ばれない', () => {
+    const play = vi.fn();
+    setButtonSound(play);
+    const btn = createButton({ label: 'a', onClick: () => {} });
+    btn.click();
+    expect(play).toHaveBeenCalledTimes(1);
+    btn.click();
+    expect(play).toHaveBeenCalledTimes(2);
+    const quiet = createButton({ label: 'b', sound: false, onClick: () => {} });
+    quiet.click();
+    expect(play).toHaveBeenCalledTimes(2);
+    // 押せない形のときは onLocked だけ (音は鳴らさない)
+    const locked = createButton({ label: 'c', lockedReason: 'r', onClick: () => {} });
+    locked.click();
+    expect(play).toHaveBeenCalledTimes(2);
+    setButtonSound(() => {});
+  });
+});
+
+describe('PU-01c: createChoice', () => {
+  it('選んだものに aria-pressed="true" と ✓。押すと onChange。setValue で表示が変わり onChange は呼ばれない', () => {
+    const onChange = vi.fn();
+    const c = createChoice<'a' | 'b'>({
+      options: [
+        { value: 'a', label: '大' },
+        { value: 'b', label: '特大' },
+      ],
+      value: 'a',
+      onChange,
+      ariaLabel: '文字の大きさ',
+    });
+    expect(c.root.getAttribute('aria-label')).toBe('文字の大きさ');
+    const btns = Array.from(c.root.querySelectorAll('button'));
+    expect(btns).toHaveLength(2);
+    expect(btns[0]!.getAttribute('aria-pressed')).toBe('true');
+    expect(btns[0]!.textContent).toContain('✓');
+    expect(btns[1]!.getAttribute('aria-pressed')).toBe('false');
+    expect(btns[1]!.textContent).not.toContain('✓');
+    btns[1]!.click();
+    expect(onChange).toHaveBeenCalledWith('b');
+    c.setValue('b');
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(btns[1]!.getAttribute('aria-pressed')).toBe('true');
+    expect(btns[1]!.textContent).toContain('✓');
+    expect(btns[0]!.getAttribute('aria-pressed')).toBe('false');
+    expect(btns[0]!.textContent).not.toContain('✓');
+  });
+});
+
+describe('PU-01c: base.css のボタン', () => {
+  function block(selector: string): string {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp(`${escaped}\\s*\\{([^}]*)\\}`);
+    return baseCss().match(re)?.[1] ?? '';
+  }
+
+  it('.btn:active に transform: translateY(4px)', () => {
+    expect(block('.btn:active')).toContain('transform: translateY(4px)');
+  });
+
+  it('.btn に -webkit-appearance: none と touch-action: manipulation と -webkit-tap-highlight-color: transparent', () => {
+    const b = block('.btn');
+    expect(b).toContain('-webkit-appearance: none');
+    expect(b).toContain('touch-action: manipulation');
+    expect(b).toContain('-webkit-tap-highlight-color: transparent');
+  });
+
+  it('.btn--locked は点線の枠 (lock-border)、.choice の規則がある', () => {
+    expect(block('.btn--locked')).toContain('dashed');
+    expect(block('.btn--locked')).toContain('var(--c-lock-border)');
+    expect(block('.choice')).not.toBe('');
   });
 });

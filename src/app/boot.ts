@@ -5,9 +5,17 @@ import { runMigrations } from '../core/storage/migrations';
 import { MIGRATIONS } from '../core/storage/migrations';
 import { CURRENT_SCHEMA_VERSION } from '../core/storage/types';
 
+let touchstartInstalled = false;
+
 export type BootResult = { ok: true; ctx: AppContext } | { ok: false; reason: string };
 
 export async function boot(opts: { dbName: string; clock: Clock; navigate: (p: string) => void }): Promise<BootResult> {
+  // 0. iPad Safari で :active を効かせる空の touchstart リスナーを1回だけ付ける
+  if (!touchstartInstalled) {
+    touchstartInstalled = true;
+    document.addEventListener('touchstart', () => {}, { passive: true });
+  }
+
   // 1. AppContext を作る
   const ctx = await createAppContext({ dbName: opts.dbName, clock: opts.clock, navigate: opts.navigate });
 

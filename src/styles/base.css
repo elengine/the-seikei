@@ -123,27 +123,88 @@ body {
 /* ---- 部品用のクラス ---- */
 
 .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  box-sizing: border-box;
   min-height: var(--btn-min-h);
   min-width: var(--btn-min-w);
-  padding: 0 calc(var(--gap) * 1.5);
-  border-radius: var(--radius);
-  border: none;
+  padding: 0 var(--sp-6);
+  border-radius: var(--r-button);
+  border: 2px solid var(--c-ai);
   font-size: var(--fs-button);
   font-weight: 700;
   font-family: inherit;
-  color: var(--c-white);
-  background: var(--c-machine-dark);
+  color: var(--c-ai);
+  background: var(--c-white);
+  box-shadow: 0 4px 0 var(--c-btn-shadow);
   cursor: pointer;
-  transition: transform 0.08s ease;
+  transition:
+    transform 0.1s ease,
+    box-shadow 0.1s ease,
+    background-color 0.1s ease;
+  -webkit-appearance: none;
+  appearance: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .btn:active {
-  transform: translateY(2px);
+  transform: translateY(4px);
+  box-shadow: 0 1px 0 var(--c-btn-shadow);
 }
 
 .btn:focus-visible {
   outline: 3px solid var(--c-ai);
   outline-offset: 2px;
+}
+
+.btn__icon {
+  flex: none;
+}
+
+.btn--large {
+  min-height: 72px;
+  font-size: var(--fs-label);
+}
+
+.btn--secondary {
+  color: var(--c-ai);
+  background: var(--c-white);
+  border-color: var(--c-ai);
+}
+
+.btn--primary {
+  color: var(--c-white);
+  background: var(--c-ai);
+  border-color: var(--c-ai);
+  box-shadow: 0 5px 0 var(--c-ai-shadow);
+}
+
+.btn--primary:active {
+  background: var(--c-ai-pressed);
+  box-shadow: 0 1px 0 var(--c-ai-shadow);
+}
+
+.btn--danger {
+  color: var(--c-shu);
+  background: var(--c-white);
+  border-color: var(--c-shu);
+}
+
+/* 押せない形: 薄くして消さず、点線の枠にする (押すと理由を出す) */
+.btn.btn--locked {
+  color: var(--c-muted);
+  background: var(--c-white);
+  border: 2px dashed var(--c-lock-border);
+  box-shadow: none;
+}
+
+.btn.btn--locked:active {
+  transform: none;
 }
 
 .btn:disabled {
@@ -153,10 +214,51 @@ body {
   transform: none;
 }
 
-.btn--secondary {
+/* choice (選ぶもの): 横につながった藍の枠 */
+.choice {
+  display: inline-flex;
+  border: 2px solid var(--c-ai);
+  border-radius: var(--r-button);
+  overflow: hidden;
+  background: var(--c-white);
+}
+
+.choice__item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-1);
+  min-height: 60px;
+  min-width: 96px;
+  padding: 0 var(--sp-6);
+  border: none;
+  border-radius: 0;
+  font-size: var(--fs-button);
+  font-weight: 700;
+  font-family: inherit;
   color: var(--c-ai);
   background: var(--c-white);
-  border: 3px solid var(--c-ai);
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.choice__item + .choice__item {
+  border-left: 2px solid var(--c-ai);
+}
+
+.choice__item[aria-pressed='true'] {
+  color: var(--c-white);
+  background: var(--c-ai);
+}
+
+.choice__item:focus-visible {
+  outline: 3px solid var(--c-ai);
+  outline-offset: -6px;
 }
 
 .dialog-backdrop {
