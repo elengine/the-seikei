@@ -48,7 +48,7 @@ export function createGameScreen(ctx: AppContext): Screen {
         // チュートリアル (settings.tutorialSeen[id] が true でなければ見せる)
         const settings = ctx.settings.get();
         if (settings.tutorialSeen[id] !== true) {
-          await showTutorial(root, module.tutorial);
+          await showTutorial(root, module.tutorial, { renderText: (s) => ctx.terms.render(s) });
           if (disposed) {
             return; // 表示中に離れた
           }

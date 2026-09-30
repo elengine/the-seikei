@@ -1,6 +1,7 @@
 import type { Content } from '../../core/content/content';
 import type { CreelState, CreelAction } from './logic';
 import { canHint } from './logic';
+import { HINT_MIN_CHECKS } from './params';
 import { toRuns, splitRepeat } from '../../core/domain/stripe';
 
 export interface CreelPanel {
@@ -119,8 +120,13 @@ export function createCreelPanel(parent: HTMLElement, opts: {
 
   /** 状態に合わせて表示を更新する */
   function render(s: CreelState): void {
-    // ヒントの押せる見た目
+    // ヒントの押せる見た目と、押せない理由 (あと何回「確認する」が必要か)
     hintBtn.disabled = !canHint(s);
+    if (s.checks < HINT_MIN_CHECKS) {
+      hintBtn.textContent = `ヒント(あと ${HINT_MIN_CHECKS - s.checks} 回)`;
+    } else {
+      hintBtn.textContent = 'ヒント';
+    }
 
     // 1. 依頼書。くりかえし (times>=2 かつ unit.length>=2) なら「1リピート分」の表にして、
     //    その下に「↻ ここまでを N 回くりかえす(ぜんぶで M 本)」の1行を足す

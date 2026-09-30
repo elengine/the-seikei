@@ -47,7 +47,7 @@ export function createController(parent: HTMLElement, deps: GameDeps, props: Gam
     title: deps.terms.t('game.creel'),
     onBack: () => handleBack(),
     onHelp: () => {
-      void showTutorial(frame.root, opts.tutorial, {}).then(() => undefined);
+      void showTutorial(frame.root, opts.tutorial, { renderText: (s) => deps.terms.render(s) }).then(() => undefined);
     },
     logicalW: 1000,
     logicalH: 750,

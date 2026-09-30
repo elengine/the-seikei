@@ -358,3 +358,30 @@ describe('createCreelPanel', () => {
     });
   });
 });
+
+describe('T1-20: ヒントボタンの文字に条件を出す', () => {
+  it('最初は「ヒント(あと 2 回)」で押せない。1回確認して ✕ があると「ヒント(あと 1 回)」。2回で「ヒント」になり押せる', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const onAction = vi.fn();
+    const panel = createCreelPanel(parent, { content, onAction });
+    let s = s2State();
+    // 最初 (checks 0)
+    panel.update(s);
+    const hint0 = parent.querySelector<HTMLButtonElement>('[data-testid="creel-hint"]')!;
+    expect(hint0.textContent).toBe('ヒント(あと 2 回)');
+    expect(hint0.disabled).toBe(true);
+    // 1回確認 (✕ が出る)
+    const wrong: CreelState = { ...s, placed: ['shiro-a', 'kon-a', null, null, null, null, null, null] };
+    s = reduce(wrong, { type: 'check' });
+    panel.update(s);
+    expect(hint0.textContent).toBe('ヒント(あと 1 回)');
+    expect(hint0.disabled).toBe(true);
+    // 2回確認 → 使える
+    s = reduce(s, { type: 'check' });
+    panel.update(s);
+    expect(hint0.textContent).toBe('ヒント');
+    expect(hint0.disabled).toBe(false);
+    panel.destroy();
+  });
+});

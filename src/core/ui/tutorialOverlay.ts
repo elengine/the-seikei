@@ -12,10 +12,12 @@ export function showTutorial(
     nextLabel?: string; // 既定「次へ」
     startLabel?: string; // 既定「始める」
     onPage?: () => void; // ページ送りのたび (効果音用)
+    renderText?: (text: string) => string; // 文の置き換え ({{…}} を呼び名に)。無ければそのまま
   } = {},
 ): Promise<void> {
   const nextLabel = opts.nextLabel ?? '次へ';
   const startLabel = opts.startLabel ?? '始める';
+  const renderText = opts.renderText ?? ((text: string) => text);
   const total = spec.pages.length;
 
   return new Promise((resolve) => {
@@ -62,7 +64,7 @@ export function showTutorial(
       if (p === undefined) {
         return;
       }
-      text.textContent = p.text;
+      text.textContent = renderText(p.text);
       counter.textContent = `${page + 1} / ${total}`;
       if (ctx !== null) {
         ctx.clearRect(0, 0, canvasW, canvasH);

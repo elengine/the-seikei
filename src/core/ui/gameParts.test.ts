@@ -545,3 +545,34 @@ describe('T1-11c: 回転したときの配置の遅れ (parent を ResizeObserve
     }
   }
 });
+
+describe('T1-20: showTutorial の renderText (呼び名の置き換え)', () => {
+  function specWith(text: string): TutorialSpec {
+    return { pages: [{ draw: () => undefined, text }] };
+  }
+
+  it('renderText を渡すと、表示される文が置き換わる', async () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const p = showTutorial(parent, specWith('{{spindle}}に触れると{{cone}}が立ちます'), {
+      renderText: (s: string) => s.replace('{{spindle}}', '軸').replace('{{cone}}', 'コーン'),
+    });
+    const text = parent.querySelector('.tutorial__text')!;
+    expect(text.textContent).toBe('軸に触れるとコーンが立ちます');
+    // 閉じる
+    const start = Array.from(parent.querySelectorAll('button')).find((b) => b.textContent === '始める')!;
+    start.click();
+    await p;
+  });
+
+  it('renderText を渡さないと、そのまま', async () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const p = showTutorial(parent, specWith('{{spindle}}に触れる'), {});
+    const text = parent.querySelector('.tutorial__text')!;
+    expect(text.textContent).toBe('{{spindle}}に触れる');
+    const start = Array.from(parent.querySelectorAll('button')).find((b) => b.textContent === '始める')!;
+    start.click();
+    await p;
+  });
+});
