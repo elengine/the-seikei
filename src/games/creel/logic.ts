@@ -26,6 +26,10 @@ export type CreelAction =
   | { type: 'selectRemove' }
   | { type: 'selectInspect' }
   | { type: 'tapCell'; index: number }
+  | { type: 'place'; index: number; yarn: YarnTypeId } // 引っぱって嵌める (入れ替えを含む)
+  | { type: 'removePeg'; index: number } // 引っぱって外す
+  | { type: 'movePeg'; from: number; to: number } // 軸から別の軸へ
+  | { type: 'pressPeg'; index: number } // 押すだけ: 空の軸なら選んでいる箱の糸を立てる、糸のある軸なら品番の吹き出し
   | { type: 'check' }
   | { type: 'hint' }
   | { type: 'clearInspect' };
@@ -73,6 +77,11 @@ export function init(puzzle: CreelPuzzle, content: Content): CreelState {
   };
 }
 
+/** marks のその軸の ✕ を消す */
+function clearMark(marks: CreelState['marks'], index: number): CreelState['marks'] {
+  return marks === null ? null : { wrong: removeValue(marks.wrong, index), empty: removeValue(marks.empty, index) };
+}
+
 function removeValue(list: number[], index: number): number[] {
   return list.filter((n) => n !== index);
 }
@@ -113,6 +122,47 @@ export function reduce(s: CreelState, a: CreelAction): CreelState {
       }
       // 調べる: 立っているコーンの品番を吹き出しで見せる
       return { ...s, inspected: s.placed[a.index] !== null ? a.index : null };
+    }
+    case 'place': {
+      if (a.index < 0 || a.index >= s.placed.length) {
+        return s;
+      }
+      const placed = [...s.placed];
+      placed[a.index] = a.yarn;
+      return { ...s, placed, tool: { kind: 'box', yarn: a.yarn }, marks: clearMark(s.marks, a.index), inspected: null };
+    }
+    case 'removePeg': {
+      if (a.index < 0 || a.index >= s.placed.length || s.placed[a.index] === null) {
+        return s;
+      }
+      const placed = [...s.placed];
+      placed[a.index] = null;
+      return { ...s, placed, marks: clearMark(s.marks, a.index), inspected: null };
+    }
+    case 'movePeg': {
+      const n = s.placed.length;
+      const yarn = a.from >= 0 && a.from < n ? s.placed[a.from] : null;
+      if (yarn === null || yarn === undefined || a.to < 0 || a.to >= n || a.from === a.to) {
+        return s;
+      }
+      const placed = [...s.placed];
+      placed[a.to] = yarn;
+      placed[a.from] = null;
+      return { ...s, placed, marks: clearMark(clearMark(s.marks, a.to), a.from), inspected: null };
+    }
+    case 'pressPeg': {
+      if (a.index < 0 || a.index >= s.placed.length) {
+        return s;
+      }
+      if (s.placed[a.index] !== null) {
+        return { ...s, inspected: s.inspected === a.index ? null : a.index };
+      }
+      if (s.tool.kind !== 'box') {
+        return s;
+      }
+      const placed = [...s.placed];
+      placed[a.index] = s.tool.yarn;
+      return { ...s, placed, marks: clearMark(s.marks, a.index), inspected: null };
     }
     case 'check': {
       const marks = compare(s.placed, s.answer);

@@ -187,3 +187,64 @@ describe('isValidResume', () => {
     expect(isValidResume(null, content)).toBe(false);
   });
 });
+
+describe('PU-07a: 引っぱる操作の reducer (place・removePeg・movePeg・pressPeg)', () => {
+  it('place: その軸に糸が立ち (入れ替えでも上書き)、marks のその軸が消え、tool がその箱になる', () => {
+    let s = s1State();
+    s = reduce(s, { type: 'place', index: 2, yarn: 'kon-a' });
+    expect(s.placed[2]).toBe('kon-a');
+    const wrong: CreelState = { ...s, placed: ['kon-a', 'kon-a', 'kon-a', null, null, null], marks: { wrong: [], empty: [3, 4, 5] } };
+    const after = reduce(wrong, { type: 'place', index: 3, yarn: 'kon-a' });
+    expect(after.marks?.empty).toEqual([4, 5]);
+    expect(after.tool).toEqual({ kind: 'box', yarn: 'kon-a' });
+    // 入れ替え: すでに立っている軸に別の糸を立てる
+    const s4 = s4State();
+    const yarns = s4.boxes;
+    let t = reduce(s4, { type: 'place', index: 0, yarn: yarns[0]! });
+    t = reduce(t, { type: 'place', index: 0, yarn: yarns[1]! });
+    expect(t.placed[0]).toBe(yarns[1]);
+  });
+
+  it('removePeg: 軸から外す。範囲外・空の軸は何もしない', () => {
+    let s = reduce(s1State(), { type: 'place', index: 1, yarn: 'kon-a' });
+    const before = s;
+    expect(reduce(s, { type: 'removePeg', index: 4 })).toBe(before); // 空
+    expect(reduce(s, { type: 'removePeg', index: 99 })).toBe(before);
+    s = reduce(s, { type: 'removePeg', index: 1 });
+    expect(s.placed[1]).toBeNull();
+  });
+
+  it('movePeg: from の糸を to へ移し、from は空く。to に糸があれば (前の糸は箱へ戻って) 上書き。from が空なら何もしない', () => {
+    const s4 = s4State();
+    let s = reduce(s4, { type: 'place', index: 0, yarn: s4.boxes[0]! });
+    s = reduce(s, { type: 'place', index: 1, yarn: s4.boxes[1]! });
+    const moved = reduce(s, { type: 'movePeg', from: 0, to: 1 });
+    expect(moved.placed[0]).toBeNull();
+    expect(moved.placed[1]).toBe(s4.boxes[0]);
+    expect(reduce(s, { type: 'movePeg', from: 5, to: 1 })).toBe(s);
+    expect(reduce(s, { type: 'movePeg', from: 0, to: 0 })).toBe(s);
+  });
+
+  it('pressPeg: 空の軸なら選んでいる箱の糸が立つ。糸のある軸なら吹き出し (inspected)。もう一度押すと消える', () => {
+    let s = s1State();
+    s = reduce(s, { type: 'pressPeg', index: 0 });
+    expect(s.placed[0]).toBe('kon-a');
+    expect(s.inspected).toBeNull();
+    s = reduce(s, { type: 'pressPeg', index: 0 });
+    expect(s.inspected).toBe(0);
+    expect(s.placed[0]).toBe('kon-a'); // 上書きや消去はしない
+    s = reduce(s, { type: 'pressPeg', index: 0 });
+    expect(s.inspected).toBeNull();
+  });
+
+  it('done の後はどれも状態を変えない', () => {
+    let s = s1State();
+    for (let i = 0; i < 6; i++) {
+      s = reduce(s, { type: 'place', index: i, yarn: 'kon-a' });
+    }
+    s = reduce(s, { type: 'check' });
+    expect(s.done).toBe(true);
+    expect(reduce(s, { type: 'removePeg', index: 0 })).toBe(s);
+    expect(reduce(s, { type: 'pressPeg', index: 0 })).toBe(s);
+  });
+});
