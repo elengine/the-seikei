@@ -54,10 +54,9 @@ describe('winding panel (T2-06)', () => {
     const root = document.body.querySelector('.pedal-control')!;
     expect(root.className).toContain('disabled');
     // 'winding' なら押せる
-    let w = reduce(s, { type: 'start' });
+    const w = reduce(s, { type: 'start' });
     panel.update(w);
     expect(root.className).not.toContain('disabled');
-    void w;
   });
 
   it('4. 「帯 2 / 5」の文字が current と sections に従う', () => {
