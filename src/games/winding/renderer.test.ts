@@ -538,13 +538,6 @@ describe('winding renderer T2-10 追加修正 a (桟の数)', () => {
 describe('winding renderer T2-10 追加修正 b (上下の端・結び目とピンも回る)', () => {
   const fit = { scale: 1, offsetX: 0, offsetY: 0 };
 
-  /** ellipse の呼ばれ方を集める */
-  function ellipses(rec: FakeRecorder): Array<{ x: number; y: number; rx: number; ry: number }> {
-    return rec.ops
-      .filter((op) => op.k === 'ellipse')
-      .map((op) => ({ x: (op.args?.[0] as number) ?? 0, y: (op.args?.[1] as number) ?? 0, rx: (op.args?.[2] as number) ?? 0, ry: (op.args?.[3] as number) ?? 0 }));
-  }
-
   it('5. ellipse の面を塗る (fill) は下の端の1回だけ。上の端は弧を描くだけ', () => {
     const s = windingState();
     const { ctx, rec } = makeFakeCtx();

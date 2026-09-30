@@ -2,7 +2,7 @@ import type { WindingState } from './logic';
 import { COLORS } from '../../core/ui/tokens';
 import { SECTION_LENGTH, STRIPE_H } from './params';
 import type { StageFit } from '../../core/viewport/viewport';
-import { DRUM_AREA, fontPx, drumSectionY, threadY, CREEL_AREA, CREEL_END_X, DRUM_END_X, PIN_RAIL_X } from './geometry';
+import { DRUM_AREA, fontPx, drumSectionY, threadY, CREEL_AREA, CREEL_END_X, DRUM_END_X } from './geometry';
 
 /**
  * ドラム巻きの盤面のうち、ドラム (円筒) と結び目を描く部品。
