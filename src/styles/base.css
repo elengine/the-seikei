@@ -644,7 +644,7 @@ body {
 
 .creel-order-row {
   display: grid;
-  grid-template-columns: minmax(6em, auto) 1fr auto auto;
+  grid-template-columns: minmax(6em, auto) 1fr auto;
   align-items: center;
   gap: var(--sp-2);
   padding: var(--sp-1) var(--sp-2);
@@ -665,9 +665,9 @@ body {
 
 /* 何本目から何本目か (段階1〜3) */
 .creel-order-row__range {
+  grid-column: 1 / -1; /* 幅が狭くても収まるよう、行の下の段に置く */
   font-size: var(--fs-body);
   color: var(--c-muted);
-  white-space: nowrap;
 }
 
 /* くりかえしの行 (「↻ 繰り返し × N」) */
@@ -725,8 +725,7 @@ body {
   min-width: 0;
 }
 
-/* 一番下: ヒント (左) と 確認する (右・主・広く)。横長で操作欄があふれるときも常に下に見える。
-   (縦長では操作欄の中を縦にスクロールするので、下の media で戻す) */
+/* 一番下: ヒント (左) と 確認する (右・主・広く)。操作欄 (.game-frame__panel) がスクロールしても常に下に見える */
 .creel-actions {
   position: sticky;
   bottom: 0;
@@ -741,19 +740,6 @@ body {
 .creel-actions__check {
   flex: 1;
   min-width: 140px;
-}
-
-@media (orientation: portrait) {
-  .creel-actions {
-    position: static;
-  }
-}
-
-/* 縦長では操作欄の中だけ縦にスクロールできる */
-@media (orientation: portrait) {
-  .creel-panel {
-    overflow-y: auto;
-  }
 }
 
 /* ゲーム画面の枠 (gameFrame) とゲーム画面 */
@@ -1464,5 +1450,28 @@ button {
 @media (min-width: 900px) {
   .list-rows {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* 細い画面のゲームの見出しの行: 「戻る」と「遊び方」を上の段に、題名 (とお題) を下の段に置いて、高さを抑える */
+@media (max-width: 599px) {
+  .game-frame__bar {
+    grid-template-columns: 1fr auto;
+    row-gap: var(--sp-2);
+  }
+
+  .game-frame__bar .screen-header__left {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .game-frame__bar .screen-header__right {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .game-frame__bar .screen-header__center {
+    grid-column: 1 / -1;
+    grid-row: 2;
   }
 }
