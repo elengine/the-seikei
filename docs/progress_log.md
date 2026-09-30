@@ -1125,3 +1125,25 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - 報告直前の確認: npm run check エラー0 / npm test 448 passed・11 skipped / npm run build 成功 / git status に余計なファイルなし
 - コミット: 691b236 (本体)・14eb67d (未使用 import の修正。最初の push で CI が failure になったので出した修正。CI success)
 - ブラウザ確認: 中級・上級は解放前のため実機では確認できず (解放後に確認をお願いしたい)。初級 (maxThreads 1) で糸切れを起こし、drum 側の切れ端を先に押しても「もう一方の切れ端を押してください」→ 反対側でつながり運転に戻ることを確認。複数本の切れ端の描き分け・当たりはテストで担保
+## 2026-10-01 T2-09 追加修正a・b: 引っかかりのメッセージ・+4 の廃止・止まる音・文言と回数
+
+### 追加修正a (コミット d500dba。742ce90 で eslint 修正。CI success)
+- 引っかかりのメッセージ (1): messageFor は s.snagRaised ではなく s.pedal.snag > 0 を見る (引っかかりが戻りきるまで最大2秒出続ける)。controller の updateMessage は「張りの3文以外は待たずにすぐ表示」に変えた (urgent = phase が winding でない、または pedal.snag > 0)
+- 糸量の +4 (2): params.ts の TENSION.yarnDrift を 0 にした。pedal.ts の計算式 (yarnDrift × progress) はビーミングでも使うので残す
+- 止まる音が鳴り続ける (3): controller の loop は「前の phase が 'broken' でなく次が 'broken'」の1回だけ audio.play('stop') を呼ぶ。sounds.ts の stop に低い音 (250Hz・startMs 200・durMs 550) を足し、全体の終わりを 750ms にした
+- テスト (先に RED を確認): controller.test.ts 3件 (引っかかりの文がすぐ出て1秒後も出続ける・戻りきって500ms後に張りの文に戻る・切れたとき stop は1回だけ)、audio.test.ts 1件 (stop の終わりは 700〜800ms)、logic.test.ts 1件 (progress 0 と 0.9 で張りが同じ)
+- 報告直前の確認: check エラー0 / npm test 453 passed・11 skipped / build 成功
+
+### 追加修正b (コミット 078e034。CI success)
+- 文言 (4): mismatch は「その端は別の糸です。同じ糸の両端をつないでください」、tiedOne は「1本つながりました。あと N 本です」(N は残りの本数)
+- mismatches (5): State に mismatches (init 0・isValidResume は 0 以上の整数。無い古いセーブは resume 不可)。結果の成績欄に「違う端を結ぼうとした回数 N回」(星には影響しない)
+- 初級の切れる本数 (6): コードは変えず、P2/README の「糸切れ」の節に採用値 (extraStep 10/8/6・maxThreads 1/2/3) と経緯を書いた。節の見出しに T2-09b・追加修正b を追記し、糸継ぎの説明も複数本のものに替えた
+- テスト (先に RED を確認): logic.test.ts 4件 (mismatch の文言・tiedOne の文言と残りの本数・mismatches が増えると resume できる/無いとできない・成績欄の行)
+- 報告直前の確認: check エラー0 / npm test 457 passed・11 skipped / build 成功
+
+### ブラウザ確認 (preview 4173。IndexedDB seikei-game の recs に records 行を書いて中級・上級を解放)
+- 上級で引っかかりが起きると、メッセージがすぐ「糸が引っかかりました。張りに注意してください」になる (スクショ添付)。2秒ほど出続けることは controller.test 1・2 で担保 (実機では上級 22秒/本で巻き終える方が早かった)
+- 上級で張りを強くして 2本切れた: 1手目 (クリール側) → 2手目 (同じ糸のドラム側) で「1本つながりました。あと 1 本です」→ 残りを結ぶと運転に戻った。スクショ添付
+- mismatch の文言 (「その端は別の糸です」) はテストで担保。実機では 1手目のやり直しの場面を作れなかった
+- 止まる音の 0.75 秒は headless では聞こえないため、audio.test 2 で担保
+
