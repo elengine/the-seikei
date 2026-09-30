@@ -41,7 +41,6 @@ export function drawDrum(
   grads.addColorStop(1, COLORS.machineDark);
   ctx.fillStyle = grads;
   for (let i = 0; i < s.sections; i++) {
-    const len = s.lengths[i] ?? 0;
     const finished = (i < s.current || s.phase === 'done') && s.phase !== 'ready';
     if (finished) continue; // 桟を飛ばしてよいのは巻き終えた区画だけ
     const sy = drumSectionY(i, s.sections);
