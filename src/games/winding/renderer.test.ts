@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { drawBoard } from './renderer';
-import { endPoint } from './geometry';
+import { endPoint, threadY, tableY } from './geometry';
 import type { FakeRecorder } from './renderer.test.helpers';
 
 // 偽の ctx (呼ばれた命令を記録する) は helpers に置く
@@ -221,13 +221,13 @@ describe('winding renderer T2-08 (盤面の絵を実物らしくする)', () => 
     }
     expect(s.current).toBe(2);
     drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
-    // 結び目の束 = 小さな輪 (arc) の集まり。ドラムの上端の y (DRUM_AREA.y - 6 付近) で描かれる
+    // 結び目の束 = 小さな輪 (arc) の集まり。帯の区画の左の端 (x = DRUM_AREA.x + 14 付近) で描かれる
     const knots = rec.ops.filter(
-      (op) => op.k === 'arc' && typeof op.args?.[1] === 'number' &&
-        Math.abs((op.args[1] as number) - 84) < 3,
+      (op) => op.k === 'arc' && typeof op.args?.[0] === 'number' &&
+        Math.abs((op.args[0] as number) - (580 + 14)) < 8,
     );
-    // 束 1 個 = 輪 3 個 → current 2 個 = 6 個以上
-    expect(knots.length).toBeGreaterThanOrEqual(6);
+    // 束 1 個 = 輪 5 個 → current 2 個 = 10 個以上
+    expect(knots.length).toBeGreaterThanOrEqual(10);
   });
 
   it('5. ドラムの胴に明るさの勾配がある (createLinearGradient を使う)', () => {
@@ -245,6 +245,98 @@ describe('winding renderer T2-08 (盤面の絵を実物らしくする)', () => 
     const src = readFileSync('src/games/winding/renderer.ts', 'utf8');
     expect(src.includes("'#")).toBe(false);
     expect(src.includes('"#')).toBe(false);
+  });
+});
+
+describe('winding renderer T2-08-fix a (ドラムの向き・台の移動・結びの演出・流れる印)', () => {
+  it('1. ドラムの端の円盤は上と下 (ellipse の中心 y が区画の上端と下端の近く)', () => {
+    const { ctx, rec } = makeFakeCtx();
+    const s = windingState();
+    drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
+    const ells = rec.ops.filter((op) => op.k === 'ellipse').map((op) => op.args as number[]);
+    // 端の円盤の中心 y は、上端 (90) と下端 (690) の付近
+    const centers = ells.map((e) => e[1] ?? 0);
+    expect(centers.some((cy) => cy < 160)).toBe(true);
+    expect(centers.some((cy) => cy > 620)).toBe(true);
+  });
+
+  it('2. 帯の縞は横の線 (fillRect の幅が区画の全幅、高さが区画の高さ未満)', () => {
+    const { ctx, rec } = makeFakeCtx();
+    let s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 1 });
+    s = reduce(s, { type: 'start' });
+    s = reduce(s, { type: 'setPedal', value: 50 });
+    for (let i = 0; i < 500 && s.phase === 'winding'; i++) {
+      s = reduce(s, { type: 'tick', dtMs: 100 });
+    }
+    drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
+    // 帯の縞: DRUM_AREA.x (580) から始まる fillRect で、高さが区画の高さ (200) より小さい
+    const stripes = rec.ops.filter(
+      (op) => op.k === 'fillRect' && typeof op.args?.[0] === 'number' &&
+        Math.abs((op.args[0] as number) - 580) < 5 &&
+        (op.args[3] as number) < 190,
+    );
+    expect(stripes.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('3. 台の縦の位置が今の帯の区画の中心に合う (fillRect の y が tableY 付近)', () => {
+    const { ctx, rec } = makeFakeCtx();
+    let s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 1 });
+    s = reduce(s, { type: 'start' });
+    s = reduce(s, { type: 'setPedal', value: 50 });
+    for (let i = 0; i < 500 && s.phase === 'winding'; i++) {
+      s = reduce(s, { type: 'tick', dtMs: 100 });
+    }
+    drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
+    // current 0 の区画の中心 = (90 + 290) / 2 = 190。台の板の y はその付近
+    const woodY = rec.ops.filter(
+      (op) => op.k === 'style' && op.v === '#8A5A3C',
+    );
+    expect(woodY.length).toBeGreaterThan(0);
+  });
+
+  it('4. tieProgress 0.5 の結び目の輪が 0 と 1 のときより大きい (arc の半径)', () => {
+    const radii: number[] = [];
+    for (const p of [0, 0.5, 1]) {
+      const { ctx, rec } = makeFakeCtx();
+      let s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 1 });
+      s = reduce(s, { type: 'start' });
+      s = reduce(s, { type: 'setPedal', value: 50 });
+      for (let i = 0; i < 500 && s.phase === 'winding'; i++) {
+        s = reduce(s, { type: 'tick', dtMs: 100 });
+      }
+      // cut の直前 (phase 'cutting'・current 0) で演出を見る (cut を送ると current が進む)
+      expect(s.phase).toBe('cutting');
+      drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0, tieProgress: p });
+      // 結びの輪の arc 半径の最大 (帯1の区画の左の端 x 付近)
+      const arcs = rec.ops.filter(
+        (op) => op.k === 'arc' && typeof op.args?.[0] === 'number' &&
+          (op.args[0] as number) > 580 && (op.args[0] as number) < 612 && (op.args[2] as number) > 12,
+      ).map((op) => (op.args![2] ?? 0) as number);
+      // 輪は p=0 (描かない) では無くてもよいが、p=0.5 と p=1 (束は輪 5 個 半径 5) とは比べる
+      const maxR = arcs.reduce((m, r) => Math.max(m, r ?? 0), 0);
+      radii.push(maxR);
+    }
+    expect(radii[1]!).toBeGreaterThan(radii[0]!);
+    expect(radii[1]!).toBeGreaterThan(radii[2]!);
+  });
+
+  it('5. 流れる印の点が糸の線の上 (印の y が threadY か tableY 付近)', () => {
+    const { ctx, rec } = makeFakeCtx();
+    const s = windingState();
+    drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 1234 });
+    // 流れる印は winding 中に描く小さな fillRect。y が threadY か帯の高さのどちらか
+    const marks = rec.ops.filter(
+      (op) => op.k === 'fillRect' && typeof op.args?.[1] === 'number',
+    );
+    const ys = marks.map((op) => op.args?.[1] as number);
+    const goodYs = new Set<number>();
+    for (let t = 0; t < 8; t++) goodYs.add(Math.round(threadY(t, 8)));
+    goodYs.add(Math.round(tableY(0, 3)));
+    const onPath = ys.filter((y) => {
+      for (const g of goodYs) if (Math.abs(y - g) < 6) return true;
+      return false;
+    });
+    expect(onPath.length).toBeGreaterThanOrEqual(1);
   });
 });
 

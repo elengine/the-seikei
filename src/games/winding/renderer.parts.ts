@@ -2,20 +2,22 @@ import type { WindingState } from './logic';
 import { COLORS } from '../../core/ui/tokens';
 import { SECTION_LENGTH } from './params';
 import type { StageFit } from '../../core/viewport/viewport';
-import { DRUM_AREA, fontPx } from './geometry';
+import { DRUM_AREA, fontPx, drumSectionY } from './geometry';
 
 /**
- * ドラム巻きの盤面のうち、ドラム (円筒) と結び目を描く部品 (T2-08)。
- * renderer.ts が 300 行以内に収まるように分けた。色は COLORS と糸の色だけ。
+ * ドラム巻きの盤面のうち、ドラム (円筒) と結び目を描く部品。
+ * T2-08 追加修正a: ドラムの軸は縦。両端の円盤は上と下、木の桟は縦長の板を左右に並べる。
+ * 帯の区画は上から下へ等分。巻いた帯は横の縞。結び目の束は各帯の区画の左の端。
+ * 色は COLORS と糸の色だけ。
  */
 
-/** 帯の巻き終わりの結び目の束の大きさ (論理座標) */
+/** 結び目の束の大きさ (論理座標) */
 const KNOT = { w: 10, h: 26 } as const;
 
-/** ドラムの円筒の見た目の半分の厚み (帯の面の上下のふくらみ) */
+/** ドラムの円筒の見た目の半分の厚み (帯の面の左右のふくらみ) */
 const DRUM_BULGE = 10;
 
-/** 4. ドラム: 横向き円筒。明るさの勾配・木の桟・端の円盤・帯の縞 */
+/** 4. ドラム: 縦向き円筒。明るさの勾配は横向き (中央を明るく、左右の端を暗く) */
 export function drawDrum(
   ctx: CanvasRenderingContext2D,
   fit: StageFit,
@@ -25,37 +27,13 @@ export function drawDrum(
   tieProgress: number,
 ): void {
   const { x, y, w, h } = DRUM_AREA;
-  const secW = w / s.sections;
-  // 帯の面の上下のふくらみ
-  const topY = y - DRUM_BULGE;
-  const botY = y + h + DRUM_BULGE;
+  const secH = h / s.sections;
+  // 帯の面の左右のふくらみ
+  const leftX = x - DRUM_BULGE;
+  const rightX = x + w + DRUM_BULGE;
 
-  // 帯の区画 (先に塗る。すき間を作らない)
-  for (let i = 0; i < s.sections; i++) {
-    const bx = x + secW * i;
-    const isCurrent = i === s.current;
-    const len = s.lengths[i] ?? 0;
-    if (isCurrent && s.phase === 'ready') continue;
-    const full = i < s.current || s.phase === 'done';
-    const ratio = full ? 1 : Math.min(1, len / SECTION_LENGTH);
-    if (ratio <= 0 && !full) continue;
-    // 巻いた帯は糸の色の縦の縞 (円周の方向)。濃さは巻いた割合で上がる
-    for (let k = 0; k < hexes.length; k++) {
-      ctx.globalAlpha = 0.35 + 0.65 * ratio;
-      ctx.fillStyle = hexes[k] ?? COLORS.sumiSub;
-      const stripeW = secW / hexes.length;
-      ctx.fillRect(bx + stripeW * k, topY, stripeW, botY - topY);
-    }
-    ctx.globalAlpha = 1;
-    // 帯の上下のふくらみ (割合に比例して最大 6)
-    const bulge = 6 * ratio;
-    ctx.fillStyle = base;
-    ctx.fillRect(bx, topY - bulge, secW, fontPx(fit, 2));
-    ctx.fillRect(bx, botY + bulge - fontPx(fit, 2), secW, fontPx(fit, 2));
-  }
-
-  // まだ巻いていない部分の胴: 明るさの勾配 + 木の桟 (すき間から機械の色が見える)
-  const grads = ctx.createLinearGradient(0, topY, 0, botY);
+  // 胴の木の桟 (まだ巻いていない区画)。明るさの勾配は横向き
+  const grads = ctx.createLinearGradient(leftX, 0, rightX, 0);
   grads.addColorStop(0, COLORS.machineDark);
   grads.addColorStop(0.3, COLORS.machineLight);
   grads.addColorStop(0.7, COLORS.machine);
@@ -65,77 +43,121 @@ export function drawDrum(
     const len = s.lengths[i] ?? 0;
     const started = i < s.current || s.phase === 'done' || (i === s.current && len > 0);
     if (started && s.phase !== 'ready') continue;
-    const bx = x + secW * i;
-    ctx.fillRect(bx, topY, secW, botY - topY);
-    // 桟 (横長の板を上から下へすき間をあけて並べる)
+    const sy = drumSectionY(i, s.sections);
+    ctx.fillRect(leftX, sy, rightX - leftX, secH);
+    // 桟 (縦長の板を左右にすき間をあけて並べる)
     ctx.fillStyle = COLORS.wood;
-    const slatH = fontPx(fit, 12);
+    const slatW = fontPx(fit, 12);
     const gap = fontPx(fit, 14);
-    for (let sy = topY + fontPx(fit, 8); sy + slatH < botY; sy += slatH + gap) {
-      ctx.fillRect(bx + fontPx(fit, 6), sy, secW - fontPx(fit, 12), slatH);
+    for (let sx = leftX + fontPx(fit, 8); sx + slatW < rightX; sx += slatW + gap) {
+      ctx.fillRect(sx, sy + fontPx(fit, 6), slatW, secH - fontPx(fit, 12));
     }
     ctx.fillStyle = grads;
   }
 
-  // 端の丸い面 (灰色の金属の円盤) + 放射状の腕
-  for (const ex of [x - fontPx(fit, 4), x + w - fontPx(fit, 4)]) {
-    const ry = (botY - topY) / 2;
+  // 帯の区画 (巻いた帯は横の縞。糸はドラムの周りを回るので、この向きでは横の線になる)
+  for (let i = 0; i < s.sections; i++) {
+    const sy = drumSectionY(i, s.sections);
+    const isCurrent = i === s.current;
+    const len = s.lengths[i] ?? 0;
+    const full = i < s.current || s.phase === 'done';
+    if (isCurrent && s.phase === 'ready') continue;
+    const ratio = full ? 1 : Math.min(1, len / SECTION_LENGTH);
+    if (ratio <= 0 && !full) continue;
+    // 縞の濃さ: 巻いた割合で 0.15 → 1 (巻き始めは薄い。T2-08 追加修正a)
+    const alpha = full ? 1 : 0.15 + 0.85 * ratio;
+    const stripeH = secH / hexes.length;
+    for (let k = 0; k < hexes.length; k++) {
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = hexes[k] ?? COLORS.sumiSub;
+      ctx.fillRect(leftX, sy + stripeH * k, rightX - leftX, stripeH);
+    }
+    ctx.globalAlpha = 1;
+    // 完了した帯は縁に濃い線を引いて「完了」を分かるようにする
+    if (full) {
+      ctx.strokeStyle = COLORS.sumi;
+      ctx.lineWidth = fontPx(fit, 2);
+      ctx.strokeRect(leftX, sy, rightX - leftX, secH);
+    }
+    // 帯の左右のふくらみ (割合に比例して最大 6)
+    const bulge = 6 * ratio;
+    ctx.fillStyle = base;
+    ctx.fillRect(leftX - bulge, sy, fontPx(fit, 2), secH);
+    ctx.fillRect(rightX + bulge - fontPx(fit, 2), sy, fontPx(fit, 2), secH);
+  }
+
+  // 端の丸い面 (灰色の金属の円盤) は上と下。放射状の腕
+  for (const ey of [y - fontPx(fit, 4), y + h - fontPx(fit, 4)]) {
+    const rx = (rightX - leftX) / 2;
+    const cy = ey + fontPx(fit, 4);
     ctx.fillStyle = COLORS.steel;
     ctx.beginPath();
-    ctx.ellipse(ex + fontPx(fit, 4), y + h / 2, fontPx(fit, 12), ry, 0, 0, Math.PI * 2);
+    ctx.ellipse(x + w / 2, cy, rx, fontPx(fit, 12), 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = COLORS.sumiSub;
     ctx.lineWidth = fontPx(fit, 2);
     for (let a = 0; a < 6; a++) {
       const ang = (Math.PI / 3) * a;
       ctx.beginPath();
-      ctx.moveTo(ex + fontPx(fit, 4), y + h / 2);
-      ctx.lineTo(ex + fontPx(fit, 4) + Math.cos(ang) * fontPx(fit, 10), y + h / 2 + Math.sin(ang) * ry * 0.85);
+      ctx.moveTo(x + w / 2, cy);
+      ctx.lineTo(x + w / 2 + Math.cos(ang) * rx * 0.85, cy + Math.sin(ang) * fontPx(fit, 10));
       ctx.stroke();
     }
   }
 
-  // ピン (灰みの緑の横木 + 鋼のピン。帯ごとに1本。下の方)
+  // ピン (灰みの緑の縦木 + 鋼のピン。帯ごとに1本。ドラムの左の縁に沿って縦に)
   ctx.fillStyle = COLORS.machineDark;
-  ctx.fillRect(x - fontPx(fit, 8), y + h + DRUM_BULGE + fontPx(fit, 10), w + fontPx(fit, 16), fontPx(fit, 10));
+  ctx.fillRect(x - DRUM_BULGE - fontPx(fit, 10), y, fontPx(fit, 10), h + fontPx(fit, 16));
   for (let i = 0; i < s.sections; i++) {
-    const px = drumPinX(i, s.sections);
+    const py = drumSectionPinY(i, s.sections);
     ctx.fillStyle = COLORS.steel;
-    ctx.fillRect(px - fontPx(fit, 3), y + h + DRUM_BULGE, fontPx(fit, 6), fontPx(fit, 12));
-    // 巻き始めた帯のピンには糸の束が掛かる
+    ctx.fillRect(x - DRUM_BULGE - fontPx(fit, 12), py - fontPx(fit, 3), fontPx(fit, 12), fontPx(fit, 6));
+    // 巻いている帯のピンには糸の束が掛かる
     if (i === s.current && s.phase === 'winding') {
       ctx.strokeStyle = base;
       ctx.lineWidth = fontPx(fit, 1.5);
       ctx.beginPath();
       for (let k = 0; k < 4; k++) {
-        ctx.moveTo(px - fontPx(fit, 5) + fontPx(fit, 2.5) * k, y + h + DRUM_BULGE + fontPx(fit, 10));
-        ctx.lineTo(px - fontPx(fit, 5) + fontPx(fit, 2.5) * k, y + h + DRUM_BULGE + fontPx(fit, 22));
+        ctx.moveTo(x - DRUM_BULGE - fontPx(fit, 10), py - fontPx(fit, 5) + fontPx(fit, 2.5) * k);
+        ctx.lineTo(x - DRUM_BULGE - fontPx(fit, 22), py - fontPx(fit, 5) + fontPx(fit, 2.5) * k);
       }
       ctx.stroke();
     }
   }
 
-  // 結び目 (巻き終えた帯の区画の上端)
+  // 結び目 (巻き終えた帯の区画の左の端) + 結ぶ演出の輪
   for (let i = 0; i < s.sections; i++) {
+    const kx = x + fontPx(fit, 14);
+    const ky = drumSectionY(i, s.sections) + h / s.sections / 2;
     if (i < s.current || s.phase === 'done') {
-      drawKnot(ctx, fit, x + secW * i + secW / 2, DRUM_AREA.y - 6, base);
+      drawKnot(ctx, fit, kx, ky, base);
     }
     if (i === s.current && s.phase === 'cutting') {
+      // 結ぶ演出: 輪が大きく広がってから結び目の束に縮む (tieProgress 0→1)
       const p = Math.min(1, Math.max(0, tieProgress));
-      ctx.globalAlpha = p;
-      drawKnot(ctx, fit, x + secW * i + secW / 2, DRUM_AREA.y - 6, base);
-      ctx.globalAlpha = 1;
+      if (p > 0 && p < 1) {
+        const r = KNOT.h * (0.5 + 2.5 * Math.sin(p * Math.PI));
+        ctx.strokeStyle = base;
+        ctx.lineWidth = fontPx(fit, 3);
+        ctx.globalAlpha = 1 - p * 0.4;
+        ctx.beginPath();
+        ctx.arc(kx, ky, r, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      } else if (p >= 1) {
+        drawKnot(ctx, fit, kx, ky, base);
+      }
     }
   }
 }
 
-/** 帯 i のピンの x (ドラムの上に等間隔) */
-export function drumPinX(i: number, sections: number): number {
-  const secW = DRUM_AREA.w / sections;
-  return DRUM_AREA.x + secW * i + secW / 2;
+/** 帯 i のピンの y (ドラムの左の縁に、帯ごとの区画の高さ) */
+export function drumSectionPinY(i: number, sections: number): number {
+  const secH = DRUM_AREA.h / sections;
+  return DRUM_AREA.y + secH * i + secH / 2;
 }
 
-/** 結び目の束 (糸の色の小さな輪を3〜5個重ねた形) */
+/** 結び目の束 (糸の色の小さな輪を3〜5個重ねた形。区画の左の端に置く) */
 function drawKnot(
   ctx: CanvasRenderingContext2D,
   fit: StageFit,
@@ -147,7 +169,7 @@ function drawKnot(
   ctx.lineWidth = fontPx(fit, 2);
   for (let i = 0; i < 5; i++) {
     ctx.beginPath();
-    ctx.arc(x + (i - 2) * KNOT.w * 0.4, y, KNOT.h / 4, 0, Math.PI * 2);
+    ctx.arc(x, y + (i - 2) * KNOT.h * 0.4, KNOT.w / 2, 0, Math.PI * 2);
     ctx.stroke();
   }
 }

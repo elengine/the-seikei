@@ -5,11 +5,12 @@ import { COLORS, FONT_FAMILY } from '../../core/ui/tokens';
 import { speedOf } from '../../core/mechanics/pedal';
 import { TENSION, SECTION_LENGTH } from './params';
 import type { StageFit } from '../../core/viewport/viewport';
-import { CREEL_AREA, TABLE_AREA, DRUM_AREA, TOP_AREA, CREEL_END_X, DRUM_END_X, REED_X, REED_Y, THREAD_SHEET_HALF, threadY, toPx, fontPx } from './geometry';
-import { drawDrum, drumPinX } from './renderer.parts';
+import { CREEL_AREA, TABLE_AREA, DRUM_AREA, TOP_AREA, CREEL_END_X, DRUM_END_X, REED_X, THREAD_SHEET_HALF, REED_RISE, threadY, drumSectionY, tableY, pointOnPath, toPx, fontPx } from './geometry';
+import { drawDrum, drumSectionPinY } from './renderer.parts';
 
 /**
- * ドラム巻きの盤面の描画 (P2 T2-05・T2-08: 実物の整経機に合わせた絵)。
+ * ドラム巻きの盤面の描画 (P2 T2-05・T2-08・T2-08 追加修正a)。
+ * ドラムの軸は縦。台と筬は今の帯の区画の高さに置く。
  * 論理座標で描く部分は ctx の変換 (translate + scale) で画面に合わせる。
  * 文字は、変換を戻したあとに論理座標の点を toPx で画面の点に直して描く (大きさは画面 px)。
  * 色は COLORS と糸の色 (hex) だけ。明るさは globalAlpha と勾配で変える。
@@ -60,7 +61,7 @@ export function drawBoard(
 
   drawCreel(ctx, fit, s, opts, hexes);
   drawThreads(ctx, fit, s, opts, base);
-  drawTable(ctx, fit);
+  drawTable(ctx, fit, s);
   drawDrum(ctx, fit, s, hexes, base, opts.tieProgress ?? 0);
   drawDial(ctx, fit, s);
   drawLamp(ctx, s);
@@ -139,7 +140,7 @@ function drawCreel(
   }
 }
 
-/** 2. 糸: コーンから筬へ扇のように集まり、帯の幅にまとまってドラムへ */
+/** 2. 糸: コーンから筬へ扇のように集まり、帯の幅にまとまって今の帯の区画へ */
 function drawThreads(
   ctx: CanvasRenderingContext2D,
   fit: StageFit,
@@ -148,57 +149,58 @@ function drawThreads(
   base: string,
 ): void {
   const creelX = CREEL_AREA.x + CREEL_AREA.w - fontPx(fit, 60); // コーンの右あたり
+  const ty = tableY(s.current, s.sections);
   ctx.strokeStyle = base;
   ctx.lineWidth = fontPx(fit, 1);
   ctx.beginPath();
   for (let t = 0; t < opts.threadCount; t++) {
     const y = threadY(t, opts.threadCount);
-    // コーン → 筬へ。筬で帯の幅 (THREAD_SHEET_HALF の2倍) にまとまる
-    const reedY = REED_Y + THREAD_SHEET_HALF * ((t / Math.max(1, opts.threadCount - 1)) * 2 - 1);
+    // コーン → クリール側の切れ端 → 筬。筬で帯の幅 (THREAD_SHEET_HALF の2倍) にまとまる
+    const reedY = ty - REED_RISE + THREAD_SHEET_HALF * ((t / Math.max(1, opts.threadCount - 1)) * 2 - 1);
     ctx.moveTo(creelX, y);
     ctx.lineTo(CREEL_END_X, y);
     ctx.lineTo(REED_X, reedY);
   }
   ctx.stroke();
-  // 筬から先は帯の幅にまとまって、今の帯のピンへ
-  const pinX = drumPinX(s.current, s.sections);
+  // 筬から先は帯の幅にまとまって、今の帯の区画へ (横向き)
   ctx.lineWidth = fontPx(fit, 2);
   ctx.beginPath();
   for (const dy of [-THREAD_SHEET_HALF, 0, THREAD_SHEET_HALF]) {
-    ctx.moveTo(REED_X, REED_Y + dy);
-    ctx.lineTo(DRUM_END_X, REED_Y + dy * 0.6);
-    ctx.lineTo(pinX, DRUM_AREA.y + 40);
+    ctx.moveTo(REED_X, ty - REED_RISE + dy);
+    ctx.lineTo(DRUM_END_X, ty + dy * 0.6);
+    ctx.lineTo(DRUM_AREA.x, ty + dy * 0.4);
   }
   ctx.stroke();
-  // 巻いているときは、糸の上に小さな印が流れて動く (速さに比例)
+  // 巻いているときは、糸の線の上に小さな印が流れて動く (速さに比例。T2-08 追加修正a: 印は糸の上に乗る)
   if (s.phase === 'winding') {
     const speed = speedOf(s.pedal, TENSION);
     const offset = ((opts.timeMs / 1000) * speed * 12) % 120;
     ctx.fillStyle = COLORS.sumi;
     for (let t = 0; t < opts.threadCount; t++) {
-      const y = threadY(t, opts.threadCount);
-      ctx.fillRect(CREEL_END_X + offset, y - fontPx(fit, 3), fontPx(fit, 8), fontPx(fit, 6));
+      const p = pointOnPath(t, opts.threadCount, offset / 120, s.current, s.sections);
+      ctx.fillRect(p.x - fontPx(fit, 4), p.y - fontPx(fit, 3), fontPx(fit, 8), fontPx(fit, 6));
     }
   }
 }
 
-/** 3. 中央の台: 脚の付いた長い台と、筬 (くし状の金具) */
-function drawTable(ctx: CanvasRenderingContext2D, fit: StageFit): void {
+/** 3. 中央の台: 脚の付いた台と、筬 (くし状の金具)。今の帯の区画の高さに置く */
+function drawTable(ctx: CanvasRenderingContext2D, fit: StageFit, s: WindingState): void {
   const { x, w } = TABLE_AREA;
-  const tableY = REED_Y + fontPx(fit, 27);
-  const tableH = fontPx(fit, 14);
+  const ty = tableY(s.current, s.sections);
+  const boardY = ty + fontPx(fit, 12);
+  const boardH = fontPx(fit, 12);
   // 台の板 (木)
   ctx.fillStyle = COLORS.wood;
-  ctx.fillRect(x + fontPx(fit, 20), tableY, w - fontPx(fit, 40), tableH);
+  ctx.fillRect(x + fontPx(fit, 20), boardY, w - fontPx(fit, 40), boardH);
   // 脚 (2本)
   ctx.fillStyle = COLORS.machineDark;
-  ctx.fillRect(x + fontPx(fit, 40), tableY + tableH, fontPx(fit, 8), fontPx(fit, 60));
-  ctx.fillRect(x + w - fontPx(fit, 48), tableY + tableH, fontPx(fit, 8), fontPx(fit, 60));
+  ctx.fillRect(x + fontPx(fit, 40), boardY + boardH, fontPx(fit, 8), fontPx(fit, 50));
+  ctx.fillRect(x + w - fontPx(fit, 48), boardY + boardH, fontPx(fit, 8), fontPx(fit, 50));
   // 筬: 台の上に置く。鋼色の枠の中に細い縦の歯
   const reedW = fontPx(fit, 90);
   const reedH = fontPx(fit, 46);
   const reedX = REED_X - reedW / 2;
-  const reedY = REED_Y - reedH / 2;
+  const reedY = ty - REED_RISE - reedH / 2;
   ctx.fillStyle = COLORS.steel;
   ctx.fillRect(reedX, reedY, reedW, reedH);
   ctx.strokeStyle = COLORS.sumiSub;
@@ -237,7 +239,7 @@ function drawLamp(ctx: CanvasRenderingContext2D, s: WindingState): void {
   ctx.fill();
 }
 
-/** 7. 'broken' の切れた糸 (当たり判定の endPoint の位置と合わせる) */
+/** 7. 'broken' の切れた糸 (当たり判定の endPoint の位置と合わせる。台が動いても変わらない) */
 function drawBrokenThread(
   ctx: CanvasRenderingContext2D,
   fit: StageFit,
@@ -259,8 +261,8 @@ function drawBrokenThread(
   ctx.moveTo(CREEL_AREA.x + CREEL_AREA.w / 2, y);
   ctx.lineTo(CREEL_END_X, y);
   ctx.quadraticCurveTo(CREEL_END_X + sway, y + droop / 2, CREEL_END_X + sway, y + droop);
-  // ドラム側の切れ端 (x 460 付近で切れて垂れる)
-  ctx.moveTo(drumPinX(s.current, s.sections), DRUM_AREA.y + 40);
+  // ドラム側の切れ端 (x 460 付近で切れて垂れる。今の帯の区画のピンから)
+  ctx.moveTo(drumSectionPinY(s.current, s.sections), y);
   ctx.lineTo(DRUM_END_X, y);
   ctx.quadraticCurveTo(DRUM_END_X - sway, y + droop / 2, DRUM_END_X - sway, y + droop);
   ctx.stroke();
@@ -279,18 +281,18 @@ function drawDoneSurface(ctx: CanvasRenderingContext2D, fit: StageFit, s: Windin
     return;
   }
   const qs = qualities(s);
-  const secW = DRUM_AREA.w / s.sections;
+  const secH = DRUM_AREA.h / s.sections;
   ctx.strokeStyle = COLORS.sumi;
   ctx.lineWidth = fontPx(fit, 2);
   for (let i = 0; i < s.sections; i++) {
     const q = qs[i] ?? 0;
     const wave = (1 - q) * 12;
-    const x = DRUM_AREA.x + secW * i + secW / 2;
+    const y = drumSectionY(i, s.sections) + secH / 2;
     ctx.beginPath();
-    for (let yy = 0; yy <= 20; yy++) {
-      const px = x + (Math.sin((yy / 20) * Math.PI * 3) * wave) / 2;
-      const py = DRUM_AREA.y + 30 + (yy / 20) * (DRUM_AREA.h - 60);
-      if (yy === 0) ctx.moveTo(px, py);
+    for (let xx = 0; xx <= 20; xx++) {
+      const py = y + (Math.sin((xx / 20) * Math.PI * 3) * wave) / 2;
+      const px = DRUM_AREA.x + (xx / 20) * (DRUM_AREA.w - 40);
+      if (xx === 0) ctx.moveTo(px, py);
       else ctx.lineTo(px, py);
     }
     ctx.stroke();

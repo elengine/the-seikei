@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { LOGICAL_W, LOGICAL_H, endPoint, hitEnd, toPx, fromPx, threadY } from './geometry';
+import { LOGICAL_W, LOGICAL_H, endPoint, hitEnd, toPx, fromPx, threadY, drumSectionY, tableY, TABLE_AREA, REED_X, DRUM_END_X, DRUM_AREA, pointOnPath } from './geometry';
 
 const fit = { scale: 1, offsetX: 0, offsetY: 0 };
 
@@ -69,6 +69,56 @@ describe('winding geometry (T2-05)', () => {
     const d = Math.hypot(mid.x - near.x, mid.y - near.y);
     const d2 = Math.hypot(mid.x - other.x, mid.y - other.y);
     expect(d).toBeLessThan(d2);
+  });
+});
+
+describe('winding geometry T2-08-fix a (ドラムの向きを90度回す・台が動く)', () => {
+  it('1. 帯の区画は上から並ぶ: drumSectionY(0) < drumSectionY(1) < drumSectionY(2)', () => {
+    const a = drumSectionY(0, 3);
+    const b = drumSectionY(1, 3);
+    const c = drumSectionY(2, 3);
+    expect(a).toBeLessThan(b);
+    expect(b).toBeLessThan(c);
+    // 区画は上端と下端で DRUM_AREA を等分する (i=0 が上端、i=sections が下端)
+    expect(a).toBeCloseTo(DRUM_AREA.y, 9);
+    expect(drumSectionY(3, 3)).toBeCloseTo(DRUM_AREA.y + DRUM_AREA.h, 9);
+  });
+
+  it('2. 台の縦の位置が今の帯の区画の中心に合う: tableY(current, sections) が区画の中心', () => {
+    for (const sections of [3, 5]) {
+      for (let cur = 0; cur < sections; cur++) {
+        const top = drumSectionY(cur, sections);
+        const bottom = drumSectionY(cur + 1, sections);
+        expect(tableY(cur, sections)).toBe((top + bottom) / 2);
+      }
+    }
+  });
+
+  it('3. 台が動いても切れ端の位置は変わらない (endPoint は引数に current を持たない)', () => {
+    // endPoint は (thread, side, threadCount) だけ。current に依存しないことを型で確かめる
+    const e0 = endPoint(4, 'creel', 8);
+    const e1 = endPoint(4, 'creel', 8);
+    expect(e1).toEqual(e0);
+    // 台がどの区画にいても threadY は同じ
+    expect(threadY(4, 8)).toBe(e0.y);
+  });
+
+  it('4. 筬から今の帯へ向かう線 (筬の x からドラム側の切れ端の x まで) が横向き', () => {
+    // 筬は台の中央、今の帯の区画は DRUM_AREA の左の縁
+    expect(REED_X).toBeLessThan(DRUM_AREA.x);
+    expect(DRUM_END_X).toBeLessThan(DRUM_AREA.x);
+    // 台は切れ端より右に置かない (切れ端 x 380・460 は台の範囲内。台の描く絵は REED_X 付近)
+    expect(TABLE_AREA.x).toBeLessThan(REED_X);
+    expect(REED_X).toBeLessThan(TABLE_AREA.x + TABLE_AREA.w);
+  });
+
+  it('5. pointOnPath が糸の線 (クリール→筬→今の帯) の上の点を返す', () => {
+    // クリール側の糸の上: t=2 の糸、進み 0 (コーン側)
+    const p1 = pointOnPath(2, 8, 0, 0, 3);
+    expect(p1.y).toBeCloseTo(threadY(2, 8), 9);
+    // 筬を通過したあとは今の帯の高さへ向かう: 進み 1 (筬の右端)
+    const p2 = pointOnPath(2, 8, 1, 0, 3);
+    expect(p2.y).toBeCloseTo(tableY(0, 3), 9);
   });
 });
 
