@@ -642,3 +642,34 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
   1. s1 を開いて「外す」を選ぶ → 「戻る」→「一覧に戻る」→ s1 に「途中」→ 押すと、道具が「✓ 外す」のまま再開した (スクショ t15fix_resume.png)。
   2. s1-2 を「外す」の状態で途中保存 → 一覧から s1 を押す →「途中のお題があります」の確認 →「始める」→
      依頼書が W-4812 紺 (s1) で始まり、前のお題 (黒 W-1200) の盤面は出なかった (スクショ t15fix_bug2_check.png)。
+
+
+## 2026-09-30 T1-17: 確認の画面のボタン・設定画面・ホーム画面の見直し
+
+- やったこと (テストは先に RED を確認。最終 322 passed / 11 skipped):
+  - A. 確認の画面:
+    - 「続ける」→「やめる」に変えた (gameScreen.ts の「ホームに戻りますか?」と creel/index.ts の
+      「お題の一覧に戻りますか?」。期待値の変更の理由: 管理者の指示で文言を変えたため)。
+    - base.css の .dialog__actions を justify-content: space-between (取り消しが左端・決める側が右端)、
+      gap を calc(var(--gap) * 2) (24px) に。widgets.ts のボタンの並び (取り消しが先) は変えていない。
+    - テスト: widgets.test.ts に confirmDialog・textInputDialog の並びと CSS のテスト3件、
+      gameScreen.test.ts・controller.test.ts に文言テスト2件 (confirmDialog の mock に引数の記録を追加)。
+  - B. 設定画面の項目名: tokens.ts の FONT に label (large 24 / xlarge 28) を追加、
+    base.css に --fs-label (24px / 28px)、.settings__label を var(--fs-label) + font-weight: 700 に。
+    テスト: tokens.test.ts に5件 (FONT.label、--fs-label の一致、settings__label、home__greeting、admin-btn)。
+  - C. 設定画面の「戻る」と「管理者」:
+    - 「戻る」を題名「設定」と同じ行の左 (settings__bar) に移した (画面の下には置かない)。
+    - 「管理者」の前に区切りの線 (.settings__divider、1px --c-steel、上下余白 48px) を入れ、
+      ボタンは一番下の左に。min-height を 48px → var(--btn-min-h) (64px) に。
+    - テスト: settingsScreen.test.ts に2件 (戻るが見出しの中・管理者より前。管理者が最後の要素で
+      区切りの線が直前にある)。
+  - D. ホーム画面: .home__greeting を var(--fs-label) (24px) に。
+- npm run check エラー0。npm run build 成功。
+- ブラウザ確認 (npm run build → vite preview 4173、SW 掃除のうえ新規タブ。
+  お題の解放は IndexedDB に確認用の記録 (records コレクションの creel) を直接書いて行った):
+  1. 1180×820: プレイ画面の「戻る」の確認で「やめる」が左端、「一覧に戻る」が右端 (gap 24px、
+     justify-content: space-between を確認)。412×915 でも左右は同じ (スクショ t17_dialog_1180.png、t17_dialog_412.png)。
+  2. 設定画面: 「戻る」が上の左、項目名が 24px の太字、「管理者」が一番下の左で区切りの線と余白あり、
+     高さ 64px (スクショ t17_settings_1180.png、t17_settings_412.png、t17_settings_412_bottom.png)。
+  3. ホーム画面: お名前を入れて「テスト屋さん、こんにちは」が 24px (スクショ t17_home_1180.png、t17_home_412.png)。
+  4. 「特大」に切り替えると、項目名・あいさつとも 28px (スクショ t17_home_xlarge_1180.png)。
