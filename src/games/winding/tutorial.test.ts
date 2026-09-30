@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { windingTutorial } from './tutorial';
+import { windingTutorial, drawPage1 } from './tutorial';
+import { makeFakeCtx } from './renderer.test.helpers';
 import { showTutorial } from '../../core/ui/tutorialOverlay';
 
 describe('winding tutorial (T2-07)', () => {
@@ -67,5 +68,18 @@ describe('winding tutorial (T2-07)', () => {
     await Promise.resolve();
     clickBtn('始める');
     await dialog;
+  });
+});
+
+describe('winding tutorial T2-08 追加修正2 (1ページ目のドラムの向き)', () => {
+  it('4. 1ページ目の絵で、ドラムの円盤が上と下にある (横長の fillRect が2つ)', () => {
+    const { ctx, rec } = makeFakeCtx();
+    drawPage1(ctx, 900, 600);
+    // 横長の fillRect (幅 > 高さ) が複数ある。ドラムの円盤は上端と下端に置く
+    const wide = rec.ops.filter((op) => op.k === 'fillRect' && (op.args?.[2] ?? 0) > (op.args?.[3] ?? 0));
+    expect(wide.length).toBeGreaterThanOrEqual(2);
+    // 上端と下端の y が離れている (円盤が上と下)
+    const ys = wide.map((op) => (op.args?.[1] ?? 0) as number);
+    expect(Math.max(...ys) - Math.min(...ys)).toBeGreaterThan(80);
   });
 });

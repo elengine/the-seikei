@@ -908,6 +908,7 @@ button {
   background: var(--c-white);
   border: 2px solid var(--c-steel);
   border-radius: var(--radius);
+  box-sizing: border-box; /* 枠線を含めて max-width に収める (T2-08 追加修正2) */
 }
 
 .meter__zone {

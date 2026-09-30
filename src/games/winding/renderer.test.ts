@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { drawBoard } from './renderer';
-import { endPoint, threadY, tableY, DRUM_END_X } from './geometry';
+import { endPoint, threadY, tableY, DRUM_END_X, drumSectionY } from './geometry';
+import { COLORS } from '../../core/ui/tokens';
 import type { FakeRecorder } from './renderer.test.helpers';
 
 // 偽の ctx (呼ばれた命令を記録する) は helpers に置く
@@ -405,5 +406,70 @@ describe('winding renderer T2-09b (複数の糸切れ)', () => {
     const arcs = rec.ops.filter((op) => op.k === 'arc');
     const knot = arcs.find((op) => Math.abs(((op.args?.[0] ?? 0) as number) - DRUM_END_X) < 1);
     expect(knot).toBeDefined();
+  });
+});
+
+  /** fillStyleLog を使って fillRect ごとの色を復元する (style op が直前の色) */
+  function fillRectsWithColor(rec: FakeRecorder): Array<{ v: string; x: number; y: number; w: number; h: number }> {
+    let cur = '';
+    const out: Array<{ v: string; x: number; y: number; w: number; h: number }> = [];
+    for (const op of rec.ops) {
+      if (op.k === 'style') cur = String(op.v);
+      if (op.k === 'fillRect') {
+        out.push({ v: cur, x: (op.args?.[0] as number) ?? 0, y: (op.args?.[1] as number) ?? 0, w: (op.args?.[2] as number) ?? 0, h: (op.args?.[3] as number) ?? 0 });
+      }
+    }
+    return out;
+  }
+
+describe('winding renderer T2-08 追加修正2', () => {
+  const fit = { scale: 1, offsetX: 0, offsetY: 0 };
+
+  it('1. 巻いている途中の区画にも木の桟があり、縞より先に描かれる', () => {
+    const { ctx, rec } = makeFakeCtx();
+    let s = windingState();
+    // current 0・lengths[0] を 10% に
+    s = { ...s, phase: 'winding' as const, lengths: s.lengths.map((v, i) => (i === 0 ? 300 : v)) };
+    drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
+    const fills = fillRectsWithColor(rec).filter((f) => f.w > 0 && f.v === COLORS.wood);
+    expect(fills.length).toBeGreaterThan(0);
+    // 桟の y が今の帯の区画の中 (drumSectionY(0) 〜 +secH)
+    const slat = fills[0]!;
+    const sy = drumSectionY(0, s.sections);
+    expect(slat.y).toBeGreaterThanOrEqual(sy);
+    expect(slat.y).toBeLessThan(sy + 900 / s.sections);
+  });
+
+  it('3. 巻き終えた区画の縞の fillRect の数が、柄の並びの色の数より多い (繰り返す)', () => {
+    const { ctx, rec } = makeFakeCtx();
+    let s = windingState();
+    s = { ...s, phase: 'winding' as const, current: 1, lengths: s.lengths.map(() => 3000) };
+    drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
+    const inBand = fillRectsWithColor(rec).filter((f) => f.y >= drumSectionY(0, 3) && f.y < drumSectionY(1, 3) && f.w > 100);
+    expect(inBand.length).toBeGreaterThan(1);
+    // 縞1本の高さは STRIPE_H (6) 以下
+    expect(Math.max(...inBand.map((f) => f.h))).toBeLessThanOrEqual(8);
+  });
+
+  it('4. 巻き終えた区画の結び目に、sumi の stroke がある', () => {
+    const { ctx, rec } = makeFakeCtx();
+    let s = windingState();
+    s = { ...s, phase: 'winding' as const, current: 1 };
+    drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
+    // 結び目の arc が描かれたあと、sumi の strokeStyle が設定されている
+    const arcs = rec.ops.filter((op) => op.k === 'arc');
+    expect(arcs.length).toBeGreaterThan(0);
+    expect(rec.ops.some((op) => op.k === 'style' && op.v === COLORS.sumi)).toBe(true);
+  });
+
+  it('6. コーンの fill のあとに sumiSub の stroke がある (白いコーンの輪郭)', () => {
+    const { ctx, rec } = makeFakeCtx();
+    const s = windingState();
+    drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
+    const styles = rec.ops.filter((op) => op.k === 'style').map((op) => String(op.v));
+    // コーンは糸の色 (初級 p-pin-kon の紺 #1F2A44) で塗る。そのあとに sumiSub が来る (輪郭)
+    const idx = styles.indexOf('#1F2A44');
+    expect(idx).toBeGreaterThanOrEqual(0);
+    expect(styles.slice(idx + 1, idx + 4)).toContain(COLORS.sumiSub);
   });
 });

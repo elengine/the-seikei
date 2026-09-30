@@ -271,3 +271,12 @@ describe('T2-08 追加修正b: 操作欄のあふれとメーターの幅', () =
     expect(state!).toMatch(/flex:\s*none/);
   });
 });
+
+describe('T2-08 追加修正2 (メーターの帯の box-sizing)', () => {
+  it('.meter__band は box-sizing: border-box (枠線を含めて幅 100%)', () => {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf8');
+    const m = css.match(/\.meter__band\s*\{[^}]*\}/);
+    expect(m).not.toBeNull();
+    expect(m![0]).toContain('box-sizing: border-box');
+  });
+});

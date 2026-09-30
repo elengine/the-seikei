@@ -6,19 +6,23 @@ import { COLORS } from '../../core/ui/tokens';
  * 文の {{…}} は表示側で terms.render により呼び名に置き換わる (T1-20)。
  */
 
-/** ドラムの略図 (桟のかご状の胴と、帯の区画) */
+/** ドラムの略図 (軸は縦: 円盤は上と下、桟は縦長の板を左右に並べる。盤面と同じ向き。T2-08 追加修正2) */
 function drawDrum(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): void {
-  ctx.fillStyle = COLORS.wood;
+  // 端の円盤 (上と下。横長の板)
+  ctx.fillStyle = COLORS.steel;
   ctx.fillRect(x, y, w, 12);
   ctx.fillRect(x, y + h - 12, w, 12);
-  ctx.fillStyle = COLORS.machine;
-  for (let i = 0; i < 5; i++) {
-    ctx.fillRect(x + (w / 5) * i + 6, y + 12, 5, h - 24);
+  // 桟 (縦長の板を左右にすき間をあけて並べる)
+  ctx.fillStyle = COLORS.wood;
+  const slatW = 12;
+  const gap = 14;
+  for (let sx = x + 8; sx + slatW < x + w; sx += slatW + gap) {
+    ctx.fillRect(sx, y + 12, slatW, h - 24);
   }
 }
 
 /** 1ページ目: クリールからドラムへ帯を巻く略図 */
-function drawPage1(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+export function drawPage1(ctx: CanvasRenderingContext2D, w: number, h: number): void {
   // クリール (枠とコーン)
   const creelX = w * 0.08;
   const creelW = w * 0.2;
@@ -41,9 +45,9 @@ function drawPage1(ctx: CanvasRenderingContext2D, w: number, h: number): void {
   ctx.stroke();
   // ドラム
   drawDrum(ctx, w * 0.58, h * 0.3, w * 0.34, h * 0.4);
-  // 巻かれた帯 (紺の縞)
+  // 巻かれた帯 (一番上の区画に横の縞)
   ctx.fillStyle = COLORS.ai;
-  ctx.fillRect(w * 0.58, h * 0.56, w * 0.17, h * 0.12);
+  ctx.fillRect(w * 0.58, h * 0.3 + 12, w * 0.34, 10);
 }
 
 /** 2ページ目: ペダルの横木と張りのメーターの略図 */

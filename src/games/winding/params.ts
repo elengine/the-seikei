@@ -91,6 +91,9 @@ export function BREAK_MAX_THREADS(level: Level): number {
   return level === 1 ? 1 : level === 2 ? 2 : 3;
 }
 
+/** 帯の縞1本の高さ (論理座標。柄の並びを区画の中で繰り返す。T2-08 追加修正2) */
+export const STRIPE_H = 6;
+
 /** 1回の tick の dtMs の上限 (Safari 対策。P2/README「時間の進め方」) */
 export const MAX_TICK_MS = 100;
 

@@ -128,6 +128,10 @@ function drawCreel(
     ctx.beginPath();
     ctx.roundRect(coneX, cy - coneH / 2, coneW, coneH, coneH / 2);
     ctx.fill();
+    // 墨の薄い色の輪郭線 (白っぽいコーンが背景に溶けないように。T2-08 追加修正2)
+    ctx.strokeStyle = COLORS.sumiSub;
+    ctx.lineWidth = Math.max(1.5, fontPx(fit, 1.5));
+    ctx.stroke();
     ctx.fillStyle = COLORS.machineDark; // 芯の穴
     ctx.beginPath();
     ctx.arc(coneX + coneW - coneH / 2, cy, coneH / 4, 0, Math.PI * 2);

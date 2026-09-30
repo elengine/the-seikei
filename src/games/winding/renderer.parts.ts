@@ -1,6 +1,6 @@
 import type { WindingState } from './logic';
 import { COLORS } from '../../core/ui/tokens';
-import { SECTION_LENGTH } from './params';
+import { SECTION_LENGTH, STRIPE_H } from './params';
 import type { StageFit } from '../../core/viewport/viewport';
 import { DRUM_AREA, fontPx, drumSectionY, threadY, CREEL_AREA, CREEL_END_X, DRUM_END_X } from './geometry';
 
@@ -12,7 +12,7 @@ import { DRUM_AREA, fontPx, drumSectionY, threadY, CREEL_AREA, CREEL_END_X, DRUM
  */
 
 /** 結び目の束の大きさ (論理座標) */
-const KNOT = { w: 10, h: 26 } as const;
+const KNOT = { w: 24, h: 30 } as const; // 幅はピンの横木に少し重なる程度 (T2-08 追加修正2)
 
 /** ドラムの円筒の見た目の半分の厚み (帯の面の左右のふくらみ) */
 const DRUM_BULGE = 10;
@@ -32,7 +32,8 @@ export function drawDrum(
   const leftX = x - DRUM_BULGE;
   const rightX = x + w + DRUM_BULGE;
 
-  // 胴の木の桟 (まだ巻いていない区画)。明るさの勾配は横向き
+  // 胴の木の桟 (巻き終えていない区画。今の帯を含む)。明るさの勾配は横向き
+  // (巻き始めた区画も桟を描き、その上に縞を重ねる。T2-08 追加修正2)
   const grads = ctx.createLinearGradient(leftX, 0, rightX, 0);
   grads.addColorStop(0, COLORS.machineDark);
   grads.addColorStop(0.3, COLORS.machineLight);
@@ -41,8 +42,8 @@ export function drawDrum(
   ctx.fillStyle = grads;
   for (let i = 0; i < s.sections; i++) {
     const len = s.lengths[i] ?? 0;
-    const started = i < s.current || s.phase === 'done' || (i === s.current && len > 0);
-    if (started && s.phase !== 'ready') continue;
+    const finished = (i < s.current || s.phase === 'done') && s.phase !== 'ready';
+    if (finished) continue; // 桟を飛ばしてよいのは巻き終えた区画だけ
     const sy = drumSectionY(i, s.sections);
     ctx.fillRect(leftX, sy, rightX - leftX, secH);
     // 桟 (縦長の板を左右にすき間をあけて並べる)
@@ -66,11 +67,13 @@ export function drawDrum(
     if (ratio <= 0 && !full) continue;
     // 縞の濃さ: 巻いた割合で 0.15 → 1 (巻き始めは薄い。T2-08 追加修正a)
     const alpha = full ? 1 : 0.15 + 0.85 * ratio;
-    const stripeH = secH / hexes.length;
-    for (let k = 0; k < hexes.length; k++) {
+    // 柄の並びの色を、区画の高さの中で上から順に繰り返す (1本の高さは STRIPE_H。T2-08 追加修正2)
+    let k = 0;
+    for (let yy = sy; yy < sy + secH; yy += STRIPE_H) {
       ctx.globalAlpha = alpha;
-      ctx.fillStyle = hexes[k] ?? COLORS.sumiSub;
-      ctx.fillRect(leftX, sy + stripeH * k, rightX - leftX, stripeH);
+      ctx.fillStyle = hexes[k % hexes.length] ?? COLORS.sumiSub;
+      ctx.fillRect(leftX, yy, rightX - leftX, Math.min(STRIPE_H, sy + secH - yy));
+      k++;
     }
     ctx.globalAlpha = 1;
     // 完了した帯は縁に濃い線を引いて「完了」を分かるようにする
@@ -157,7 +160,7 @@ export function drumSectionPinY(i: number, sections: number): number {
   return DRUM_AREA.y + secH * i + secH / 2;
 }
 
-/** 結び目の束 (糸の色の小さな輪を3〜5個重ねた形。区画の左の端に置く) */
+/** 結び目の束 (糸の色の輪に、sumi の輪郭と kinari の縁取りを付ける。区画の左の端に置く) */
 function drawKnot(
   ctx: CanvasRenderingContext2D,
   fit: StageFit,
@@ -165,12 +168,21 @@ function drawKnot(
   y: number,
   hex: string,
 ): void {
-  ctx.strokeStyle = hex;
-  ctx.lineWidth = fontPx(fit, 2);
-  for (let i = 0; i < 5; i++) {
-    ctx.beginPath();
-    ctx.arc(x, y + (i - 2) * KNOT.h * 0.4, KNOT.w / 2, 0, Math.PI * 2);
-    ctx.stroke();
+  // 縁取り (kinari の太い線) → 糸の色の輪 → その上に sumi の細い輪郭。
+  // 帯の色 (紺など) に埋もれず、どの色の帯でも見分けられる (T2-08 追加修正2)
+  const rings: Array<{ color: string; w: number }> = [
+    { color: COLORS.kinari, w: 5 },
+    { color: hex, w: 3 },
+    { color: COLORS.sumi, w: 1 },
+  ];
+  for (const ring of rings) {
+    ctx.strokeStyle = ring.color;
+    ctx.lineWidth = fontPx(fit, ring.w);
+    for (let i = 0; i < 5; i++) {
+      ctx.beginPath();
+      ctx.arc(x, y + (i - 2) * KNOT.h * 0.4, KNOT.w / 2, 0, Math.PI * 2);
+      ctx.stroke();
+    }
   }
 }
 
