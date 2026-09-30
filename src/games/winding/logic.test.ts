@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { init, reduce, qualities, starsOf, isValidResume, lastTapResult } from './logic';
 import { resultOf, messageFor } from './messages';
 import type { WindingState } from './logic';
-import { paramsOf, SECTION_LENGTH, MAX_SPEED, TENSION, DRIFT, NOISE_AMP, RANGE_CENTER, RANGE_WIDTH, RANGE_MOVE_PER_SEC, RANGE_WIDTH_SWING } from './params';
+import { paramsOf, SECTION_LENGTH, MAX_SPEED, TENSION, DRIFT, NOISE_AMP, RANGE_CENTER, RANGE_WIDTH, RANGE_WIDTH_SWING } from './params';
 import { tensionOf } from '../../core/mechanics/pedal';
 import { seedFrom } from '../../core/clock/clock';
 
@@ -384,11 +384,6 @@ describe('T2-09 追加修正b (成績欄)', () => {
 });
 
 describe('winding logic T2-11a (どの状態でも範囲に届く・範囲が動く)', () => {
-  /** 流れとぶれが最悪に振れたとき、範囲の中央に合うペダルの値 */
-  function pedalForCenter(level: 1 | 2 | 3, center: number, noise: number, drift: number, perPedal: number): number {
-    return (center - TENSION.base - noise - drift) / perPedal;
-  }
-
   it('1. どの難易度でも、流れ・ぶれが最大に振れたときでも、ペダル 10〜100 で範囲の中に入れられる (min と max をカバー)', () => {
     // ペダル p の張り = base + perPedal × p + noise + drift (引っかかりは除く)。
     // 流れとぶれが同じ向きに最大に振れたとき、
