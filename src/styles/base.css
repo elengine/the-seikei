@@ -795,3 +795,94 @@ button {
   -webkit-appearance: none;
   appearance: none;
 }
+
+
+/* pedal (T2-03: ペダルの横木と張りのメーター) */
+.pedal-control {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  align-items: flex-start;
+}
+
+.pedal__row {
+  display: flex;
+  gap: var(--gap);
+  align-items: center;
+}
+
+.pedal__groove {
+  position: relative;
+  width: 200px;
+  height: 260px;
+  background: var(--c-kinari-dark, #EDE7D5);
+  border: 2px solid var(--c-steel);
+  border-radius: var(--radius);
+  touch-action: none;
+}
+
+.pedal__bar {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 180px;
+  height: 64px;
+  background: var(--c-wood);
+  border-radius: 8px;
+  touch-action: none;
+}
+
+.pedal__value {
+  font-size: var(--fs-number);
+  color: var(--c-sumi);
+}
+
+.pedal__btn {
+  min-height: var(--btn-min-h);
+  min-width: var(--btn-min-w);
+  font-size: var(--fs-button);
+}
+
+.pedal-control.disabled .pedal__groove,
+.pedal-control.disabled .pedal__bar,
+.pedal-control.disabled .pedal__value {
+  opacity: 0.4;
+}
+
+.tension-meter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+.meter__band {
+  position: relative;
+  width: 320px;
+  max-width: 100%;
+  height: 24px;
+  background: var(--c-kinari-dark, #EDE7D5);
+  border: 2px solid var(--c-steel);
+  border-radius: var(--radius);
+}
+
+.meter__zone {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background: var(--c-machine-light);
+  border-radius: var(--radius);
+}
+
+.meter__needle {
+  position: absolute;
+  top: -6px;
+  width: 4px;
+  height: calc(100% + 12px);
+  background: var(--c-sumi);
+  transform: translateX(-50%);
+}
+
+.meter__state {
+  font-size: var(--fs-body);
+  color: var(--c-sumi);
+}
