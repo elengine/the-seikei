@@ -23,17 +23,35 @@ export function RANGE_WIDTH(level: Level): number {
   return level === 1 ? 30 : level === 2 ? 18 : 10;
 }
 
-/** 適正範囲の中心の範囲 (お題ごとの乱数の幅) */
+/** 適正範囲の中心の範囲 (お題ごとの乱数で決め、遊んでいるあいだはこの中を動く。T2-09a・T2-11a) */
 export function RANGE_CENTER(level: Level): { min: number; max: number } {
   if (level === 2) return { min: 40, max: 60 };
   if (level === 3) return { min: 35, max: 65 };
   return { min: 45, max: 55 };
 }
 
+/** 適正範囲の中心が動く速さ (1秒あたりの張りの量。T2-11a) */
+export function RANGE_MOVE_PER_SEC(level: Level): number {
+  return level === 1 ? 0.4 : level === 2 ? 0.8 : 1.2;
+}
+
+/** 適正範囲の幅の伸び縮み (±。周期 RANGE_BREATHE_SEC の正弦。T2-11a) */
+export function RANGE_WIDTH_SWING(level: Level): number {
+  return level === 1 ? 2 : level === 2 ? 3 : 2;
+}
+
+/** 幅の伸び縮みの周期 (秒。T2-11a) */
+export function RANGE_BREATHE_SEC(level: Level): number {
+  return level === 1 ? 12 : level === 2 ? 10 : 8;
+}
+
+/** 中心の向きが変わる確率 (1秒あたり。T2-11a) */
+export const RANGE_TURN_RATE = 0.2;
+
 /** 張りの流れ・引っかかりのパラメータ (T2-09a) */
 export function DRIFT(level: Level): DriftParams {
   if (level === 2) return { perSec: 1.0, turnRate: 0.15, max: 12, snagRate: 0.04, snagSize: 9 };
-  if (level === 3) return { perSec: 1.6, turnRate: 0.15, max: 16, snagRate: 0.06, snagSize: 12 };
+  if (level === 3) return { perSec: 1.6, turnRate: 0.15, max: 12, snagRate: 0.06, snagSize: 12 }; // max 16 → 12 (T2-11a。どの状態でもペダルで範囲に届くように)
   return { perSec: 0.6, turnRate: 0.15, max: 8, snagRate: 0.02, snagSize: 6 };
 }
 
@@ -64,7 +82,7 @@ export function STANDALONE_PATTERN(level: Level): string {
 export const TENSION: TensionParams = {
   maxSpeed: MAX_SPEED,
   base: 30,
-  perPedal: 0.4,
+  perPedal: 0.6, // 0.4 → 0.6 (T2-11a。どの状態でもペダルで範囲に届くように)
   yarnDrift: 0, // 糸量による +4 はやめた (T2-09a の流れに置き換え。T2-09 追加修正a)
   noiseAmp: 2,
   noiseStepPerSec: 1,

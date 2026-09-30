@@ -8,8 +8,8 @@ function params(overrides?: Partial<TensionParams>): TensionParams {
   return {
     maxSpeed: 40,
     base: 30,
-    perPedal: 0.4,
-    yarnDrift: 4,
+    perPedal: 0.6,
+    yarnDrift: 0, // T2-09 追加修正a で 0
     noiseAmp: 2,
     noiseStepPerSec: 1,
     range: { min: 30, max: 70 },
@@ -43,15 +43,16 @@ describe('pedal (T2-01)', () => {
     const p = params();
     // base + perPedal * pedal + yarnDrift * progress + noise
     const s = { ...initPedal(seedFrom(1)), pedal: 40, noise: 0 };
-    expect(tensionOf(s, p, 0)).toBeCloseTo(30 + 0.4 * 40 + 0);
-    expect(tensionOf(s, p, 0.5)).toBeCloseTo(30 + 0.4 * 40 + 2);
-    expect(tensionOf(s, p, 1)).toBeCloseTo(30 + 0.4 * 40 + 4);
+    // yarnDrift は 0 (T2-09 追加修正a)。perPedal は 0.6 (T2-11a)
+    expect(tensionOf(s, p, 0)).toBeCloseTo(30 + 0.6 * 40 + 0);
+    expect(tensionOf(s, p, 0.5)).toBeCloseTo(30 + 0.6 * 40 + 0);
+    expect(tensionOf(s, p, 1)).toBeCloseTo(30 + 0.6 * 40 + 0);
     // progress が範囲外なら丸める
     expect(tensionOf(s, p, -0.5)).toBeCloseTo(tensionOf(s, p, 0));
     expect(tensionOf(s, p, 1.5)).toBeCloseTo(tensionOf(s, p, 1));
     // noise も足される
     const s2 = { ...initPedal(seedFrom(1)), pedal: 40, noise: 2 };
-    expect(tensionOf(s2, p, 0)).toBeCloseTo(30 + 0.4 * 40 + 2);
+    expect(tensionOf(s2, p, 0)).toBeCloseTo(30 + 0.6 * 40 + 2);
   });
 
   it('4. stepNoise: 1000回進めても -noiseAmp〜+noiseAmp の中。1回の変化は上限以内。同じ種なら同じ結果', () => {
@@ -96,7 +97,7 @@ function driftParams(level: 1 | 2 | 3): DriftParams {
   const table = {
     1: { perSec: 0.6, turnRate: 0.15, max: 8, snagRate: 0.02, snagSize: 6 },
     2: { perSec: 1.0, turnRate: 0.15, max: 12, snagRate: 0.04, snagSize: 9 },
-    3: { perSec: 1.6, turnRate: 0.15, max: 16, snagRate: 0.06, snagSize: 12 },
+    3: { perSec: 1.6, turnRate: 0.15, max: 12, snagRate: 0.06, snagSize: 12 }, // max 16 → 12 (T2-11a)
   } as const;
   return table[level];
 }

@@ -61,13 +61,18 @@ docs/04_tasks/00_rules.md と docs/04_tasks/P2/T2-01.md を読んで、タスク
 - **1回の tick の `dtMs` は 100ms を上限にする**(logic 側で丸める)。Safari は、アプリが裏に回ると `requestAnimationFrame` を止め、戻ったときに大きな時間差が出るため。
 - ページが裏に回ったら(`visibilitychange` の hidden)、controller は tick を止め、**ペダルを 0 にする**(戻ったときに機械が勝手に動かないように)。
 
-### ペダルと張りの計算(`params` の初期値。T2-01)
+### ペダルと張りの計算(`params` の初期値。T2-01・T2-09a・T2-11a)
 
 - `speed = pedal / 100 × MAX_SPEED`(pedal 0 で停止)。
-- `tension = TENSION_BASE + TENSION_PER_PEDAL × pedal + YARN_DRIFT × progress + noise`
-  - 初期値:`TENSION_BASE = 30`、`TENSION_PER_PEDAL = 0.4`、`YARN_DRIFT = 4`(progress 0→1 で最大 +4)、noise は ±`NOISE_AMP = 2` の範囲でゆっくり動く。
-- 適正範囲:初級 30〜70、中級 38〜62、上級 44〜56(03 のとおり)。
-- **「ゆっくり踏めば必ず適正範囲に入る」の保証**:難易度ごとに `SAFE_PEDAL`(初級 40・中級 40・上級 40)を決め、pedal = SAFE_PEDAL なら、progress 0〜1・noise の最小〜最大のどの組み合わせでも適正範囲に入ることをテストで確かめる。上の初期値なら、pedal 40 で tension は 44〜52。
+- `tension = TENSION_BASE + TENSION_PER_PEDAL × pedal + noise + 流れ + 引っかかり`(T2-09a)
+  - 初期値:`TENSION_BASE = 30`、`TENSION_PER_PEDAL = 0.6`(T2-11a で 0.4 から上げた)、noise は ±`NOISE_AMP`(初級 1・中級 1.5・上級 2)。
+  - 流れ(ゆっくり一方向に動く。初級 ±8・中級 ±12・上級 ±12)と引っかかり(確率で急上昇、2秒かけて戻る)がある。
+- 適正範囲(T2-11a で遊んでいるあいだ動く):中心は `RANGE_CENTER` の中(初級 45〜55・中級 40〜60・上級 35〜65)を
+  1秒あたり 0.4・0.8・1.2 でゆっくり動き、ときどき向きが変わる。幅は `RANGE_WIDTH`(初級 30・中級 18・上級 10)を中心に、
+  周期 12・10・8 秒で ±2・±3・±2 の正弦で伸び縮みする。'broken'・'cutting' のあいだは止まる。
+- **「どの状態でも、ペダルで適正範囲に入れられる」の保証**(T2-11a):流れとぶれが同じ向きに最大に振れたときでも、
+  ペダル 10 の張りの最小 ≤ 範囲の min、ペダル 100 の張りの最大 ≥ 範囲の max を、全難易度・中心の両端の組み合わせでテストで確かめる
+  (perPedal 0.6・上級の流れ ±12 で成立する。旧「SAFE_PEDAL」の約束は T2-09 で廃止済み)。
 - 1本の帯の長さ:`SECTION_LENGTH` は、pedal 50 の速さで 20 秒で巻き終わる長さ(03 のとおり)。
 
 ### 糸切れ(T2-02・T2-09・T2-09b・T2-09 追加修正b)

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { init, reduce, qualities, starsOf, isValidResume, lastTapResult } from './logic';
 import { resultOf, messageFor } from './messages';
 import type { WindingState } from './logic';
-import { paramsOf, SECTION_LENGTH, MAX_SPEED, TENSION } from './params';
+import { paramsOf, SECTION_LENGTH, MAX_SPEED, TENSION, DRIFT, NOISE_AMP, RANGE_CENTER, RANGE_WIDTH, RANGE_MOVE_PER_SEC, RANGE_WIDTH_SWING } from './params';
 import { tensionOf } from '../../core/mechanics/pedal';
 import { seedFrom } from '../../core/clock/clock';
 
@@ -380,5 +380,83 @@ describe('T2-09 追加修正b (成績欄)', () => {
     const done = { ...s, phase: 'done' as const, mismatches: 2 };
     const r = resultOf(done, 'standalone', '2026-09-30T21:00:00+09:00');
     expect(r.summary?.some((line) => line.includes('違う端を結ぼうとした回数 2回'))).toBe(true);
+  });
+});
+
+describe('winding logic T2-11a (どの状態でも範囲に届く・範囲が動く)', () => {
+  /** 流れとぶれが最悪に振れたとき、範囲の中央に合うペダルの値 */
+  function pedalForCenter(level: 1 | 2 | 3, center: number, noise: number, drift: number, perPedal: number): number {
+    return (center - TENSION.base - noise - drift) / perPedal;
+  }
+
+  it('1. どの難易度でも、流れ・ぶれが最大に振れたときでも、ペダル 10〜100 で範囲の中に入れられる (min と max をカバー)', () => {
+    // ペダル p の張り = base + perPedal × p + noise + drift (引っかかりは除く)。
+    // 流れとぶれが同じ向きに最大に振れたとき、
+    //   張りの最小 (p=10) ≤ 範囲の min、張りの最大 (p=100) ≥ 範囲の max
+    // であれば、どの状態でも範囲の中に入れられる (T2-11a)
+    for (const level of [1, 2, 3] as const) {
+      const dp = DRIFT(level);
+      const amp = NOISE_AMP(level);
+      const c = RANGE_CENTER(level);
+      const width = RANGE_WIDTH(level);
+      for (const center of [c.min, c.max]) {
+        const range = { min: center - width / 2, max: center + width / 2 };
+        const worstLow = TENSION.base + TENSION.perPedal * 10 - dp.max - amp;
+        const worstHigh = TENSION.base + TENSION.perPedal * 100 + dp.max + amp;
+        expect(worstLow, `level ${level} c${center}`).toBeLessThanOrEqual(range.min);
+        expect(worstHigh, `level ${level} c${center}`).toBeGreaterThanOrEqual(range.max);
+      }
+    }
+  });
+
+  it('2. winding で 10 秒進めると、範囲の中心か幅が変わる。broken のあいだは変わらない', () => {
+    for (const level of [1, 3] as const) {
+      let s = init({ level, patternId: 'x', sections: 3, seed: 3 });
+      s = reduce(s, { type: 'start' });
+      s = reduce(s, { type: 'setPedal', value: 50 });
+      const before = { ...s.range };
+      for (let i = 0; i < 100; i++) {
+        s = reduce(s, { type: 'tick', dtMs: 100 });
+        if (s.phase === 'broken') break;
+      }
+      const moved = s.range.center !== before.center || s.range.width !== before.width;
+      expect(moved, `level ${level}`).toBe(true);
+    }
+    // broken のあいだは変わらない
+    let s = init({ level: 3, patternId: 'x', sections: 3, seed: 3 });
+    s = reduce(s, { type: 'start' });
+    s = { ...s, phase: 'broken' as const };
+    const before = { ...s.range };
+    for (let i = 0; i < 50; i++) {
+      s = reduce(s, { type: 'tick', dtMs: 100 });
+    }
+    expect(s.range).toEqual(before);
+  });
+
+  it('3. 中心は RANGE_CENTER の中・幅は RANGE_WIDTH ± RANGE_WIDTH_SWING から外れない。同じ種と操作なら同じ動き', () => {
+    const run = (seed: number): Array<{ center: number; width: number }> => {
+      // 初級 (糸切れが起きにくく、10 秒以上巻ける) で確かめる
+      let s = init({ level: 1, patternId: 'x', sections: 3, seed });
+      s = reduce(s, { type: 'start' });
+      s = reduce(s, { type: 'setPedal', value: 50 });
+      const out: Array<{ center: number; width: number }> = [];
+      for (let i = 0; i < 300 && s.phase === 'winding'; i++) {
+        s = reduce(s, { type: 'tick', dtMs: 100 });
+        out.push({ center: s.range.center, width: s.range.width });
+      }
+      return out;
+    };
+    const c = RANGE_CENTER(1);
+    const w0 = RANGE_WIDTH(1);
+    const sw = RANGE_WIDTH_SWING(1);
+    const trace = run(3);
+    expect(trace.length).toBeGreaterThan(100);
+    for (const { center, width } of trace) {
+      expect(center).toBeGreaterThanOrEqual(c.min - 1e-9);
+      expect(center).toBeLessThanOrEqual(c.max + 1e-9);
+      expect(width).toBeGreaterThanOrEqual(w0 - sw - 1e-9);
+      expect(width).toBeLessThanOrEqual(w0 + sw + 1e-9);
+    }
+    expect(trace).toEqual(run(3)); // 同じ種なら同じ動き
   });
 });

@@ -498,7 +498,7 @@ describe('winding module (T2-07)', () => {
     let state = init({ level: 2, patternId: p2.patternId, sections: p2.sections, seed: 35 });
     // お題の範囲は乱数なので、テストでは固定する (35〜53。pedal 90 の張り 66+ は強すぎ)。
     // seed 35 は、pedal 90 を 6 秒保っても糸が切れないことを確認済み (T2-09a の範囲で再確認)
-    state = { ...state, range: { min: 35, max: 53 } };
+    state = { ...state, range: { center: 44, width: 18, min: 35, max: 53 } };
     state = reduce(state, { type: 'start' });
     state = reduce(state, { type: 'setPedal', value: 90 });
     const instance2 = module.mount(container, makeProps({ resume: state }));
@@ -806,5 +806,48 @@ describe('winding module T2-10 追加修正 b (なめらかな回り方・結ぶ
     const a1 = lastDrawOpts()!.drumAngle!;
     // 0.64 秒でほぼ止まっている (0.4 秒の緩みで残りは僅か)。目標 0 のときの累積は 0.64 秒で 10×0.4/2 程度以下
     expect(a1 - a0).toBeLessThan(10 * 0.4 / 2 + 0.01);
+  });
+});
+
+describe('winding module T2-11a (範囲が動くとメーターの帯も動く)', () => {
+  let raf: ReturnType<typeof installFakeRaf>;
+
+  beforeEach(() => {
+    document.body.textContent = '';
+    raf = installFakeRaf();
+    drawBoardCalls.length = 0;
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  async function startWinding(): Promise<HTMLElement> {
+    const { deps } = await makeDeps();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const module = createWindingModule(deps);
+    module.mount(container, makeProps());
+    container.querySelector<HTMLButtonElement>('button[data-testid="winding-level-1"]')!.click();
+    await vi.waitFor(() => {
+      const b = Array.from(container.querySelectorAll('button')).find((x) => x.textContent === '巻き始める');
+      expect(b).toBeDefined();
+    });
+    Array.from(container.querySelectorAll('button')).find((x) => x.textContent === '巻き始める')!.click();
+    return container;
+  }
+
+  it('メーターの適正の帯 (zone) の位置が、巻いているあいだに変わる', async () => {
+    const container = await startWinding();
+    const zoneLeft = (): string => {
+      const z = container.querySelector<HTMLElement>('.meter__zone');
+      expect(z).toBeDefined();
+      return z!.style.left;
+    };
+    const before = zoneLeft();
+    // 10 秒進める (メーターの帯が動く)
+    raf.advance(620);
+    const after = zoneLeft();
+    expect(after).not.toBe(before);
   });
 });
