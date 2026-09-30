@@ -7,9 +7,10 @@ import { createWindingPanel } from './panel';
 import { fromPx, hitEnd } from './geometry';
 import { getContent, type Content } from '../../core/content/content';
 import { init, reduce, seedFromText } from './logic';
+import { speedOf } from '../../core/mechanics/pedal';
 import { messageFor, soundFor, resultOf } from './messages';
 import type { WindingState, WindingAction, Level } from './logic';
-import { MESSAGE_HOLD_MS } from './params';
+import { MESSAGE_HOLD_MS, DRUM_TURN_PER_SPEED, TENSION } from './params';
 
 const TIE_ANIM_MS = 1000; // 帯の端を結ぶ演出の長さ
 const DONE_WAIT_MS = 1500; // done のあと結果を出すまでの見せる時間
@@ -41,6 +42,7 @@ export function createWindingController(parent: HTMLElement, deps: GameDeps, pro
   let saveTimer: ReturnType<typeof setInterval> | null = null;
   let doneTimer: ReturnType<typeof setTimeout> | null = null;
   let tieProgress = 0; // 帯の端を結ぶ演出 (0〜1、進行中は 0 超)
+let drumAngle = 0; // ドラムが回って見える角度 (ラジアン。見た目だけの値。State には入らない。T2-10b)
   let tieElapsedMs = 0; // 結びの演出の経過時間 (rAF の時刻で進める)
   let tieRunning = false; // 結びの演出中か
   let nowMs = 0; // いまの rAF の時刻 (時刻が必要な処理に渡す)
@@ -233,6 +235,13 @@ export function createWindingController(parent: HTMLElement, deps: GameDeps, pro
     if (dtMs > 0) {
       if (tieRunning) {
         stepTieAnimation(dtMs);
+      }
+      // ドラムが回って見える角度 (速さ 0 のときは進まない。T2-10b)
+      {
+        const speed = speedOf(s.pedal, TENSION);
+        if (speed > 0 && s.phase === 'winding') {
+          drumAngle += speed * DRUM_TURN_PER_SPEED * (dtMs / 1000);
+        }
       }
       const prev = s;
       const next = reduce(s, { type: 'tick', dtMs });

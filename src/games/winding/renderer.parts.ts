@@ -17,7 +17,11 @@ const KNOT = { w: 24, h: 30 } as const; // 幅はピンの横木に少し重な�
 /** ドラムの円筒の見た目の半分の厚み (帯の面の左右のふくらみ) */
 const DRUM_BULGE = 10;
 
-/** 4. ドラム: 縦向き円筒。明るさの勾配は横向き (中央を明るく、左右の端を暗く) */
+/** ドラムの桟の数 (円筒の周りに等間隔に並ぶ) */
+export const SLAT_COUNT = 10;
+
+/** 4. ドラム: 縦向き円筒。明るさの勾配は横向き (中央を明るく、左右の端を暗く)。
+ * drumAngle (ラジアン) で桟が横に流れて回って見える (T2-10b)。見た目だけの値で State には入らない */
 export function drawDrum(
   ctx: CanvasRenderingContext2D,
   fit: StageFit,
@@ -25,15 +29,18 @@ export function drawDrum(
   hexes: string[],
   base: string,
   tieProgress: number,
+  drumAngle = 0,
 ): void {
   const { x, y, w, h } = DRUM_AREA;
   const secH = h / s.sections;
   // 帯の面の左右のふくらみ
   const leftX = x - DRUM_BULGE;
   const rightX = x + w + DRUM_BULGE;
+  const cx = x + w / 2;
+  const radius = (rightX - leftX) / 2;
 
-  // 胴の木の桟 (巻き終えていない区画。今の帯を含む)。明るさの勾配は横向き
-  // (巻き始めた区画も桟を描き、その上に縞を重ねる。T2-08 追加修正2)
+  // 胴の面 (巻き終えていない区画。今の帯を含む)。明るさの勾配は横向き
+  // (巻き始めた区画も描き、その上に桟と縞を重ねる。T2-08 追加修正2)
   const grads = ctx.createLinearGradient(leftX, 0, rightX, 0);
   grads.addColorStop(0, COLORS.machineDark);
   grads.addColorStop(0.3, COLORS.machineLight);
@@ -42,17 +49,30 @@ export function drawDrum(
   ctx.fillStyle = grads;
   for (let i = 0; i < s.sections; i++) {
     const finished = (i < s.current || s.phase === 'done') && s.phase !== 'ready';
-    if (finished) continue; // 桟を飛ばしてよいのは巻き終えた区画だけ
+    if (finished) continue; // 胴を飛ばしてよいのは巻き終えた区画だけ
     const sy = drumSectionY(i, s.sections);
     ctx.fillRect(leftX, sy, rightX - leftX, secH);
-    // 桟 (縦長の板を左右にすき間をあけて並べる)
+  }
+
+  // 胴の木の桟: 円筒の周りに等間隔に並ぶ。桟 k の角度 θ = drumAngle + 2π k / 桟の数。
+  // 正面から見た x は 中心 + 半径 × sin θ、幅は 桟の幅 × cos θ。cos θ ≤ 0 (裏側) は描かない。
+  // 巻き終えた区画でも桟は回る (帯の面の上に回る筋として見える) (T2-10b)
+  const slatW0 = fontPx(fit, 12);
+  const winding = s.phase === 'winding';
+  for (let i = 0; i < s.sections; i++) {
+    const finished = (i < s.current || s.phase === 'done') && s.phase !== 'ready';
+    if (finished && !winding) continue;
+    const sy = drumSectionY(i, s.sections);
+    const slatH = secH - fontPx(fit, 12);
     ctx.fillStyle = COLORS.wood;
-    const slatW = fontPx(fit, 12);
-    const gap = fontPx(fit, 14);
-    for (let sx = leftX + fontPx(fit, 8); sx + slatW < rightX; sx += slatW + gap) {
-      ctx.fillRect(sx, sy + fontPx(fit, 6), slatW, secH - fontPx(fit, 12));
+    for (let k = 0; k < SLAT_COUNT; k++) {
+      const th = drumAngle + (Math.PI * 2 * k) / SLAT_COUNT;
+      const cosT = Math.cos(th);
+      if (cosT <= 0) continue; // 裏側の桟
+      const sx = cx + radius * Math.sin(th);
+      const sw = Math.max(2, slatW0 * cosT);
+      ctx.fillRect(sx - sw / 2, sy + fontPx(fit, 6), sw, slatH);
     }
-    ctx.fillStyle = grads;
   }
 
   // 帯の区画 (巻いた帯は横の縞。糸はドラムの周りを回るので、この向きでは横の線になる)
@@ -88,6 +108,24 @@ export function drawDrum(
     ctx.fillRect(rightX + bulge - fontPx(fit, 2), sy, fontPx(fit, 2), secH);
   }
 
+  // 巻いた帯の上の回る筋 (細い縦の明るい線)。桟と同じ式で横に流す (T2-10b)
+  for (let i = 0; i < s.sections; i++) {
+    const ratio = i < s.current || s.phase === 'done' ? 1 : Math.min(1, (s.lengths[i] ?? 0) / SECTION_LENGTH);
+    if (ratio <= 0) continue;
+    const sy = drumSectionY(i, s.sections);
+    ctx.globalAlpha = 0.25;
+    ctx.fillStyle = COLORS.machineLight;
+    for (let k = 0; k < SLAT_COUNT; k++) {
+      const th = drumAngle + (Math.PI * 2 * k) / SLAT_COUNT;
+      const cosT = Math.cos(th);
+      if (cosT <= 0) continue;
+      const sx = cx + radius * Math.sin(th);
+      const sw = Math.max(2, fontPx(fit, 4) * cosT);
+      ctx.fillRect(sx - sw / 2, sy, sw, secH);
+    }
+    ctx.globalAlpha = 1;
+  }
+
   // 端の丸い面 (灰色の金属の円盤) は上と下。放射状の腕
   for (const ey of [y - fontPx(fit, 4), y + h - fontPx(fit, 4)]) {
     const rx = (rightX - leftX) / 2;
@@ -99,10 +137,10 @@ export function drawDrum(
     ctx.strokeStyle = COLORS.sumiSub;
     ctx.lineWidth = fontPx(fit, 2);
     for (let a = 0; a < 6; a++) {
-      const ang = (Math.PI / 3) * a;
+      const ang = drumAngle + (Math.PI / 3) * a; // スポークも drumAngle だけ回す (T2-10b)
       ctx.beginPath();
-      ctx.moveTo(x + w / 2, cy);
-      ctx.lineTo(x + w / 2 + Math.cos(ang) * rx * 0.85, cy + Math.sin(ang) * fontPx(fit, 10));
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + Math.cos(ang) * rx * 0.85, cy + Math.sin(ang) * fontPx(fit, 10));
       ctx.stroke();
     }
   }

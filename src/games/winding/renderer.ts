@@ -45,7 +45,7 @@ export function drawBoard(
   fit: { scale: number; offsetX: number; offsetY: number },
   s: WindingState,
   content: Content,
-  opts: { threadCount: number; show: 'red' | 'droop' | 'small'; timeMs: number; tieProgress?: number },
+  opts: { threadCount: number; show: 'red' | 'droop' | 'small'; timeMs: number; tieProgress?: number; drumAngle?: number },
 ): void {
   const hexes = patternHexes(content, s.patternId);
   const base = baseHex(content, s.patternId);
@@ -62,7 +62,7 @@ export function drawBoard(
   drawCreel(ctx, fit, s, opts, hexes);
   drawThreads(ctx, fit, s, opts, base);
   drawTable(ctx, fit, s);
-  drawDrum(ctx, fit, s, hexes, base, opts.tieProgress ?? 0);
+  drawDrum(ctx, fit, s, hexes, base, opts.tieProgress ?? 0, opts.drumAngle ?? 0);
   drawDial(ctx, fit, s);
   drawLamp(ctx, s);
   drawBrokenThread(ctx, fit, s, opts, base);

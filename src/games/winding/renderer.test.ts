@@ -1,12 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { drawBoard } from './renderer';
-import { endPoint, threadY, tableY, DRUM_END_X, drumSectionY } from './geometry';
+import { endPoint, threadY, tableY, DRUM_END_X, drumSectionY, DRUM_AREA } from './geometry';
 import { COLORS } from '../../core/ui/tokens';
 import type { FakeRecorder } from './renderer.test.helpers';
 
 // 偽の ctx (呼ばれた命令を記録する) は helpers に置く
 import { makeFakeCtx } from './renderer.test.helpers';
+import { SLAT_COUNT } from './renderer.parts';
 import { init, reduce } from './logic';
 import type { WindingState } from './logic';
 import { loadContent } from '../../core/content/content';
@@ -471,5 +472,45 @@ describe('winding renderer T2-08 追加修正2', () => {
     const idx = styles.indexOf('#1F2A44');
     expect(idx).toBeGreaterThanOrEqual(0);
     expect(styles.slice(idx + 1, idx + 4)).toContain(COLORS.sumiSub);
+  });
+});
+
+describe('winding renderer T2-10b (ドラムが回って見える)', () => {
+  const fit = { scale: 1, offsetX: 0, offsetY: 0 };
+
+  it('1. drumAngle だけを変えて2回描くと、桟の fillRect の x が変わる。同じ angle なら同じ', () => {
+    const s = windingState();
+    const collect = (angle: number) => {
+      const { ctx, rec } = makeFakeCtx();
+      drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0, drumAngle: angle });
+      return fillRectsWithColor(rec).filter((f) => f.v === COLORS.wood).map((f) => Math.round(f.x));
+    };
+    const a0 = collect(0);
+    const a1 = collect(0.7);
+    expect(a0).not.toEqual(a1);
+    expect(collect(0)).toEqual(a0);
+  });
+
+  it('2. 裏側の桟 (cos θ ≤ 0) は描かれない (ドラム領域の桟が候補より明らかに少ない)', () => {
+    const s = windingState();
+    const { ctx, rec } = makeFakeCtx();
+    drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0, drumAngle: 0.7 });
+    const inDrum = fillRectsWithColor(rec).filter(
+      (f) => f.v === COLORS.wood && f.w > 0 &&
+        f.x >= DRUM_AREA.x - 10 && f.x < DRUM_AREA.x + DRUM_AREA.w + 10 &&
+        f.y >= DRUM_AREA.y && f.y < DRUM_AREA.y + DRUM_AREA.h,
+    );
+    expect(inDrum.length).toBeLessThan(SLAT_COUNT * s.sections); // 裏側 (約半分) が消えている
+    expect(inDrum.length).toBeGreaterThan(0);
+  });
+
+  it('3. 巻いた帯の上に回る筋 (糸の筋) が描かれる (winding で帯の面の細い縦の線)', () => {
+    const s = windingState();
+    const s2 = { ...s, phase: 'winding' as const, current: 0, lengths: s.lengths.map((v, i) => (i === 0 ? 1500 : v)) };
+    const { ctx, rec } = makeFakeCtx();
+    drawBoard(ctx, fit, s2, content, { threadCount: 8, show: 'red', timeMs: 0, drumAngle: 0.5 });
+    // 帯1の区画の中に、幅の狭い fillRect (筋) がある
+    const inBand = fillRectsWithColor(rec).filter((f) => f.y >= drumSectionY(0, 3) && f.y < drumSectionY(1, 3) && f.w > 0 && f.w < 30);
+    expect(inBand.length).toBeGreaterThan(0);
   });
 });
