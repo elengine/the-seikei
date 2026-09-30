@@ -690,3 +690,26 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
   1. 412×915: 項目名が1段目、今の値とボタンが2段目。「（未設定）」「整経所」とも高さ 28px (1行) で読める (スクショ t18_settings_412.png)。
   2. 360×800: 同じく2段で1行。scrollWidth 360 = clientWidth 360 (横のはみ出し無し) (スクショ t18_settings_360.png)。
   3. 1180×820・820×1180: 項目名と今の値が同じ行 (3列のまま) (スクショ t18_settings_1180.png、t18_settings_820.png)。
+
+
+## 2026-09-30 T2-01: ペダルと張りの計算 (core/mechanics/pedal.ts) と効果音 stop
+
+- やったこと:
+  - src/core/mechanics/pedal.ts (新規): TensionParams・PedalState の型と、
+    initPedal・setPedal (0〜100 に丸める)・speedOf (pedal/100 × maxSpeed)・
+    tensionOf (base + perPedal×pedal + yarnDrift×clamp(progress,0,1) + noise)・
+    stepNoise (乱数で noise を動かす。1回の変化は noiseStepPerSec×dtMs/1000 以内、範囲の外に出ない)・
+    zoneOf (low/ok/high)。すべて純粋関数。乱数は core/clock の nextFloat。
+    app・games・zukan は import していない。
+  - src/core/audio/sounds.ts: SoundName に 'stop' を追加。
+    機械が止まる音 (糸切れの「ガシャン」に近い、短く重なった金属的な音):
+    triangle 600Hz 40ms (0ms から)、300Hz 120ms (10ms から)、250Hz 200ms (30ms から)、
+    gain は 0.3・0.3・0.25 (すべて 0.5 以下、周波数は 250〜2000Hz の決まりを守る)。
+  - src/core/audio/audio.test.ts: テスト1の対象に 'stop' を追加 (1行のみの変更)。
+- テスト (先に書いて RED を確認: pedal.ts が無く import 失敗):
+  pedal.test.ts (新規) に仕様書のテスト 1〜6 を実装。
+  - 5 (安全なペダルの保証) は、初級 30〜70・中級 38〜62・上級 44〜56 のそれぞれで、
+    pedal 40・progress 0/0.5/1・noise -2/0/+2 の全 27 組み合わせで zoneOf が 'ok' であることを確かめた
+    (P2/README の「ゆっくり踏めば必ず適正範囲に入る」の保証)。
+- テスト全体: 330 passed / 11 skipped。npm run check エラー0。npm run build 成功。
+- T2-01 は画面を持たない純粋関数なので、ブラウザ確認の対象は無し (確認のしかた: テスト)。
