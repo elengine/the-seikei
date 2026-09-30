@@ -5,7 +5,7 @@ import { createAudioPlayer } from './audio';
 
 describe('sounds', () => {
   it('1. すべての名前に1つ以上の Note があり、周波数・gain・長さが範囲内', () => {
-    const names: SoundName[] = ['tap', 'ok', 'gentleNo', 'knot', 'page', 'fanfare'];
+    const names: SoundName[] = ['tap', 'ok', 'gentleNo', 'knot', 'page', 'fanfare', 'stop'];
     for (const name of names) {
       const notes = SOUNDS[name];
       expect(notes.length, name).toBeGreaterThan(0);
