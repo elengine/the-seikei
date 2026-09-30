@@ -1,8 +1,8 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-09-30T18:35:00+09:00",
+  "updated_at": "2026-09-30T19:05:00+09:00",
   "phase": "P0",
-  "current_task": "T2-08 追加修正 (a: 盤面の絵 / b: 操作欄)",
+  "current_task": "T2-08 追加修正b (操作欄のあふれ・メーターの幅)",
   "done": [
     "T0-00",
     "T0-01",
@@ -62,13 +62,14 @@
     "T1-19",
     "T1-20",
     "T2-07",
-    "T2-08"
+    "T2-08",
+    "T2-08 追加修正a"
   ],
   "checks": [
     {
-      "task": "T2-08",
+      "task": "T2-08-fix a",
       "check": 0,
-      "test": "418 passed / 11 skipped",
+      "test": "428 passed / 11 skipped",
       "build": "ok"
     }
   ],
