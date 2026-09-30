@@ -713,3 +713,27 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
     (P2/README の「ゆっくり踏めば必ず適正範囲に入る」の保証)。
 - テスト全体: 330 passed / 11 skipped。npm run check エラー0。npm run build 成功。
 - T2-01 は画面を持たない純粋関数なので、ブラウザ確認の対象は無し (確認のしかた: テスト)。
+
+
+## 2026-09-30 T2-02: 糸切れと糸継ぎの計算 (core/mechanics/breakage.ts)
+
+- やったこと:
+  - src/core/mechanics/breakage.ts (新規):
+    - initBreak: running・sinceCheckMs 0。
+    - stepBreak: running のときだけ時間を数える (broken なら何もしない)。
+      sinceCheckMs が checkMs たまるごとに1回判定し、checkMs を引く (1回の dtMs で複数回判定あり)。
+      tension <= rangeMax なら切れない。tension > rangeMax なら
+      chance = min(maxChance, rate × (tension − rangeMax)) の確率で切れる。
+      切れたら broken (thread は 0〜threadCount-1 の乱数、firstTapped false)、broke true。
+    - tapEnd: running なら ignored。違う糸なら wrongThread (firstTapped を false に戻す)。
+      正しい糸の creel なら first (firstTapped true)。正しい糸の drum で firstTapped true なら
+      tied (initBreak に戻る)。drum で firstTapped false なら retry (状態そのまま)。
+    - すべて純粋関数。乱数は core/clock の nextFloat。
+  - src/core/mechanics/breakage.test.ts (新規): 仕様書のテスト 1〜7 を実装。
+- テスト (先に書いて RED を確認: breakage.ts が無く import 失敗): 7件。
+  - テスト2は、tension 80・rangeMax 56 (chance が上限 0.5) で、同じ種 seedFrom(42) なら
+    同じ回で切れ、thread が 0〜7、数回以内に切れることを確かめた。
+  - テスト7は、retry のあと状態が変わらないこと・creel の2回目も first のまま (firstTapped true 維持)・
+    running では ignored も確認。
+- テスト全体: 337 passed / 11 skipped。npm run check エラー0。npm run build 成功。
+- 画面を持たない純粋関数なので、ブラウザ確認の対象は無し (確認のしかた: テスト)。
