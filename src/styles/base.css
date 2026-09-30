@@ -993,7 +993,7 @@ button {
 .pedal-control {
   display: flex;
   flex-direction: column;
-  gap: var(--gap);
+  gap: var(--sp-3);
   align-items: flex-start;
 }
 
@@ -1012,9 +1012,9 @@ button {
   min-width: 120px; /* 細い操作欄でも押せる (T2-08 追加修正b) */
   flex: 0 1 auto;
   height: 260px;
-  background: var(--c-white);
-  border: 2px solid var(--c-steel);
-  border-radius: var(--radius);
+  background: var(--c-kinari-deep);
+  border: 2px solid var(--c-line);
+  border-radius: var(--r-button);
   touch-action: none;
 }
 
@@ -1026,14 +1026,14 @@ button {
   max-width: calc(100% - 8px); /* 溝より広げない (T2-08 追加修正b) */
   height: 64px;
   background: var(--c-wood);
-  border-radius: 8px;
+  border-radius: var(--r-small);
   touch-action: none;
 }
 
 .pedal__buttons {
   display: flex;
   flex-direction: column;
-  gap: var(--gap);
+  gap: var(--sp-4);
 }
 
 .pedal__value {
@@ -1068,9 +1068,9 @@ button {
   width: 320px;
   max-width: 100%;
   height: 24px;
-  background: var(--c-white);
-  border: 2px solid var(--c-steel);
-  border-radius: var(--radius);
+  background: var(--c-kinari-deep);
+  border: 2px solid var(--c-line);
+  border-radius: var(--r-small);
   box-sizing: border-box; /* 枠線を含めて max-width に収める (T2-08 追加修正2) */
 }
 
@@ -1079,7 +1079,7 @@ button {
   top: 0;
   height: 100%;
   background: var(--c-machine-light);
-  border-radius: var(--radius);
+  border-radius: var(--r-small);
 }
 
 .meter__needle {
@@ -1100,28 +1100,44 @@ button {
 }
 
 
-/* winding (T2-06: ドラム巻きの操作欄) */
+/* winding の操作欄 (PU-05c): 1行の情報 → 張り → ペダル → 主な操作 */
 .winding-panel {
   display: flex;
   flex-direction: column;
-  gap: var(--gap);
+  gap: var(--sp-4);
 }
 
 .winding-panel__section {
   display: flex;
-  gap: var(--gap);
+  flex-wrap: wrap;
+  column-gap: var(--sp-4);
+  row-gap: var(--sp-1);
   align-items: baseline;
   font-size: var(--fs-body);
   color: var(--c-sumi);
 }
 
+.winding-panel__clock {
+  margin-left: auto;
+  color: var(--c-sumi-sub);
+}
+
+.winding-panel__block .section-heading {
+  margin-bottom: var(--sp-2);
+}
+
 .winding-panel__actions {
-  min-height: var(--btn-min-h);
+  min-height: 72px;
   /* 主ボタンは操作欄の下に固定する (T2-08 追加修正b) */
   position: sticky;
   bottom: 0;
-  background: var(--c-kinari);
-  padding-top: var(--gap);
+  background: var(--c-white);
+  padding-top: var(--sp-3);
+  padding-bottom: var(--sp-2);
+}
+
+.winding-panel__main {
+  width: 100%;
 }
 
 /* 縦長ではペダルの溝を低くして、操作欄をスクロールなしで見えるようにする (T2-07 追加修正b) */

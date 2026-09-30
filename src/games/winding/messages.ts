@@ -77,9 +77,7 @@ export function soundFor(a: WindingAction, prev: WindingState, next: WindingStat
     if (tap === 'tiedOne' || tap === 'tiedAll') return 'knot';
     return null;
   }
-  if (a.type === 'start') {
-    return 'tap';
-  }
+  // 「巻き始める」などのボタンの音は、ボタンの部品 (createButton) が鳴らす
   return null; // setPedal などは音なし
 }
 
@@ -96,6 +94,14 @@ export function resultOf(s: WindingState, mode: GameProps['mode'], finishedAt: s
     stars,
     stats: { breaks: s.breaks, wrongTaps: s.wrongTaps, okRate, [`level:${s.level}`]: stars },
     unlockedPatternIds: [],
+    resultLines: [
+      { label: '適正な張りで巻いた割合', value: `${okRate}%` },
+      { label: '巻いた時間', value: `${msToText(s.elapsedMs)}(目標 ${msToText(target)})` },
+      { label: '糸切れ', value: `${s.breaks}回` },
+      { label: '違う糸を押した回数', value: `${s.wrongTaps}回` },
+      { label: '違う端を結ぼうとした回数', value: `${s.mismatches}回` },
+    ],
+    starHint: '適正な張りが8割以上、目標の時間内で星3です',
     summary: [
       `適正な張りで巻いた割合 ${okRate}%`,
       `巻いた時間 ${msToText(s.elapsedMs)}(目標 ${msToText(target)})`,

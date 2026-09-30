@@ -183,3 +183,24 @@ describe('tensionMeter (T2-03)', () => {
     expect(document.body.querySelector('.tension-meter')).toBeNull();
   });
 });
+
+describe('PU-05c: ペダルの「踏み込む」「戻す」の押せない形', () => {
+  it('setEnabled(false, 理由) で btn--locked (disabled にしない)。押すと onLocked(理由) で onChange は呼ばれない。setEnabled(true) で戻る', () => {
+    document.body.innerHTML = '';
+    const onChange = vi.fn();
+    const onLocked = vi.fn();
+    const pc = createPedalControl(document.body, { label: 'ペダル', onChange, onLocked });
+    pc.setEnabled(false, '巻き始めると使えます');
+    const plus = Array.from(document.body.querySelectorAll<HTMLButtonElement>('.pedal__btn')).find((b) => b.textContent === '踏み込む')!;
+    expect(plus.classList.contains('btn--locked')).toBe(true);
+    expect(plus.hasAttribute('disabled')).toBe(false);
+    plus.click();
+    expect(onLocked).toHaveBeenCalledWith('巻き始めると使えます');
+    expect(onChange).not.toHaveBeenCalled();
+    pc.setEnabled(true);
+    expect(plus.classList.contains('btn--locked')).toBe(false);
+    plus.click();
+    expect(onChange).toHaveBeenCalledWith(10);
+    pc.destroy();
+  });
+});

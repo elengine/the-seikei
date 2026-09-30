@@ -851,3 +851,106 @@ describe('winding module T2-11a (範囲が動くとメーターの帯も動く)'
     expect(after).not.toBe(before);
   });
 });
+
+describe('PU-05c: ドラム巻きの結果のつなぎ', () => {
+  let raf: ReturnType<typeof installFakeRaf>;
+
+  beforeEach(() => {
+    document.body.textContent = '';
+    raf = installFakeRaf();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  /** 初級を最後まで遊び、結果 (onFinish に渡ったもの) を返す */
+  async function finishLevel1(container: HTMLElement, props: ReturnType<typeof makeProps>): Promise<{
+    resultLines: { label: string; value: string }[];
+    starHint: string;
+    next?: { label: string; start: () => void };
+    again?: () => void;
+    toList?: () => void;
+  }> {
+    container.querySelector<HTMLButtonElement>('button[data-testid="winding-level-1"]')!.click();
+    const btn = (label: string): HTMLButtonElement | undefined =>
+      Array.from(container.querySelectorAll('button')).find((b) => b.textContent === label);
+    btn('巻き始める')!.click();
+    const pedalUp = (): void => {
+      for (let k = 0; k < 4; k++) {
+        btn('踏み込む')!.click();
+      }
+    };
+    pedalUp();
+    raf.advance(2000);
+    for (let i = 0; i < 3; i++) {
+      if (i > 0) {
+        pedalUp();
+      }
+      await vi.waitFor(
+        () => {
+          raf.advance(24);
+          const b = btn('帯の端を結ぶ');
+          expect(b).toBeDefined();
+          expect(b!.style.display).not.toBe('none');
+        },
+        { timeout: 30000, interval: 100 },
+      );
+      btn('帯の端を結ぶ')!.click();
+      await vi.waitFor(
+        () => {
+          raf.advance(8);
+          if (i === 2) {
+            expect(props.finished.length).toBe(1);
+          } else {
+            expect(container.querySelector('.winding-panel')?.textContent ?? '').not.toContain(`帯 ${i + 1} / 3巻いた長さ 100%`);
+          }
+        },
+        { timeout: 30000, interval: 100 },
+      );
+    }
+    await vi.waitFor(
+      () => {
+        raf.advance(24);
+        expect(props.finished).toHaveLength(1);
+      },
+      { timeout: 30000, interval: 100 },
+    );
+    return props.finished[0] as never;
+  }
+
+  it('見出しの行の題名の下に今のお題「初級 …」が出る。終わると resultLines 5行・starHint・next「中級へ」・again・toList が渡る', async () => {
+    const { deps } = await makeDeps();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const module = createWindingModule(deps);
+    const props = makeProps();
+    const instance = module.mount(container, props);
+    const result = await finishLevel1(container, props);
+    expect(container.querySelector('.screen-header__subtitle')!.textContent).toContain('初級');
+    expect(result.resultLines).toHaveLength(5);
+    expect(result.starHint).toBe('適正な張りが8割以上、目標の時間内で星3です');
+    expect(result.next?.label).toBe('中級へ');
+    expect(typeof result.again).toBe('function');
+    expect(typeof result.toList).toBe('function');
+    instance.unmount();
+  }, 60000);
+
+  it('next.start() で中級のプレイ画面、again() で初級をやり直し、toList() で難易度の一覧になる', async () => {
+    const { deps } = await makeDeps();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const module = createWindingModule(deps);
+    const props = makeProps();
+    const instance = module.mount(container, props);
+    const result = await finishLevel1(container, props);
+    result.next!.start();
+    expect(container.querySelector('.screen-header__subtitle')!.textContent).toContain('中級');
+    result.again!();
+    expect(container.querySelector('.screen-header__subtitle')!.textContent).toContain('初級');
+    result.toList!();
+    expect(container.querySelector('.game-frame')).toBeNull();
+    expect(container.querySelector('button[data-testid="winding-level-1"]')).not.toBeNull();
+    instance.unmount();
+  }, 60000);
+});

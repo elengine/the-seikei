@@ -1,3 +1,5 @@
+import { createButton, setLockedReason } from './widgets';
+
 /**
  * ペダル (足踏みの横木) と張りのメーターの部品 (P2 T2-03)。
  * ドラム巻きとビーミングの操作欄で使う。
@@ -12,14 +14,14 @@ export interface PedalControl {
   root: HTMLElement;
   /** 外から値を変える (0〜100)。onChange は呼ばない */
   setValue(v: number): void;
-  /** 糸切れ中などは押せない見た目にし、操作を受け付けない */
-  setEnabled(on: boolean): void;
+  /** 糸切れ中などは押せない見た目にし、操作を受け付けない。reason は「踏み込む」「戻す」を押したときに出す理由 */
+  setEnabled(on: boolean, reason?: string): void;
   destroy(): void;
 }
 
 export function createPedalControl(
   parent: HTMLElement,
-  opts: { label: string; onChange: (v: number) => void },
+  opts: { label: string; onChange: (v: number) => void; onLocked?: (reason: string) => void },
 ): PedalControl {
   let value = 0;
   let enabled = true;
@@ -28,6 +30,7 @@ export function createPedalControl(
   const root = document.createElement('div');
   root.className = 'pedal-control';
 
+  // 見出し (label が空なら出さない。操作欄の節の見出しが代わりになる)
   const label = document.createElement('span');
   label.className = 'pedal__label';
   label.textContent = opts.label;
@@ -47,14 +50,20 @@ export function createPedalControl(
 
   // 「踏み込む」(+10)「戻す」(-10) のボタン。溝の右に縦に並べる
   // (横木を下げるほど速いので、下のボタンが速くする方)
-  const plus = document.createElement('button');
-  plus.type = 'button';
-  plus.className = 'btn btn--secondary pedal__btn';
-  plus.textContent = '踏み込む';
-  const minus = document.createElement('button');
-  minus.type = 'button';
-  minus.className = 'btn btn--secondary pedal__btn';
-  minus.textContent = '戻す';
+  const plus = createButton({
+    label: '踏み込む',
+    variant: 'secondary',
+    onClick: () => apply(value + 10),
+    onLocked: (r) => opts.onLocked?.(r),
+  });
+  plus.classList.add('pedal__btn');
+  const minus = createButton({
+    label: '戻す',
+    variant: 'secondary',
+    onClick: () => apply(value - 10),
+    onLocked: (r) => opts.onLocked?.(r),
+  });
+  minus.classList.add('pedal__btn');
 
   const buttons = document.createElement('div');
   buttons.className = 'pedal__buttons';
@@ -66,7 +75,9 @@ export function createPedalControl(
   row.appendChild(groove);
   row.appendChild(buttons);
 
-  root.appendChild(label);
+  if (opts.label !== '') {
+    root.appendChild(label);
+  }
   root.appendChild(row);
   root.appendChild(valueLabel);
   parent.appendChild(root);
@@ -118,13 +129,6 @@ export function createPedalControl(
   groove.addEventListener('pointerup', onUp);
   groove.addEventListener('pointercancel', onUp);
 
-  plus.addEventListener('click', () => {
-    if (enabled) apply(value + 10);
-  });
-  minus.addEventListener('click', () => {
-    if (enabled) apply(value - 10);
-  });
-
   render();
 
   return {
@@ -133,11 +137,12 @@ export function createPedalControl(
       value = clamp100(v);
       render(); // onChange は呼ばない
     },
-    setEnabled(on: boolean): void {
+    setEnabled(on: boolean, reason = '今は使えません'): void {
       enabled = on;
       root.classList.toggle('disabled', !on);
-      plus.disabled = !on;
-      minus.disabled = !on;
+      // 押せないときは disabled にせず、点線の枠にして、押すと理由を出す
+      setLockedReason(plus, on ? null : reason);
+      setLockedReason(minus, on ? null : reason);
       if (!on) captured = false;
     },
     destroy(): void {
@@ -178,7 +183,9 @@ export function createTensionMeter(parent: HTMLElement, opts: { label: string })
   const state = document.createElement('span');
   state.className = 'meter__state';
 
-  root.appendChild(label);
+  if (opts.label !== '') {
+    root.appendChild(label); // 空なら出さない (操作欄の節の見出しが代わりになる)
+  }
   root.appendChild(band);
   root.appendChild(state);
   parent.appendChild(root);

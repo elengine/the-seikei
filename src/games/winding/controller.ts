@@ -13,6 +13,7 @@ import { messageFor, soundFor, resultOf } from './messages';
 import type { WindingState, WindingAction, Level } from './logic';
 import { MESSAGE_HOLD_MS, DRUM_TURN_PER_SPEED, DRUM_EASE_UP_MS, DRUM_EASE_DOWN_MS, DRUM_STOP_MS, TENSION } from './params';
 
+const LEVEL_NAMES: Record<Level, string> = { 1: '初級', 2: '中級', 3: '上級' };
 const TIE_ANIM_MS = 1000; // 帯の端を結ぶ演出の長さ
 const PIN_TURN_MS = 800; // 結ぶ前にピンを正面へ回す時間 (0.6〜1 秒のまんなか)
 const DONE_WAIT_MS = 1500; // done のあと結果を出すまでの見せる時間
@@ -57,6 +58,7 @@ let pinTurnPrevEased = 0; // 前フレームの ease の値 (角速度を決め�
   // ---- 枠 ----
   const frame = createGameFrame(parent, {
     title: deps.terms.t('game.winding'),
+    subtitle: `${LEVEL_NAMES[opts.level]} 帯 ${opts.sections}本`, // 今のお題
     onBack: opts.onBack,
     onHelp: () => {
       void showTutorial(frame.root, opts.tutorial, { renderText: (t) => deps.terms.render(t) }).then(() => undefined);
@@ -78,6 +80,9 @@ let pinTurnPrevEased = 0; // 前フレームの ease の値 (角速度を決め�
     terms: deps.terms,
     onAction: (a: WindingAction) => {
       dispatch(a);
+    },
+    onNotice: (text: string) => {
+      frame.message.textContent = text; // 押せないボタンの理由 (次の更新までメッセージ欄に出る)
     },
   });
 

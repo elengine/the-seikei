@@ -108,3 +108,52 @@ describe('winding panel T2-05-fix (横木が状態に合わせて戻る)', () =>
     panel2.destroy();
   });
 });
+
+describe('PU-05c: ドラム巻きの操作欄の並び', () => {
+  function mountPanel(onNotice?: (t: string) => void): { panel: ReturnType<typeof createWindingPanel>; host: HTMLElement } {
+    document.body.innerHTML = '';
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const p = createWindingPanel(host, { terms, onAction: () => undefined, onNotice });
+    return { panel: p, host };
+  }
+
+  it('節の見出しは「張り」「ペダル」(用語の呼び名)。一番下に主な操作 (primary)', () => {
+    const { panel: p, host } = mountPanel();
+    p.update(init({ level: 1, patternId: 'p-pin-kon', sections: 5, seed: 1 }));
+    expect(Array.from(host.querySelectorAll('.section-heading')).map((h) => h.textContent)).toEqual(['張り', 'ペダル']);
+    const actions = host.querySelector('.winding-panel__actions')!;
+    expect(actions).toBe(host.querySelector('.winding-panel')!.lastElementChild);
+    for (const b of Array.from(actions.querySelectorAll('button'))) {
+      expect(b.classList.contains('btn--primary')).toBe(true);
+    }
+    p.destroy();
+  });
+
+  it('帯の番号・巻いた長さ・経過時間が1行 (同じ要素) に入っている', () => {
+    const { panel: p, host } = mountPanel();
+    p.update(init({ level: 1, patternId: 'p-pin-kon', sections: 5, seed: 1 }));
+    const line = host.querySelector('.winding-panel__section')!;
+    expect(line.textContent).toContain('帯 1 / 5');
+    expect(line.textContent).toContain('巻いた長さ');
+    expect(line.textContent).toMatch(/\d:\d\d \/ \d:\d\d/);
+    expect(host.querySelector('.winding-panel__time')).toBeNull();
+    p.destroy();
+  });
+
+  it('巻いていないとき、「踏み込む」「戻す」は押せない形 (disabled にしない)。押すと理由が onNotice に出る', () => {
+    const notice = vi.fn();
+    const { panel: p, host } = mountPanel(notice);
+    p.update(init({ level: 1, patternId: 'p-pin-kon', sections: 5, seed: 1 }));
+    const plus = Array.from(host.querySelectorAll<HTMLButtonElement>('.pedal__btn')).find((b) => b.textContent === '踏み込む')!;
+    expect(plus.classList.contains('btn--locked')).toBe(true);
+    expect(plus.hasAttribute('disabled')).toBe(false);
+    plus.click();
+    expect(notice).toHaveBeenCalledTimes(1);
+    expect(String(notice.mock.calls[0]![0])).toContain('巻き始める');
+    // 巻いているあいだは押せる
+    p.update(reduce(init({ level: 1, patternId: 'p-pin-kon', sections: 5, seed: 1 }), { type: 'start' }));
+    expect(plus.classList.contains('btn--locked')).toBe(false);
+    p.destroy();
+  });
+});

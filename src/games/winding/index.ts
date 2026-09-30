@@ -9,6 +9,8 @@ import type { WindingState } from './logic';
 import { confirmDialog } from '../../core/ui/widgets';
 import { showTutorial } from '../../core/ui/tutorialOverlay';
 
+const LEVEL_LABELS: Record<Level, string> = { 1: '初級', 2: '中級', 3: '上級' };
+
 /**
  * ドラム巻きのゲームモジュール (P2 T2-07・追加修正a)。
  * mount すると、resume が有効ならプレイ画面 (ペダルは 0)、
@@ -51,7 +53,42 @@ export function createWindingModule(deps: GameDeps): GameModule {
         currentList?.destroy();
         currentList = null;
         container.textContent = '';
-        current = createWindingController(container, deps, props, {
+        // 結果の画面から、次の難易度・同じ難易度・難易度の一覧へ移れるようにする (PU-05a のつなぎ。単独プレイのみ)
+        const leavePlay = (): void => {
+          current?.unmount();
+          current = null;
+        };
+        const playProps: GameProps =
+          props.mode === 'standalone'
+            ? {
+                ...props,
+                onFinish: (result) => {
+                  const nextLevel = level < 3 ? ((level + 1) as Level) : null;
+                  props.onFinish({
+                    ...result,
+                    next:
+                      nextLevel !== null
+                        ? {
+                            label: `${LEVEL_LABELS[nextLevel]}へ`,
+                            start: () => {
+                              leavePlay();
+                              startPlay(nextLevel, STANDALONE_PATTERN(nextLevel), SECTIONS(nextLevel), undefined);
+                            },
+                          }
+                        : undefined,
+                    again: () => {
+                      leavePlay();
+                      startPlay(level, STANDALONE_PATTERN(level), SECTIONS(level), undefined);
+                    },
+                    toList: () => {
+                      leavePlay();
+                      showList();
+                    },
+                  });
+                },
+              }
+            : props;
+        current = createWindingController(container, deps, playProps, {
           level,
           patternId,
           sections,
