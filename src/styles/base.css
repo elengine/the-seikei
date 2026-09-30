@@ -1,3 +1,27 @@
+@font-face {
+  font-family: "Shippori Mincho";
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+  src: url('/fonts/ShipporiMincho-Bold.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: "BIZ UDPGothic";
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src: url('/fonts/BIZUDPGothic-Regular.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: "BIZ UDPGothic";
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+  src: url('/fonts/BIZUDPGothic-Bold.woff2') format('woff2');
+}
+
 html,
 body {
   margin: 0;
@@ -84,7 +108,8 @@ body {
 
   /* creel の部品で使う色 */
   --c-box: #d8c3a5; /* 段ボール箱の薄い茶 */
-  --font-family: "Hiragino Sans", "Noto Sans JP", sans-serif;
+  --font-family: "BIZ UDPGothic", "Hiragino Sans", "Noto Sans JP", sans-serif;
+  --font-family-heading: "Shippori Mincho", "Hiragino Mincho ProN", serif;
 }
 
 :root[data-font='xlarge'] {

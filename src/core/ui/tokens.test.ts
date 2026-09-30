@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { COLORS, FONT, FONT_FAMILY, RADIUS, SIZE, SPACE } from './tokens';
+import { COLORS, FONT, FONT_FAMILY, FONT_FAMILY_HEADING, RADIUS, SIZE, SPACE } from './tokens';
 
 /** base.css を読み、指定セレクタの宣言ブロックから CSS 変数を取り出す */
 function cssVars(selector: string): Map<string, string> {
@@ -344,5 +344,41 @@ describe('PU-01a: 色・余白・角・上端の縞', () => {
       expect(ratio(COLORS[name], COLORS.kinari)).toBeGreaterThanOrEqual(4.5);
       expect(ratio(COLORS[name], COLORS.white)).toBeGreaterThanOrEqual(4.5);
     });
+  });
+});
+
+describe('PU-01b: 書体の埋め込み', () => {
+  function cssText(): string {
+    return readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
+  }
+
+  it('--font-family と --font-family-heading が tokens と一致する', () => {
+    const root = cssVars(':root');
+    expect(root.get('--font-family')).toBe(FONT_FAMILY);
+    expect(root.get('--font-family-heading')).toBe(FONT_FAMILY_HEADING);
+  });
+
+  it('FONT_FAMILY は BIZ UDPGothic、FONT_FAMILY_HEADING は Shippori Mincho が先頭', () => {
+    expect(FONT_FAMILY.startsWith('"BIZ UDPGothic"')).toBe(true);
+    expect(FONT_FAMILY_HEADING.startsWith('"Shippori Mincho"')).toBe(true);
+  });
+
+  it('base.css に 3 つの @font-face があり、すべて font-display: swap', () => {
+    const faces = cssText().match(/@font-face\s*\{[^}]*\}/g) ?? [];
+    expect(faces).toHaveLength(3);
+    for (const f of faces) {
+      expect(f).toContain('font-display: swap');
+      expect(f).toMatch(/url\(['"]?[^)]*\.woff2['"]?\)/);
+    }
+    const text = faces.join(' ');
+    expect(text).toContain('Shippori Mincho');
+    expect(text).toContain('BIZ UDPGothic');
+    expect(text).toContain('ShipporiMincho-Bold.woff2');
+    expect(text).toContain('BIZUDPGothic-Regular.woff2');
+    expect(text).toContain('BIZUDPGothic-Bold.woff2');
+  });
+
+  it('@font-face は base.css の先頭にある', () => {
+    expect(cssText().trimStart().startsWith('@font-face')).toBe(true);
   });
 });

@@ -51,7 +51,10 @@ export const SIZE = {
 
 export const MOTION = { normalMs: 400, celebrateMs: 1500 } as const;
 
-export const FONT_FAMILY = '"Hiragino Sans", "Noto Sans JP", sans-serif';
+export const FONT_FAMILY = '"BIZ UDPGothic", "Hiragino Sans", "Noto Sans JP", sans-serif';
+
+/** 題名・見出し用 (明朝) */
+export const FONT_FAMILY_HEADING = '"Shippori Mincho", "Hiragino Mincho ProN", serif';
 
 /** root の data-font 属性を設定する */
 export function applyFontScale(root: HTMLElement, scale: FontScale): void {

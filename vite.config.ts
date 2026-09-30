@@ -17,7 +17,7 @@ export default defineConfig({
       registerType: 'prompt', // 更新を促す表示は出さない。次回起動時に切り替わる (skipWaiting / clientsClaim は使わない)
       workbox: {
         // 全ファイルを事前にキャッシュする
-        globPatterns: ['**/*.{js,css,html,png,json}'],
+        globPatterns: ['**/*.{js,css,html,png,json,woff2}'],
       },
       manifest: {
         name: '整経ゲーム',
