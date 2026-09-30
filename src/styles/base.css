@@ -745,6 +745,11 @@ body {
   min-height: calc(2 * 1.3em); /* いつも 2 行ぶん。1 行と 2 行の入れ替わりで下がぶれない (T2-07 追加修正2) */
   line-height: 1.3;
   margin-bottom: var(--gap);
+  /* 操作欄がスクロールしてもメッセージが隠れない (T2-08 追加修正b) */
+  position: sticky;
+  top: 0;
+  background: var(--c-kinari); /* 操作欄と同じ色 (背景が透けないように) */
+  z-index: 1;
 }
 
 /* 縦長では盤面を上・操作欄を下に重ねる (gameFrame の inline style に合わせる) */
@@ -833,11 +838,16 @@ button {
   display: flex;
   gap: var(--gap);
   align-items: center;
+  /* 操作欄の幅に合わせて縮む (T2-08 追加修正b) */
+  min-width: 0;
+  max-width: 100%;
 }
 
 .pedal__groove {
   position: relative;
   width: 180px;
+  min-width: 120px; /* 細い操作欄でも押せる (T2-08 追加修正b) */
+  flex: 0 1 auto;
   height: 260px;
   background: var(--c-white);
   border: 2px solid var(--c-steel);
@@ -850,6 +860,7 @@ button {
   left: 50%;
   transform: translateX(-50%);
   width: 160px;
+  max-width: calc(100% - 8px); /* 溝より広げない (T2-08 追加修正b) */
   height: 64px;
   background: var(--c-wood);
   border-radius: 8px;
@@ -869,8 +880,9 @@ button {
 
 .pedal__btn {
   min-height: var(--btn-min-h);
-  min-width: var(--btn-min-w);
+  min-width: 96px; /* 細い操作欄でも収まる (T2-08 追加修正b) */
   font-size: var(--fs-button);
+  white-space: nowrap; /* 「踏み込む」が2行に折れない */
 }
 
 .pedal-control.disabled .pedal__groove,
@@ -915,6 +927,9 @@ button {
 .meter__state {
   font-size: var(--fs-body);
   color: var(--c-sumi);
+  /* 一番長い「▲ 強すぎ」に合わせて固定幅。文字数が変わっても帯の幅が変わらない (T2-08 追加修正b) */
+  width: 5.5em;
+  flex: none;
 }
 
 
@@ -935,6 +950,11 @@ button {
 
 .winding-panel__actions {
   min-height: var(--btn-min-h);
+  /* 主ボタンは操作欄の下に固定する (T2-08 追加修正b) */
+  position: sticky;
+  bottom: 0;
+  background: var(--c-kinari);
+  padding-top: var(--gap);
 }
 
 /* winding-list (T2-07: ドラム巻きの難易度の一覧。配置はクリール立ての一覧の形を流用) */

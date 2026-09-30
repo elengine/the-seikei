@@ -225,3 +225,49 @@ describe('T1-19: 設定画面の今の値の大きさ', () => {
     expect(m2![1]).toContain('color: var(--c-sumi-sub)');
   });
 });
+
+describe('T2-08 追加修正b: 操作欄のあふれとメーターの幅', () => {
+  function cssText(): string {
+    return readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
+  }
+
+  /** セレクタの宣言ブロックを返す (無ければ null) */
+  function blockOf(selector: string): string | null {
+    const re = new RegExp(`${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\{([^}]*)\\}`);
+    return cssText().match(re)?.[1] ?? null;
+  }
+
+  it('1. メッセージ欄は横長で position: sticky; top: 0 (スクロールしても隠れない)', () => {
+    const block = blockOf('.game-frame__message');
+    expect(block).not.toBeNull();
+    expect(block!).toMatch(/position:\s*sticky/);
+    expect(block!).toMatch(/top:\s*0/);
+  });
+
+  it('2. 主ボタンの区画は position: sticky; bottom: 0 (操作欄の下に固定)', () => {
+    const block = blockOf('.winding-panel__actions');
+    expect(block).not.toBeNull();
+    expect(block!).toMatch(/position:\s*sticky/);
+    expect(block!).toMatch(/bottom:\s*0/);
+  });
+
+  it('3. ペダルの列 (溝+ボタン) は操作欄の幅に合わせて縮む (flex の縮みと最小幅)', () => {
+    const row = blockOf('.pedal__row');
+    expect(row, 'pedal__row').not.toBeNull();
+    expect(row!).toMatch(/min-width:\s*0/);
+    const groove = blockOf('.pedal__groove');
+    expect(groove!, 'groove の最小幅 120px').toMatch(/min-width:\s*120px/);
+    const bar = blockOf('.pedal__bar');
+    expect(bar!, '横木は溝より広げない (max-width)').toMatch(/max-width/);
+    const btn = blockOf('.pedal__btn');
+    expect(btn!, 'ボタンの最小幅 96px').toMatch(/min-width:\s*96px/);
+    expect(btn!, '「踏み込む」が折れない').toMatch(/white-space:\s*nowrap/);
+  });
+
+  it('4. 張りの状態の文字の欄は固定幅 (一番長い「▲ 強すぎ」に合わせる。width と flex: none)', () => {
+    const state = blockOf('.meter__state');
+    expect(state).not.toBeNull();
+    expect(state!).toMatch(/width:\s*5\.5em/);
+    expect(state!).toMatch(/flex:\s*none/);
+  });
+});
