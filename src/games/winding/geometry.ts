@@ -10,23 +10,23 @@ export const LOGICAL_W = 1000;
 /** 論理座標の高さ */
 export const LOGICAL_H = 750;
 
-/** 区画: 左にクリール、中央に台とレール、右にドラム */
+/** 区画: 左にクリール、中央に台と筬、右にドラム (T2-10a で台と筬を右へ) */
 export const CREEL_AREA = { x: 40, y: 90, w: 200, h: 600 } as const;
-export const TABLE_AREA = { x: 260, y: 90, w: 300, h: 600 } as const;
+export const TABLE_AREA = { x: 430, y: 90, w: 220, h: 600 } as const;
 export const DRUM_AREA = { x: 580, y: 90, w: 380, h: 600 } as const;
 /** 上の余白 (目盛り盤と赤ランプ) */
 export const TOP_AREA = { y: 0, h: 90 } as const;
 
-/** クリール側の切れ端の x (台の左) */
-export const CREEL_END_X = 380;
-/** ドラム側の切れ端の x (台の右) */
-export const DRUM_END_X = 460;
+/** クリール側の切れ端の x (まっすぐ横に進む区間の上。T2-10a) */
+export const CREEL_END_X = 290;
+/** ドラム側の切れ端の x (まっすぐ横に進む区間の上。クリール側との差は 60 以上。T2-10a) */
+export const DRUM_END_X = 360;
 /** 切れ端の縦の範囲 (台の中)。糸の縦の位置はこの範囲で threadY が決める */
 const END_Y_TOP = 300;
 const END_Y_BOTTOM = 620;
 
-/** 筬 (くし状の金具) の x (台の中央) */
-export const REED_X = 410;
+/** 筬 (くし状の金具) の x (台の中央。T2-10a で 520 へ) */
+export const REED_X = 520;
 /** 帯のシートの半分の幅 (論理座標。糸がまとまる帯の幅) */
 export const THREAD_SHEET_HALF = 30;
 
@@ -51,9 +51,36 @@ export function tableY(current: number, sections: number): number {
   return (drumSectionY(cur, sections) + drumSectionY(cur + 1, sections)) / 2;
 }
 
+/** コーンの右の x (糸の線の始点) */
+export const CONE_X = 180;
+
 /**
- * 糸の線 (コーン → クリール側の切れ端 → 筬 → 今の帯) の上の点 (論理座標)。
- * along 0..1 でコーンから今の帯まで進む。流れる印を糸の上に置くのに使う。
+ * 糸 thread の道筋の頂点 (折れ線)。糸の線を描く処理と、流れる印の位置 (pointOnPath) の
+ * 両方が、この頂点を使う (T2-10a。位置がずれる不具合の防止。T2-07 追加修正2 の threadY と同じ考え)。
+ * 順に: コーン → まっすぐ横に進む区間 (切れ端はこの区間の上) → 筬へ集まる区間 → 筬 → 今の帯。
+ */
+export function threadPath(
+  thread: number,
+  threadCount: number,
+  current: number,
+  sections: number,
+): Array<{ x: number; y: number }> {
+  const y0 = threadY(thread, threadCount);
+  const yTarget = tableY(current, sections);
+  const half = THREAD_SHEET_HALF * ((thread / Math.max(1, threadCount - 1)) * 2 - 1);
+  const reedY = yTarget - REED_RISE + half;
+  return [
+    { x: CONE_X, y: y0 },
+    { x: CREEL_END_X, y: y0 },
+    { x: DRUM_END_X, y: y0 },
+    { x: REED_X, y: reedY },
+    { x: DRUM_AREA.x, y: yTarget },
+  ];
+}
+
+/**
+ * 糸の線 (threadPath の折れ線) の上の点 (論理座標)。
+ * along 0..1 でコーンから今の帯まで、長さの割合で進む。流れる印を糸の上に置くのに使う。
  */
 export function pointOnPath(
   thread: number,
@@ -62,27 +89,27 @@ export function pointOnPath(
   current: number,
   sections: number,
 ): { x: number; y: number } {
-  const y0 = threadY(thread, threadCount);
-  const yTarget = tableY(current, sections);
-  // 道のり: コーン (x 180) → クリール側の切れ端 (380) → 筬 (410) → ドラムの縁 (580)
-  const xs = [180, CREEL_END_X, REED_X, DRUM_AREA.x];
-  const total = xs[xs.length - 1]! - xs[0]!;
-  const dist = Math.min(1, Math.max(0, along)) * total;
-  if (dist <= xs[1]! - xs[0]!) {
-    // 区間1: コーン → クリール側 (糸は threadY の高さを進む)
-    return { x: xs[0]! + dist, y: y0 };
+  const pts = threadPath(thread, threadCount, current, sections);
+  // 区間ごとの長さ
+  const lens: number[] = [];
+  let total = 0;
+  for (let i = 0; i + 1 < pts.length; i++) {
+    const d = Math.hypot(pts[i + 1]!.x - pts[i]!.x, pts[i + 1]!.y - pts[i]!.y);
+    lens.push(d);
+    total += d;
   }
-  if (dist <= xs[2]! - xs[0]!) {
-    // 区間2: クリール側 → 筬 (糸は筬の帯の幅に集まる)
-    const k = (dist - (xs[1]! - xs[0]!)) / (xs[2]! - xs[1]!);
-    const half = THREAD_SHEET_HALF * ((thread / Math.max(1, threadCount - 1)) * 2 - 1);
-    return { x: xs[1]! + k * (xs[2]! - xs[1]!), y: y0 + (half - y0) * k };
+  let dist = Math.min(1, Math.max(0, along)) * total;
+  for (let i = 0; i + 1 < pts.length; i++) {
+    if (dist <= lens[i]! || i + 2 === pts.length) {
+      const k = lens[i]! === 0 ? 0 : Math.min(1, dist / lens[i]!);
+      return {
+        x: pts[i]!.x + (pts[i + 1]!.x - pts[i]!.x) * k,
+        y: pts[i]!.y + (pts[i + 1]!.y - pts[i]!.y) * k,
+      };
+    }
+    dist -= lens[i]!;
   }
-  // 区間3: 筬 → 今の帯 (横向きに帯の高さへ。筬の y は台の上の少し手前)
-  const k = (dist - (xs[2]! - xs[0]!)) / (xs[3]! - xs[2]!);
-  const half = THREAD_SHEET_HALF * ((thread / Math.max(1, threadCount - 1)) * 2 - 1);
-  const reedY = yTarget - REED_RISE;
-  return { x: xs[2]! + k * (xs[3]! - xs[2]!), y: (reedY + half) * (1 - k) + yTarget * k };
+  return pts[pts.length - 1]!;
 }
 
 /**
@@ -118,6 +145,7 @@ export function fromPx(fit: StageFit, p: { x: number; y: number }): { x: number;
  * 糸は上から下へ等間隔に並ぶ。
  */
 export function endPoint(thread: number, side: 'creel' | 'drum', threadCount: number): { x: number; y: number } {
+  // threadPath の、まっすぐ横に進む区間 (頂点1〜2のあいだ) の上の点 (T2-10a)
   return { x: side === 'creel' ? CREEL_END_X : DRUM_END_X, y: threadY(thread, threadCount) };
 }
 

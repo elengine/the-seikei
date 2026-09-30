@@ -5,7 +5,7 @@ import { COLORS, FONT_FAMILY } from '../../core/ui/tokens';
 import { speedOf } from '../../core/mechanics/pedal';
 import { TENSION, SECTION_LENGTH } from './params';
 import type { StageFit } from '../../core/viewport/viewport';
-import { CREEL_AREA, TABLE_AREA, DRUM_AREA, TOP_AREA, CREEL_END_X, DRUM_END_X, REED_X, THREAD_SHEET_HALF, REED_RISE, threadY, drumSectionY, tableY, pointOnPath, toPx, fontPx } from './geometry';
+import { CREEL_AREA, TABLE_AREA, DRUM_AREA, TOP_AREA, CREEL_END_X, DRUM_END_X, REED_X, THREAD_SHEET_HALF, REED_RISE, threadY, threadPath, drumSectionY, tableY, pointOnPath, toPx, fontPx } from './geometry';
 import { drawDrum, drawBrokenThread } from './renderer.parts';
 
 /**
@@ -152,30 +152,28 @@ function drawThreads(
   opts: { threadCount: number; timeMs: number },
   base: string,
 ): void {
-  const creelX = CREEL_AREA.x + CREEL_AREA.w - fontPx(fit, 60); // コーンの右あたり
-  const ty = tableY(s.current, s.sections);
   ctx.strokeStyle = base;
   ctx.lineWidth = fontPx(fit, 1);
   ctx.beginPath();
   for (let t = 0; t < opts.threadCount; t++) {
-    const y = threadY(t, opts.threadCount);
-    // コーン → クリール側の切れ端 → 筬。筬で帯の幅 (THREAD_SHEET_HALF の2倍) にまとまる
-    const reedY = ty - REED_RISE + THREAD_SHEET_HALF * ((t / Math.max(1, opts.threadCount - 1)) * 2 - 1);
-    ctx.moveTo(creelX, y);
-    ctx.lineTo(CREEL_END_X, y);
-    ctx.lineTo(REED_X, reedY);
+    // 糸の線は geometry の threadPath (頂点の折れ線) どおりに描く (T2-10a)
+    const path = threadPath(t, opts.threadCount, s.current, s.sections);
+    ctx.moveTo(path[0]!.x, path[0]!.y);
+    for (let i = 1; i < path.length; i++) {
+      ctx.lineTo(path[i]!.x, path[i]!.y);
+    }
   }
   ctx.stroke();
   // 筬から先は帯の幅にまとまって、今の帯の区画へ (横向き)
+  const ty = tableY(s.current, s.sections);
   ctx.lineWidth = fontPx(fit, 2);
   ctx.beginPath();
   for (const dy of [-THREAD_SHEET_HALF, 0, THREAD_SHEET_HALF]) {
     ctx.moveTo(REED_X, ty - REED_RISE + dy);
-    ctx.lineTo(DRUM_END_X, ty + dy * 0.6);
     ctx.lineTo(DRUM_AREA.x, ty + dy * 0.4);
   }
   ctx.stroke();
-  // 巻いているときは、糸の線の上に小さな印が流れて動く (速さに比例。T2-08 追加修正a: 印は糸の上に乗る)
+  // 巻いているときは、糸の線の上に小さな印が流れて動く (速さに比例。印は糸の上に乗る)
   if (s.phase === 'winding') {
     const speed = speedOf(s.pedal, TENSION);
     const offset = ((opts.timeMs / 1000) * speed * 12) % 120;

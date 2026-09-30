@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { LOGICAL_W, LOGICAL_H, endPoint, hitEnd, toPx, fromPx, threadY, drumSectionY, tableY, TABLE_AREA, REED_X, DRUM_END_X, DRUM_AREA, pointOnPath } from './geometry';
+import { LOGICAL_W, LOGICAL_H, endPoint, hitEnd, toPx, fromPx, threadY, drumSectionY, tableY, TABLE_AREA, REED_X, DRUM_END_X, DRUM_AREA, pointOnPath, threadPath } from './geometry';
 
 const fit = { scale: 1, offsetX: 0, offsetY: 0 };
 
@@ -30,9 +30,9 @@ describe('winding geometry (T2-05)', () => {
     const b = endPoint(1, 'creel', 8);
     const c = endPoint(2, 'creel', 8);
     expect(b.y - a.y).toBeCloseTo(c.y - b.y, 9);
-    // クリール側は x 380 付近、ドラム側は x 460 付近 (台の左右)
-    expect(endPoint(0, 'creel', 8).x).toBeCloseTo(380, 0);
-    expect(endPoint(0, 'drum', 8).x).toBeCloseTo(460, 0);
+    // クリール側は x 290、ドラム側は x 360 (まっすぐ横に進む区間の上。T2-10a)
+    expect(endPoint(0, 'creel', 8).x).toBeCloseTo(290, 0);
+    expect(endPoint(0, 'drum', 8).x).toBeCloseTo(360, 0);
   });
 
   it('hitEnd が端の上で当たり、遠いと null', () => {
@@ -145,6 +145,67 @@ describe('winding geometry T2-07-fix2 (糸の縦の位置は1つの関数で決�
         expect(y).toBeGreaterThan(0);
         expect(y).toBeLessThan(LOGICAL_H);
       }
+    }
+  });
+});
+
+describe('winding geometry T2-10a (糸の道筋と切れ端の位置)', () => {
+  /** 点と線分の距離 */
+  function distToSeg(p: { x: number; y: number }, a: { x: number; y: number }, b: { x: number; y: number }): number {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len2 = dx * dx + dy * dy;
+    const t = len2 === 0 ? 0 : Math.min(1, Math.max(0, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2));
+    return Math.hypot(p.x - (a.x + dx * t), p.y - (a.y + dy * t));
+  }
+
+  it('1. pointOnPath の点は、threadPath の折れ線のどれかの線分の上にある (どの糸・current でも)', () => {
+    for (const current of [0, 1, 2]) {
+      for (let t = 0; t < 8; t += 2) {
+        for (const along of [0, 0.2, 0.4, 0.5, 0.6, 0.8, 1]) {
+          const p = pointOnPath(t, 8, along, current, 3);
+          const path = threadPath(t, 8, current, 3);
+          let min = Infinity;
+          for (let i = 0; i + 1 < path.length; i++) {
+            min = Math.min(min, distToSeg(p, path[i]!, path[i + 1]!));
+          }
+          expect(min, `t${t} along${along} current${current}`).toBeLessThanOrEqual(0.5);
+        }
+      }
+    }
+  });
+
+  it('2. along を増やすと y は糸の高さから筬の高さの間にあり、y < 50 にならない', () => {
+    for (const current of [0, 2]) {
+      for (let t = 0; t < 8; t++) {
+        let prevY = -Infinity;
+        for (let a = 0; a <= 1; a += 0.1) {
+          const p = pointOnPath(t, 8, a, current, 3);
+          expect(p.y).toBeGreaterThanOrEqual(50);
+          expect(p.y).toBeLessThanOrEqual(Math.max(threadY(t, 8), tableY(current, 3)) + 1);
+          prevY = p.y;
+        }
+      }
+    }
+  });
+
+  it('3. endPoint は threadPath のまっすぐ横に進む区間の上にある。ドラム側 − クリール側 ≥ 60。筬と台の左端より左', () => {
+    for (let t = 0; t < 8; t++) {
+      const c = endPoint(t, 'creel', 8);
+      const d = endPoint(t, 'drum', 8);
+      const path = threadPath(t, 8, 0, 3);
+      for (const e of [c, d]) {
+        let min = Infinity;
+        for (let i = 0; i + 1 < path.length; i++) {
+          min = Math.min(min, distToSeg(e, path[i]!, path[i + 1]!));
+        }
+        expect(min, `t${t}`).toBeLessThanOrEqual(0.5);
+      }
+      expect(d.x - c.x).toBeGreaterThanOrEqual(60);
+      expect(c.x).toBeLessThan(REED_X);
+      expect(d.x).toBeLessThan(REED_X);
+      // 台の左端より左 (切れ端の上に台を描かない)
+      expect(d.x).toBeLessThan(TABLE_AREA.x);
     }
   });
 });
