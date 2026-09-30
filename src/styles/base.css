@@ -935,3 +935,14 @@ button {
 .winding-panel__actions {
   min-height: var(--btn-min-h);
 }
+
+/* winding-list (T2-07: ドラム巻きの難易度の一覧。配置はクリール立ての一覧の形を流用) */
+.winding-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-lg);
+  padding: var(--pad);
+  max-width: 720px;
+  margin: 0 auto;
+}
+
