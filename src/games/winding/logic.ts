@@ -218,3 +218,12 @@ export function lastTapResult(
   if (!wasFirst && isFirst) return 'first';
   return null;
 }
+
+/** 文字列 (現在時刻など) から種を作る。controller が clock.now() から作るのに使う */
+export function seedFromText(text: string): number {
+  let h = 0;
+  for (const ch of text) {
+    h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  }
+  return h;
+}

@@ -8,6 +8,7 @@ import { SECTIONS } from './params';
  */
 export function createListView(parent: HTMLElement, opts: {
   records: Records;
+  savedLevel?: 1 | 2 | 3 | null; // 途中の状態が保存されている難易度 (追加修正a)
   onSelect: (level: 1 | 2 | 3) => void;
   onExit: () => void;
 }): { destroy(): void } {
@@ -64,6 +65,13 @@ export function createListView(parent: HTMLElement, opts: {
     btn.appendChild(label);
     btn.appendChild(size);
     btn.appendChild(starLabel);
+    // 途中の状態が保存されている難易度は「途中」を出す (星の横)
+    if (opts.savedLevel === level) {
+      const saved = document.createElement('span');
+      saved.classList.add('creel-list__saved');
+      saved.textContent = '途中';
+      btn.appendChild(saved);
+    }
     if (cleared) {
       btn.addEventListener('click', () => opts.onSelect(level));
     } else if (!firstUnclearedSeen) {
