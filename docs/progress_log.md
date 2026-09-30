@@ -815,3 +815,33 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
   上端 +32px で 0、下端 −32px で 100、真ん中で 50)。
 - テスト全体: 357 passed / 11 skipped。npm run check エラー0。npm run build 成功。
 - ブラウザ確認は T2-07 でまとめて行う。
+
+
+## 2026-09-30 T2-05: ドラム巻きの座標と盤面の描画
+
+- やったこと:
+  - src/games/winding/geometry.ts (新規): 論理座標 1000×750。toPx・fromPx はクリール立てと同じ形。
+    区画: クリール x 40〜240、台とレール x 260〜560、ドラム x 580〜960、上の余白 y 0〜90。
+    endPoint (クリール側は x 380、ドラム側は x 460 付近。糸は上から下へ等間隔)、
+    hitEnd (当たりは画面上 64px 四方 = 論理 32/scale の半径。近いほうの端を選ぶ)、fontPx。
+  - src/games/winding/renderer.ts (新規): drawBoard。
+    背景 (kinari)、クリール (machine 色の枠と柄の色のコーン)、糸 (コーンからドラムまで。
+    巻いているときは速さに比例して流れる印)、ドラム (木の桟のかご状の胴。帯の区画を sections 等分し、
+    柄の色の縞を巻いた長さの厚みで。帯ごとの鋼色のピン。巻き終えた帯には区画の上端に結び目の束。
+    'cutting' の演出は tieProgress (0〜1) で結び目を透かして描く)、
+    目盛り盤 (円の針 +「帯 3 / 5」)、赤ランプ ('broken' で shu 点灯・「停止」。それ以外は灰色)、
+    切れ端 ('broken' で両側を垂らす。show red は shu + timeMs で揺らす、droop は垂れだけ、
+    small は垂れを小さく。1手目を済ませたらクリール側の端に藍の丸印)、
+    'done' では帯ごとの出来で表面の線を波打たせる (波の高さ = (1 − 出来) × 係数)。
+    文字は画面 px で決め (20px 以上)、Canvas の幅は clientWidth を使う。
+  - src/games/winding/geometry.test.ts (新規)、renderer.test.ts (新規)、renderer.test.helpers.ts (新規、
+    偽の ctx。テストの補助)。
+- テスト (先に書いて RED を確認: geometry.ts・renderer.ts が無く import 失敗):
+  - geometry 5件: toPx・fromPx の往復、endPoint が threadCount 本とも盤面の中 (x 380・460 付近、等間隔)、
+    hitEnd の当たり・null、scale 0.4 で画面上 30px が当たる、間を押すと近いほう。
+  - renderer 4件: 'broken' で shu の線 (show red)、ランプの点灯 (shu) ・消灯 (steel)、
+    'done' で帯の数だけ表面、文字は画面 px で 20 以上。
+  - テスト側の不備の修正のみ (期待値の変更ではない): 「遠い点」を糸1本分の当たりに入らない位置に変更、
+    偽の ctx に quadraticCurveTo を追加。
+- テスト全体: 366 passed / 11 skipped。npm run check エラー0。npm run build 成功。
+- 見た目は T2-07 でまとめて確認する (仕様書どおり)。
