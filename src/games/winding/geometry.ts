@@ -25,6 +25,13 @@ export const DRUM_END_X = 460;
 const END_Y_TOP = 300;
 const END_Y_BOTTOM = 620;
 
+/** 筬 (くし状の金具) の x (台の中央) */
+export const REED_X = 410;
+/** 筬と糸のシートの縦の位置 (台の上。論理座標) */
+export const REED_Y = 175;
+/** 帯のシートの半分の幅 (論理座標。糸がまとまる帯の幅) */
+export const THREAD_SHEET_HALF = 30;
+
 /**
  * 糸 thread (0〜threadCount-1) の縦の位置 (論理座標)。
  * 描く位置 (renderer) と当たりの位置 (endPoint) は、この関数だけで決める

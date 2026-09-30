@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { drawBoard } from './renderer';
 import { endPoint } from './geometry';
 import type { FakeRecorder } from './renderer.test.helpers';
@@ -174,6 +175,76 @@ describe('winding renderer T2-05-fix (座標の変換と決まり)', () => {
     // 最初の fillRect は save より前
     const firstRectI = ks.indexOf('fillRect');
     expect(firstRectI).toBeLessThan(saveI);
+  });
+});
+
+describe('winding renderer T2-08 (盤面の絵を実物らしくする)', () => {
+  it('1. コーンが threadCount 個描かれる (角の丸い長方形 roundRect)', () => {
+    const { ctx, rec } = makeFakeCtx();
+    const s = windingState();
+    drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
+    const cones = rec.ops.filter((op) => op.k === 'roundRect');
+    expect(cones.length).toBe(8);
+  });
+
+  it('2. ドラムの端の丸い面として ellipse が2回以上呼ばれる', () => {
+    const { ctx, rec } = makeFakeCtx();
+    const s = windingState();
+    drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
+    const ellipses = rec.ops.filter((op) => op.k === 'ellipse');
+    expect(ellipses.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('3. 筬の歯として細い縦の線が10本以上描かれる', () => {
+    const { ctx, rec } = makeFakeCtx();
+    const s = windingState();
+    drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
+    // 筬の区画 (TABLE_AREA の中) の moveTo で、y が上→下の短い縦線を数える
+    const tooth = rec.ops.filter(
+      (op) => op.k === 'moveTo' && typeof op.args?.[0] === 'number' &&
+        (op.args[0] as number) > 260 && (op.args[0] as number) < 560 &&
+        typeof op.args?.[1] === 'number',
+    );
+    expect(tooth.length).toBeGreaterThanOrEqual(10);
+  });
+
+  it('4. 巻き終えた帯の数だけ結び目の束が描かれる (current が2なら2つ)', () => {
+    const { ctx, rec } = makeFakeCtx();
+    let s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 1 });
+    for (let sec = 0; sec < 2; sec++) {
+      s = reduce(s, { type: 'start' });
+      s = reduce(s, { type: 'setPedal', value: 50 });
+      for (let i = 0; i < 500 && s.phase === 'winding'; i++) {
+        s = reduce(s, { type: 'tick', dtMs: 100 });
+      }
+      if (s.phase === 'cutting') s = reduce(s, { type: 'cut' });
+    }
+    expect(s.current).toBe(2);
+    drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
+    // 結び目の束 = 小さな輪 (arc) の集まり。ドラムの上端の y (DRUM_AREA.y - 6 付近) で描かれる
+    const knots = rec.ops.filter(
+      (op) => op.k === 'arc' && typeof op.args?.[1] === 'number' &&
+        Math.abs((op.args[1] as number) - 84) < 3,
+    );
+    // 束 1 個 = 輪 3 個 → current 2 個 = 6 個以上
+    expect(knots.length).toBeGreaterThanOrEqual(6);
+  });
+
+  it('5. ドラムの胴に明るさの勾配がある (createLinearGradient を使う)', () => {
+    const { ctx, rec } = makeFakeCtx();
+    const s = windingState();
+    drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
+    const grads = rec.ops.filter((op) => op.k === 'createLinearGradient');
+    expect(grads.length).toBeGreaterThanOrEqual(1);
+    // 勾配の色は tokens の色の値 (# で始まる hex)
+    const stops = rec.ops.filter((op) => op.k === 'addColorStop');
+    expect(stops.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('6. renderer.ts に # で始まる色の値を直書きしていない', () => {
+    const src = readFileSync('src/games/winding/renderer.ts', 'utf8');
+    expect(src.includes("'#")).toBe(false);
+    expect(src.includes('"#')).toBe(false);
   });
 });
 
