@@ -1110,3 +1110,18 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
   - 経過時間の表示「0:00 / 1:30」が操作欄に出る (初級 30秒 × 3本 = 1分30秒)
   - ペダルを範囲の中心に合わせて放置すると、針が 46.5% → 52.7% → 55.2% と流れで動く (触らなくても動く)
   - 帯1を 25秒で巻き終えた (目標 30秒内)。メッセージ・効果音は従来どおり
+
+## 2026-09-30 T2-09b: 複数の糸切れ
+
+- やったこと:
+  - breakage.ts: BreakState の 'broken' を { threads: number[]; tied: number[]; first: FirstTap | null } に変えた。BreakParams に extraStep (切れる本数が1本増える外れの量) と maxThreads (いちどに切れる本数の上限) を追加
+  - いちどに切れる本数は「1 + floor(外れ量 / extraStep)」(最大 maxThreads)。どの糸が切れるかは乱数で決め、重ならない。難易度ごとの初期値: extraStep 初級 10・中級 8・上級 6、maxThreads 初級 1・中級 2・上級 3 (params.ts の BREAK_EXTRA_STEP・BREAK_MAX_THREADS)
+  - つなぎ方は「切れた糸ごとに 2手」。1手目は切れた糸のどちらの端 (creel でも drum でも) でよく、first に { thread, side } を記録。2手目は同じ糸のもう一方の端。つながると tied に入り、まだ切れた糸があれば first を null に戻して次の糸へ。全部つながると running に戻る
+  - 新しい結果: tiedOne (1本つながった)・tiedAll (全部つながった)・mismatch (2手目が別の糸の端。1手目からやり直し)。旧 tied・retry は廃止 (drum 先から押せるので retry は不要)
+  - messages.ts: 「つながりました。残りの切れた糸もつないでください」(tiedOne)・「別の糸です。結ぶ糸の両方の切れ端を押してください」(mismatch) を追加。効果音: tiedOne・tiedAll は knot、mismatch は gentleNo
+  - renderer.ts: 切れた糸ごとに切れ端を描く (threads の数ぶん)。1手目の藍の丸印は押した側の端 (creel なら CREEL_END_X、drum なら DRUM_END_X) に出す。drawBrokenThread は renderer.parts.ts へ移した (300行ルール)
+  - logic.ts: tapEnd の tiedAll で 'winding' に戻る。lastTapResult は TapResult を返す
+- テスト (先に RED を確認): breakage.test.ts を全面書き換え (11件)。外れ方で本数が決まる (1・2・最大3)・重ならない・同じ種なら同じ本数と同じ糸・1手目はどちらの側でもよい・2手目で tiedOne/最後で tiedAll・mismatch でやり直し・切れていない糸は wrongThread (tied を含む)・running は ignored。logic.test.ts は「切れた糸を全部つなぐと winding に戻る」に更新。renderer.test.ts に2件 (切れた糸2本で切れ端2本・1手目の印は押した側の端)
+- 報告直前の確認: npm run check エラー0 / npm test 448 passed・11 skipped / npm run build 成功 / git status に余計なファイルなし
+- コミット: 691b236 (本体)・14eb67d (未使用 import の修正。最初の push で CI が failure になったので出した修正。CI success)
+- ブラウザ確認: 中級・上級は解放前のため実機では確認できず (解放後に確認をお願いしたい)。初級 (maxThreads 1) で糸切れを起こし、drum 側の切れ端を先に押しても「もう一方の切れ端を押してください」→ 反対側でつながり運転に戻ることを確認。複数本の切れ端の描き分け・当たりはテストで担保

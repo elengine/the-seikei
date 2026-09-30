@@ -1,8 +1,8 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-09-30T20:15:00+09:00",
+  "updated_at": "2026-09-30T21:20:00+09:00",
   "phase": "P0",
-  "current_task": "T2-09b (複数の糸切れ)",
+  "current_task": "T2-09b (報告済み・管理者確認待ち)",
   "done": [
     "T0-00",
     "T0-01",
@@ -65,13 +65,14 @@
     "T2-08",
     "T2-08 追加修正a",
     "T2-08 追加修正b",
-    "T2-09a"
+    "T2-09a",
+    "T2-09b"
   ],
   "checks": [
     {
-      "task": "T2-09a",
+      "task": "T2-09b",
       "check": 0,
-      "test": "442 passed / 11 skipped",
+      "test": "448 passed / 11 skipped",
       "build": "ok"
     }
   ],
