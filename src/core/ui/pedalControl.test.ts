@@ -26,14 +26,12 @@ describe('pedalControl (T2-03)', () => {
   let onChange: ReturnType<typeof vi.fn<(v: number) => void>>;
   let pc: ReturnType<typeof createPedalControl>;
   let groove: HTMLElement;
-  let bar: HTMLElement;
 
   beforeEach(() => {
     document.body.innerHTML = '';
     onChange = vi.fn();
     pc = createPedalControl(document.body, { label: 'ペダル', onChange });
     groove = document.body.querySelector('.pedal__groove')!;
-    bar = document.body.querySelector('.pedal__bar')!;
     // 溝: x=100, y=200, 幅 200, 高さ 240
     fakeRect(groove, 100, 200, 200, 240);
   });
