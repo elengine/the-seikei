@@ -845,3 +845,26 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
     偽の ctx に quadraticCurveTo を追加。
 - テスト全体: 366 passed / 11 skipped。npm run check エラー0。npm run build 成功。
 - 見た目は T2-07 でまとめて確認する (仕様書どおり)。
+
+
+## 2026-09-30 T2-06: ドラム巻きの操作欄 (games/winding/panel.ts)
+
+- やったこと:
+  - src/games/winding/panel.ts (新規): createWindingPanel。区画は上から
+    1. 帯の番号と長さ (「帯 2 / 5」「巻いた長さ 45%」)
+    2. 張りのメーター (createTensionMeter、label は terms.t('tension'))
+    3. ペダル (createPedalControl、label は terms.t('pedal')。onChange で setPedal。
+       phase が 'winding' のときだけ押せる)
+    4. ボタン ('ready' は「巻き始める」→ start、'cutting' は「帯の端を結ぶ」→ cut。
+       それ以外はボタンを出さないが、場所は空けたまま (display の切り替え) で配置がずれないようにした)
+    メッセージ欄は作らない (GameFrame の message 欄を controller が使う)。
+    配置は CSS で: 横長はペダルとメーターを横に並べられる形、縦長は操作欄内で縦にスクロール可
+    (ペダルの溝の高さ 260px は T2-03 のまま維持)。
+  - src/games/winding/panel.test.ts (新規): 仕様書のテスト 1〜6。
+  - src/styles/base.css: 末尾に「/* winding (T2-06) */」の節を追加 (既存の行は変えていない)。
+- テスト (先に書いて RED を確認: panel.ts が無く import 失敗): 6件。
+  'ready' で「巻き始める」→ start、'cutting' で「帯の端を結ぶ」→ cut、
+  'winding' 以外でペダルが押せない (disabled の class で確認)、「帯 2 / 5」の文字、
+  ペダルの「踏み込む」で setPedal、destroy で DOM から消える。
+- テスト全体: 372 passed / 11 skipped。npm run check エラー0。npm run build 成功。
+- 見た目は T2-07 でまとめて確認する (仕様書どおり)。
