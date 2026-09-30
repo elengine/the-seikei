@@ -35,22 +35,6 @@ function baseHex(content: Content, patternId: string): string {
   return patternHexes(content, patternId)[0] ?? COLORS.sumiSub;
 }
 
-/** 文字を書く (位置は論理座標の点を toPx で画面の点に直し、大きさは画面 px) */
-function text(
-  ctx: CanvasRenderingContext2D,
-  fit: { scale: number; offsetX: number; offsetY: number },
-  str: string,
-  xLogical: number,
-  yLogical: number,
-  sizePx = 20,
-): void {
-  if (str === '') return;
-  const p = toPx(fit, { x: xLogical, y: yLogical });
-  ctx.fillStyle = COLORS.sumi;
-  ctx.font = `${sizePx}px ${FONT_FAMILY}`;
-  ctx.fillText(str, p.x, p.y);
-}
-
 /**
  * 盤面を描く。
  * show は切れた糸の見せ方 (難易度)、timeMs は揺れの計算用、tieProgress は
@@ -229,12 +213,17 @@ export function drawBoard(
   // 変換を戻す
   ctx.restore();
 
-  // 文字は restore のあとに描く (論理座標の点を toPx で画面の点に直す。大きさは画面 px)
-  // 5b. 「帯 3 / 5」は目盛り盤の右
-  text(ctx, fit, `帯 ${s.current + 1} / ${s.sections}`, dialX + dialR + 18, dialY + 17, 20);
-  // 6b. 「停止」は赤ランプの右
+  // 文字は restore のあとに描く (論理座標の点を toPx で画面の点に直す。大きさは画面 px)。
+  // 「帯 N / M」は描かない (操作欄に同じ表示がある。盤面が小さいときランプなどに重なるため)
+  // 「停止」は赤ランプの下に、ランプの中心にそろえて描く (T2-07 追加修正b)
   if (s.phase === 'broken') {
-    text(ctx, fit, '停止', lampX + 28, lampY + 17, 20);
+    // ランプの中心の x (画面 px) から文字の左端を出す (中心そろえ)
+    const lampPx = toPx(fit, { x: lampX, y: 0 });
+    ctx.font = `20px ${FONT_FAMILY}`;
+    const wPx = ctx.measureText('停止').width;
+    const p = toPx(fit, { x: lampX, y: lampY + 44 });
+    ctx.fillStyle = COLORS.sumi;
+    ctx.fillText('停止', lampPx.x - wPx / 2, p.y);
   }
 }
 

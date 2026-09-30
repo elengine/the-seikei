@@ -55,6 +55,7 @@ export function createWindingController(parent: HTMLElement, deps: GameDeps, pro
     },
     logicalW: 1000,
     logicalH: 750,
+    portraitStageRatio: 0.4, // 縦長では盤面を小さくして、ペダルをスクロールなしで見えるようにする
     onStageResize: (fit) => {
       lastFit = fit;
       if (ready) {

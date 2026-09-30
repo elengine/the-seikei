@@ -100,6 +100,47 @@ describe('gameFrame', () => {
     expect(stageH).toBe(Math.floor((1000 - 72) * 0.6)); // (内寸高 - 帯72) の 60%
     frame.destroy();
   });
+
+  it('T2-07 追加修正b: portraitStageRatio を渡すと、縦長で盤面がその割合になる', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    parent.getBoundingClientRect = () =>
+      ({ width: 500, height: 1000, top: 0, left: 0, right: 500, bottom: 1000, x: 0, y: 0, toJSON: () => undefined }) as DOMRect;
+    const frame = createGameFrame(parent, {
+      title: 'テスト',
+      onBack: () => undefined,
+      onHelp: () => undefined,
+      logicalW: 1000,
+      logicalH: 750,
+      portraitStageRatio: 0.4,
+    });
+    const stageBox = frame.root.querySelector('.game-frame__stage') as HTMLElement;
+    const stageH = parseFloat(stageBox.style.height);
+    expect(stageH).toBe(Math.floor((1000 - 72) * 0.4)); // 40%
+    // panel は残り
+    const panel = frame.root.querySelector('.game-frame__panel') as HTMLElement;
+    const panelH = parseFloat(panel.style.height);
+    expect(panelH).toBe(1000 - 72 - Math.floor((1000 - 72) * 0.4));
+    frame.destroy();
+  });
+
+  it('T2-07 追加修正b: portraitStageRatio を渡さないと 60% (今までどおり)', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    parent.getBoundingClientRect = () =>
+      ({ width: 500, height: 1000, top: 0, left: 0, right: 500, bottom: 1000, x: 0, y: 0, toJSON: () => undefined }) as DOMRect;
+    const frame = createGameFrame(parent, {
+      title: 'テスト',
+      onBack: () => undefined,
+      onHelp: () => undefined,
+      logicalW: 1000,
+      logicalH: 750,
+    });
+    const stageBox = frame.root.querySelector('.game-frame__stage') as HTMLElement;
+    const stageH = parseFloat(stageBox.style.height);
+    expect(stageH).toBe(Math.floor((1000 - 72) * 0.6));
+    frame.destroy();
+  });
 });
 
 describe('tutorialOverlay', () => {

@@ -23,6 +23,7 @@ export function makeFakeCtx(): { ctx: CanvasRenderingContext2D; rec: FakeRecorde
     moveTo: (x: number, y: number) => rec.ops.push({ k: 'moveTo', args: [x, y] }),
     lineTo: (x: number, y: number) => rec.ops.push({ k: 'lineTo', args: [x, y] }),
     arc: (x: number, y: number, r: number) => rec.ops.push({ k: 'arc', args: [x, y, r] }),
+    measureText: (str: string) => ({ width: 20 + str.length * 10 }) as TextMetrics,
     quadraticCurveTo: (cx: number, cy: number, x: number, y: number) =>
       rec.ops.push({ k: 'quadraticCurveTo', args: [cx, cy, x, y] }),
     fill: () => rec.ops.push({ k: 'fill' }),

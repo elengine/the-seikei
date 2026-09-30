@@ -41,6 +41,7 @@ export function createGameFrame(
     onHelp: () => void; // 「遊び方」
     logicalW: number;
     logicalH: number;
+    portraitStageRatio?: number; // 縦長のときに盤面が使う高さの割合 (無ければ 0.6)
     onStageResize?: (fit: StageFit) => void;
   },
 ): GameFrame {
@@ -146,10 +147,10 @@ export function createGameFrame(
         panel.style.height = `${bodyInnerH}px`;
       }
     } else {
-      // 上:盤面 (残り高さの 60%)・下:panel。footer は使わないので隠す
+      // 上:盤面 (残り高さの portraitStageRatio、無ければ 60%)・下:panel。footer は使わないので隠す
       footer.style.display = 'none';
       stageCol.style.width = `${stageColW}px`;
-      const stageH = Math.floor(bodyInnerH * 0.6);
+      const stageH = Math.floor(bodyInnerH * (opts.portraitStageRatio ?? 0.6));
       stageCol.style.height = `${stageH}px`; // 縦長では盤面の列は盤面だけ (footer は隠す)
       stageBox.style.width = '100%';
       stageBox.style.height = `${stageH}px`;

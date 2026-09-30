@@ -127,29 +127,29 @@ describe('winding renderer T2-05-fix (座標の変換と決まり)', () => {
     }
   });
 
-  it('2. 「帯 1 / 3」の fillText は restore のあとで、Canvas の画面上の幅の中にある (scale 0.39 と 0.7 の両方)', () => {
+  it('2. 「停止」の fillText は restore のあとで、Canvas の画面上の幅の中にある (scale 0.39 と 0.7 の両方)。期待値変更: 「帯 N / M」を盤面に描かなくなり、盤面の文字は「停止」だけになった (T2-07 追加修正b)', () => {
     for (const f of [{ scale: 0.39, offsetX: 5, offsetY: 5 }, { scale: 0.7, offsetX: 2, offsetY: 2 }]) {
       const { ctx, rec } = makeFakeCtx();
-      const s = windingState();
+      const s = brokenState();
       drawBoard(ctx, f, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
       const ks = rec.ops.map((op) => op.k);
       const restoreI = ks.lastIndexOf('restore');
       const texts = rec.ops.filter((op) => op.k === 'fillText');
-      const sec = texts.find((op) => String(op.args?.[0]).startsWith('帯 '));
-      expect(sec, `scale ${f.scale}`).toBeDefined();
+      const stop = texts.find((op) => op.args?.[0] === '停止');
+      expect(stop, `scale ${f.scale}`).toBeDefined();
       // restore の後に描かれる (fillText が restore より後に出てくる)
       const lastTextI = ks.lastIndexOf('fillText');
       expect(lastTextI).toBeGreaterThan(restoreI);
-      const x = Number(sec!.args?.[1]);
+      const x = Number(stop!.args?.[1]);
       const canvasW = ctx.canvas.clientWidth;
       expect(x, `scale ${f.scale} x=${x}`).toBeGreaterThanOrEqual(0);
       expect(x, `scale ${f.scale} x=${x}`).toBeLessThan(canvasW);
     }
   });
 
-  it('3. ctx.font に FONT_FAMILY が含まれる', () => {
+  it('3. ctx.font に FONT_FAMILY が含まれる (盤面の文字は「停止」のみになったので broken で確認)', () => {
     const { ctx, rec } = makeFakeCtx();
-    const s = windingState();
+    const s = brokenState();
     drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
     const fonts = rec.ops.filter((op) => op.k === 'font').map((op) => op.v as string);
     expect(fonts.length).toBeGreaterThan(0);
@@ -173,5 +173,34 @@ describe('winding renderer T2-05-fix (座標の変換と決まり)', () => {
     // 最初の fillRect は save より前
     const firstRectI = ks.indexOf('fillRect');
     expect(firstRectI).toBeLessThan(saveI);
+  });
+});
+
+describe('winding renderer T2-07-fix b (盤面の文字の見せ方)', () => {
+  it('1. 盤面に「帯」を含む fillText を描かない (操作欄に同じ表示がある)', () => {
+    for (const s of [windingState(), brokenState(), windingState()]) {
+      const { ctx, rec } = makeFakeCtx();
+      drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
+      const texts = rec.ops.filter((op) => op.k === 'fillText').map((op) => String(op.args?.[0]));
+      const band = texts.find((txt) => txt.startsWith('帯 '));
+      expect(band).toBeUndefined();
+    }
+  });
+
+  it("2. 'broken' のとき「停止」の y はランプの中心の y より下 (ランプに重ならない)", () => {
+    const { ctx, rec } = makeFakeCtx();
+    const s = brokenState();
+    expect(s.phase).toBe('broken');
+    drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
+    const stop = rec.ops.find((op) => op.k === 'fillText' && op.args?.[0] === '停止');
+    expect(stop).toBeDefined();
+    const stopY = Number(stop!.args?.[2]);
+    // ランプの中心は論理 (620, 45)。toPx で画面の点 (scale 1, offset 0 なので同じ)
+    const lampY = 45;
+    expect(stopY).toBeGreaterThan(lampY);
+    // ランプの中心に x がそろっている (中心 = 文字の左端から文字幅の半分の位置)
+    const stopX = Number(stop!.args?.[1]);
+    const lampX = 620;
+    expect(Math.abs(stopX - lampX)).toBeLessThan(30); // 中心そろえ (ゆるい幅で確認)
   });
 });
