@@ -65,7 +65,7 @@ export const TENSION: TensionParams = {
   maxSpeed: MAX_SPEED,
   base: 30,
   perPedal: 0.4,
-  yarnDrift: 4,
+  yarnDrift: 0, // 糸量による +4 はやめた (T2-09a の流れに置き換え。T2-09 追加修正a)
   noiseAmp: 2,
   noiseStepPerSec: 1,
   range: { min: 30, max: 70 }, // 呼び出し側で難易度のものに差し替える

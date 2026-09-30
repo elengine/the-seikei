@@ -2,7 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { init, reduce, qualities, starsOf, isValidResume, lastTapResult } from './logic';
 import { resultOf } from './messages';
 import type { WindingState } from './logic';
-import { paramsOf, SECTION_LENGTH, MAX_SPEED } from './params';
+import { paramsOf, SECTION_LENGTH, MAX_SPEED, TENSION } from './params';
+import { tensionOf } from '../../core/mechanics/pedal';
+import { seedFrom } from '../../core/clock/clock';
 
 /** 20秒 + 少し の tick を送る (pedal 50 用)。pedal 40 など遅いときは、'cutting' まで続ける */
 function windToCut(s: WindingState, pedal: number): WindingState {
@@ -319,5 +321,16 @@ describe('winding logic T2-09a B (目標の時間と星)', () => {
     expect(timeLine).toBeDefined();
     expect(timeLine).toContain('1分');
     expect(timeLine).toContain('1分30秒'); // 30秒 × 3 = 1分30秒
+  });
+});
+
+describe('T2-09 追加修正a (糸量の +4 をやめる)', () => {
+  it('1. ペダル・ぶれ・流れ・引っかかりが同じなら、progress 0 と progress 0.9 で張りが同じ', () => {
+    // TENSION.yarnDrift を 0 にするので、progress は張りに影響しない
+    const p = { ...TENSION, range: { min: 30, max: 70 } };
+    const s = { pedal: 50, noise: 1, drift: 3, snag: 0, rng: seedFrom(1) };
+    const t0 = tensionOf(s, p, 0);
+    const t9 = tensionOf(s, p, 0.9);
+    expect(t0).toBe(t9);
   });
 });

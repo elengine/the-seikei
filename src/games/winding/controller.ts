@@ -106,9 +106,9 @@ export function createWindingController(parent: HTMLElement, deps: GameDeps, pro
   }
   function updateMessage(prev?: WindingState, next?: WindingState): void {
     const text = messageFor(s, prev, next, (x) => deps.terms.render(x));
-    // 張りの 3 文 (適正・強すぎ・弱め) だけホールドする
-    const hold = s.phase === 'winding' && pendingMsg !== null;
-    setMessage(text, hold || s.phase === 'winding');
+    // 引っかかりの文は待たずにすぐ出す (糸が切れたときと同じ扱い)。待つのは張りの 3 文だけ
+    const urgent = s.phase !== 'winding' || s.pedal.snag > 0;
+    setMessage(text, !urgent);
   }
 
   // ---- 描画 ----
@@ -238,8 +238,8 @@ export function createWindingController(parent: HTMLElement, deps: GameDeps, pro
       const next = reduce(s, { type: 'tick', dtMs });
       if (next !== prev) {
         s = next;
-        if (s.phase === 'broken') {
-          // 糸が切れた: 機械の止まる音
+        if (s.phase === 'broken' && prev.phase !== 'broken') {
+          // 糸が切れた: 機械の止まる音 ('broken' に変わった瞬間の1回だけ)
           deps.audio.play('stop');
         }
         updateMessage(prev, s);

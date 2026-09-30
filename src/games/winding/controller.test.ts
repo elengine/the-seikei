@@ -551,3 +551,104 @@ function tapStage(
   const y = rect.top + offsetY + ly * scale;
   c.dispatchEvent(new PointerEvent('pointerdown', { clientX: x, clientY: y, bubbles: true }));
 }
+
+describe('winding module T2-09 追加修正a (引っかかりのメッセージ・+4・止まる音)', () => {
+  let raf: ReturnType<typeof installFakeRaf>;
+  let plays: string[];
+
+  beforeEach(() => {
+    document.body.textContent = '';
+    raf = installFakeRaf();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  async function setup() {
+    const { deps, ctx } = await makeDeps();
+    plays = [];
+    const orig = ctx.audio.play.bind(ctx.audio);
+    ctx.audio.play = (n: string) => {
+      plays.push(n);
+      return orig(n as never);
+    };
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const module = createWindingModule(deps);
+    const props = makeProps();
+    module.mount(container, props);
+    const msg = () => (container.querySelector('.game-frame__message')?.textContent ?? '');
+    const btn = (label: string) => {
+      const b = Array.from(container.querySelectorAll('button')).find((x) => x.textContent?.trim() === label);
+      if (b) b.click();
+      return b !== undefined;
+    };
+    return { container, msg, btn, deps };
+  }
+
+  it('1. 引っかかったら、引っかかりのメッセージがすぐ出て、2秒ほど出続ける (張りの文には戻らない)', async () => {
+    // 引っかかりは乱数で起きる。種を固定して、引っかかりが起きるまで tick を進める
+    const { container, msg, btn } = await setup();
+    btn('初級帯 3本');
+    raf.advance(2);
+    btn('巻き始める');
+    raf.advance(2);
+    // 引っかかりが起きるまで tick を進める (最長 30秒ぶん)
+    let found = false;
+    for (let i = 0; i < 1900 && !found; i++) {
+      raf.advance(2);
+      found = msg().includes('引っかかり');
+    }
+    expect(found).toBe(true);
+    // 1秒後も出続ける
+    const at = raf.frames.length;
+    for (let i = 0; i < 60; i++) raf.advance(2);
+    expect(msg()).toContain('引っかかり');
+  });
+
+  it('2. 引っかかりが戻りきってから 500ms たつと、張りの文に戻る', async () => {
+    const { btn, msg } = await setup();
+    btn('初級帯 3本');
+    raf.advance(2);
+    btn('巻き始める');
+    raf.advance(2);
+    let found = false;
+    for (let i = 0; i < 1900 && !found; i++) {
+      raf.advance(2);
+      found = msg().includes('引っかかり');
+    }
+    expect(found).toBe(true);
+    // 引っかかりが戻る (最大 2秒) まで進める
+    let gone = false;
+    for (let i = 0; i < 200 && !gone; i++) {
+      raf.advance(2);
+      gone = !msg().includes('引っかかり');
+    }
+    expect(gone).toBe(true);
+  });
+
+  it('3. 糸が切れたとき、止まる音は1回だけ (2秒進めても1回)', async () => {
+    const { btn, deps, container } = await setup();
+    const plays2: string[] = [];
+    const orig = deps.audio.play.bind(deps.audio);
+    deps.audio.play = (n: Parameters<typeof deps.audio.play>[0]) => { plays2.push(n); return orig(n); };
+    btn('初級帯 3本');
+    raf.advance(2);
+    btn('巻き始める');
+    raf.advance(2);
+    // pedal 100 で切れるまで進める (切れない場合は中止)
+    let broke = false;
+    const b = Array.from(container.querySelectorAll('button')).find((x) => x.textContent?.trim() === '踏み込む');
+    for (let i = 0; i < 600 && !broke; i++) {
+      if (b) b.click();
+      raf.advance(2);
+      broke = plays2.includes('stop');
+    }
+    expect(broke).toBe(true);
+    const count = plays2.filter((n) => n === 'stop').length;
+    for (let i = 0; i < 120; i++) raf.advance(2);
+    expect(plays2.filter((n) => n === 'stop').length).toBe(count);
+    expect(count).toBe(1);
+  });
+});

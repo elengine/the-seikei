@@ -49,8 +49,8 @@ export function messageFor(s: WindingState, prev: WindingState | undefined, next
     return render('糸が切れました。切れた糸を探して、つないでください');
   }
   if (s.phase === 'winding') {
-    // 引っかかりは、張りのメッセージより先に出す (すぐに切り替わる)
-    if (s.snagRaised) {
+    // 引っかかりは、張りのメッセージより先に出す。引っかかりが戻りきるまで (最大2秒) 出し続ける
+    if (s.pedal.snag > 0) {
       return render('糸が引っかかりました。張りに注意してください');
     }
     if (s.tension > s.range.max) {

@@ -220,3 +220,11 @@ describe('T1-11b: Safari で音が止まったあとの再開', () => {
     expect(ctx.resume).not.toHaveBeenCalled();
   });
 });
+
+describe('sounds T2-09 追加修正a (止まる音の長さ)', () => {
+  it('2. stop の音の終わり (startMs + durMs の最大) は 700〜800ms', () => {
+    const end = Math.max(...SOUNDS.stop.map((n) => n.startMs + n.durMs));
+    expect(end).toBeGreaterThanOrEqual(700);
+    expect(end).toBeLessThanOrEqual(800);
+  });
+});
