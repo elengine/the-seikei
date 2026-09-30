@@ -104,7 +104,6 @@ function drawPage3(ctx: CanvasRenderingContext2D, w: number, h: number): void {
   ctx.fillRect(mX + mW * 0.25, mY, mW * 0.3, h * 0.09);
   // 適正の帯が左右に動く矢印 (← →)
   ctx.fillStyle = COLORS.sumiSub;
-  const ay = mY + h * 0.045;
   const arrowY = mY + h * 0.16;
   for (const dir of [-1, 1]) {
     const tipX = mX + mW * 0.4 + dir * mW * 0.22;
