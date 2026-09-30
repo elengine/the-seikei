@@ -274,7 +274,7 @@ describe('winding module (T2-07)', () => {
       ...state,
       phase: 'broken',
       breaks: state.breaks + 1,
-      brk: { kind: 'broken', thread: 0, firstTapped: false },
+      brk: { kind: 'broken', threads: [0], tied: [], first: null },
     };
     expect(state.lengths[0]).toBeGreaterThan(0); // 最初の状態と違うことを確認
     const props = makeProps({ resume: state });

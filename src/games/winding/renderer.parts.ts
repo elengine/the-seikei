@@ -2,7 +2,7 @@ import type { WindingState } from './logic';
 import { COLORS } from '../../core/ui/tokens';
 import { SECTION_LENGTH } from './params';
 import type { StageFit } from '../../core/viewport/viewport';
-import { DRUM_AREA, fontPx, drumSectionY } from './geometry';
+import { DRUM_AREA, fontPx, drumSectionY, threadY, CREEL_AREA, CREEL_END_X, DRUM_END_X } from './geometry';
 
 /**
  * ドラム巻きの盤面のうち、ドラム (円筒) と結び目を描く部品。
@@ -171,5 +171,47 @@ function drawKnot(
     ctx.beginPath();
     ctx.arc(x, y + (i - 2) * KNOT.h * 0.4, KNOT.w / 2, 0, Math.PI * 2);
     ctx.stroke();
+  }
+}
+
+/** 'broken' の切れた糸 (当たり判定の endPoint の位置と合わせる。台が動いても変わらない) */
+export function drawBrokenThread(
+  ctx: CanvasRenderingContext2D,
+  fit: StageFit,
+  s: WindingState,
+  opts: { threadCount: number; show: 'red' | 'small' | 'droop'; timeMs: number },
+  base: string,
+): void {
+  if (s.phase !== 'broken' || s.brk.kind !== 'broken') {
+    return;
+  }
+  // 切れた糸ごとに切れ端を描く。1手目を済ませた糸は藍の丸印
+  for (const th of s.brk.threads) {
+    const y = threadY(th, opts.threadCount);
+    const sway = opts.show === 'red' ? Math.sin(opts.timeMs / 600) * 6 : 0;
+    const droop = opts.show === 'small' ? 14 : 34;
+    ctx.strokeStyle = opts.show === 'red' ? COLORS.shu : base;
+    ctx.lineWidth = fontPx(fit, 2.5);
+    ctx.beginPath();
+    // クリール側の切れ端 (切れて垂れる)
+    ctx.moveTo(CREEL_AREA.x + CREEL_AREA.w / 2, y);
+    ctx.lineTo(CREEL_END_X, y);
+    ctx.quadraticCurveTo(CREEL_END_X + sway, y + droop / 2, CREEL_END_X + sway, y + droop);
+    // ドラム側の切れ端 (今の帯の区画のピンから)
+    ctx.moveTo(drumSectionPinY(s.current, s.sections), y);
+    ctx.lineTo(DRUM_END_X, y);
+    ctx.quadraticCurveTo(DRUM_END_X - sway, y + droop / 2, DRUM_END_X - sway, y + droop);
+    ctx.stroke();
+  }
+  // 1手目を済ませたら、押した側の端に藍の丸印
+  const first = s.brk.first;
+  if (first) {
+    const y = threadY(first.thread, opts.threadCount);
+    const droop = opts.show === 'small' ? 14 : 34;
+    ctx.fillStyle = COLORS.ai;
+    ctx.beginPath();
+    const x = first.side === 'creel' ? CREEL_END_X : DRUM_END_X;
+    ctx.arc(x, y + droop, fontPx(fit, 9), 0, Math.PI * 2);
+    ctx.fill();
   }
 }

@@ -77,7 +77,19 @@ export const BREAK: BreakParams = {
   rate: 0.02, // 呼び出し側で難易度のものに差し替える
   maxChance: 0.5,
   threadCount: 8,
+  extraStep: 8, // 呼び出し側で難易度のものに差し替える (T2-09b)
+  maxThreads: 2, // 呼び出し側で難易度のものに差し替える (T2-09b)
 };
+
+/** 切れる本数が 1本増える外れの量 (T2-09b。難易度ごと) */
+export function BREAK_EXTRA_STEP(level: Level): number {
+  return level === 1 ? 10 : level === 2 ? 8 : 6;
+}
+
+/** いちどに切れる本数の上限 (T2-09b。難易度ごと) */
+export function BREAK_MAX_THREADS(level: Level): number {
+  return level === 1 ? 1 : level === 2 ? 2 : 3;
+}
 
 /** 1回の tick の dtMs の上限 (Safari 対策。P2/README「時間の進め方」) */
 export const MAX_TICK_MS = 100;

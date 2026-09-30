@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { drawBoard } from './renderer';
-import { endPoint, threadY, tableY } from './geometry';
+import { endPoint, threadY, tableY, DRUM_END_X } from './geometry';
 import type { FakeRecorder } from './renderer.test.helpers';
 
 // 偽の ctx (呼ばれた命令を記録する) は helpers に置く
@@ -347,7 +347,7 @@ describe('winding renderer T2-07-fix2 (切れた糸は当たりの位置に描�
     expect(s.phase).toBe('broken');
     drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
     // shu の線の moveTo/lineTo の y に、切れた糸の endPoint の y が含まれる
-    const y = endPoint(s.brk.kind === 'broken' ? s.brk.thread : 0, 'creel', 8).y;
+    const y = endPoint(s.brk.kind === 'broken' ? s.brk.threads[0] ?? 0 : 0, 'creel', 8).y;
     const ys = rec.ops
       .filter((op) => (op.k === 'moveTo' || op.k === 'lineTo') && typeof op.args?.[1] === 'number')
       .map((op) => op.args?.[1] as number);
@@ -381,5 +381,29 @@ describe('winding renderer T2-07-fix b (盤面の文字の見せ方)', () => {
     const stopX = Number(stop!.args?.[1]);
     const lampX = 620;
     expect(Math.abs(stopX - lampX)).toBeLessThan(30); // 中心そろえ (ゆるい幅で確認)
+  });
+});
+
+describe('winding renderer T2-09b (複数の糸切れ)', () => {
+  it('1. 切れた糸が2本のとき、切れ端が2本ぶん描かれる (quadraticCurveTo が 4回)', () => {
+    const { ctx, rec } = makeFakeCtx();
+    const s = { ...brokenState(), brk: { kind: 'broken' as const, threads: [1, 4], tied: [], first: null } };
+    drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
+    const curves = rec.ops.filter((op) => op.k === 'quadraticCurveTo');
+    // 糸ごとに creel 側 + drum 側の 2つの曲線
+    expect(curves.length).toBe(4);
+    // 両方の糸の高さ (threadY(1,8) と threadY(4,8)) を通る (moveTo の y)
+    const moves = rec.ops.filter((op) => op.k === 'moveTo').map((op) => (op.args?.[1] ?? 0) as number);
+    expect(moves).toContain(threadY(1, 8));
+    expect(moves).toContain(threadY(4, 8));
+  });
+
+  it('2. 1手目を押した側の端に藍の丸印 (drum 側から押したら DRUM_END_X に)', () => {
+    const { ctx, rec } = makeFakeCtx();
+    const s = { ...brokenState(), brk: { kind: 'broken' as const, threads: [2], tied: [], first: { thread: 2, side: 'drum' as const } } };
+    drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
+    const arcs = rec.ops.filter((op) => op.k === 'arc');
+    const knot = arcs.find((op) => Math.abs(((op.args?.[0] ?? 0) as number) - DRUM_END_X) < 1);
+    expect(knot).toBeDefined();
   });
 });

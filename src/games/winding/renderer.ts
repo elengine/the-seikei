@@ -6,7 +6,7 @@ import { speedOf } from '../../core/mechanics/pedal';
 import { TENSION, SECTION_LENGTH } from './params';
 import type { StageFit } from '../../core/viewport/viewport';
 import { CREEL_AREA, TABLE_AREA, DRUM_AREA, TOP_AREA, CREEL_END_X, DRUM_END_X, REED_X, THREAD_SHEET_HALF, REED_RISE, threadY, drumSectionY, tableY, pointOnPath, toPx, fontPx } from './geometry';
-import { drawDrum, drumSectionPinY } from './renderer.parts';
+import { drawDrum, drumSectionPinY, drawBrokenThread } from './renderer.parts';
 
 /**
  * ドラム巻きの盤面の描画 (P2 T2-05・T2-08・T2-08 追加修正a)。
@@ -237,42 +237,6 @@ function drawLamp(ctx: CanvasRenderingContext2D, s: WindingState): void {
   ctx.beginPath();
   ctx.arc(LAMP_X, LAMP_Y, 16, 0, Math.PI * 2);
   ctx.fill();
-}
-
-/** 7. 'broken' の切れた糸 (当たり判定の endPoint の位置と合わせる。台が動いても変わらない) */
-function drawBrokenThread(
-  ctx: CanvasRenderingContext2D,
-  fit: StageFit,
-  s: WindingState,
-  opts: { threadCount: number; show: 'red' | 'droop' | 'small'; timeMs: number },
-  base: string,
-): void {
-  if (s.phase !== 'broken' || s.brk.kind !== 'broken') {
-    return;
-  }
-  const t = s.brk.thread;
-  const y = threadY(t, opts.threadCount);
-  const sway = opts.show === 'red' ? Math.sin(opts.timeMs / 600) * 6 : 0;
-  const droop = opts.show === 'small' ? 14 : 34;
-  ctx.strokeStyle = opts.show === 'red' ? COLORS.shu : base;
-  ctx.lineWidth = fontPx(fit, 2.5);
-  ctx.beginPath();
-  // クリール側の切れ端 (x 380 付近で切れて垂れる)
-  ctx.moveTo(CREEL_AREA.x + CREEL_AREA.w / 2, y);
-  ctx.lineTo(CREEL_END_X, y);
-  ctx.quadraticCurveTo(CREEL_END_X + sway, y + droop / 2, CREEL_END_X + sway, y + droop);
-  // ドラム側の切れ端 (x 460 付近で切れて垂れる。今の帯の区画のピンから)
-  ctx.moveTo(drumSectionPinY(s.current, s.sections), y);
-  ctx.lineTo(DRUM_END_X, y);
-  ctx.quadraticCurveTo(DRUM_END_X - sway, y + droop / 2, DRUM_END_X - sway, y + droop);
-  ctx.stroke();
-  // 1手目を済ませたら、クリール側の端に藍の丸印
-  if (s.brk.firstTapped) {
-    ctx.fillStyle = COLORS.ai;
-    ctx.beginPath();
-    ctx.arc(CREEL_END_X, y + droop, fontPx(fit, 9), 0, Math.PI * 2);
-    ctx.fill();
-  }
 }
 
 /** 8. 'done' のとき、出来が低い帯ほど表面の縞を波打たせる */

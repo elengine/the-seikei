@@ -122,15 +122,18 @@ describe('winding logic (T2-04)', () => {
     // 同じ種なら同じ結果 (決まった回で切れる)
     expect(a.current).toBe(b.current);
     expect(a.lengths[0]).toBe(b.lengths[0]);
-    // tapEnd で creel → drum
+    // tapEnd で切れた糸を全部つなぐと 'winding' に戻る (T2-09b: 糸ごとに 2手)
     if (a.brk.kind !== 'broken') throw new Error('brk should be broken');
-    let next = reduce(a, { type: 'tapEnd', thread: a.brk.thread, side: 'creel' });
-    expect(next.phase).toBe('broken');
-    next = reduce(next, { type: 'tapEnd', thread: a.brk.thread, side: 'drum' });
+    let next = a;
+    for (const t of a.brk.threads) {
+      next = reduce(next, { type: 'tapEnd', thread: t, side: 'creel' });
+      expect(next.phase).toBe('broken'); // 1手目ではまだ戻らない
+      next = reduce(next, { type: 'tapEnd', thread: t, side: 'drum' });
+    }
     expect(next.phase).toBe('winding');
     expect(next.pedal.pedal).toBe(0); // ペダルは 0 のまま
     expect(next.breaks).toBe(1);
-    expect(lastTapResult(a, next)).toBe('tied');
+    expect(lastTapResult(a, next)).toBe('tiedAll');
   });
 
   it('6. 別の糸を押すと wrongTaps + 1', () => {
@@ -144,7 +147,16 @@ describe('winding logic (T2-04)', () => {
     }
     expect(s.phase).toBe('broken');
     if (s.brk.kind !== 'broken') throw new Error('brk should be broken');
-    const wrong = s.brk.thread === 0 ? 1 : 0;
+    // 切れていない糸を探す (threads にも tied にも無い糸)
+    const used = new Set<number>([...s.brk.threads, ...s.brk.tied]);
+    let wrong = -1;
+    for (let t = 0; t < 8; t++) {
+      if (!used.has(t)) {
+        wrong = t;
+        break;
+      }
+    }
+    expect(wrong).toBeGreaterThanOrEqual(0); // 8本のうち切れていない糸がある
     const next = reduce(s, { type: 'tapEnd', thread: wrong, side: 'creel' });
     expect(next.wrongTaps).toBe(s.wrongTaps + 1);
     expect(lastTapResult(s, next)).toBe('wrongThread');

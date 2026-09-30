@@ -32,8 +32,19 @@ export function messageFor(s: WindingState, prev: WindingState | undefined, next
     if (tap === 'wrongThread') {
       return render('その糸は切れていません');
     }
-    if (s.brk.kind === 'broken' && s.brk.firstTapped) {
-      return render('もう一方の切れ端を押してください');
+    if (tap === 'mismatch') {
+      return render('別の糸です。結ぶ糸の両方の切れ端を押してください');
+    }
+    if (tap === 'tiedOne') {
+      return render('つながりました。残りの切れた糸もつないでください');
+    }
+    if (s.brk.kind === 'broken') {
+      if (s.brk.tied.length > 0 && s.brk.first === null) {
+        return render('つながりました。残りの切れた糸もつないでください');
+      }
+      if (s.brk.first !== null) {
+        return render('もう一方の切れ端を押してください');
+      }
     }
     return render('糸が切れました。切れた糸を探して、つないでください');
   }
@@ -59,8 +70,9 @@ export function soundFor(a: WindingAction, prev: WindingState, next: WindingStat
   if (a.type === 'tapEnd') {
     const tap = lastTapResult(prev, next);
     if (tap === 'wrongThread') return 'gentleNo';
+    if (tap === 'mismatch') return 'gentleNo';
     if (tap === 'first') return 'tap';
-    if (tap === 'tied') return 'knot';
+    if (tap === 'tiedOne' || tap === 'tiedAll') return 'knot';
     return null;
   }
   if (a.type === 'start') {

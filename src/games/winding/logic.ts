@@ -3,10 +3,10 @@ import { seedFrom, nextFloat } from '../../core/clock/clock';
 import { initPedal, setPedal, speedOf, tensionOf, stepNoise, stepDrift, stepSnag } from '../../core/mechanics/pedal';
 import type { PedalState } from '../../core/mechanics/pedal';
 import { initBreak, stepBreak, tapEnd } from '../../core/mechanics/breakage';
-import type { BreakState } from '../../core/mechanics/breakage';
+import type { BreakState, TapResult } from '../../core/mechanics/breakage';
 import {
   SECTION_LENGTH, RANGE_WIDTH, RANGE_CENTER, DRIFT, NOISE_AMP, BREAK_RATE, TENSION, BREAK,
-  MAX_TICK_MS, STARS3, STARS2, TARGET_SEC_PER_SECTION,
+  MAX_TICK_MS, STARS3, STARS2, TARGET_SEC_PER_SECTION, BREAK_EXTRA_STEP, BREAK_MAX_THREADS,
 } from './params';
 import type { Level } from './params';
 
@@ -47,7 +47,12 @@ function tensionParams(level: Level, range: { min: number; max: number }) {
 
 /** 難易度ごとの糸切れのパラメータ */
 function breakParams(level: Level): typeof BREAK {
-  return { ...BREAK, rate: BREAK_RATE(level) };
+  return {
+    ...BREAK,
+    rate: BREAK_RATE(level),
+    extraStep: BREAK_EXTRA_STEP(level),
+    maxThreads: BREAK_MAX_THREADS(level),
+  };
 }
 
 /** お題の適正範囲を乱数で決める (中心は RANGE_CENTER の中、幅は RANGE_WIDTH) */
@@ -109,9 +114,13 @@ export function reduce(s: WindingState, a: WindingAction): WindingState {
       if (r.result === 'wrongThread') {
         return { ...s, brk: r.state, wrongTaps: s.wrongTaps + 1 };
       }
-      if (r.result === 'tied') {
-        // ペダルは切れたときに 0 になっているので、0 のまま 'winding' に戻る
+      if (r.result === 'tiedAll') {
+        // 全部つながった。ペダルは切れたときに 0 になっているので、0 のまま 'winding' に戻る
         return { ...s, brk: r.state, phase: 'winding' };
+      }
+      if (r.result === 'tiedOne' || r.result === 'mismatch') {
+        // 1本つながった / 別の糸だった。まだ 'broken' のまま
+        return { ...s, brk: r.state };
       }
       return { ...s, brk: r.state };
     }
@@ -251,16 +260,20 @@ export function isValidResume(x: unknown): x is WindingState {
 export function lastTapResult(
   prev: WindingState,
   next: WindingState,
-): 'first' | 'tied' | 'wrongThread' | 'retry' | null {
+): TapResult | null {
   if (prev.brk.kind !== 'broken' || next.brk.kind !== 'broken') {
-    // tied のときは次が running になる
-    if (prev.brk.kind === 'broken' && next.brk.kind === 'running') return 'tied';
+    // tiedAll のときは次が running になる
+    if (prev.brk.kind === 'broken' && next.brk.kind === 'running') return 'tiedAll';
     return null;
   }
-  const wasFirst = prev.brk.firstTapped;
-  const isFirst = next.brk.firstTapped;
+  const wasFirst = prev.brk.first;
+  const isFirst = next.brk.first;
+  const prevTied = prev.brk.tied.length;
+  const nextTied = next.brk.tied.length;
   if (next.wrongTaps > prev.wrongTaps) return 'wrongThread';
-  if (!wasFirst && isFirst) return 'first';
+  if (nextTied > prevTied) return 'tiedOne';
+  if (isFirst && !wasFirst) return 'first';
+  if (wasFirst && !isFirst) return 'mismatch';
   return null;
 }
 
