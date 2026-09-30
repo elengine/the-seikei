@@ -868,3 +868,34 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
   ペダルの「踏み込む」で setPedal、destroy で DOM から消える。
 - テスト全体: 372 passed / 11 skipped。npm run check エラー0。npm run build 成功。
 - 見た目は T2-07 でまとめて確認する (仕様書どおり)。
+
+
+## 2026-09-30 T2-05 追加修正: 盤面の描き方を座標の変換と決まりに合わせる (T2-06 の横木の件も含む)
+
+- 直した点 (renderer.ts・panel.ts):
+  1. 座標の変換: 論理座標で描く部分は ctx.save() → translate(fit.offsetX, fit.offsetY) →
+     scale(fit.scale, fit.scale) をしてから描き、描き終えたら restore() する。
+     線の太さなど「画面上で N px」のものは fontPx(fit, N) のまま。
+     背景 (kinari) は変換の前に Canvas の画面上の大きさ (clientWidth・clientHeight。
+     0 のときだけ width・height) で塗る。
+  2. 文字の位置: 「帯 3 / 5」は目盛り盤の右、「停止」は赤ランプの右。restore のあとに、
+     論理座標の点を toPx で画面の点に直して描く (大きさは画面 px 20 以上)。
+  3. 色の直書きをやめ、core/ui/tokens.ts の COLORS を import して使う
+     (renderer.ts に # で始まる色は書いていない。糸の色は内容データの hex)。
+  4. 書体: ctx.font に core/ui/tokens.ts の FONT_FAMILY を使う (sans-serif の直書きをやめた)。
+  5. 速さの二重計算: core/mechanics/pedal.ts の speedOf と params.ts の TENSION を使う
+     ((pedal/100) × 40 の直書きをやめた)。1本の帯の長さも params.ts の SECTION_LENGTH を使い、
+     renderer.ts 内の同じ値の関数をやめた。
+  6. check: 報告の直前に npm run check・npm test・npm run build を実行し、
+     push のあと CI が success になったことを確かめた (下に結果)。
+  7. (T2-06 の件) panel.ts の update(s) で pedal.setValue(s.pedal.pedal) を呼ぶようにした
+     (糸切れ・巻き終え・裏に回ったときに、横木が 0 の位置に戻る。setValue は onChange を呼ばない)。
+- テスト (先に書いて RED を確認): renderer.test.ts に4件追加
+  (save → translate → scale が save の後・restore のあとには文字だけ、
+  「帯 1 / 3」の fillText が restore のあとで Canvas の幅の中 (scale 0.39 と 0.7 の両方)、
+  font に FONT_FAMILY、背景の fillRect が save の前で大きさは clientWidth・clientHeight)。
+  panel.test.ts に1件追加 (ペダル 60 の状態で update したあと、ペダル 0 の状態で update すると
+  表示が「速さ 0」になる)。偽の ctx に scale の記録を足した。
+  テストの期待値は変えていない (テストの追加と、restore が必ずしも最後の op でないことの確認方法の修正のみ)。
+- 報告直前の確認: npm run check エラー0 / npm test 377 passed・11 skipped / npm run build 成功。
+- CI: success (3796eb7)。
