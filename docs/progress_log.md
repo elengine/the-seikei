@@ -1090,3 +1090,23 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
   - 960×720 (帯を巻き終えた状態): 修正前は scrollW 313 > clientW 309 で横あふれ。修正後は scrollW = clientW (あふれなし)。操作欄を一番下までスクロールしても、メッセージは上 (msgTop 0) に見え、「帯の端を結ぶ」は操作欄の下端に固定で見える
   - 1180×820: scrollH = clientH 724・横あふれなし (今までどおりスクロールなしで収まる)
   - 412×915 (縦長): 横あふれなし (scrollW = clientW 388)。メーターの帯の幅は状態の文字が変わっても 268px で不変 (state は width 5.5em = 64px 固定)
+
+## 2026-09-30 T2-09a: 範囲をお題ごとに決める・張りの流れと引っかかり・目標の時間
+
+- やったこと:
+  - 適正範囲を State に持つ (range: {min, max})。中心はお題ごとに乱数 (RANGE_CENTER: 初級 45〜55・中級 40〜60・上級 35〜65)、幅は RANGE_WIDTH (初級 30・中級 18・上級 10)。params.ts の RANGE(level) は廃止し、RANGE_WIDTH・RANGE_CENTER に分けた。メーターは State の範囲を表示する (panel は opts で渡さず update で State から)
+  - 張りの流れ (ドリフト): pedal.ts に DriftParams (perSec・turnRate・max) と PedalState.drift を追加。stepDrift は向き (±1) を持ち、turnRate × dtSec の確率で向きだけが反転する (drift は 0 を通って連続に動くので 1フレームの動きは perSec × dtSec 以内)。±max で clamp。tensionOf は noise + drift + snag を足す
+  - 引っかかり: pedal.ts に stepSnag (snagRate × dtSec の確率で snagSize 上がり、SNAG_RECOVER_MS = 2000ms かけて 0 に戻る。raised で上がった瞬間の量を返す) と PedalState.snag。logic.ts は snagRaised を State に置き、tick のあいだだけ立つ
+  - messages.ts: 引っかかりのメッセージ「糸が引っかかりました。張りに注意してください」を張りの 3 文より先に出す
+  - 目標の時間: logic.ts に elapsedMs (巻いていた時間と止まっていた時間の合計。'broken' でも進む) と targetMsOf (TARGET_SEC_PER_SECTION × 帯の数。初級 30・中級 26・上級 22 秒/本)。星3の条件に「目標の時間内」を追加 (平均 0.8 以上かつ elapsedMs <= 目標)。resultOf の summary に「巻いた時間 X(目標 Y)」を追加 (msToText は「1分30秒」の形)
+  - 操作欄に経過時間「0:42 / 1:30」の形の表示 (.winding-panel__time) を追加
+  - ぶれ (noise) は難易度ごとに NOISE_AMP (初級 ±1・中級 ±1.5・上級 ±2)
+- テスト (先に RED を確認): pedal.test.ts に5件 (流れが同じ種で同じ・±max と1秒あたりの上限・引っかかりの2秒戻り・「置いておくだけでは外れる」・「調整すれば上級でも星3が取れる」)。logic.test.ts に6件 (範囲が難易度の幅と中心の中・同じ種なら同じ範囲・引っかかりのフラグ・elapsedMs に糸切れの時間も含む・目標の時間内なら星3・summary に巻いた時間)。旧テスト「pedal 40 (安全なペダル) で星3」は「ゆっくり踏めば必ず適正範囲に入る」の約束がなくなったため、「初級で毎秒合わせ直しながら巻くと星3」に書き換えた
+- 数値について: 仕様書どおりの初期値。上級は引っかかり (snagSize 12・BREAK_RATE 0.04) の組み合わせで切れることがあるが、pedal.test.ts の「調整すれば上級でも星3が取れる」テスト (中心 45〜60・複数種) で、調整すれば適正 0.8 以上になることを確認した。数値の調整は確認役が行う前提
+- 報告直前の確認: npm run check エラー0 / npm test 442 passed・11 skipped / npm run build 成功 / git status に余計なファイルなし
+- コミット: 0e5390f (push は rebase のあと。CI success)
+- ブラウザ確認 (スクショは Discord 報告に添付):
+  - 初級のメーターの適正範囲が「32.2% から幅 30%」(中心 47.2) と、お題ごとの値になっている
+  - 経過時間の表示「0:00 / 1:30」が操作欄に出る (初級 30秒 × 3本 = 1分30秒)
+  - ペダルを範囲の中心に合わせて放置すると、針が 46.5% → 52.7% → 55.2% と流れで動く (触らなくても動く)
+  - 帯1を 25秒で巻き終えた (目標 30秒内)。メッセージ・効果音は従来どおり
