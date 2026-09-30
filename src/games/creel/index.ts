@@ -112,7 +112,7 @@ export function createCreelModule(deps: GameDeps): GameModule {
           const back = await confirmDialog(container, {
             message: 'お題の一覧に戻りますか?(途中の状態は保存されます)',
             okLabel: '一覧に戻る',
-            cancelLabel: '続ける',
+            cancelLabel: 'やめる',
           });
           if (disposed) {
             return;

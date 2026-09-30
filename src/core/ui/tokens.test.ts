@@ -155,3 +155,39 @@ describe('T1-11a: iPad (Safari) への備え (文字と見た目)', () => {
     expect(m![1]).toContain('appearance: none');
   });
 });
+
+describe('T1-17: 設定画面・ホーム画面の文字の大きさと配置', () => {
+  it('FONT.large.label = 24, FONT.xlarge.label = 28', () => {
+    expect(FONT.large.label).toBe(24);
+    expect(FONT.xlarge.label).toBe(28);
+  });
+
+  it('--fs-label が FONT.large.label・FONT.xlarge.label と一致する', () => {
+    const root = cssVars(':root');
+    const xl = cssVars(":root[data-font='xlarge']");
+    expect(root.get('--fs-label')).toBe(`${FONT.large.label}px`);
+    expect(xl.get('--fs-label')).toBe(`${FONT.xlarge.label}px`);
+  });
+
+  it('.settings__label は font-size: var(--fs-label) で太字', () => {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
+    const m = css.match(/\.settings__label\s*\{([^}]*)\}/);
+    expect(m).not.toBeNull();
+    expect(m![1]).toContain('font-size: var(--fs-label)');
+    expect(m![1]).toContain('font-weight: 700');
+  });
+
+  it('.home__greeting の font-size が var(--fs-label)', () => {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
+    const m = css.match(/\.home__greeting\s*\{([^}]*)\}/);
+    expect(m).not.toBeNull();
+    expect(m![1]).toContain('font-size: var(--fs-label)');
+  });
+
+  it('.settings__admin-btn の min-height が var(--btn-min-h)', () => {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
+    const m = css.match(/\.settings__admin-btn\s*\{([^}]*)\}/);
+    expect(m).not.toBeNull();
+    expect(m![1]).toContain('min-height: var(--btn-min-h)');
+  });
+});

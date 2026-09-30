@@ -41,6 +41,7 @@ body {
   /* 文字サイズの既定 (大) */
   --fs-body: 20px;
   --fs-button: 22px;
+  --fs-label: 24px;
   --fs-heading: 28px;
   --fs-number: 32px;
 
@@ -52,6 +53,7 @@ body {
 :root[data-font='xlarge'] {
   --fs-body: 24px;
   --fs-button: 26px;
+  --fs-label: 28px;
   --fs-heading: 34px;
   --fs-number: 38px;
 }
@@ -125,8 +127,8 @@ body {
 
 .dialog__actions {
   display: flex;
-  gap: var(--gap);
-  justify-content: flex-end;
+  gap: calc(var(--gap) * 2); /* 押し間違いを防ぐため 24px 以上空ける */
+  justify-content: space-between; /* 取り消しが左端・決める側が右端 */
   flex-wrap: wrap;
 }
 
@@ -184,7 +186,7 @@ body {
 }
 
 .home__greeting {
-  font-size: var(--fs-body);
+  font-size: var(--fs-label);
   margin: var(--gap) 0 0;
 }
 
@@ -225,7 +227,16 @@ body {
   gap: calc(var(--gap) * 1.5);
 }
 
+.settings__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  padding: 0 var(--gap);
+}
+
 .settings__title {
+  flex: 1;
+  text-align: center;
   font-size: var(--fs-heading);
   margin: 0;
 }
@@ -239,7 +250,8 @@ body {
 }
 
 .settings__label {
-  font-size: var(--fs-body);
+  font-size: var(--fs-label);
+  font-weight: 700;
 }
 
 .settings__value {
@@ -260,14 +272,20 @@ body {
   color: var(--c-white);
 }
 
+.settings__divider {
+  border: none;
+  border-top: 1px solid var(--c-steel);
+  margin: calc(var(--gap) * 3) 0; /* 上下に 48px 以上の余白 (--gap=16 の3倍) */
+}
+
 .settings__admin {
   margin-top: auto;
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start; /* 一番下の左に置く */
 }
 
 .settings__admin-btn {
-  min-height: 48px;
+  min-height: var(--btn-min-h);
   font-size: var(--fs-body);
 }
 

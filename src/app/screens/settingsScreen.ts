@@ -9,10 +9,23 @@ export function createSettingsScreen(ctx: AppContext): Screen {
       const root = document.createElement('div');
       root.classList.add('settings');
 
+      // 題名と同じ行の左に「戻る」(呼び名の変更やお題の一覧と同じ形)
+      const bar = document.createElement('div');
+      bar.classList.add('settings__bar');
+      const backBtn = createButton({
+        label: '戻る',
+        variant: 'secondary',
+        onClick: () => {
+          ctx.audio.play('tap');
+          ctx.navigate('/');
+        },
+      });
       const title = document.createElement('h1');
       title.classList.add('settings__title');
       title.textContent = '設定';
-      root.appendChild(title);
+      bar.appendChild(backBtn);
+      bar.appendChild(title);
+      root.appendChild(bar);
 
       function row(label: string): { row: HTMLDivElement; value: HTMLSpanElement; actions: HTMLDivElement } {
         const line = document.createElement('div');
@@ -161,7 +174,12 @@ export function createSettingsScreen(ctx: AppContext): Screen {
 
       refresh(); // 初期値の表示
 
-      // 最下部: 管理者 (小さめの副ボタン)
+      // 区切りの線 (管理者を「変更」ボタンの列から離す)
+      const divider = document.createElement('hr');
+      divider.classList.add('settings__divider');
+      root.appendChild(divider);
+
+      // 最下部の左: 管理者 (副ボタン。押せる部品の決まり 64px 以上)
       const adminArea = document.createElement('div');
       adminArea.classList.add('settings__admin');
       const adminBtn = createButton({
@@ -177,17 +195,6 @@ export function createSettingsScreen(ctx: AppContext): Screen {
       adminBtn.classList.add('settings__admin-btn');
       adminArea.appendChild(adminBtn);
       root.appendChild(adminArea);
-
-      // 戻る (ホームへ)
-      const backBtn = createButton({
-        label: '戻る',
-        variant: 'secondary',
-        onClick: () => {
-          ctx.audio.play('tap');
-          ctx.navigate('/');
-        },
-      });
-      root.appendChild(backBtn);
 
       container.textContent = '';
       container.appendChild(root);

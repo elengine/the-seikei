@@ -10,11 +10,18 @@ import { init } from './logic';
 
 /** confirmDialog の答えをテストから変えるための器 */
 const confirmAnswers: boolean[] = [];
+/** confirmDialog に渡された引数を記録する器 (T1-17 の文言確認) */
+const confirmCalls: Array<{ message: string; okLabel: string; cancelLabel: string }> = [];
 vi.mock('../../core/ui/widgets', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../core/ui/widgets')>();
   return {
     ...actual,
-    confirmDialog: vi.fn(async () => confirmAnswers.shift() ?? false),
+    confirmDialog: vi.fn(
+      async (parent: HTMLElement, opts: { message: string; okLabel: string; cancelLabel: string }) => {
+        confirmCalls.push(opts);
+        return confirmAnswers.shift() ?? false;
+      },
+    ),
   };
 });
 
@@ -501,5 +508,36 @@ describe('T1-15 追加修正: 一覧から選んだお題が正しい状態で�
     // suspend の puzzleId が s1
     const suspendState = instance.suspend() as { puzzleId?: string } | null;
     expect(suspendState?.puzzleId).toBe('s1');
+  });
+});
+
+describe('T1-17: 確認の画面の取り消しボタンの文言', () => {
+  /** s1 を開いてプレイ画面にする (T1-15 describe の startS1 と同じ) */
+  function startS1Fix(parent: HTMLElement): void {
+    const s1 = parent.querySelector<HTMLButtonElement>('[data-testid="creel-puzzle-s1"]')!;
+    s1.click();
+    const stage = parent.querySelector('canvas')!;
+    const stageBox = stage.parentElement!;
+    stubClientSize(stageBox, 600, 400);
+    stubRect(stage, 600, 400);
+    window.dispatchEvent(new Event('resize'));
+    vi.advanceTimersByTime(20);
+  }
+
+  it('「お題の一覧に戻りますか?」の確認の取り消しボタンは「やめる」 (期待値の変更の理由: 管理者の指示で文言を変えたため)', async () => {
+    const deps = makeDeps();
+    const module = createCreelModule(deps);
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    module.mount(parent, { mode: 'standalone', onFinish: () => undefined, onExit: () => undefined });
+    startS1Fix(parent);
+    confirmCalls.length = 0;
+    confirmAnswers.push(true);
+    parent.querySelector<HTMLButtonElement>('.game-frame__bar-left')!.click();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(confirmCalls).toHaveLength(1);
+    expect(confirmCalls[0]!.message).toContain('お題の一覧に戻りますか');
+    expect(confirmCalls[0]!.cancelLabel).toBe('やめる');
+    expect(confirmCalls[0]!.okLabel).toBe('一覧に戻る');
   });
 });

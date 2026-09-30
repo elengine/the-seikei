@@ -15,8 +15,8 @@ export const COLORS = {
 export type FontScale = 'large' | 'xlarge';
 
 export const FONT = {
-  large: { body: 20, button: 22, heading: 28, number: 32 },
-  xlarge: { body: 24, button: 26, heading: 34, number: 38 },
+  large: { body: 20, button: 22, label: 24, heading: 28, number: 32 },
+  xlarge: { body: 24, button: 26, label: 28, heading: 34, number: 38 },
 } as const;
 
 export const SIZE = {

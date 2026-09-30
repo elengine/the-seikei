@@ -21,11 +21,18 @@ const resultAnswers: ('again' | 'home')[] = [];
 
 /** confirmDialog の戻り値をテストから変えるための器 */
 const confirmAnswers: boolean[] = [];
+/** confirmDialog に渡された引数を記録する器 (T1-17 の文言確認) */
+const confirmCalls: Array<{ message: string; okLabel: string; cancelLabel: string }> = [];
 vi.mock('../../core/ui/widgets', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../core/ui/widgets')>();
   return {
     ...actual,
-    confirmDialog: vi.fn(async () => confirmAnswers.shift() ?? false),
+    confirmDialog: vi.fn(
+      async (parent: HTMLElement, opts: { message: string; okLabel: string; cancelLabel: string }) => {
+        confirmCalls.push(opts);
+        return confirmAnswers.shift() ?? false;
+      },
+    ),
   };
 });
 
@@ -380,3 +387,27 @@ describe('T1-11b: pagehide でも途中保存する', () => {
     await new Promise((r) => setTimeout(r, 30));
     expect(await getSession(ctx, 'creel')).toBeUndefined();
   });});
+
+describe('T1-17: 確認の画面の取り消しボタンの文言', () => {
+  it('「ホームに戻りますか?」の確認の取り消しボタンは「やめる」 (期待値の変更の理由: 管理者の指示で文言を変えたため)', async () => {
+    const ctx = await makeCtx();
+    await ctx.settings.update({ tutorialSeen: { creel: true } });
+    const { module, captured } = makeFakeModule('creel', { stage: 5 });
+    registerGame(module);
+    const screen = createGameScreen(ctx);
+    screen.mount(document.createElement('div'), { id: 'creel' });
+    await vi.waitFor(() => {
+      expect(captured.props?.onExit).toBeDefined();
+    });
+    confirmCalls.length = 0;
+    confirmAnswers.push(true);
+    captured.props!.onExit!();
+    await vi.waitFor(() => {
+      expect(confirmCalls).toHaveLength(1);
+    });
+    expect(confirmCalls[0]!.message).toContain('ホームに戻りますか');
+    expect(confirmCalls[0]!.cancelLabel).toBe('やめる');
+    expect(confirmCalls[0]!.okLabel).toBe('ホームに戻る');
+    screen.unmount();
+  });
+});

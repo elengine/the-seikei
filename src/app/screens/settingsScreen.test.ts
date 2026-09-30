@@ -77,3 +77,45 @@ async function vi_waitForVolume(ctx: AppContext, v: number): Promise<void> {
     expect(ctx.settings.get().volume).toBe(v);
   });
 }
+
+describe('T1-17: 設定画面の「戻る」と「管理者」の配置', () => {
+  beforeEach(() => {
+    document.body.textContent = '';
+  });
+
+  it('「戻る」が題名と同じ見出しの要素の中にあり、「管理者」より前にある', async () => {
+    const ctx = await makeCtx();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const screen = createSettingsScreen(ctx);
+    screen.mount(container, {});
+    // 題名「設定」と同じ見出しの要素の中に「戻る」がある
+    const bar = document.querySelector('.settings__bar');
+    expect(bar).not.toBeNull();
+    expect(bar!.querySelector('.settings__title')?.textContent).toBe('設定');
+    const backInBar = [...bar!.querySelectorAll('button')].find((b) => b.textContent === '戻る');
+    expect(backInBar).toBeDefined();
+    // 画面の下に単独の「戻る」は無い (見出しの外に戻るボタンがない)
+    const allBacks = Array.from(document.querySelectorAll('button')).filter((b) => b.textContent === '戻る');
+    expect(allBacks).toHaveLength(1);
+    // 「管理者」より前 (DOM の順で先)
+    const adminBtn = document.querySelector('.settings__admin-btn')!;
+    expect(bar!.contains(adminBtn)).toBe(false);
+    expect(bar!.compareDocumentPosition(adminBtn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('「管理者」が画面の最後の要素の中にあり、区切りの線の要素がある', async () => {
+    const ctx = await makeCtx();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const screen = createSettingsScreen(ctx);
+    screen.mount(container, {});
+    const root = container.querySelector('.settings')!;
+    const adminArea = document.querySelector('.settings__admin')!;
+    // 管理者が root の最後の要素
+    expect(root.lastElementChild).toBe(adminArea);
+    // 区切りの線の要素が admin の直前にある
+    const divider = adminArea.previousElementSibling;
+    expect(divider?.classList.contains('settings__divider')).toBe(true);
+  });
+});

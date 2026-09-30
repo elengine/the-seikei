@@ -172,3 +172,40 @@ describe('applyFontScale', () => {
     expect(root.dataset.font).toBe('xlarge');
   });
 });
+
+describe('T1-17: 確認の画面のボタンの並び', () => {
+  it('confirmDialog の .dialog__actions の最初の子が取り消しのボタン、最後の子が決める側のボタン', async () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const p = confirmDialog(parent, { message: 'もどりますか?', okLabel: 'ホームに戻る', cancelLabel: 'やめる' });
+    const actions = parent.querySelector('.dialog__actions')!;
+    const children = Array.from(actions.children) as HTMLElement[];
+    expect(children[0]!.textContent).toBe('やめる');
+    expect(children[0]!.dataset.testid).toBe('dialog-cancel');
+    expect(children[children.length - 1]!.textContent).toBe('ホームに戻る');
+    expect(children[children.length - 1]!.dataset.testid).toBe('dialog-ok');
+    // 片付ける
+    (children[0] as HTMLButtonElement).click();
+    await p;
+  });
+
+  it('textInputDialog の .dialog__actions も同じ並び (取り消しが左端・決定が右端)', async () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const p = textInputDialog(parent, { title: 'お名前', initial: '', maxLength: 10, okLabel: '決定', cancelLabel: 'やめる' });
+    const actions = parent.querySelector('.dialog__actions')!;
+    const children = Array.from(actions.children) as HTMLElement[];
+    expect(children[0]!.textContent).toBe('やめる');
+    expect(children[children.length - 1]!.textContent).toBe('決定');
+    (children[0] as HTMLButtonElement).click();
+    await p;
+  });
+
+  it('base.css: .dialog__actions に justify-content: space-between と 24px 以上の gap', () => {
+    const css = baseCss();
+    const i = css.indexOf('.dialog__actions {');
+    const block = css.slice(i, css.indexOf('}', i));
+    expect(block).toContain('justify-content: space-between');
+    expect(block).toContain('gap: calc(var(--gap) * 2)');
+  });
+});
