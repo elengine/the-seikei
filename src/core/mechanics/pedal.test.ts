@@ -75,7 +75,7 @@ describe('pedal (T2-01)', () => {
       expect(a.noise).toBe(b.noise);
     }
     // 1回目の比較 (first) は種が同じなら同じ
-    let c = initPedal(seedFrom(12345));
+    const c = initPedal(seedFrom(12345));
     expect(stepNoise(c, p, 100).noise).toBe(first.noise);
   });
 
