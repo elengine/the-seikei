@@ -1,9 +1,11 @@
 import { setupCanvas, fitStage, onViewportChange, layoutOf } from '../viewport/viewport';
 import type { StageFit, Layout } from '../viewport/viewport';
+import { createButton } from './widgets';
+import { createScreenHeader } from './layout';
 
 /**
- * 全ゲームで使う画面の枠。上部の帯 (戻る・題名・遊び方) と
- * 盤面 (Canvas) と操作パネルを配置する。
+ * 全ゲームで使う画面の枠。上の見出しの行 (戻る・題名・遊び方) と
+ * 盤面 (Canvas のカード) と操作パネル (白いカード) を配置する。
  */
 export interface GameFrame {
   root: HTMLElement;
@@ -11,6 +13,7 @@ export interface GameFrame {
   panel: HTMLElement; // 操作と情報の欄
   message: HTMLElement; // panel 内のメッセージ欄
   footer: HTMLElement; // 盤面 (Canvas) の下の欄。横長のときだけ使う
+  setSubtitle(text: string): void; // 題名の下の文字 (今のお題)
   layout(): 'landscape' | 'portrait'; // いまの配置
   resize(): void; // 画面サイズに合わせて配置と Canvas を調整
   destroy(): void; // 監視の解除と DOM の削除
@@ -31,12 +34,14 @@ export function splitWidths(
   return { stageColW, panelW: bodyInnerW - gap - stageColW };
 }
 
-const BAR_H = 72; // 上部の帯の高さ
+/** 上の見出しの行の高さ。測れない環境 (jsdom など) ではこの値を使う */
+const BAR_H = 72;
 
 export function createGameFrame(
   parent: HTMLElement,
   opts: {
     title: string; // 呼び出し側で terms.t() 済みの文字列
+    subtitle?: string; // 題名の下の小さな文字 (今のお題)
     onBack: () => void; // 「戻る」(確認は呼び出し側で行う)
     onHelp: () => void; // 「遊び方」
     logicalW: number;
@@ -48,34 +53,33 @@ export function createGameFrame(
   const root = document.createElement('div');
   root.classList.add('game-frame');
 
-  // 上部の帯: 左「戻る」・中央に題名・右「遊び方」
-  const bar = document.createElement('div');
-  bar.classList.add('game-frame__bar');
-  bar.style.height = `${BAR_H}px`;
+  // 上の見出しの行: 左「戻る」・中央に題名 (と今のお題)・右「遊び方」
+  const header = createScreenHeader({
+    title: opts.title,
+    subtitle: opts.subtitle,
+    onBack: opts.onBack,
+    right: createButton({ label: '遊び方', variant: 'secondary', onClick: opts.onHelp }),
+  });
+  header.classList.add('game-frame__bar');
+  header.querySelector<HTMLElement>('.screen-header__left button')?.classList.add('game-frame__bar-left', 'game-frame__bar-btn');
+  header.querySelector<HTMLElement>('.screen-header__right button')?.classList.add('game-frame__bar-right', 'game-frame__bar-btn');
+  root.appendChild(header);
 
-  function barButton(label: string, onClick: () => void): HTMLButtonElement {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.classList.add('btn', 'btn--secondary', 'game-frame__bar-btn');
-    b.textContent = label;
-    // 64px 以上の押しやすさ
-    b.style.minWidth = '64px';
-    b.style.minHeight = '64px';
-    b.addEventListener('click', onClick);
-    return b;
+  /** 見出しの行の高さ (題名の下の文字の有無で変わるので、測れるなら測る) */
+  function barHeight(): number {
+    const h = header.getBoundingClientRect().height;
+    return h > 0 ? h : BAR_H;
   }
 
-  const back = barButton('戻る', opts.onBack);
-  back.classList.add('game-frame__bar-left');
-  const title = document.createElement('span');
-  title.classList.add('game-frame__title');
-  title.textContent = opts.title;
-  const help = barButton('遊び方', opts.onHelp);
-  help.classList.add('game-frame__bar-right');
-  bar.appendChild(back);
-  bar.appendChild(title);
-  bar.appendChild(help);
-  root.appendChild(bar);
+  function setSubtitle(text: string): void {
+    let sub = header.querySelector<HTMLElement>('.screen-header__subtitle');
+    if (sub === null) {
+      sub = document.createElement('p');
+      sub.classList.add('screen-header__subtitle');
+      header.querySelector('.screen-header__center')?.appendChild(sub);
+    }
+    sub.textContent = text;
+  }
 
   // 盤面と panel の入れ物
   const body = document.createElement('div');
@@ -109,7 +113,7 @@ export function createGameFrame(
     const innerW = Math.max(0, rect.width);
     const innerH = Math.max(0, rect.height);
     const layout: Layout = layoutOf({ width: innerW, height: innerH }); // レイアウト判定も parent の内寸
-    const bodyH = Math.max(0, innerH - BAR_H);
+    const bodyH = Math.max(0, innerH - barHeight());
     body.style.height = `${bodyH}px`;
     // body の内寸 (padding を引いた高さ = content box)。style 変更を反映させるため一度読む。
     // 測れない環境 (jsdom 等、clientHeight が 0) では bodyH をそのまま使う
@@ -183,6 +187,7 @@ export function createGameFrame(
       applyLayout();
     });
     ro.observe(footer);
+    ro.observe(header); // 題名の下の文字が増減して高さが変わったときも配置し直す
     // parent の大きさも見張る。Safari では回転の直後の resize のときにまだ新しい大きさになっていないことがあり、
     // 古い大きさのまま配置されるのを防ぐ
     ro.observe(parent);
@@ -210,6 +215,7 @@ export function createGameFrame(
     panel,
     message,
     footer,
+    setSubtitle,
     layout(): 'landscape' | 'portrait' {
       const rect = parent.getBoundingClientRect();
       return layoutOf({ width: Math.max(0, rect.width), height: Math.max(0, rect.height) });

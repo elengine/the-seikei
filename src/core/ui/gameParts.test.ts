@@ -1,4 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createGameFrame, splitWidths } from './gameFrame';
 import { showTutorial } from './tutorialOverlay';
 import { showResult } from './resultView';
@@ -615,5 +618,62 @@ describe('T1-20: showTutorial の renderText (呼び名の置き換え)', () => 
     const start = Array.from(parent.querySelectorAll('button')).find((b) => b.textContent === '始める')!;
     start.click();
     await p;
+  });
+});
+
+describe('PU-05a: gameFrame の枠 (見出しの行と2つのカード)', () => {
+  function cssBlock(selector: string): string {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return css.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`))?.[1] ?? '';
+  }
+
+  function setup() {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const frame = createGameFrame(parent, {
+      title: 'クリール立て',
+      onBack: () => undefined,
+      onHelp: () => undefined,
+      logicalW: 1000,
+      logicalH: 750,
+    });
+    return { parent, frame };
+  }
+
+  it('上の帯は見出しの行 (題名は明朝、上端の縞、左「戻る」、右「遊び方」)。盤面と操作欄の2つの入れ物がある', () => {
+    const { frame } = setup();
+    const header = frame.root.querySelector('.screen-header')!;
+    expect(header).not.toBeNull();
+    expect(header.querySelector('.stripe-top')).not.toBeNull();
+    expect(header.querySelector('.screen-header__title')!.textContent).toBe('クリール立て');
+    expect(header.querySelector('.screen-header__left button')!.textContent).toBe('戻る');
+    expect(header.querySelector('.screen-header__right button')!.textContent).toBe('遊び方');
+    expect(frame.root.querySelector('.game-frame__stage')).not.toBeNull();
+    expect(frame.root.querySelector('.game-frame__panel')).not.toBeNull();
+    frame.destroy();
+  });
+
+  it('setSubtitle で題名の下の文字が変わる (無かったものも作られる)', () => {
+    const { frame } = setup();
+    expect(frame.root.querySelector('.screen-header__subtitle')).toBeNull();
+    frame.setSubtitle('段階2 紺地のピンストライプ');
+    expect(frame.root.querySelector('.screen-header__subtitle')!.textContent).toBe('段階2 紺地のピンストライプ');
+    frame.setSubtitle('段階3 無地');
+    expect(frame.root.querySelectorAll('.screen-header__subtitle')).toHaveLength(1);
+    expect(frame.root.querySelector('.screen-header__subtitle')!.textContent).toBe('段階3 無地');
+    frame.destroy();
+  });
+
+  it('base.css: 盤面は kinariDeep の地・line の枠・角14、操作欄は白・角14・余白20、2つのあいだは24', () => {
+    const stage = cssBlock('.game-frame__stage');
+    expect(stage).toContain('background: var(--c-kinari-deep)');
+    expect(stage).toContain('border: 1px solid var(--c-line)');
+    expect(stage).toContain('border-radius: var(--r-card)');
+    const panel = cssBlock('.game-frame__panel');
+    expect(panel).toContain('background: var(--c-white)');
+    expect(panel).toContain('border-radius: var(--r-card)');
+    expect(panel).toContain('var(--sp-5)');
+    expect(cssBlock('.game-frame__body')).toContain('gap: var(--sp-6)');
   });
 });

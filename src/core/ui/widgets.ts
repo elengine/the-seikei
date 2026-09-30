@@ -226,7 +226,7 @@ function buildDialog(
 /** 2択の確認。押したボタンの値で解決する。背景を押しても閉じない。 */
 export function confirmDialog(
   parent: HTMLElement,
-  opts: { title?: string; message: string; okLabel: string; cancelLabel: string },
+  opts: { title: string; message: string; okLabel: string; cancelLabel: string },
 ): Promise<boolean> {
   return new Promise((resolve) => {
     const empty = document.createElement('div');

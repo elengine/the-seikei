@@ -70,6 +70,7 @@ body {
   --c-post: #6e8a5e;
   --c-post-light: #86a276;
   --c-post-dark: #4f6843;
+  --c-message-bg: #f3f0e6; /* メッセージ欄の地 (07_ui_design 7 節) */
 
   /* 余白・角・画面の余白・上端の縞 (07_ui_design 4・5.1) */
   --sp-1: 4px;
@@ -822,32 +823,17 @@ body {
 
 .game-frame__bar {
   flex: none;
-  display: flex;
-  align-items: center;
-  gap: var(--gap);
-  padding: 0 var(--gap);
-}
-
-.game-frame__title {
-  flex: 1;
-  text-align: center;
-  font-size: var(--fs-heading);
-  color: var(--c-sumi);
-  white-space: nowrap;
+  /* ゲームの画面の見出しの行は、ふつうの画面より上下の余白を小さくする */
+  padding-top: calc(var(--stripe-h) + var(--sp-3));
+  padding-bottom: var(--sp-3);
 }
 
 .game-frame__body {
   flex: 1;
   display: flex;
-  gap: var(--gap);
+  gap: var(--sp-6);
   min-height: 0;
-  padding: var(--gap);
-}
-
-@media (orientation: portrait) {
-  .game-frame__bar .game-frame__title {
-    font-size: var(--fs-body);
-  }
+  padding: var(--sp-4) var(--page-pad);
 }
 
 /* 盤面の列 (横長): Canvas の上・footer (いまの帯の並び) の下 */
@@ -859,10 +845,16 @@ body {
   min-height: 0;
 }
 
+/* 盤面のカード: kinariDeep の地・line の枠・角 14 */
 .game-frame__stage {
   flex: 1;
   min-width: 0;
   min-height: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: var(--c-kinari-deep);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-card);
 }
 
 /* 盤面の下の欄 (横長のときだけ使う。縦長では gameFrame が display:none にする) */
@@ -880,22 +872,31 @@ body {
   height: 100%;
 }
 
+/* 操作欄のカード: 白・角 14・中の余白 20 (上はメッセージ欄の余白) */
 .game-frame__panel {
   width: 34%;
   min-width: 280px;
+  box-sizing: border-box;
   overflow-y: auto;
+  background: var(--c-white);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-card);
+  padding: 0 var(--sp-5) var(--sp-5);
 }
 
 .game-frame__message {
   font-size: var(--fs-body);
   color: var(--c-sumi);
-  min-height: calc(2 * 1.3em); /* いつも 2 行ぶん。1 行と 2 行の入れ替わりで下がぶれない (T2-07 追加修正2) */
+  box-sizing: border-box;
+  min-height: calc(2 * 1.3em + 2 * var(--sp-3)); /* いつも 2 行ぶん。1 行と 2 行の入れ替わりで下がぶれない (T2-07 追加修正2) */
   line-height: 1.3;
-  margin-bottom: var(--gap);
+  margin: var(--sp-5) 0 var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-small);
   /* 操作欄がスクロールしてもメッセージが隠れない (T2-08 追加修正b) */
   position: sticky;
   top: 0;
-  background: var(--c-kinari); /* 操作欄と同じ色 (背景が透けないように) */
+  background: var(--c-message-bg); /* 不透明 (背景が透けないように) */
   z-index: 1;
 }
 

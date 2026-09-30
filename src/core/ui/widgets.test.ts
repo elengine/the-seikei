@@ -48,7 +48,7 @@ describe('confirmDialog', () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);
 
-    const p1 = confirmDialog(parent, { message: 'もどる？', okLabel: 'もどる', cancelLabel: 'つづける' });
+    const p1 = confirmDialog(parent, { title: '確認', message: 'もどる？', okLabel: 'もどる', cancelLabel: 'つづける' });
     const backdrop1 = parent.querySelector('.dialog-backdrop');
     expect(backdrop1).not.toBeNull();
     // 背景を押しても閉じない
@@ -58,7 +58,7 @@ describe('confirmDialog', () => {
     await expect(p1).resolves.toBe(true);
     expect(parent.querySelector('.dialog-backdrop')).toBeNull(); // DOM から取り除かれた
 
-    const p2 = confirmDialog(parent, { message: 'もどる？', okLabel: 'もどる', cancelLabel: 'つづける' });
+    const p2 = confirmDialog(parent, { title: '確認', message: 'もどる？', okLabel: 'もどる', cancelLabel: 'つづける' });
     clickButton(parent, 'dialog-cancel');
     await expect(p2).resolves.toBe(false);
     expect(parent.querySelector('.dialog-backdrop')).toBeNull();
@@ -177,7 +177,7 @@ describe('T1-17: 確認の画面のボタンの並び', () => {
   it('confirmDialog の .dialog__actions の最初の子が取り消しのボタン、最後の子が決める側のボタン', async () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);
-    const p = confirmDialog(parent, { message: 'もどりますか?', okLabel: 'ホームに戻る', cancelLabel: 'やめる' });
+    const p = confirmDialog(parent, { title: '確認', message: 'もどりますか?', okLabel: 'ホームに戻る', cancelLabel: 'やめる' });
     const actions = parent.querySelector('.dialog__actions')!;
     const children = Array.from(actions.children) as HTMLElement[];
     expect(children[0]!.textContent).toBe('やめる');

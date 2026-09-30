@@ -93,6 +93,7 @@ export function createCreelModule(deps: GameDeps): GameModule {
         const resumePuzzleId = savedPuzzleId();
         if (resumePuzzleId !== null && resumePuzzleId !== puzzleId) {
           const start = await confirmDialog(container, {
+            title: '新しいお題を始めますか',
             message: '途中のお題があります。新しいお題を始めると、途中の状態は消えます。始めますか?',
             okLabel: '始める',
             cancelLabel: 'やめる',
@@ -116,6 +117,7 @@ export function createCreelModule(deps: GameDeps): GameModule {
       const onBackFromPlay = (): void => {
         void (async () => {
           const back = await confirmDialog(container, {
+            title: 'お題の一覧に戻りますか',
             message: 'お題の一覧に戻りますか?(途中の状態は保存されます)',
             okLabel: '一覧に戻る',
             cancelLabel: 'やめる',

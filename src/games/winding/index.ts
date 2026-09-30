@@ -65,6 +65,7 @@ export function createWindingModule(deps: GameDeps): GameModule {
       const onBackFromPlay = (): void => {
         void (async () => {
           const back = await confirmDialog(container, {
+            title: '難易度の一覧に戻りますか',
             message: '難易度の一覧に戻りますか?(途中の状態は保存されます)',
             okLabel: '一覧に戻る',
             cancelLabel: 'やめる',
@@ -92,6 +93,7 @@ export function createWindingModule(deps: GameDeps): GameModule {
         const resumeLevel = savedLevel();
         if (resumeLevel !== null && resumeLevel !== level) {
           const start = await confirmDialog(container, {
+            title: '新しく始めますか',
             message: '途中の難易度があります。新しく始めると、途中の状態は消えます。始めますか?',
             okLabel: '始める',
             cancelLabel: 'やめる',

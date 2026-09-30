@@ -29,7 +29,12 @@ export interface GameResult {
   stars: 1 | 2 | 3;
   stats: Record<string, number>;
   unlockedPatternIds: string[];
-  summary?: string[]; // 結果画面にそのまま表示する文 (例「たしかめた回数 1回」)
+  summary?: string[]; // 結果画面にそのまま表示する文 (例「たしかめた回数 1回」)。resultLines が無いときの代わり
+  resultLines?: { label: string; value: string }[]; // 結果画面の成績の行 (左に項目、右に値)
+  starHint?: string; // 星3の条件 (例「1回目で合えば星3です」)
+  next?: { label: string; start: () => void }; // 次のお題があれば。結果画面の右の主ボタン
+  again?: () => void; // 「もう一度」で同じお題をやり直す (無ければゲームを作り直す)
+  toList?: () => void; // 「一覧へ」でゲームのお題の一覧へ (無ければホームへ)
   finishedAt: string;
 }
 

@@ -60,6 +60,7 @@ export function createGameScreen(ctx: AppContext): Screen {
         const saved = await getSession(ctx, id);
         if (saved !== undefined) {
           const resumeChosen = await confirmDialog(root, {
+            title: '続きから始めますか',
             message: '前回の続きから始めますか?',
             okLabel: '続きから',
             cancelLabel: '最初から',
@@ -186,23 +187,28 @@ function mountGame(
           }
         }
       }
-      // 成績欄は summary だけ (無ければ空)。「星 Nつ」は星の表示と重なるので出さない
-      const lines = result.summary ?? [];
-      const praise = result.stars === 3 ? '完璧です!' : result.stars === 2 ? 'お見事です!' : '完成です!';
+      // 成績の行は resultLines (無ければ summary の文。「星 Nつ」は星の表示と重なるので出さない)
       const choice = await showResult(parent, {
-        praise,
         stars: result.stars,
-        lines,
+        lines: result.resultLines ?? result.summary ?? [],
+        hint: result.starHint,
         newPatternNames: newNames,
-        againLabel: '続けて遊ぶ',
-        homeLabel: 'ホームへ',
+        next: result.next !== undefined ? { label: result.next.label } : undefined,
       });
       if (isDisposed()) {
         return; // 結果表示中に離れた
       }
-      if (choice === 'again') {
-        lastCleanup?.(); // 前のゲームを片付けてから mount し直す
-        mountGame(ctx, parent, module, undefined, registerCleanup, isDisposed);
+      if (choice === 'next' && result.next !== undefined) {
+        result.next.start(); // 次のお題を始める (ゲームが自分で切り替える)
+      } else if (choice === 'again') {
+        if (result.again !== undefined) {
+          result.again(); // 同じお題をやり直す
+        } else {
+          lastCleanup?.(); // 前のゲームを片付けてから mount し直す
+          mountGame(ctx, parent, module, undefined, registerCleanup, isDisposed);
+        }
+      } else if (result.toList !== undefined) {
+        result.toList(); // ゲームのお題の一覧へ
       } else {
         ctx.navigate('/');
       }
@@ -215,6 +221,7 @@ function mountGame(
       const state = instance.suspend();
       if (state !== null && state !== undefined) {
         const goHome = await confirmDialog(parent, {
+          title: 'ホームに戻りますか',
           message: 'ホームに戻りますか?(途中の状態は保存されます)',
           okLabel: 'ホームに戻る',
           cancelLabel: 'やめる',

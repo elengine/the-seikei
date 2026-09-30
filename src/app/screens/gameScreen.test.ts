@@ -17,7 +17,7 @@ vi.mock('../../core/ui/resultView', () => ({
 }));
 
 /** showResult の戻り値をテストから変えるための器 */
-const resultAnswers: ('again' | 'home')[] = [];
+const resultAnswers: ('again' | 'home' | 'list' | 'next')[] = [];
 
 /** confirmDialog の戻り値をテストから変えるための器 */
 const confirmAnswers: boolean[] = [];
@@ -432,5 +432,98 @@ describe('T1-17: 確認の画面の取り消しボタンの文言', () => {
     expect(confirmCalls[0]!.cancelLabel).toBe('やめる');
     expect(confirmCalls[0]!.okLabel).toBe('ホームに戻る');
     screen.unmount();
+  });
+});
+
+describe('PU-05a: 結果の画面のつなぎ', () => {
+  async function finishWith(
+    answer: 'again' | 'list' | 'next',
+    extra: Partial<Parameters<GameProps['onFinish']>[0]>,
+  ): Promise<{ navigated: string[]; ctx: AppContext; captured: FakeCaptured }> {
+    clearGamesForTest(); // 1つのテストの中で何度も登録するため
+    const ctx = await makeCtx();
+    const navigated: string[] = [];
+    ctx.navigate = (path: string) => {
+      navigated.push(path);
+    };
+    await ctx.settings.update({ tutorialSeen: { creel: true } });
+    const { module, captured } = makeFakeModule('creel');
+    registerGame(module);
+    resultAnswers.push(answer);
+    createGameScreen(ctx).mount(document.createElement('div'), { id: 'creel' });
+    await vi.waitFor(() => {
+      expect(captured.props?.onFinish).toBeDefined();
+    });
+    await captured.props!.onFinish({
+      gameId: 'creel',
+      mode: 'standalone',
+      stars: 2,
+      stats: { 'puzzle:s1': 2 },
+      unlockedPatternIds: [],
+      finishedAt: ctx.clock.now(),
+      ...extra,
+    });
+    return { navigated, ctx, captured };
+  }
+
+  it("結果で 'next' を選ぶと next.start が呼ばれる (ホームへは移らない)", async () => {
+    const start = vi.fn();
+    const { navigated } = await finishWith('next', { next: { label: '次のお題へ', start } });
+    await vi.waitFor(() => {
+      expect(start).toHaveBeenCalledTimes(1);
+    });
+    expect(navigated).toEqual([]);
+  });
+
+  it("結果で 'list' を選ぶと toList が呼ばれ、無ければホームへ移る。'again' は again が呼ばれる", async () => {
+    const toList = vi.fn();
+    await finishWith('list', { toList });
+    await vi.waitFor(() => {
+      expect(toList).toHaveBeenCalledTimes(1);
+    });
+    const again = vi.fn();
+    await finishWith('again', { again });
+    await vi.waitFor(() => {
+      expect(again).toHaveBeenCalledTimes(1);
+    });
+    const r = await finishWith('list', {});
+    await vi.waitFor(() => {
+      expect(r.navigated).toEqual(['/']);
+    });
+  });
+
+  it('showResult に resultLines・starHint・next のラベルが渡る。summary だけなら summary が行になる', async () => {
+    const lines = [{ label: '確認した回数', value: '1回' }];
+    const a = await finishWith('list', { resultLines: lines, starHint: '1回目で合えば星3です', next: { label: '次のお題へ', start: () => undefined } });
+    await vi.waitFor(() => {
+      expect(showResult).toHaveBeenCalled();
+    });
+    const opts = vi.mocked(showResult).mock.calls[0]![1];
+    expect(opts.lines).toEqual(lines);
+    expect(opts.hint).toBe('1回目で合えば星3です');
+    expect(opts.next).toEqual({ label: '次のお題へ' });
+    expect(a.navigated).toBeDefined();
+    vi.mocked(showResult).mockClear();
+    await finishWith('list', { summary: ['確認した回数 1回'] });
+    await vi.waitFor(() => {
+      expect(showResult).toHaveBeenCalled();
+    });
+    expect(vi.mocked(showResult).mock.calls[0]![1].lines).toEqual(['確認した回数 1回']);
+    expect(vi.mocked(showResult).mock.calls[0]![1].praise).toBeUndefined();
+  });
+
+  it('確認の画面 (続きから・ホームに戻る) に見出し (title) が付く', async () => {
+    const ctx = await makeCtx();
+    await ctx.settings.update({ tutorialSeen: { creel: true } });
+    await putSession(ctx, 'creel', { stage: 2 });
+    const { module } = makeFakeModule('creel');
+    registerGame(module);
+    confirmCalls.length = 0;
+    confirmAnswers.push(true);
+    createGameScreen(ctx).mount(document.createElement('div'), { id: 'creel' });
+    await vi.waitFor(() => {
+      expect(confirmCalls).toHaveLength(1);
+    });
+    expect((confirmCalls[0] as { title?: string }).title).toBe('続きから始めますか');
   });
 });
