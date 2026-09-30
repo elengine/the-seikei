@@ -964,3 +964,33 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
     操作欄のスクロールは出ない (scrollHeight = clientHeight)。
   - 412×915: ボタンの文字は折り返さず (高さ 64px のまま)、はみ出し無し (scrollWidth = clientWidth)。
 - CI: success (push のあとに確認)。
+
+
+## 2026-09-30 T2-07: ドラム巻きを組み立てて遊べるようにする
+
+- やったこと:
+  - 一覧 (listView.ts): 「初級・中級・上級」の大きなボタン。クリア済みと最初の未クリアだけ押せて、その先は「未解放」。星は「★★★」形式
+  - プレイ画面 (controller.ts): gameFrame + drawBoard (T2-05 の盤面) + createWindingPanel (T2-06 の操作欄) をつなぐ
+  - 時間は requestAnimationFrame で進める。dtMs は前のフレームとの差で、MAX_TICK_MS (100ms) を超えない
+  - ページが裏に回ったら (visibilitychange hidden) ループを止め、ペダルを 0 にする。戻ったら測り直して再開
+  - unmount で rAF・interval (保存・結びの演出)・timeout・visibilitychange・pointerdown をすべて解除
+  - 「帯の端を結ぶ」は1秒の演出をしてから cut を送る。演出中は操作を受け付けない
+  - 「遊び方」は showTutorial に renderText として terms.render を渡す ({pedal} が呼び名に置き換わる)
+  - 遊び方 (tutorial.ts): 3ページの Canvas の略図。文は大人向け。色は COLORS、直書きなし
+  - 切れ端を当てる: 盤面の pointerdown で fromPx → hitEnd → tapEnd。'broken' 以外のときは何もしない
+  - index.ts: mode 'job' は仕事の内容で、resume は isValidResume を満たすときだけプレイ画面を開く。それ以外は一覧
+  - main.ts に registerGame(createWindingModule(...)) を追加
+  - gameScreen.ts: onFinish の成績に 'level:' で始まるキーも残す (難易度の星。従来は 'puzzle:' のみで、ドラム巻きの解放が効かなかった)
+- テスト (先に RED を確認):
+  - controller.test.ts (5件): 一覧の解放・プレイから結果まで (stars 3)・hidden でペダル 0 と rAF 停止・unmount 後に rAF が残らない・resume でペダル 0
+  - tutorial.test.ts (4件): 3ページと pedal 置き換え対象の有無・色の直書きなし・renderText での置き換え・renderText 無しではそのまま
+  - gameScreen.test.ts (1件): 'level:' のキーも成績に残る
+- 報告直前の確認: npm run check エラー0 / npm test 398 passed・11 skipped / npm run build 成功
+- ブラウザ確認:
+  - 1180×820: 一覧・プレイ・糸切れ・切れ端を2回押してつなぎ・完成・結果 (★★★)・「続けて遊ぶ」で中級が解放
+  - 960×720: 一覧・プレイ。はみ出し無し・20px 未満の文字無し
+  - 412×915: 一覧・プレイ。はみ出し無し・小さい文字無し
+  - 精細さ2倍 (dpr 2, 1180×820): はみ出し無し
+  - 回転 (915×412 横長): はみ出し無し。hidden で速さ 30 → 0 (ペダルが戻る) を確認
+  - 途中保存: 「戻る」→「ホームに戻る」→「続きから」で帯 1/5・3% から再開し、ペダルは 0
+- コミット: 71b5aa1 (T2-07 本体) / 8cc6afe (level: の記録修正) / 報告コミットはこのあと
