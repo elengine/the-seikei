@@ -589,7 +589,7 @@ describe('winding module T2-09 追加修正a (引っかかりのメッセージ�
 
   it('1. 引っかかったら、引っかかりのメッセージがすぐ出て、2秒ほど出続ける (張りの文には戻らない)', async () => {
     // 引っかかりは乱数で起きる。種を固定して、引っかかりが起きるまで tick を進める
-    const { container, msg, btn } = await setup();
+    const { msg, btn } = await setup();
     btn('初級帯 3本');
     raf.advance(2);
     btn('巻き始める');
@@ -602,7 +602,6 @@ describe('winding module T2-09 追加修正a (引っかかりのメッセージ�
     }
     expect(found).toBe(true);
     // 1秒後も出続ける
-    const at = raf.frames.length;
     for (let i = 0; i < 60; i++) raf.advance(2);
     expect(msg()).toContain('引っかかり');
   });
