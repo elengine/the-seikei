@@ -6,7 +6,7 @@ import { speedOf } from '../../core/mechanics/pedal';
 import { TENSION, SECTION_LENGTH } from './params';
 import type { StageFit } from '../../core/viewport/viewport';
 import { CREEL_AREA, TABLE_AREA, DRUM_AREA, TOP_AREA, CREEL_END_X, DRUM_END_X, REED_X, THREAD_SHEET_HALF, REED_RISE, threadY, drumSectionY, tableY, pointOnPath, toPx, fontPx } from './geometry';
-import { drawDrum, drumSectionPinY, drawBrokenThread } from './renderer.parts';
+import { drawDrum, drawBrokenThread } from './renderer.parts';
 
 /**
  * ドラム巻きの盤面の描画 (P2 T2-05・T2-08・T2-08 追加修正a)。
