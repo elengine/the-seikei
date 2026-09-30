@@ -23,7 +23,7 @@ if (typeof Element !== 'undefined' && !Element.prototype.setPointerCapture) {
 }
 
 describe('pedalControl (T2-03)', () => {
-  let onChange: ReturnType<typeof vi.fn>;
+  let onChange: ReturnType<typeof vi.fn<(v: number) => void>>;
   let pc: ReturnType<typeof createPedalControl>;
   let groove: HTMLElement;
   let bar: HTMLElement;
