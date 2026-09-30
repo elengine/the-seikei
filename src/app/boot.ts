@@ -1,5 +1,6 @@
 import { createAppContext } from './context';
 import type { AppContext } from './context';
+import { setButtonSound } from '../core/ui/widgets';
 import type { Clock } from '../core/clock/clock';
 import { runMigrations } from '../core/storage/migrations';
 import { MIGRATIONS } from '../core/storage/migrations';
@@ -18,6 +19,11 @@ export async function boot(opts: { dbName: string; clock: Clock; navigate: (p: s
 
   // 1. AppContext を作る
   const ctx = await createAppContext({ dbName: opts.dbName, clock: opts.clock, navigate: opts.navigate });
+
+  // 1b. ボタンを押したときの音 (createButton が鳴らす。各画面では鳴らさない)
+  setButtonSound(() => {
+    ctx.audio.play('tap');
+  });
 
   // 2. データ移行を実行する。例外なら ok:false を返し、ログに error を残す
   try {

@@ -61,6 +61,7 @@ export interface GameModule {
   titleTermKey: string; // 表示名は用語辞書から引く
   phase: 'P1' | 'P2' | 'P3' | 'P5';
   embeddable: boolean; // 経営シミュレーションから呼べるか
+  summary?: string; // ホームのカードに出す一言の説明
   tutorial: TutorialSpec;
   mount(container: HTMLElement, props: GameProps): GameInstance;
 }

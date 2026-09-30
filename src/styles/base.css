@@ -341,56 +341,131 @@ body {
 /* ---- ホームと設定の画面 ---- */
 
 .home {
+  --fs-app: 44px;
+  --fs-card-name: 30px;
+  position: relative;
   height: 100%;
   box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: calc(var(--gap) * 2);
-  padding: var(--gap);
+  overflow-y: auto;
+  padding: calc(var(--stripe-h) + var(--sp-6)) var(--page-pad) var(--sp-8);
+}
+
+:root[data-font='xlarge'] .home {
+  --fs-app: 50px;
+  --fs-card-name: 34px;
 }
 
 .home__header {
-  text-align: center;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-6);
+}
+
+.home__titles {
+  min-width: 0;
 }
 
 .home__shop {
-  font-size: var(--fs-heading);
+  font-size: var(--fs-body);
+  color: var(--c-muted);
+  margin: 0;
+}
+
+.home__app {
+  font-size: var(--fs-app);
+  line-height: 1.3;
+  color: var(--c-ai);
   margin: 0;
 }
 
 .home__greeting {
   font-size: var(--fs-label);
-  margin: var(--gap) 0 0;
+  margin: var(--sp-2) 0 0;
 }
 
 .home__games {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-6);
+}
+
+/* ゲームのカード (カード全体が1つのボタン) */
+.game-card {
+  position: relative;
+  box-sizing: border-box;
   display: flex;
-  flex-direction: column; /* portrait は縦に1列 */
-  gap: var(--gap);
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  min-height: 220px;
+  padding: var(--sp-5);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-card);
+  background: var(--c-white);
+  color: var(--c-sumi);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
-/* landscape は2列 */
-@media (orientation: landscape) {
-  .home__games {
-    display: grid;
-    grid-template-columns: repeat(2, auto);
-    justify-content: center;
-  }
+.game-card:focus-visible {
+  outline: 3px solid var(--c-ai);
+  outline-offset: 2px;
 }
 
-.home__notice {
+.game-card__art {
+  width: 100%;
+  height: auto;
+  border-radius: var(--r-small);
+}
+
+.game-card__name {
+  font-size: var(--fs-card-name);
+  line-height: 1.3;
+  color: var(--c-ai);
+}
+
+.game-card__summary {
   font-size: var(--fs-body);
-  margin: 0;
+  color: var(--c-sumi-sub);
 }
 
-.home__footer {
+.game-card__status {
   margin-top: auto;
-  display: flex;
-  justify-content: center;
+  font-size: var(--fs-body);
+  font-weight: 700;
+  color: var(--c-muted);
 }
+
+/* 準備中のカード: 点線の枠・薄い地・名前と説明は muted */
+.game-card--soon {
+  border: 2px dashed var(--c-lock-border);
+  background: var(--c-kinari-deep);
+}
+
+.game-card--soon .game-card__name,
+.game-card--soon .game-card__summary {
+  color: var(--c-muted);
+}
+
+.game-card__notice {
+  position: absolute;
+  right: var(--sp-4);
+  bottom: var(--sp-4);
+  padding: var(--sp-2) var(--sp-4);
+  border-radius: var(--r-small);
+  background: var(--c-ai);
+  color: var(--c-white);
+  font-size: var(--fs-body);
+  font-weight: 700;
+}
+
 
 .settings {
   height: 100%;
@@ -1476,4 +1551,17 @@ button {
 .list-row--locked .list-row__name,
 .list-row--locked .list-row__status {
   color: var(--c-muted);
+}
+
+/* ホームのカードの列 (幅 900px 以上は 3 列、600〜899px は 2 列、未満は 1 列) */
+@media (max-width: 899px) {
+  .home__games {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 599px) {
+  .home__games {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

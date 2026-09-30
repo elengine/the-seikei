@@ -18,6 +18,7 @@ export function createCreelModule(deps: GameDeps): GameModule {
     titleTermKey: 'game.creel',
     phase: 'P1',
     embeddable: true,
+    summary: '依頼書のとおりにコーンを立てる',
     tutorial: creelTutorial,
 
     mount(container: HTMLElement, props: GameProps): GameInstance {

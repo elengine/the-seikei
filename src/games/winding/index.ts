@@ -20,6 +20,7 @@ export function createWindingModule(deps: GameDeps): GameModule {
     titleTermKey: 'game.winding',
     phase: 'P2',
     embeddable: true,
+    summary: '張りを見ながら、帯をドラムに巻く',
     tutorial: windingTutorial,
 
     mount(container: HTMLElement, props: GameProps): GameInstance {
