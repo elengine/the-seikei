@@ -5,6 +5,9 @@ import { init, reduce } from './logic';
 import type { CreelState } from './logic';
 import { getContent } from '../../core/content/content';
 import { ORDER_RANGE_MAX_STAGE } from './params';
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const content = getContent();
 
@@ -121,32 +124,35 @@ describe('createCreelPanel', () => {
     panel.destroy();
   });
 
-  it('立てる・外す・調べる の選ぶ部品と、確認するのボタンが onAction を呼ぶ。選んでいる道具が aria-pressed=true', () => {
+  it('PU-07b: 「立てる・外す・調べる」の切り替えは無い。確認するのボタンは onAction を呼ぶ', () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);
     const onAction = vi.fn();
     const panel = createCreelPanel(parent, { content, onAction });
-    let s = s2State();
-    panel.update(s);
-    const byTestId = (id: string) => parent.querySelector<HTMLButtonElement>(`[data-testid="${id}"]`)!;
-    expect(parent.querySelector('.choice')).not.toBeNull();
-    // 初期は箱を選んでいる (立てる)
-    expect(byTestId('creel-tool-place').getAttribute('aria-pressed')).toBe('true');
-    expect(byTestId('creel-tool-remove').getAttribute('aria-pressed')).toBe('false');
-    byTestId('creel-tool-remove').click();
-    expect(onAction).toHaveBeenCalledWith({ type: 'selectRemove' });
-    s = reduce(s, { type: 'selectRemove' });
-    panel.update(s);
-    expect(byTestId('creel-tool-remove').getAttribute('aria-pressed')).toBe('true');
-    expect(byTestId('creel-tool-remove').textContent).toContain('✓');
-    byTestId('creel-tool-inspect').click();
-    expect(onAction).toHaveBeenCalledWith({ type: 'selectInspect' });
-    // 立てる に戻すと、最後に選んでいた箱 (kon-a) を選ぶ
-    byTestId('creel-tool-place').click();
-    expect(onAction).toHaveBeenLastCalledWith({ type: 'selectBox', yarn: 'kon-a' });
-    byTestId('creel-check').click();
+    panel.update(s2State());
+    expect(parent.querySelector('.choice')).toBeNull();
+    expect(parent.querySelector('[data-testid="creel-tool-place"]')).toBeNull();
+    expect(parent.querySelector('[data-testid="creel-tool-remove"]')).toBeNull();
+    expect(parent.querySelector('[data-testid="creel-tool-inspect"]')).toBeNull();
+    parent.querySelector<HTMLButtonElement>('[data-testid="creel-check"]')!.click();
     expect(onAction).toHaveBeenCalledWith({ type: 'check' });
     panel.destroy();
+  });
+
+  it('PU-07b: 箱は data-yarn を持ち、touch-action: none (引っぱっている間に画面がスクロール・拡大しない)', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const panel = createCreelPanel(parent, { content, onAction: () => undefined });
+    panel.update(s2State());
+    const boxes = Array.from(parent.querySelectorAll<HTMLElement>('.creel-box'));
+    expect(boxes.map((b) => b.dataset.yarn)).toEqual(['kon-a', 'shiro-a']);
+    panel.destroy();
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
+    const m = css.match(/\.btn\.creel-box\s*\{([^}]*)\}/);
+    expect(m).not.toBeNull();
+    expect(m![1]).toContain('touch-action: none');
+    const stage = css.match(/\.game-frame__stage canvas\s*\{([^}]*)\}/);
+    expect(stage![1]).toContain('touch-action: none');
   });
 
   it('PU-05b: 「確認する」は primary で、操作欄の一番下の右。「ヒント」はその左 (secondary)', () => {

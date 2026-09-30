@@ -53,6 +53,16 @@ export function drawPosts(ctx: CanvasRenderingContext2D, fit: Fit, cols: number)
   }
 }
 
+/** 吸い付く先の軸の表示: aiTint の丸と、藍 (ai) の太い輪。cx, cy, r は画面座標 */
+export function drawSnapTarget(ctx: CanvasRenderingContext2D, fit: Fit, cx: number, cy: number, r: number): void {
+  fillCircle(ctx, cx, cy, r * 1.2, COLORS.aiTint);
+  ctx.strokeStyle = COLORS.ai;
+  ctx.lineWidth = Math.max(3, 5 * fit.scale);
+  ctx.beginPath();
+  ctx.arc(cx, cy, r * 1.2, 0, Math.PI * 2);
+  ctx.stroke();
+}
+
 /** 空いた軸: チーズの大きさの点線の丸と、中央の木の色の丸 (先に色の輪)。cx, cy, r は画面座標 */
 export function drawEmptyPeg(ctx: CanvasRenderingContext2D, fit: Fit, cx: number, cy: number, r: number): void {
   ctx.strokeStyle = COLORS.woodLight;

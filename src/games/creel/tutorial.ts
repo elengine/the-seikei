@@ -61,6 +61,25 @@ function drawCreel(ctx: CanvasRenderingContext2D, w: number, h: number): void {
   ctx.beginPath();
   ctx.arc(cx, cy, r * 0.24, 0, Math.PI * 2);
   ctx.fill();
+  // 引っぱる矢印: 手前の箱から、空いた軸へ
+  const barY0 = h * 0.72;
+  const fromX = w * 0.23;
+  const fromY = barY0 + h * 0.08;
+  const toX = cx - r * 0.5;
+  const toY = cy + r * 1.05;
+  ctx.strokeStyle = COLORS.ai;
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(fromX, fromY);
+  ctx.lineTo(toX, toY);
+  ctx.stroke();
+  const ang = Math.atan2(toY - fromY, toX - fromX);
+  ctx.beginPath();
+  ctx.moveTo(toX, toY);
+  ctx.lineTo(toX - 14 * Math.cos(ang - 0.45), toY - 14 * Math.sin(ang - 0.45));
+  ctx.moveTo(toX, toY);
+  ctx.lineTo(toX - 14 * Math.cos(ang + 0.45), toY - 14 * Math.sin(ang + 0.45));
+  ctx.stroke();
   // 箱 (手前)
   const barY = h * 0.72;
   ctx.fillStyle = COLORS.machineLight;
@@ -168,7 +187,7 @@ function drawHint(ctx: CanvasRenderingContext2D, w: number, h: number): void {
 export const creelTutorial: TutorialSpec = {
   pages: [
     { draw: (ctx, w, h) => drawOrderSheet(ctx, w, h), text: '依頼書を見て、どの糸を何本立てるか確かめます' },
-    { draw: (ctx, w, h) => drawCreel(ctx, w, h), text: '品番の書かれた箱を選び、{{spindle}}に触れると{{cone}}が立ちます' },
+    { draw: (ctx, w, h) => drawCreel(ctx, w, h), text: '箱から{{cone}}を引っぱって、{{spindle}}の丸に嵌めます。箱を押してから{{spindle}}を押しても置けます。外すときは、{{cone}}を{{creel}}の外へ引っぱります' },
     { draw: (ctx, w, h) => drawCheck(ctx, w, h), text: '全部立てたら「確認する」を押します。間違いは ✕ で示されます' },
     {
       draw: (ctx, w, h) => drawHint(ctx, w, h),

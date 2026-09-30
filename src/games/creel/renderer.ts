@@ -4,7 +4,7 @@ import { showHinbanOnCone } from './logic';
 import { cellRect, pegCenter, pegRadius, toPx } from './geometry';
 import { COLORS, FONT_FAMILY } from '../../core/ui/tokens';
 import { indexToCell } from '../../core/domain/stripe';
-import { drawCheese, drawCross, drawEmptyPeg, drawPosts, drawSpeech, drawSymbol } from './renderer.parts';
+import { drawCheese, drawCross, drawEmptyPeg, drawPosts, drawSnapTarget, drawSpeech, drawSymbol } from './renderer.parts';
 
 /**
  * クリールの盤面を描く (PU-06b。作業者の目線の、正面から見た絵)。fit は画面 (Canvas) への変換。
@@ -16,6 +16,8 @@ export function drawBoard(
   s: CreelState,
   content: Content,
   terms: { t(k: string): string },
+  /** 引っぱっているときの表示: 吸い付く先の軸と、持ち上げている軸 (その軸は空いた軸として描く) */
+  view: { snapIndex?: number | null; liftedIndex?: number | null } = {},
 ): void {
   void terms;
   const total = s.rows * s.cols;
@@ -33,7 +35,12 @@ export function drawBoard(
     const center = pegCenter(i, s.rows, s.cols);
     const c = toPx(fit, center);
     const r = radius * fit.scale; // 画面
-    const placed = s.placed[i] ?? null;
+    const placed = view.liftedIndex === i ? null : (s.placed[i] ?? null);
+
+    // 吸い付く先の軸: aiTint の地と藍の輪 (軸の下に敷く)
+    if (view.snapIndex === i) {
+      drawSnapTarget(ctx, fit, c.x, c.y, r);
+    }
 
     // 3. 帯の番号 (1 始まり)。段階 1〜3 は全軸、段階 4〜5 は各段の最初の軸だけ。
     //    軸の上 (マスの上端) に、マスの幅に収まるときだけ描く (画面上 20px 以上)

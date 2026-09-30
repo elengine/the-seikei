@@ -30,3 +30,13 @@ describe('creel tutorial (T1-20)', () => {
     expect(src).not.toContain('sans-serif');
   });
 });
+
+describe('creel tutorial (PU-07b: 引っぱる操作)', () => {
+  it('2ページ目の文は、箱からチーズを引っぱって軸に嵌める・押してからでも置ける、と書く。外すときの説明は 3 ページ目以降に入っていない (2ページ目の中)', () => {
+    const second = creelTutorial.pages[1]!.text;
+    expect(second).toContain('引っぱ');
+    expect(second).toContain('箱を押してから');
+    expect(second).toContain('外す');
+    expect(second).toContain('{{creel}}の外');
+  });
+});

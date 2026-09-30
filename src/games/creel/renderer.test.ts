@@ -362,3 +362,29 @@ describe('PU-06b: 正面から見たクリールの絵', () => {
     }
   });
 });
+
+describe('PU-07b: 引っぱっているときの盤面の表示', () => {
+  const f = makeFit(0.65);
+
+  it('吸い付く先の軸は aiTint の丸と藍 (ai) の輪で示される。snapIndex が無いときは出ない', () => {
+    const snap = makeFakeCtx();
+    drawBoard(snap.ctx, f, s1Empty(), content, terms, { snapIndex: 2 });
+    expect(filledCircles(snap.calls).filter((c) => c.fill === COLORS.aiTint)).toHaveLength(1);
+    expect(snap.calls.filter((c) => c.op === 'stroke' && c.stroke === COLORS.ai).length).toBeGreaterThan(0);
+    const none = makeFakeCtx();
+    drawBoard(none.ctx, f, s1Empty(), content, terms);
+    expect(filledCircles(none.calls).filter((c) => c.fill === COLORS.aiTint)).toHaveLength(0);
+  });
+
+  it('持ち上げている軸 (liftedIndex) は、糸が立っていても空いた軸として描く', () => {
+    const s = { ...s1Empty(), placed: ['kon-a', null, null, null, null, null] };
+    const normal = makeFakeCtx();
+    drawBoard(normal.ctx, f, s, content, terms);
+    const lifted = makeFakeCtx();
+    drawBoard(lifted.ctx, f, s, content, terms, { liftedIndex: 0 });
+    const konHex = content.colors.get('kon')!.hex;
+    expect(filledCircles(normal.calls).some((c) => c.fill === konHex)).toBe(true);
+    expect(filledCircles(lifted.calls).some((c) => c.fill === konHex)).toBe(false);
+    expect(filledCircles(lifted.calls).filter((c) => c.fill === COLORS.woodLight)).toHaveLength(6);
+  });
+});

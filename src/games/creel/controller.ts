@@ -6,11 +6,13 @@ import { drawFabric, fabricSpecFor } from '../../core/ui/fabricPreview';
 import { getContent, type Content } from '../../core/content/content';
 import { drawBoard } from './renderer';
 import { createCreelPanel } from './panel';
-import { fromPx, hitTest } from './geometry';
+import { pegRadius } from './geometry';
+import { attachDrag } from './dragView';
 import { init, reduce, starsOf, isValidResume } from './logic';
 import type { CreelState, CreelAction } from './logic';
 import { showTutorial } from '../../core/ui/tutorialOverlay';
 import { STARS3_CHECKS_MAX } from './params';
+import { COLORS } from '../../core/ui/tokens';
 import type { CreelPanel } from './panel';
 
 const DONE_WAIT_MS = 1500;
@@ -42,6 +44,8 @@ export function createController(parent: HTMLElement, deps: GameDeps, props: Gam
   let disposed = false;
   let finished = false;
   let panelReady = false; // frame と panel ができあがったあとだけ再描画する
+  let snapIndex: number | null = null; // 引っぱっているチーズの吸い付く先の軸
+  let liftedIndex: number | null = null; // 持ち上げている軸 (空いた軸として描く)
 
   // ---- 枠 ----
   const frame = createGameFrame(parent, {
@@ -70,6 +74,43 @@ export function createController(parent: HTMLElement, deps: GameDeps, props: Gam
     },
   });
 
+  // ---- 引っぱって置く・外す (箱 ⇄ 軸)。盤面と箱の pointer をここで受ける ----
+  const drag = attachDrag({
+    stage: frame.stage,
+    panel: frame.panel,
+    rows: puzzle.rows,
+    cols: puzzle.cols,
+    fit: () => lastFit,
+    placedAt: (index) => s.placed[index] ?? null,
+    look: (yarn) => {
+      const y = content.yarns.get(yarn);
+      return {
+        body: content.colors.get(y?.color ?? yarn)?.hex ?? COLORS.sumi,
+        core: content.cores.get(y?.core ?? '')?.hex ?? COLORS.white,
+      };
+    },
+    diameterPx: () => pegRadius(puzzle.rows, puzzle.cols) * lastFit.scale * 2,
+    onPress: (index) => dispatch({ type: 'pressPeg', index }),
+    onDrop: (result, yarn) => {
+      if (result.kind === 'place') {
+        dispatch({ type: 'place', index: result.index, yarn });
+      } else if (result.kind === 'remove') {
+        dispatch({ type: 'removePeg', index: result.index });
+      } else if (result.kind === 'move') {
+        dispatch({ type: 'movePeg', from: result.from, to: result.to });
+      }
+    },
+    onHover: (snap, lifted) => {
+      if (snap !== snapIndex || lifted !== liftedIndex) {
+        snapIndex = snap;
+        liftedIndex = lifted;
+        if (panelReady) {
+          render();
+        }
+      }
+    },
+  });
+
   // ---- 描画 ----
   function render(): void {
     const ctx = frame.stage.getContext('2d');
@@ -77,7 +118,7 @@ export function createController(parent: HTMLElement, deps: GameDeps, props: Gam
       return; // Canvas が使えない環境 (テスト等)
     }
     ctx.clearRect(0, 0, frame.stage.width, frame.stage.height);
-    drawBoard(ctx, lastFit, s, content, deps.terms);
+    drawBoard(ctx, lastFit, s, content, deps.terms, { snapIndex, liftedIndex });
     if (s.done) {
       // 生地の見本を大きく重ねる
       if (pattern !== undefined) {
@@ -126,6 +167,7 @@ export function createController(parent: HTMLElement, deps: GameDeps, props: Gam
   // ---- 完了処理 ----
   function handleDone(): void {
     finished = true;
+    drag.cancel(); // 引っぱっている途中なら取り消す
     frame.panel.style.display = 'none'; // 操作欄を隠す
     refresh();
     const stars = starsOf(s);
@@ -159,8 +201,10 @@ export function createController(parent: HTMLElement, deps: GameDeps, props: Gam
     const before = s;
     const next = reduce(s, a);
     if (next !== before) {
-      // 効果音。ボタンの音は部品が鳴らす。盤面のタップと、選ぶ部品 (外す・調べる) の切り替えはここで鳴らす
-      if (a.type === 'tapCell' || a.type === 'selectRemove' || a.type === 'selectInspect') {
+      // 効果音。ボタンの音は部品が鳴らす。盤面の操作 (引っぱる・押す) はここで鳴らす
+      if (a.type === 'place') {
+        deps.audio.play('knot'); // 軸に嵌まった
+      } else if (a.type === 'pressPeg' || a.type === 'removePeg' || a.type === 'movePeg' || a.type === 'tapCell') {
         deps.audio.play('tap');
       } else if (a.type === 'hint') {
         deps.audio.play('ok');
@@ -176,20 +220,6 @@ export function createController(parent: HTMLElement, deps: GameDeps, props: Gam
       }
     }
   }
-
-  // ---- 盤面のポインタイベント ----
-  function onPointerDown(e: PointerEvent): void {
-    if (s.done || finished) {
-      return;
-    }
-    const rect = frame.stage.getBoundingClientRect();
-    const logical = fromPx(lastFit, { x: e.clientX - rect.left, y: e.clientY - rect.top });
-    const index = hitTest(logical, s.rows, s.cols);
-    if (index !== null) {
-      dispatch({ type: 'tapCell', index });
-    }
-  }
-  frame.stage.addEventListener('pointerdown', onPointerDown);
 
   // ---- 戻る (確認と保存は gameScreen 側の onExit が行う) ----
   function handleBack(): void {
@@ -213,7 +243,7 @@ export function createController(parent: HTMLElement, deps: GameDeps, props: Gam
         clearTimeout(doneTimer);
         doneTimer = null;
       }
-      frame.stage.removeEventListener('pointerdown', onPointerDown);
+      drag.destroy(); // 監視と、引っぱっているチーズの重ねを消す
       panel.destroy();
       frame.destroy();
     },

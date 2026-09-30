@@ -3,7 +3,7 @@ import type { CreelState, CreelAction } from './logic';
 import { canHint } from './logic';
 import { HINT_MIN_CHECKS, ORDER_RANGE_MAX_STAGE } from './params';
 import { toRuns, splitRepeat } from '../../core/domain/stripe';
-import { createButton, createChoice, setLockedReason } from '../../core/ui/widgets';
+import { createButton, setLockedReason } from '../../core/ui/widgets';
 import { createSectionHeading } from '../../core/ui/layout';
 
 export interface CreelPanel {
@@ -20,9 +20,6 @@ function selectedHinban(s: CreelState, content: Content): string | null {
   return content.yarns.get(s.tool.yarn)?.hinban ?? null;
 }
 
-/** 道具の選択 (立てる = 箱を選んでいる状態) */
-type ToolValue = 'place' | 'remove' | 'inspect';
-
 /** ヒントが使えないときの理由 (押したときに出す) */
 function hintLockedReason(s: CreelState): string | null {
   if (canHint(s)) {
@@ -35,7 +32,7 @@ function hintLockedReason(s: CreelState): string | null {
   return '確認して ✕ が出ると使えます';
 }
 
-/** 操作欄 (依頼書・糸の箱・道具・ヒントと確認する) を作る */
+/** 操作欄 (依頼書・糸の箱・ヒントと確認する) を作る。箱は引っぱってチーズを置く元 (引っぱる動きは dragView が受ける) */
 export function createCreelPanel(parent: HTMLElement, opts: {
   content: Content;
   onAction: (a: CreelAction) => void;
@@ -78,39 +75,7 @@ export function createCreelPanel(parent: HTMLElement, opts: {
   boxes.dataset.testid = 'creel-boxes';
   boxesBox.appendChild(boxes);
 
-  // ---- 3. 道具の切り替え (立てる・外す・調べる。PU-07 で無くす) ----
-  let lastState: CreelState | null = null;
-  let lastBox: CreelState['boxes'][number] | null = null; // 最後に選んでいた箱 (「立てる」に戻すとき使う)
-  const toolBox = document.createElement('section');
-  toolBox.classList.add('creel-section', 'creel-section--tools');
-  const tools = createChoice<ToolValue>({
-    options: [
-      { value: 'place', label: '立てる' },
-      { value: 'remove', label: '外す' },
-      { value: 'inspect', label: '調べる' },
-    ],
-    value: 'place',
-    ariaLabel: '道具',
-    onChange: (v) => {
-      if (v === 'remove') {
-        opts.onAction({ type: 'selectRemove' });
-      } else if (v === 'inspect') {
-        opts.onAction({ type: 'selectInspect' });
-      } else {
-        const yarn = lastBox ?? lastState?.boxes[0];
-        if (yarn !== undefined) {
-          opts.onAction({ type: 'selectBox', yarn });
-        }
-      }
-    },
-  });
-  tools.root.querySelectorAll('button').forEach((b, i) => {
-    b.dataset.testid = ['creel-tool-place', 'creel-tool-remove', 'creel-tool-inspect'][i] ?? '';
-  });
-  toolBox.appendChild(tools.root);
-  root.appendChild(toolBox);
-
-  // ---- 4. 一番下: ヒント (左) と 確認する (右・主) ----
+  // ---- 3. 一番下: ヒント (左) と 確認する (右・主) ----
   const actions = document.createElement('div');
   actions.classList.add('creel-actions');
   const hintBtn = createButton({
@@ -160,11 +125,6 @@ export function createCreelPanel(parent: HTMLElement, opts: {
 
   /** 状態に合わせて表示を更新する */
   function render(s: CreelState): void {
-    lastState = s;
-    if (s.tool.kind === 'box') {
-      lastBox = s.tool.yarn;
-    }
-
     // ヒント: 押せないときは点線の枠にして、押すと理由を出す
     const reason = hintLockedReason(s);
     setLockedReason(hintBtn, reason);
@@ -246,6 +206,7 @@ export function createCreelPanel(parent: HTMLElement, opts: {
         onClick: () => opts.onAction({ type: 'selectBox', yarn: yarnId }),
       });
       btn.classList.add('creel-box');
+      btn.dataset.yarn = yarnId; // 引っぱるチーズの糸 (dragView が読む)
       btn.setAttribute('aria-pressed', selected ? 'true' : 'false');
       if (selected) {
         btn.classList.add('creel-box--selected');
@@ -265,9 +226,6 @@ export function createCreelPanel(parent: HTMLElement, opts: {
       }
       boxes.appendChild(btn);
     }
-
-    // 3. 道具の切り替え
-    tools.setValue(s.tool.kind === 'box' ? 'place' : s.tool.kind);
   }
 
   return {
