@@ -38,11 +38,11 @@ export const SOUNDS: Record<SoundName, Note[]> = {
     { freq: 1046, startMs: 540, durMs: 320, wave: 'triangle', gain: 0.4 }, // ド
   ],
   // 機械が止まる音 (糸切れ)。実物の「ガシャン」(最初の 0.2 秒ほど) のあと、
-  // 低い音が小さくなりながら 0.75 秒で消える (管理者の指定。T2-09 追加修正a)
+  // 低い音が小さくなりながら 0.5 秒で消える (管理者の指定。T2-11b)
   stop: [
     { freq: 600, startMs: 0, durMs: 40, wave: 'triangle', gain: 0.3 },
     { freq: 300, startMs: 10, durMs: 120, wave: 'triangle', gain: 0.3 },
     { freq: 250, startMs: 30, durMs: 200, wave: 'triangle', gain: 0.25 },
-    { freq: 250, startMs: 200, durMs: 550, wave: 'sine', gain: 0.15 },
+    { freq: 250, startMs: 200, durMs: 300, wave: 'sine', gain: 0.15 },
   ],
 };

@@ -221,10 +221,13 @@ describe('T1-11b: Safari で音が止まったあとの再開', () => {
   });
 });
 
-describe('sounds T2-09 追加修正a (止まる音の長さ)', () => {
-  it('2. stop の音の終わり (startMs + durMs の最大) は 700〜800ms', () => {
+describe('sounds T2-11b (止まる音の長さ 0.5 秒)', () => {
+  it('2. stop の音の終わり (startMs + durMs の最大) は 450〜550ms (全体で約 0.5 秒。ガシャンは残す)', () => {
     const end = Math.max(...SOUNDS.stop.map((n) => n.startMs + n.durMs));
-    expect(end).toBeGreaterThanOrEqual(700);
-    expect(end).toBeLessThanOrEqual(800);
+    expect(end).toBeGreaterThanOrEqual(450);
+    expect(end).toBeLessThanOrEqual(550);
+    // 最初のガシャン (0.2 秒ほど) はそのまま
+    const gashanEnd = Math.max(...SOUNDS.stop.filter((n) => n.startMs < 200).map((n) => n.startMs + n.durMs));
+    expect(gashanEnd).toBeGreaterThanOrEqual(150);
   });
 });
