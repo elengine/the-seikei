@@ -119,7 +119,7 @@ let drumAngle = 0; // ドラムが回って見える角度 (ラジアン。見�
     if (ctx === null) {
       return; // Canvas が使えない環境 (テスト等)
     }
-    drawBoard(ctx, lastFit, s, content, { threadCount: 8, show: showOf(s.level), timeMs: nowMs, tieProgress });
+    drawBoard(ctx, lastFit, s, content, { threadCount: 8, show: showOf(s.level), timeMs: nowMs, tieProgress, drumAngle });
   }
 
   /** 糸切れの見せ方 (難易度) */
