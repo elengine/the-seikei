@@ -93,7 +93,7 @@ describe('T1-17: 設定画面の「戻る」と「管理者」の配置', () => 
     const bar = document.querySelector('.settings__bar');
     expect(bar).not.toBeNull();
     expect(bar!.querySelector('.settings__title')?.textContent).toBe('設定');
-    const backInBar = [...bar!.querySelectorAll('button')].find((b) => b.textContent === '戻る');
+    const backInBar = Array.from(bar!.querySelectorAll('button')).find((b) => b.textContent === '戻る');
     expect(backInBar).toBeDefined();
     // 画面の下に単独の「戻る」は無い (見出しの外に戻るボタンがない)
     const allBacks = Array.from(document.querySelectorAll('button')).filter((b) => b.textContent === '戻る');
