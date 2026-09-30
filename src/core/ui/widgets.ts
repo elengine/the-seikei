@@ -141,6 +141,34 @@ export function createChoice<T extends string>(opts: ChoiceOpts<T>): { root: HTM
   return { root, setValue };
 }
 
+/** ダイアログの外枠 (背景・白い箱・上端の縞・見出し)。確認・入力・結果・遊び方が共通で使う */
+export function createDialogShell(
+  title?: string,
+  extraClass?: string,
+): { backdrop: HTMLElement; dialog: HTMLElement } {
+  const backdrop = document.createElement('div');
+  backdrop.classList.add('dialog-backdrop');
+  const dialog = document.createElement('div');
+  dialog.classList.add('dialog');
+  if (extraClass !== undefined) {
+    dialog.classList.add(extraClass);
+  }
+  dialog.setAttribute('role', 'dialog');
+  dialog.setAttribute('aria-modal', 'true');
+  const stripe = document.createElement('div');
+  stripe.classList.add('stripe-top');
+  dialog.appendChild(stripe);
+  if (title !== undefined) {
+    const h = document.createElement('h2');
+    h.classList.add('dialog__title', 'font-heading');
+    h.textContent = title;
+    dialog.appendChild(h);
+    dialog.setAttribute('aria-label', title);
+  }
+  backdrop.appendChild(dialog);
+  return { backdrop, dialog };
+}
+
 interface DialogBase {
   message?: string;
   title?: string;
@@ -154,24 +182,12 @@ function buildDialog(
   opts: DialogBase,
   body: HTMLElement,
 ): { ok: HTMLButtonElement; cancel: HTMLButtonElement; close: () => void } {
-  const backdrop = document.createElement('div');
-  backdrop.classList.add('dialog-backdrop');
-  const dialog = document.createElement('div');
-  dialog.classList.add('dialog');
-  dialog.setAttribute('role', 'dialog');
-  dialog.setAttribute('aria-modal', 'true');
-
+  const { backdrop, dialog } = createDialogShell(opts.title);
   if (opts.message !== undefined) {
     const msg = document.createElement('p');
     msg.classList.add('dialog__message');
     msg.textContent = opts.message;
     dialog.appendChild(msg);
-  }
-  if (opts.title !== undefined) {
-    const title = document.createElement('p');
-    title.classList.add('dialog__message');
-    title.textContent = opts.title;
-    dialog.appendChild(title);
   }
   dialog.appendChild(body);
 
@@ -192,7 +208,6 @@ function buildDialog(
   actions.appendChild(cancel);
   actions.appendChild(ok);
   dialog.appendChild(actions);
-  backdrop.appendChild(dialog);
 
   let closed = false;
   function closeWith(): void {
@@ -211,7 +226,7 @@ function buildDialog(
 /** 2択の確認。押したボタンの値で解決する。背景を押しても閉じない。 */
 export function confirmDialog(
   parent: HTMLElement,
-  opts: { message: string; okLabel: string; cancelLabel: string },
+  opts: { title?: string; message: string; okLabel: string; cancelLabel: string },
 ): Promise<boolean> {
   return new Promise((resolve) => {
     const empty = document.createElement('div');

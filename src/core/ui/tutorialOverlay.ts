@@ -1,5 +1,6 @@
 import type { TutorialSpec } from '../game/types';
 import { setupCanvas } from '../viewport/viewport';
+import { createButton, createDialogShell } from './widgets';
 
 /**
  * チュートリアルの表示。1ページに絵 (Canvas) と文を置き、
@@ -9,6 +10,7 @@ export function showTutorial(
   parent: HTMLElement,
   spec: TutorialSpec,
   opts: {
+    title?: string; // 見出し。既定「遊び方」
     nextLabel?: string; // 既定「次へ」
     startLabel?: string; // 既定「始める」
     onPage?: () => void; // ページ送りのたび (効果音用)
@@ -21,14 +23,9 @@ export function showTutorial(
   const total = spec.pages.length;
 
   return new Promise((resolve) => {
-    const backdrop = document.createElement('div');
-    backdrop.classList.add('dialog-backdrop');
-    const box = document.createElement('div');
-    box.classList.add('dialog', 'tutorial');
-    box.setAttribute('role', 'dialog');
-    box.setAttribute('aria-modal', 'true');
+    const { backdrop, dialog: box } = createDialogShell(opts.title ?? '遊び方', 'tutorial');
 
-    // 絵 (各ページの draw で描く)。幅は min(560px, 画面幅の90%)、高さは幅の 2/3
+    // 絵 (各ページの draw で描く)。幅は min(560px, 画面幅の90%)。ダイアログの幅より広いときは CSS で縮める、高さは幅の 2/3
     const canvas = document.createElement('canvas');
     canvas.classList.add('tutorial__canvas');
     const canvasW = Math.floor(Math.min(560, window.innerWidth * 0.9));
@@ -73,46 +70,52 @@ export function showTutorial(
       actions.textContent = ''; // ボタンを作り直す
       // 前のページへ戻るボタン (最初のページでは置かない)。ゲームを終える「戻る」と区別するため「前へ」
       if (page > 0) {
-        const prev = document.createElement('button');
-        prev.type = 'button';
-        prev.classList.add('btn', 'btn--secondary');
-        prev.textContent = '前へ';
-        prev.addEventListener('click', () => {
-          if (page > 0) {
-            page -= 1;
-            render();
-            opts.onPage?.(); // ページ送り (戻る) のたび
-          }
-        });
-        actions.appendChild(prev);
+        actions.appendChild(
+          createButton({
+            label: '前へ',
+            variant: 'secondary',
+            onClick: () => {
+              if (page > 0) {
+                page -= 1;
+                render();
+                opts.onPage?.(); // ページ送り (戻る) のたび
+              }
+            },
+          }),
+        );
       }
-      // 「次へ」または「始める」
-      const next = document.createElement('button');
-      next.type = 'button';
-      next.classList.add('btn', 'btn--primary');
+      // 「次へ」または「始める」(右。primary)
       if (page < total - 1) {
-        next.textContent = nextLabel;
-        next.addEventListener('click', () => {
-          page += 1;
-          render();
-          opts.onPage?.(); // ページ送りのたび
-        });
+        actions.appendChild(
+          createButton({
+            label: nextLabel,
+            variant: 'primary',
+            onClick: () => {
+              page += 1;
+              render();
+              opts.onPage?.(); // ページ送りのたび
+            },
+          }),
+        );
       } else {
-        next.textContent = startLabel;
-        next.addEventListener('click', () => {
-          if (!done) {
-            done = true;
-            backdrop.remove();
-            resolve();
-          }
-        });
+        actions.appendChild(
+          createButton({
+            label: startLabel,
+            variant: 'primary',
+            onClick: () => {
+              if (!done) {
+                done = true;
+                backdrop.remove();
+                resolve();
+              }
+            },
+          }),
+        );
       }
-      actions.appendChild(next);
     }
 
     render();
     box.appendChild(actions);
-    backdrop.appendChild(box);
     parent.appendChild(backdrop);
   });
 }

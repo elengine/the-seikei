@@ -68,7 +68,7 @@ export function createStars(n: 0 | 1 | 2 | 3, size: 'list' | 'result'): HTMLElem
   stars.setAttribute('aria-label', `星${n}`);
   for (let i = 0; i < 3; i += 1) {
     const s = el('span', i < n ? 'stars__on' : 'stars__off');
-    s.textContent = '★';
+    s.textContent = i < n ? '★' : '☆'; // 色だけに頼らず形も変える
     s.setAttribute('aria-hidden', 'true');
     stars.appendChild(s);
   }

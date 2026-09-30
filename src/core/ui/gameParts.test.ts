@@ -275,7 +275,7 @@ describe('resultView', () => {
     const stars = () => Array.from(parent.querySelectorAll('.result-stars')).map((el) => el.textContent).join('');
     expect(stars()).toContain('★★★'); // 星3
 
-    let result: 'again' | 'home' | undefined;
+    let result: 'again' | 'list' | 'next' | undefined;
     void p.then((r) => {
       result = r;
     });
@@ -299,7 +299,7 @@ describe('resultView', () => {
     const stars = () => Array.from(parent.querySelectorAll('.result-stars')).map((el) => el.textContent).join('');
     expect(stars()).toContain('★☆☆');
 
-    let result: 'again' | 'home' | undefined;
+    let result: 'again' | 'list' | 'next' | undefined;
     void p.then((r) => {
       result = r;
     });
@@ -307,7 +307,7 @@ describe('resultView', () => {
     const home = Array.from(parent.querySelectorAll('button')).find((b) => b.textContent === 'ホームへ')!;
     home.click();
     await vi.waitFor(() => {
-      expect(result).toBe('home');
+      expect(result).toBe('list');
     });
   });
 

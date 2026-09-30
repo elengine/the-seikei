@@ -340,3 +340,35 @@ describe('PU-01c: base.css のボタン', () => {
     expect(block('.choice')).not.toBe('');
   });
 });
+
+describe('PU-02b: ダイアログの見出しとボタン', () => {
+  it('confirmDialog: 見出し (明朝) と本文が出る。上端に縞。取り消しが左 (secondary)、決定が右 (primary)', async () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const p = confirmDialog(parent, {
+      title: '続きから',
+      message: '前回の途中があります。',
+      okLabel: '続ける',
+      cancelLabel: 'やめる',
+    });
+    const title = parent.querySelector('.dialog__title')!;
+    expect(title.textContent).toBe('続きから');
+    expect(title.classList.contains('font-heading')).toBe(true);
+    expect(parent.querySelector('.dialog__message')!.textContent).toBe('前回の途中があります。');
+    expect(parent.querySelector('.dialog .stripe-top')).not.toBeNull();
+    const children = Array.from(parent.querySelector('.dialog__actions')!.children) as HTMLElement[];
+    expect(children[0]!.classList.contains('btn--secondary')).toBe(true);
+    expect(children[children.length - 1]!.classList.contains('btn--primary')).toBe(true);
+    children[0]!.click();
+    await p;
+  });
+
+  it('textInputDialog: title が見出しとして出る', async () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const p = textInputDialog(parent, { title: 'お名前', initial: 'a', maxLength: 10 });
+    expect(parent.querySelector('.dialog__title')!.textContent).toBe('お名前');
+    (parent.querySelector('[data-testid="dialog-cancel"]') as HTMLButtonElement).click();
+    await p;
+  });
+});

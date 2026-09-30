@@ -1,38 +1,84 @@
+import { createButton, createDialogShell } from './widgets';
+import { createStars } from './layout';
+
+type ResultLine = string | { label: string; value: string };
+
+/** 星が1つずつ現れる間隔 (ミリ秒) */
+const STAR_STEP_MS = 300;
+
+function prefersReducedMotion(): boolean {
+  return typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
 /**
- * 結果表示。ほめる一言、星、成績、新しく集めた柄、「もう一度」「ホームへ」。
+ * 結果表示 (全ゲーム共通。07_ui_design.md の 7 節)。
+ * 見出し「完了しました」、星、仕上がりの絵、成績、新しく集めた柄、ボタン。
  * 押したボタンの値で解決する。表示後 1.5 秒の演出中もボタンは押せる。
+ *
+ * 今の呼び出し (praise・againLabel・homeLabel・lines が文字列) も型の上で通る (PU-05 まで)。
+ * praise は使わない。lines が文字列なら値なしの行として出す。homeLabel は「一覧へ」の文字、
+ * againLabel は「もう一度」の文字として使い、'home' は 'list' として返る。
  */
 export function showResult(
   parent: HTMLElement,
   opts: {
-    praise: string; // ほめる一言
     stars: 1 | 2 | 3;
-    lines: string[]; // 成績 (例「継いだ本数 12本」)
+    preview?: HTMLElement; // 仕上がりの絵 (柄やドラム)。呼び出し側が作る
+    lines: ResultLine[]; // 成績 (左に項目、右に値)
+    hint?: string; // 星3の条件 (例「1回目で合えば星3です」)
     newPatternNames: string[]; // 新しく集めた柄 (空なら欄を出さない)
-    againLabel: string;
-    homeLabel: string;
+    next?: { label: string }; // あれば右に primary。無ければ「一覧へ」が primary
+    /** @deprecated 使わない (大人向けの決まり。PU-05 で呼び出しから消す) */
+    praise?: string;
+    /** @deprecated 「もう一度」の文字。PU-05 で呼び出しから消す */
+    againLabel?: string;
+    /** @deprecated 「一覧へ」の文字。PU-05 で呼び出しから消す */
+    homeLabel?: string;
   },
-): Promise<'again' | 'home'> {
+): Promise<'list' | 'again' | 'next'> {
   return new Promise((resolve) => {
-    const backdrop = document.createElement('div');
-    backdrop.classList.add('dialog-backdrop');
-    const box = document.createElement('div');
-    box.classList.add('dialog', 'result');
-    box.setAttribute('role', 'dialog');
-    box.setAttribute('aria-modal', 'true');
+    const { backdrop, dialog: box } = createDialogShell(undefined, 'result');
+    const timers: ReturnType<typeof setTimeout>[] = [];
 
-    // ほめる一言
-    const praise = document.createElement('p');
-    praise.classList.add('result__praise');
-    praise.textContent = opts.praise;
-    box.appendChild(praise);
+    // 見出し (固定の言葉)
+    const title = document.createElement('h2');
+    title.classList.add('result__title', 'font-heading');
+    title.textContent = '完了しました';
+    box.appendChild(title);
+    box.setAttribute('aria-label', '完了しました');
+    const sub = document.createElement('p');
+    sub.classList.add('result__praise');
+    sub.textContent = 'お疲れ様でした';
+    box.appendChild(sub);
 
-    // 星: ★ と ☆ の文字で表し、色だけに頼らない
-    const stars = document.createElement('p');
-    stars.classList.add('result-stars');
-    stars.textContent = '★'.repeat(opts.stars) + '☆'.repeat(3 - opts.stars);
-    stars.setAttribute('aria-label', `星${opts.stars}つ`);
-    box.appendChild(stars);
+    // 星: 1つずつ現れる (動きを減らす設定ならすぐ全部)
+    const starsWrap = document.createElement('div');
+    starsWrap.classList.add('result-stars');
+    const stars = createStars(opts.stars, 'result');
+    starsWrap.appendChild(stars);
+    box.appendChild(starsWrap);
+    const reduced = prefersReducedMotion();
+    stars.querySelectorAll('.stars__on').forEach((s, i) => {
+      if (reduced) {
+        return;
+      }
+      if (i === 0) {
+        return; // 1つ目はすぐ出る
+      }
+      s.classList.add('stars__pending');
+      timers.push(
+        setTimeout(() => {
+          s.classList.remove('stars__pending');
+        }, i * STAR_STEP_MS),
+      );
+    });
+
+    if (opts.preview !== undefined) {
+      const pv = document.createElement('div');
+      pv.classList.add('result__preview');
+      pv.appendChild(opts.preview);
+      box.appendChild(pv);
+    }
 
     // 成績
     if (opts.lines.length > 0) {
@@ -40,10 +86,26 @@ export function showResult(
       lines.classList.add('result__lines');
       for (const line of opts.lines) {
         const li = document.createElement('li');
-        li.textContent = line;
+        const label = document.createElement('span');
+        label.classList.add('result__label');
+        label.textContent = typeof line === 'string' ? line : line.label;
+        li.appendChild(label);
+        if (typeof line !== 'string') {
+          const value = document.createElement('span');
+          value.classList.add('result__value');
+          value.textContent = line.value;
+          li.appendChild(value);
+        }
         lines.appendChild(li);
       }
       box.appendChild(lines);
+    }
+
+    if (opts.hint !== undefined) {
+      const hint = document.createElement('p');
+      hint.classList.add('result__hint');
+      hint.textContent = opts.hint;
+      box.appendChild(hint);
     }
 
     // 新しく集めた柄 (空なら欄を出さない)
@@ -61,29 +123,39 @@ export function showResult(
       box.appendChild(patterns);
     }
 
+    // ボタン: 左から「一覧へ」「もう一度」(secondary)、右に next (primary)。next が無ければ「一覧へ」が primary
+    function finish(value: 'list' | 'again' | 'next'): void {
+      for (const t of timers) {
+        clearTimeout(t);
+      }
+      backdrop.remove();
+      resolve(value);
+    }
+    const listLabel = opts.homeLabel ?? '一覧へ';
+    const againLabel = opts.againLabel ?? 'もう一度';
     const actions = document.createElement('div');
-    actions.classList.add('dialog__actions');
-    for (const [label, value] of [
-      [opts.againLabel, 'again'],
-      [opts.homeLabel, 'home'],
-    ] as const) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.classList.add('btn', value === 'again' ? 'btn--primary' : 'btn--secondary');
-      btn.textContent = label;
-      btn.addEventListener('click', () => {
-        backdrop.remove();
-        resolve(value);
-      });
-      actions.appendChild(btn);
+    actions.classList.add('dialog__actions', 'result__actions');
+    const left = document.createElement('div');
+    left.classList.add('result__actions-left');
+    const again = createButton({ label: againLabel, variant: 'secondary', onClick: () => finish('again') });
+    if (opts.next !== undefined) {
+      left.appendChild(createButton({ label: listLabel, variant: 'secondary', onClick: () => finish('list') }));
+      left.appendChild(again);
+      actions.appendChild(left);
+      actions.appendChild(createButton({ label: opts.next.label, variant: 'primary', onClick: () => finish('next') }));
+    } else {
+      left.appendChild(again);
+      actions.appendChild(left);
+      actions.appendChild(createButton({ label: listLabel, variant: 'primary', onClick: () => finish('list') }));
     }
     box.appendChild(actions);
-    backdrop.appendChild(box);
     parent.appendChild(backdrop);
 
     // 表示後 1.5 秒の演出 (演出中もボタンは押せる)。演出自体は結果の確定に影響しない
-    setTimeout(() => {
-      box.classList.add('result--settled');
-    }, 1500);
+    timers.push(
+      setTimeout(() => {
+        box.classList.add('result--settled');
+      }, 1500),
+    );
   });
 }
