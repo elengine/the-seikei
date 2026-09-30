@@ -257,7 +257,7 @@ body {
 .settings__value {
   font-size: var(--fs-body);
   color: var(--c-sumi-sub);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .settings__actions {
@@ -287,6 +287,17 @@ body {
 .settings__admin-btn {
   min-height: var(--btn-min-h);
   font-size: var(--fs-body);
+}
+
+/* 細い画面 (600px 未満) は2段: 1段目が項目名、2段目が今の値とボタン */
+@media (max-width: 599px) {
+  .settings__row {
+    grid-template-columns: 1fr auto;
+  }
+
+  .settings__label {
+    grid-column: 1 / -1;
+  }
 }
 
 

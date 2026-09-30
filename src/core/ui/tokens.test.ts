@@ -191,3 +191,23 @@ describe('T1-17: 設定画面・ホーム画面の文字の大きさと配置', 
     expect(m![1]).toContain('min-height: var(--btn-min-h)');
   });
 });
+
+describe('T1-18: 細い画面での設定画面の2段表示', () => {
+  it('@media (max-width: 599px) の中に .settings__row と .settings__label の規則がある', () => {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
+    const m = css.match(/@media \(max-width: 599px\)\s*\{([\s\S]*?)\n\}/);
+    expect(m, 'media query not found').not.toBeNull();
+    const block = m![1]!;
+    expect(block).toContain('.settings__row');
+    expect(block).toContain('.settings__label');
+    expect(block).toContain('grid-column: 1 / -1');
+  });
+
+  it('.settings__value は overflow-wrap: break-word (anywhere ではない)', () => {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
+    const m = css.match(/\.settings__value\s*\{([^}]*)\}/);
+    expect(m).not.toBeNull();
+    expect(m![1]).toContain('overflow-wrap: break-word');
+    expect(m![1]).not.toContain('overflow-wrap: anywhere');
+  });
+});
