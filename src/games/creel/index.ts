@@ -77,7 +77,34 @@ export function createCreelModule(deps: GameDeps): GameModule {
           onExit: onBackFromPlay,
           onFinish: (result: Parameters<GameProps['onFinish']>[0]) => {
             savedState = null;
-            props.onFinish?.(result);
+            // 結果の画面から、次のお題・同じお題・お題の一覧へ移れるようにする (PU-05a のつなぎ)
+            const idx = content.creelPuzzles.findIndex((p) => p.id === puzzleId);
+            const nextPuzzle = idx >= 0 ? content.creelPuzzles[idx + 1] : undefined;
+            const leavePlay = (): void => {
+              current?.unmount();
+              current = null;
+            };
+            props.onFinish?.({
+              ...result,
+              next:
+                nextPuzzle !== undefined
+                  ? {
+                      label: '次のお題へ',
+                      start: () => {
+                        leavePlay();
+                        startPlay(nextPuzzle.id, undefined);
+                      },
+                    }
+                  : undefined,
+              again: () => {
+                leavePlay();
+                startPlay(puzzleId, undefined);
+              },
+              toList: () => {
+                leavePlay();
+                showList();
+              },
+            });
           },
         };
         current = createController(container, deps, controllerProps, {

@@ -14,3 +14,6 @@ export const CONFUSING_BOXES_FROM_STAGE = 4;
 
 /** 経糸の見本の太さ (px)。スタンドアロンの盤面で使う想定の既定値 */
 export const THREAD_PX = 3;
+
+/** 依頼書の各行に「何本目」を書き添える段階の上限 (段階4・5 では出さず、手応えを残す)。遊んでから調整する */
+export const ORDER_RANGE_MAX_STAGE = 3;

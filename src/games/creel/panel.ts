@@ -1,14 +1,14 @@
 import type { Content } from '../../core/content/content';
 import type { CreelState, CreelAction } from './logic';
 import { canHint } from './logic';
-import { HINT_MIN_CHECKS } from './params';
+import { HINT_MIN_CHECKS, ORDER_RANGE_MAX_STAGE } from './params';
 import { toRuns, splitRepeat } from '../../core/domain/stripe';
+import { createButton, createChoice, setLockedReason } from '../../core/ui/widgets';
+import { createSectionHeading } from '../../core/ui/layout';
 
 export interface CreelPanel {
   update(s: CreelState): void;   // 状態に合わせて表示を更新
   setMessage(text: string): void;
-  /** 「現在の帯の並び」の区画を target の中に移す。null なら操作欄の元の位置に戻す */
-  placeBand(target: HTMLElement | null): void;
   destroy(): void;
 }
 
@@ -20,7 +20,22 @@ function selectedHinban(s: CreelState, content: Content): string | null {
   return content.yarns.get(s.tool.yarn)?.hinban ?? null;
 }
 
-/** 操作欄 (依頼書・現在の帯の並び・箱・道具とボタン) を作る */
+/** 道具の選択 (立てる = 箱を選んでいる状態) */
+type ToolValue = 'place' | 'remove' | 'inspect';
+
+/** ヒントが使えないときの理由 (押したときに出す) */
+function hintLockedReason(s: CreelState): string | null {
+  if (canHint(s)) {
+    return null;
+  }
+  const rest = HINT_MIN_CHECKS - s.checks;
+  if (rest > 0) {
+    return rest === HINT_MIN_CHECKS ? `${rest}回確認すると使えます` : `あと ${rest} 回確認すると使えます`;
+  }
+  return '確認して ✕ が出ると使えます';
+}
+
+/** 操作欄 (依頼書・糸の箱・道具・ヒントと確認する) を作る */
 export function createCreelPanel(parent: HTMLElement, opts: {
   content: Content;
   onAction: (a: CreelAction) => void;
@@ -41,100 +56,112 @@ export function createCreelPanel(parent: HTMLElement, opts: {
     return m;
   })();
 
+  function section(heading: string): HTMLElement {
+    const box = document.createElement('section');
+    box.classList.add('creel-section');
+    box.appendChild(createSectionHeading(heading));
+    root.appendChild(box);
+    return box;
+  }
+
   // ---- 1. 依頼書 ----
-  const orderBox = document.createElement('section');
-  orderBox.classList.add('creel-section');
-  const orderTitle = document.createElement('h2');
-  orderTitle.classList.add('creel-section__title');
-  orderTitle.textContent = '依頼書';
-  orderBox.appendChild(orderTitle);
+  const orderBox = section('依頼書');
   const orderTable = document.createElement('div');
   orderTable.classList.add('creel-order');
   orderTable.dataset.testid = 'creel-order';
   orderBox.appendChild(orderTable);
-  root.appendChild(orderBox);
 
-  // ---- 2. 現在の帯の並び ----
-  const bandBox = document.createElement('section');
-  bandBox.classList.add('creel-section');
-  const bandTitle = document.createElement('h2');
-  bandTitle.classList.add('creel-section__title');
-  bandTitle.textContent = '現在の帯の並び';
-  bandBox.appendChild(bandTitle);
-  const band = document.createElement('div');
-  band.classList.add('creel-band');
-  band.dataset.testid = 'creel-band';
-  bandBox.appendChild(band);
-  root.appendChild(bandBox);
-
-  // ---- 3. 箱 ----
-  const boxesBox = document.createElement('section');
-  boxesBox.classList.add('creel-section');
-  const boxesTitle = document.createElement('h2');
-  boxesTitle.classList.add('creel-section__title');
-  boxesTitle.textContent = '箱';
-  boxesBox.appendChild(boxesTitle);
+  // ---- 2. 糸の箱 ----
+  const boxesBox = section('糸の箱');
   const boxes = document.createElement('div');
   boxes.classList.add('creel-boxes');
   boxes.dataset.testid = 'creel-boxes';
   boxesBox.appendChild(boxes);
-  root.appendChild(boxesBox);
 
-  // ---- 4. 道具とボタン ----
-  const toolsBox = document.createElement('section');
-  toolsBox.classList.add('creel-section', 'creel-section--tools');
-  const toolsRow = document.createElement('div');
-  toolsRow.classList.add('creel-tools');
-  const removeBtn = makeToolButton('外す', 'creel-tool-remove', () => opts.onAction({ type: 'selectRemove' }));
-  const inspectBtn = makeToolButton('調べる', 'creel-tool-inspect', () => opts.onAction({ type: 'selectInspect' }));
-  toolsRow.appendChild(removeBtn);
-  toolsRow.appendChild(inspectBtn);
-  const checkBtn = document.createElement('button');
-  checkBtn.type = 'button';
-  checkBtn.textContent = '確認する';
-  checkBtn.classList.add('btn', 'btn--primary', 'creel-tools__check');
-  checkBtn.dataset.testid = 'creel-check';
-  checkBtn.addEventListener('click', () => opts.onAction({ type: 'check' }));
-  const hintBtn = document.createElement('button');
-  hintBtn.type = 'button';
-  hintBtn.textContent = 'ヒント';
-  hintBtn.classList.add('btn', 'btn--secondary');
-  hintBtn.dataset.testid = 'creel-hint';
-  hintBtn.addEventListener('click', () => opts.onAction({ type: 'hint' }));
-  toolsRow.appendChild(checkBtn);
-  toolsRow.appendChild(hintBtn);
-  toolsBox.appendChild(toolsRow);
-  root.appendChild(toolsBox);
+  // ---- 3. 道具の切り替え (立てる・外す・調べる。PU-07 で無くす) ----
+  let lastState: CreelState | null = null;
+  let lastBox: CreelState['boxes'][number] | null = null; // 最後に選んでいた箱 (「立てる」に戻すとき使う)
+  const toolBox = document.createElement('section');
+  toolBox.classList.add('creel-section', 'creel-section--tools');
+  const tools = createChoice<ToolValue>({
+    options: [
+      { value: 'place', label: '立てる' },
+      { value: 'remove', label: '外す' },
+      { value: 'inspect', label: '調べる' },
+    ],
+    value: 'place',
+    ariaLabel: '道具',
+    onChange: (v) => {
+      if (v === 'remove') {
+        opts.onAction({ type: 'selectRemove' });
+      } else if (v === 'inspect') {
+        opts.onAction({ type: 'selectInspect' });
+      } else {
+        const yarn = lastBox ?? lastState?.boxes[0];
+        if (yarn !== undefined) {
+          opts.onAction({ type: 'selectBox', yarn });
+        }
+      }
+    },
+  });
+  tools.root.querySelectorAll('button').forEach((b, i) => {
+    b.dataset.testid = ['creel-tool-place', 'creel-tool-remove', 'creel-tool-inspect'][i] ?? '';
+  });
+  toolBox.appendChild(tools.root);
+  root.appendChild(toolBox);
 
-  function makeToolButton(label: string, testId: string, onClick: () => void): HTMLButtonElement {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.textContent = label;
-    btn.classList.add('btn', 'btn--secondary');
-    btn.dataset.testid = testId;
-    btn.addEventListener('click', onClick);
-    return btn;
-  }
+  // ---- 4. 一番下: ヒント (左) と 確認する (右・主) ----
+  const actions = document.createElement('div');
+  actions.classList.add('creel-actions');
+  const hintBtn = createButton({
+    label: 'ヒント',
+    variant: 'secondary',
+    testId: 'creel-hint',
+    lockedReason: '2回確認すると使えます',
+    onLocked: (reason) => {
+      message.textContent = reason;
+    },
+    onClick: () => opts.onAction({ type: 'hint' }),
+  });
+  const checkBtn = createButton({
+    label: '確認する',
+    variant: 'primary',
+    testId: 'creel-check',
+    onClick: () => opts.onAction({ type: 'check' }),
+  });
+  checkBtn.classList.add('creel-actions__check');
+  actions.appendChild(hintBtn);
+  actions.appendChild(checkBtn);
+  root.appendChild(actions);
 
   parent.appendChild(root);
 
+  /** 何本目から何本目か (例「(1〜4本目)」「(5本目)」) */
+  function rangeText(start: number, count: number): string {
+    return count === 1 ? `(${start}本目)` : `(${start}〜${start + count - 1}本目)`;
+  }
+
   /** 状態に合わせて表示を更新する */
   function render(s: CreelState): void {
-    // ヒントの押せる見た目と、押せない理由 (あと何回「確認する」が必要か)
-    hintBtn.disabled = !canHint(s);
-    if (s.checks < HINT_MIN_CHECKS) {
-      hintBtn.textContent = `ヒント(あと ${HINT_MIN_CHECKS - s.checks} 回)`;
-    } else {
-      hintBtn.textContent = 'ヒント';
+    lastState = s;
+    if (s.tool.kind === 'box') {
+      lastBox = s.tool.yarn;
     }
 
+    // ヒント: 押せないときは点線の枠にして、押すと理由を出す
+    const reason = hintLockedReason(s);
+    setLockedReason(hintBtn, reason);
+    hintBtn.textContent = s.checks < HINT_MIN_CHECKS ? `ヒント(あと ${HINT_MIN_CHECKS - s.checks} 回)` : 'ヒント';
+
     // 1. 依頼書。くりかえし (times>=2 かつ unit.length>=2) なら「1リピート分」の表にして、
-    //    その下に「↻ ここまでを N 回くりかえす(ぜんぶで M 本)」の1行を足す
+    //    その下に「↻ 繰り返し × N」の1行を足す。段階1〜3 だけ、何本目かを書き添える
     const selHinban = selectedHinban(s, content);
+    const showRange = s.stage <= ORDER_RANGE_MAX_STAGE;
     orderTable.textContent = '';
     const { unit, times } = splitRepeat(s.answer);
     const useRepeat = times >= 2 && unit.length >= 2;
     const runs = toRuns(useRepeat ? unit : s.answer);
+    let start = 1;
     for (const run of runs) {
       const yarn = content.yarns.get(run.yarn);
       const color = yarn !== undefined ? content.colors.get(yarn.color) : undefined;
@@ -156,6 +183,13 @@ export function createCreelPanel(parent: HTMLElement, opts: {
       row.appendChild(hinban);
       row.appendChild(colorLabel);
       row.appendChild(count);
+      if (showRange) {
+        const range = document.createElement('span');
+        range.classList.add('creel-order-row__range');
+        range.textContent = rangeText(start, run.count);
+        row.appendChild(range);
+      }
+      start += run.count;
       orderTable.appendChild(row);
     }
     if (useRepeat) {
@@ -163,59 +197,29 @@ export function createCreelPanel(parent: HTMLElement, opts: {
       rep.classList.add('creel-order-repeat');
       rep.dataset.testid = 'creel-order-repeat';
       rep.textContent = `↻ 繰り返し × ${times}`;
+      if (showRange) {
+        const range = document.createElement('span');
+        range.classList.add('creel-order-row__range');
+        range.textContent = `(${unit.length + 1}本目から同じ並びを ${times - 1} 回)`;
+        rep.appendChild(range);
+      }
       orderTable.appendChild(rep);
     }
 
-    // 2. 現在の帯の並び (番号(上)+マス(下) の縦並びのまとまりを、普通の流れで並べる)
-    band.textContent = '';
-    for (let i = 0; i < s.placed.length; i++) {
-      const item = document.createElement('div');
-      item.classList.add('creel-item');
-      item.dataset.testid = `creel-item-${i}`;
-      // 番号 (上)
-      const num = document.createElement('span');
-      num.classList.add('creel-num');
-      num.dataset.testid = `creel-num-${i}`;
-      num.textContent = String(i + 1);
-      item.appendChild(num);
-      // マス (下)
-      const cell = document.createElement('div');
-      cell.classList.add('creel-cell');
-      cell.dataset.testid = `creel-cell-${i}`;
-      const placed = s.placed[i] ?? null;
-      if (placed !== null) {
-        const yarn = content.yarns.get(placed);
-        const color = yarn !== undefined ? content.colors.get(yarn.color) : undefined;
-        if (color !== undefined) {
-          cell.classList.add('creel-cell--filled');
-          cell.style.background = color.hex;
-          cell.textContent = color.symbol;
-          cell.style.color = isLightHex(color.hex) ? '#2B2A24' : '#FFFFFF';
-        }
-      } else {
-        cell.classList.add('creel-cell--empty');
-      }
-      if (s.marks !== null && (s.marks.wrong.includes(i) || s.marks.empty.includes(i))) {
-        const cross = document.createElement('span');
-        cross.classList.add('creel-cell__cross');
-        cross.dataset.testid = `creel-cross-${i}`;
-        cross.textContent = '✕';
-        cell.appendChild(cross);
-      }
-      item.appendChild(cell);
-      band.appendChild(item);
-    }
-
-    // 3. 箱 (段ボール色。選んでいる箱は藍の地・白文字・✓)
+    // 2. 糸の箱 (woodLight の枠の白いボタン。選んでいる箱は藍の地・白文字・✓)
     boxes.textContent = '';
     for (const yarnId of s.boxes) {
       const yarn = content.yarns.get(yarnId);
       const color = yarn !== undefined ? content.colors.get(yarn.color) : undefined;
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.classList.add('creel-box');
-      btn.dataset.testid = `creel-box-${yarnId}`;
       const selected = s.tool.kind === 'box' && s.tool.yarn === yarnId;
+      const btn = createButton({
+        label: '',
+        variant: 'secondary',
+        testId: `creel-box-${yarnId}`,
+        onClick: () => opts.onAction({ type: 'selectBox', yarn: yarnId }),
+      });
+      btn.classList.add('creel-box');
+      btn.setAttribute('aria-pressed', selected ? 'true' : 'false');
       if (selected) {
         btn.classList.add('creel-box--selected');
       }
@@ -227,13 +231,11 @@ export function createCreelPanel(parent: HTMLElement, opts: {
       label.textContent = `${selected ? '✓ ' : ''}${color?.symbol ?? ''} ${color?.name ?? ''}`;
       btn.appendChild(hinban);
       btn.appendChild(label);
-      btn.addEventListener('click', () => opts.onAction({ type: 'selectBox', yarn: yarnId }));
       boxes.appendChild(btn);
     }
 
-    // 4. 道具の ✓ (選んでいる方だけ)
-    removeBtn.textContent = `${s.tool.kind === 'remove' ? '✓ ' : ''}外す`;
-    inspectBtn.textContent = `${s.tool.kind === 'inspect' ? '✓ ' : ''}調べる`;
+    // 3. 道具の切り替え
+    tools.setValue(s.tool.kind === 'box' ? 'place' : s.tool.kind);
   }
 
   return {
@@ -241,37 +243,12 @@ export function createCreelPanel(parent: HTMLElement, opts: {
       render(s);
     },
 
-    /** 「現在の帯の並び」の区画を target の中に移す。null なら操作欄の元の位置に戻す */
-    placeBand(target: HTMLElement | null): void {
-      if (target === null) {
-        if (bandBox.parentElement !== root) {
-          // 元の位置 (依頼書の下) に戻す。root の子のうち依頼書の次に入れる
-          orderBox.insertAdjacentElement('afterend', bandBox);
-        }
-      } else if (bandBox.parentElement !== target) {
-        target.appendChild(bandBox);
-      }
-    },
-
     setMessage(text: string): void {
       message.textContent = text;
     },
 
     destroy(): void {
-      root.remove(); // bandBox は root の子 or 移動先の子。root.remove() で画面から消えるが、
-      bandBox.remove(); // 移動先 (footer など) に残らないように取り除く
+      root.remove();
     },
   };
-}
-
-/** 糸の色が明るいか (記号の文字色の判定) */
-function isLightHex(hex: string): boolean {
-  const m = hex.match(/^#([0-9A-Fa-f]{6})$/);
-  if (m === null) {
-    return false;
-  }
-  const r = parseInt(m[1]!.slice(0, 2), 16);
-  const g = parseInt(m[1]!.slice(2, 4), 16);
-  const b = parseInt(m[1]!.slice(4, 6), 16);
-  return r * 0.299 + g * 0.587 + b * 0.114 > 140;
 }

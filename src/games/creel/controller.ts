@@ -10,6 +10,7 @@ import { fromPx, hitTest } from './geometry';
 import { init, reduce, starsOf, isValidResume } from './logic';
 import type { CreelState, CreelAction } from './logic';
 import { showTutorial } from '../../core/ui/tutorialOverlay';
+import { STARS3_CHECKS_MAX } from './params';
 import type { CreelPanel } from './panel';
 
 const DONE_WAIT_MS = 1500;
@@ -45,6 +46,7 @@ export function createController(parent: HTMLElement, deps: GameDeps, props: Gam
   // ---- 枠 ----
   const frame = createGameFrame(parent, {
     title: deps.terms.t('game.creel'),
+    subtitle: `段階${puzzle.stage} ${pattern?.name ?? ''}`.trim(), // 今のお題
     onBack: () => handleBack(),
     onHelp: () => {
       void showTutorial(frame.root, opts.tutorial, { renderText: (s) => deps.terms.render(s) }).then(() => undefined);
@@ -53,13 +55,7 @@ export function createController(parent: HTMLElement, deps: GameDeps, props: Gam
     logicalH: 750,
     onStageResize: (fit) => {
       lastFit = fit;
-      // 配置が変わるたび、横長なら「現在の帯の並び」を盤面の下 (footer) に移す
       if (panelReady) {
-        if (frame.layout() === 'landscape') {
-          panel.placeBand(frame.footer);
-        } else {
-          panel.placeBand(null);
-        }
         render();
       }
     },
@@ -145,6 +141,11 @@ export function createController(parent: HTMLElement, deps: GameDeps, props: Gam
         stats: { checks: s.checks, hints: s.hints, [`puzzle:${puzzle.id}`]: stars },
         unlockedPatternIds: [puzzle.patternId],
         summary: [`確認した回数 ${s.checks}回`, `ヒントを使った回数 ${s.hints}回`],
+        resultLines: [
+          { label: '確認した回数', value: `${s.checks}回` },
+          { label: 'ヒント', value: `${s.hints}回` },
+        ],
+        starHint: `${STARS3_CHECKS_MAX}回目で合えば星3です`,
         finishedAt: deps.clock.now(),
       });
     }, DONE_WAIT_MS);
@@ -158,8 +159,8 @@ export function createController(parent: HTMLElement, deps: GameDeps, props: Gam
     const before = s;
     const next = reduce(s, a);
     if (next !== before) {
-      // 効果音
-      if (a.type === 'tapCell' || a.type === 'selectBox' || a.type === 'selectRemove') {
+      // 効果音。ボタンの音は部品が鳴らす。盤面のタップと、選ぶ部品 (外す・調べる) の切り替えはここで鳴らす
+      if (a.type === 'tapCell' || a.type === 'selectRemove' || a.type === 'selectInspect') {
         deps.audio.play('tap');
       } else if (a.type === 'hint') {
         deps.audio.play('ok');
@@ -197,12 +198,6 @@ export function createController(parent: HTMLElement, deps: GameDeps, props: Gam
 
   // ---- 初期表示 ----
   panelReady = true;
-  // 初回の配置も決める (横長なら帯の並びを footer へ)
-  if (frame.layout() === 'landscape') {
-    panel.placeBand(frame.footer);
-  } else {
-    panel.placeBand(null);
-  }
   refresh();
 
   return {

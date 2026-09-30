@@ -541,3 +541,99 @@ describe('T1-17: 確認の画面の取り消しボタンの文言', () => {
     expect(confirmCalls[0]!.okLabel).toBe('一覧に戻る');
   });
 });
+
+describe('PU-05b: クリール立てのプレイ画面と結果のつなぎ', () => {
+  function mountAndOpen(puzzleId: string, onFinish: (r: unknown) => void = () => undefined): HTMLElement {
+    const deps = makeDeps();
+    const module = createCreelModule(deps);
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    module.mount(parent, { mode: 'standalone', onFinish: onFinish as never, onExit: () => undefined });
+    parent.querySelector<HTMLButtonElement>(`[data-testid="creel-puzzle-${puzzleId}"]`)!.click();
+    const stage = parent.querySelector('canvas')!;
+    stubClientSize(stage.parentElement!, 600, 400);
+    stubRect(stage, 600, 400);
+    window.dispatchEvent(new Event('resize'));
+    vi.advanceTimersByTime(20);
+    return parent;
+  }
+
+  /** s1 の全部の軸をタップして立て、確認する (最初の確認で正解) */
+  function solveS1(parent: HTMLElement): void {
+    const stage = parent.querySelector('canvas')!;
+    const rect = stage.getBoundingClientRect();
+    const puzzle = content.creelPuzzles.find((p) => p.id === 's1')!;
+    const fit = fitStage(1000, 750, rect.width, rect.height);
+    for (let i = 0; i < puzzle.cols; i++) {
+      const cell = cellRect(i, puzzle.rows, puzzle.cols);
+      const px = toPx(fit, { x: cell.x + cell.w / 2, y: cell.y + cell.h / 2 });
+      stage.dispatchEvent(new PointerEvent('pointerdown', { clientX: rect.left + px.x, clientY: rect.top + px.y, bubbles: true }));
+    }
+    parent.querySelector<HTMLButtonElement>('[data-testid="creel-check"]')!.click();
+    vi.advanceTimersByTime(1600);
+  }
+
+  it('見出しの行の題名の下に今のお題「段階1 …」が出る。「現在の帯の並び」の欄は無く、盤面の下の欄 (footer) は空', () => {
+    const parent = mountAndOpen('s1');
+    const sub = parent.querySelector('.screen-header__subtitle')!;
+    expect(sub.textContent).toMatch(/^段階1 /);
+    expect(parent.querySelector('.game-frame__footer')!.childElementCount).toBe(0);
+    expect(parent.textContent).not.toContain('現在の帯の並び');
+  });
+
+  it('終わると resultLines・starHint・next (次のお題へ)・again・toList が onFinish に渡る', () => {
+    const onFinish = vi.fn();
+    const parent = mountAndOpen('s1', onFinish);
+    solveS1(parent);
+    expect(onFinish).toHaveBeenCalledTimes(1);
+    const r = onFinish.mock.calls[0]![0] as {
+      resultLines: { label: string; value: string }[];
+      starHint: string;
+      next?: { label: string; start: () => void };
+      again?: () => void;
+      toList?: () => void;
+    };
+    expect(r.resultLines).toEqual([
+      { label: '確認した回数', value: '1回' },
+      { label: 'ヒント', value: '0回' },
+    ]);
+    expect(r.starHint).toBe('1回目で合えば星3です');
+    expect(r.next?.label).toBe('次のお題へ');
+    expect(typeof r.again).toBe('function');
+    expect(typeof r.toList).toBe('function');
+  });
+
+  it('next.start() で次のお題 (s1-2) のプレイ画面になる。again() で同じお題、toList() でお題の一覧', () => {
+    const onFinish = vi.fn();
+    const parent = mountAndOpen('s1', onFinish);
+    solveS1(parent);
+    const r = onFinish.mock.calls[0]![0] as { next: { start: () => void }; again: () => void; toList: () => void };
+    r.next.start();
+    expect(parent.querySelector('canvas')).not.toBeNull();
+    const state = (parent.querySelector('.game-frame') as HTMLElement | null) !== null;
+    expect(state).toBe(true);
+    // 次のお題の柄の名前が題名の下に出る (s1-2 は p-muji-kuro)
+    const name = content.patterns.get('p-muji-kuro')!.name;
+    expect(parent.querySelector('.screen-header__subtitle')!.textContent).toContain(name);
+    // もう一度 (同じお題)
+    r.again();
+    expect(parent.querySelector('.screen-header__subtitle')!.textContent).toContain(content.patterns.get('p-muji-kon')!.name);
+    // 一覧へ
+    r.toList();
+    expect(parent.querySelector('canvas')).toBeNull();
+    expect(parent.querySelector('[data-testid="creel-puzzle-s1"]')).not.toBeNull();
+  });
+
+  it('ゲームの中の「ボタン」の音は部品が鳴らす: 箱を選んでも controller は tap を鳴らさない。盤面のタップは tap', () => {
+    const deps = makeDeps();
+    const play = deps.audio.play as unknown as ReturnType<typeof vi.fn>;
+    const module = createCreelModule(deps);
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    module.mount(parent, { mode: 'standalone', onFinish: () => undefined, onExit: () => undefined });
+    parent.querySelector<HTMLButtonElement>('[data-testid="creel-puzzle-s1"]')!.click();
+    play.mockClear();
+    parent.querySelector<HTMLButtonElement>('[data-testid^="creel-box-"]')!.click();
+    expect(play).not.toHaveBeenCalledWith('tap');
+  });
+});

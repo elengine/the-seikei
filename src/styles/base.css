@@ -616,11 +616,11 @@ body {
   margin: 0;
 }
 
-/* creel */
+/* creel の操作欄 (PU-05b): メッセージ → 依頼書 → 糸の箱 → 道具 → ヒントと確認する */
 .creel-panel {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--sp-4);
   min-height: 0;
 }
 
@@ -631,34 +631,31 @@ body {
   color: var(--c-sumi);
 }
 
-.creel-section__title {
-  margin: 0 0 4px;
-  font-size: var(--fs-body);
-  font-weight: bold;
-  color: var(--c-sumi);
+.creel-section .section-heading {
+  margin-bottom: var(--sp-2);
 }
 
 /* 依頼書の表 */
 .creel-order {
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: var(--sp-1);
 }
 
 .creel-order-row {
   display: grid;
-  grid-template-columns: minmax(6em, auto) 1fr auto;
+  grid-template-columns: minmax(6em, auto) 1fr auto auto;
   align-items: center;
-  gap: 8px;
-  padding: 0 8px;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-2);
   border: 2px solid transparent;
-  border-radius: var(--radius, 12px);
+  border-radius: var(--r-small);
   font-size: var(--fs-body);
   line-height: 1.2;
 }
 
 .creel-order-row--selected {
-  border: 4px solid var(--c-ai);
+  border-color: var(--c-ai);
 }
 
 .creel-order-row__hinban {
@@ -666,89 +663,39 @@ body {
   font-weight: bold;
 }
 
-/* くりかえしの行 (「↻ ここまでを N 回くりかえす」) */
-.creel-order-repeat {
+/* 何本目から何本目か (段階1〜3) */
+.creel-order-row__range {
   font-size: var(--fs-body);
-  line-height: 1.2;
-  padding: 0 8px;
-  color: var(--c-sumi-sub);
+  color: var(--c-muted);
+  white-space: nowrap;
 }
 
-/* いまの帯の並び: 各帯は「番号(上)+マス(下)」の縦並びのまとまり。普通の流れで並べる */
-.creel-band {
+/* くりかえしの行 (「↻ 繰り返し × N」) */
+.creel-order-repeat {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  align-items: flex-end;
-}
-
-.creel-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-}
-
-.creel-num {
+  column-gap: var(--sp-2);
   font-size: var(--fs-body);
   line-height: 1.2;
+  padding: var(--sp-1) var(--sp-2);
   color: var(--c-sumi-sub);
 }
 
-.creel-cell {
-  position: relative;
-  width: 40px;
-  height: 40px;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--fs-body);
-}
-
-.creel-cell--empty {
-  border: 2px dashed var(--c-sumi-sub);
-  background: transparent;
-}
-
-.creel-cell__cross {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--c-shu);
-  font-size: var(--fs-body);
-  font-weight: bold;
-  pointer-events: none;
-}
-
-/* 箱 (段ボール) */
+/* 糸の箱: woodLight の枠の白いボタン。選んでいる箱は藍の塗り・白文字・✓ */
 .creel-boxes {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--sp-2);
 }
 
-.creel-box {
-  display: flex;
+.btn.creel-box {
   flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  min-height: var(--btn-min-h);
+  gap: var(--sp-1);
   min-width: 120px;
-  padding: 6px 12px;
-  background: var(--c-box, #D8C3A5);
+  padding: var(--sp-2) var(--sp-3);
+  border-color: var(--c-wood-light);
   color: var(--c-sumi);
-  border: 2px solid var(--c-sumi);
-  border-radius: var(--radius, 12px);
-  font-family: inherit;
-  cursor: pointer;
-}
-
-.creel-box:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  font-weight: 400;
 }
 
 .creel-box__hinban {
@@ -761,41 +708,45 @@ body {
   font-size: var(--fs-body);
 }
 
-.creel-box--selected {
+.btn.creel-box--selected {
   background: var(--c-ai);
-  color: #FFFFFF;
+  border-color: var(--c-ai);
+  color: var(--c-white);
+  box-shadow: 0 4px 0 var(--c-ai-shadow);
 }
 
-/* 道具とボタン */
-.creel-tools {
+/* 道具の切り替え (立てる・外す・調べる。PU-07 で無くす) */
+.creel-section--tools .choice {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: stretch;
 }
 
-/* 横長で操作欄があふれるときも、道具とボタンの区画は常に下に見える。
+.creel-section--tools .choice__item {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 一番下: ヒント (左) と 確認する (右・主・広く)。横長で操作欄があふれるときも常に下に見える。
    (縦長では操作欄の中を縦にスクロールするので、下の media で戻す) */
-.creel-section--tools {
+.creel-actions {
   position: sticky;
   bottom: 0;
-  background: var(--c-kinari);
   z-index: 1;
+  display: flex;
+  gap: var(--sp-4);
+  align-items: stretch;
+  padding: var(--sp-3) 0 var(--sp-2);
+  background: var(--c-white);
+}
+
+.creel-actions__check {
+  flex: 1;
+  min-width: 140px;
 }
 
 @media (orientation: portrait) {
-  .creel-section--tools {
+  .creel-actions {
     position: static;
   }
-}
-
-.creel-tools .btn {
-  min-height: var(--btn-min-h);
-}
-
-.creel-tools__check {
-  flex: 1;
-  min-width: 140px;
 }
 
 /* 縦長では操作欄の中だけ縦にスクロールできる */
@@ -860,10 +811,6 @@ body {
 /* 盤面の下の欄 (横長のときだけ使う。縦長では gameFrame が display:none にする) */
 .game-frame__footer {
   flex: none;
-}
-
-.game-frame__footer .creel-band {
-  flex-wrap: wrap;
 }
 
 .game-frame__stage canvas {
