@@ -468,6 +468,48 @@ describe('winding module (T2-07)', () => {
     expect(exited).toBe(true);
     instance.unmount();
   });
+
+  it('12. fix2-b: 張りが適正と強すぎを 100ms ごとに行き来しても、メッセージはすぐに変わらない (0.5秒続いてから変わる)', async () => {
+    const { deps } = await makeDeps();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const module = createWindingModule(deps);
+    const props = makeProps();
+    const instance = module.mount(container, props);
+    // 中級 (範囲 38〜62)。糸切れを避けるため、resume で「pedal 90 (張り 66 = 強すぎ)・
+    // 糸が切れていない状態」を渡す (rng は固定 clock の種なので、短時間では切れない)。
+    const { init, reduce } = await import('./logic');
+    const { paramsOf } = await import('./params');
+    const p2 = paramsOf(2);
+    let state = init({ level: 2, patternId: p2.patternId, sections: p2.sections, seed: 2025059162 });
+    state = reduce(state, { type: 'start' });
+    state = reduce(state, { type: 'setPedal', value: 90 });
+    const instance2 = module.mount(container, makeProps({ resume: state }));
+    instance.unmount();
+    await wait(50);
+    const msg = (): string => container.querySelector('.game-frame__message')?.textContent ?? '';
+    const plus = (): void => {
+      Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '踏み込む')!.click();
+    };
+    const minus = (): void => {
+      Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '戻す')!.click();
+    };
+    // resume 直後はペダル 0 (pausePedal) で「弱め」の表示。0.5 秒で出そろう
+    raf.advance(40);
+    expect(msg()).toContain('弱め');
+    // ペダルを 90 (張り 66 = 強すぎ) にして 100ms → まだ「弱め」のまま (0.5 秒続いていない)
+    for (let i = 0; i < 9; i++) plus();
+    raf.advance(6);
+    expect(msg()).toContain('弱め');
+    // 強すぎが 0.5 秒続くと「強すぎ」に変わる
+    raf.advance(30);
+    expect(msg()).toContain('強すぎ');
+    // すぐに 60 (適正) に戻して 100ms → まだ「強すぎ」のまま
+    minus(); minus(); minus();
+    raf.advance(6);
+    expect(msg()).toContain('強すぎ');
+    instance2.unmount();
+  });
 });
 
 /** 操作欄 (メッセージを含む) の文字 */

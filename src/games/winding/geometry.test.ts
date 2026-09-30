@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { LOGICAL_W, LOGICAL_H, endPoint, hitEnd, toPx, fromPx } from './geometry';
+import { LOGICAL_W, LOGICAL_H, endPoint, hitEnd, toPx, fromPx, threadY } from './geometry';
 
 const fit = { scale: 1, offsetX: 0, offsetY: 0 };
 
@@ -69,5 +69,32 @@ describe('winding geometry (T2-05)', () => {
     const d = Math.hypot(mid.x - near.x, mid.y - near.y);
     const d2 = Math.hypot(mid.x - other.x, mid.y - other.y);
     expect(d).toBeLessThan(d2);
+  });
+});
+
+describe('winding geometry T2-07-fix2 (糸の縦の位置は1つの関数で決める)', () => {
+  it('threadY がすべての糸で endPoint の y と同じ (クリール側・ドラム側の両方)', () => {
+    for (const threadCount of [3, 5, 8]) {
+      for (let t = 0; t < threadCount; t++) {
+        expect(endPoint(t, 'creel', threadCount).y, `t${t} n${threadCount} creel`).toBe(threadY(t, threadCount));
+        expect(endPoint(t, 'drum', threadCount).y, `t${t} n${threadCount} drum`).toBe(threadY(t, threadCount));
+      }
+    }
+  });
+
+  it('threadY は上から下へ等間隔で、盤面の中', () => {
+    for (const threadCount of [3, 8]) {
+      for (let t = 0; t + 2 < threadCount; t++) {
+        const a = threadY(t, threadCount);
+        const b = threadY(t + 1, threadCount);
+        const c = threadY(t + 2, threadCount);
+        expect(b - a).toBeCloseTo(c - b, 9);
+      }
+      for (let t = 0; t < threadCount; t++) {
+        const y = threadY(t, threadCount);
+        expect(y).toBeGreaterThan(0);
+        expect(y).toBeLessThan(LOGICAL_H);
+      }
+    }
   });
 });

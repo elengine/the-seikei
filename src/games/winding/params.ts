@@ -57,6 +57,9 @@ export const BREAK: BreakParams = {
 /** 1回の tick の dtMs の上限 (Safari 対策。P2/README「時間の進め方」) */
 export const MAX_TICK_MS = 100;
 
+/** 張りのメッセージを切り替えるまでの待ち時間 (ms)。新しい張りの状態が続いたときだけ変える (T2-07 追加修正2) */
+export const MESSAGE_HOLD_MS = 500;
+
 /** 星3・星2 の平均の境目 (03 のとおり) */
 export const STARS3 = 0.8;
 export const STARS2 = 0.6;

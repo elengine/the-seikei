@@ -9,7 +9,7 @@ import { getContent, type Content } from '../../core/content/content';
 import { init, reduce, seedFromText } from './logic';
 import { messageFor, soundFor, resultOf } from './messages';
 import type { WindingState, WindingAction, Level } from './logic';
-import { RANGE } from './params';
+import { RANGE, MESSAGE_HOLD_MS } from './params';
 
 const TIE_ANIM_MS = 1000; // 帯の端を結ぶ演出の長さ
 const DONE_WAIT_MS = 1500; // done のあと結果を出すまでの見せる時間
@@ -74,8 +74,41 @@ export function createWindingController(parent: HTMLElement, deps: GameDeps, pro
   });
 
   // ---- メッセージ (大人向けの文言。terms.render。文は messages.ts) ----
+  // 張りのメッセージ (適正・強すぎ・弱め) は、新しい状態が MESSAGE_HOLD_MS 続いてから切り替える
+  // (境目の近くで細かく動くと 1 行と 2 行が高速に入れ替わるため。T2-07 追加修正2)。
+  // 糸が切れた・帯を巻き終えたなど、張り以外のメッセージはすぐに切り替える。
+  let pendingMsg: { text: string; sinceMs: number } | null = null;
+  let shownMsg = '';
+  function setMessage(text: string, holdMs: boolean): void {
+    if (!holdMs) {
+      pendingMsg = null;
+      shownMsg = text;
+      frame.message.textContent = text;
+      return;
+    }
+    if (text === shownMsg) {
+      pendingMsg = null; // 表示中と同じ文に戻ったら、待っていた切替を取り消す
+      return;
+    }
+    if (pendingMsg !== null && pendingMsg.text !== text) {
+      pendingMsg = { text, sinceMs: nowMs }; // 待っているあいだに別の文になったら、そこから測り直す
+      return;
+    }
+    if (pendingMsg === null) {
+      pendingMsg = { text, sinceMs: nowMs };
+      return;
+    }
+    if (nowMs - pendingMsg.sinceMs >= MESSAGE_HOLD_MS) {
+      pendingMsg = null;
+      shownMsg = text;
+      frame.message.textContent = text;
+    }
+  }
   function updateMessage(prev?: WindingState, next?: WindingState): void {
-    frame.message.textContent = messageFor(s, prev, next, (x) => deps.terms.render(x), s.level);
+    const text = messageFor(s, prev, next, (x) => deps.terms.render(x), s.level);
+    // 張りの 3 文 (適正・強すぎ・弱め) だけホールドする
+    const hold = s.phase === 'winding' && pendingMsg !== null;
+    setMessage(text, hold || s.phase === 'winding');
   }
 
   // ---- 描画 ----

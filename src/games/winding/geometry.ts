@@ -21,9 +21,21 @@ export const TOP_AREA = { y: 0, h: 90 } as const;
 export const CREEL_END_X = 380;
 /** ドラム側の切れ端の x (台の右) */
 export const DRUM_END_X = 460;
-/** 切れ端の縦の範囲 (台の中) */
+/** 切れ端の縦の範囲 (台の中)。糸の縦の位置はこの範囲で threadY が決める */
 const END_Y_TOP = 300;
 const END_Y_BOTTOM = 620;
+
+/**
+ * 糸 thread (0〜threadCount-1) の縦の位置 (論理座標)。
+ * 描く位置 (renderer) と当たりの位置 (endPoint) は、この関数だけで決める
+ * (T2-07 追加修正2。位置がずれる不具合の防止)。
+ */
+export function threadY(thread: number, threadCount: number): number {
+  const n = Math.max(1, threadCount);
+  const top = END_Y_TOP;
+  const bottom = END_Y_BOTTOM;
+  return top + ((bottom - top) * thread) / (n - 1 || 1);
+}
 
 /** 論理座標 → 画面 (Canvas) 座標 */
 export function toPx(fit: StageFit, p: { x: number; y: number }): { x: number; y: number } {
@@ -46,9 +58,7 @@ export function fromPx(fit: StageFit, p: { x: number; y: number }): { x: number;
  * 糸は上から下へ等間隔に並ぶ。
  */
 export function endPoint(thread: number, side: 'creel' | 'drum', threadCount: number): { x: number; y: number } {
-  const n = Math.max(1, threadCount);
-  const y = END_Y_TOP + ((END_Y_BOTTOM - END_Y_TOP) * thread) / (n - 1 || 1);
-  return { x: side === 'creel' ? CREEL_END_X : DRUM_END_X, y };
+  return { x: side === 'creel' ? CREEL_END_X : DRUM_END_X, y: threadY(thread, threadCount) };
 }
 
 /**

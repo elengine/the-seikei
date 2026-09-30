@@ -1017,3 +1017,17 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
   - 412×915 (縦長): 操作欄の clientHeight = scrollHeight = 397 (スクロールなし)。張り・ペダル・戻す・踏み込む・速さがすべて見える
   - dpr 2・回転 (915×412)・960×720: はみ出し無し
 - コミット: 629353b (追加修正a) / 3da90b0 (追加修正b の盤面) / 66885e2 (追加修正b の縦長の操作欄) / 報告コミットはこのあと
+
+## 2026-09-30 T2-07 追加修正2: 切れ端の当たりのずれ、メッセージのぶれ、一時ファイル
+
+- やったこと:
+  - 切れ端の当たりのずれ: 糸の縦の位置を決める関数 `threadY(thread, threadCount)` を geometry.ts に1つだけ置いた (論理 300〜620 の等間隔)。endPoint と renderer の糸・コーン・切れ端の描画はすべて threadY を使い、renderer の coneY は削除した
+  - メッセージの行数によるぶれ:
+    - メッセージ欄はいつも 2 行ぶんの高さ (`min-height: calc(2 * 1.3em)`・line-height 1.3。縦長の画面も同じ。縦長の節から `min-height: 0` を削除)
+    - 張りのメッセージ (適正・強すぎ・弱め) は、新しい文が 0.5 秒 (params.ts の `MESSAGE_HOLD_MS = 500`) 続いてから切り替える。待っているあいだに別の文になればそこから測り直す。表示中と同じ文に戻ったら待ちを取り消す。糸が切れた・帯を巻き終えたなど張り以外のメッセージはすぐに切り替える。時刻は rAF の時刻 (nowMs) を使う
+  - 一時ファイル: dbg.test.ts を削除した
+- テスト (先に RED を確認):
+  - geometry.test.ts 2件: threadY がすべての糸で endPoint の y と同じ / threadY は等間隔で盤面の中
+  - renderer.test.ts 1件: 'broken' の切れた糸の朱の線の y (論理座標) が endPoint の y と同じ
+  - controller.test.ts 1件: 張りの文が 0.5 秒続かないと変わらない・0.5 秒続くと変わる (中級・resume で糸切れしない rng を固定して確認)
+- 報告直前の確認: npm run check エラー0 / npm test 412 passed・11 skipped / npm run build 成功 / git status に余計なファイルなし

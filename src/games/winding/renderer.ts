@@ -4,7 +4,7 @@ import type { Content } from '../../core/content/content';
 import { COLORS, FONT_FAMILY } from '../../core/ui/tokens';
 import { speedOf } from '../../core/mechanics/pedal';
 import { TENSION, SECTION_LENGTH } from './params';
-import { CREEL_AREA, DRUM_AREA, TOP_AREA, CREEL_END_X, DRUM_END_X, toPx, fontPx } from './geometry';
+import { CREEL_AREA, DRUM_AREA, TOP_AREA, CREEL_END_X, DRUM_END_X, threadY, toPx, fontPx } from './geometry';
 
 /**
  * ドラム巻きの盤面の描画 (P2 T2-05・追加修正)。
@@ -64,7 +64,7 @@ export function drawBoard(
   ctx.lineWidth = fontPx(fit, 4);
   ctx.strokeRect(CREEL_AREA.x, CREEL_AREA.y, CREEL_AREA.w, CREEL_AREA.h);
   for (let t = 0; t < opts.threadCount; t++) {
-    const y = coneY(t, opts.threadCount);
+    const y = threadY(t, opts.threadCount);
     ctx.fillStyle = hexes[t % hexes.length] ?? COLORS.sumiSub;
     ctx.beginPath();
     ctx.arc(CREEL_AREA.x + CREEL_AREA.w / 2, y, fontPx(fit, 10), 0, Math.PI * 2);
@@ -76,7 +76,7 @@ export function drawBoard(
   ctx.lineWidth = fontPx(fit, 2);
   ctx.beginPath();
   for (let t = 0; t < opts.threadCount; t++) {
-    const y = coneY(t, opts.threadCount);
+    const y = threadY(t, opts.threadCount);
     ctx.moveTo(CREEL_AREA.x + CREEL_AREA.w / 2, y);
     ctx.lineTo(CREEL_END_X, y);
     ctx.lineTo(DRUM_END_X, y);
@@ -89,7 +89,7 @@ export function drawBoard(
     const offset = ((opts.timeMs / 1000) * speed * 12) % 120;
     ctx.fillStyle = COLORS.sumi;
     for (let t = 0; t < opts.threadCount; t++) {
-      const y = coneY(t, opts.threadCount);
+      const y = threadY(t, opts.threadCount);
       ctx.fillRect(CREEL_END_X + offset, y - fontPx(fit, 3), fontPx(fit, 8), fontPx(fit, 6));
     }
   }
@@ -166,7 +166,7 @@ export function drawBoard(
   // 7. 'broken' のとき、切れた糸を途中で切って、両側の切れ端を垂らす
   if (s.phase === 'broken' && s.brk.kind === 'broken') {
     const t = s.brk.thread;
-    const y = coneY(t, opts.threadCount);
+    const y = threadY(t, opts.threadCount);
     const sway = opts.show === 'red' ? Math.sin(opts.timeMs / 600) * 6 : 0;
     const droop = opts.show === 'small' ? 14 : 34;
     ctx.strokeStyle = opts.show === 'red' ? COLORS.shu : base;
@@ -225,14 +225,6 @@ export function drawBoard(
     ctx.fillStyle = COLORS.sumi;
     ctx.fillText('停止', lampPx.x - wPx / 2, p.y);
   }
-}
-
-/** 糸 t のコーンの y (クリールの中で上から下へ等間隔) */
-function coneY(t: number, threadCount: number): number {
-  const n = Math.max(1, threadCount);
-  const top = CREEL_AREA.y + 60;
-  const bottom = CREEL_AREA.y + CREEL_AREA.h - 60;
-  return top + ((bottom - top) * t) / (n - 1 || 1);
 }
 
 /** 帯 i のピンの x (ドラムの上に等間隔) */

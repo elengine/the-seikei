@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { drawBoard } from './renderer';
+import { endPoint } from './geometry';
 import type { FakeRecorder } from './renderer.test.helpers';
 
 // 偽の ctx (呼ばれた命令を記録する) は helpers に置く
@@ -173,6 +174,21 @@ describe('winding renderer T2-05-fix (座標の変換と決まり)', () => {
     // 最初の fillRect は save より前
     const firstRectI = ks.indexOf('fillRect');
     expect(firstRectI).toBeLessThan(saveI);
+  });
+});
+
+describe('winding renderer T2-07-fix2 (切れた糸は当たりの位置に描く)', () => {
+  it("'broken' の切れた糸の朱の線の moveTo の y (論理座標) が endPoint の y と同じ", () => {
+    const { ctx, rec } = makeFakeCtx();
+    const s = brokenState();
+    expect(s.phase).toBe('broken');
+    drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
+    // shu の線の moveTo/lineTo の y に、切れた糸の endPoint の y が含まれる
+    const y = endPoint(s.brk.kind === 'broken' ? s.brk.thread : 0, 'creel', 8).y;
+    const ys = rec.ops
+      .filter((op) => (op.k === 'moveTo' || op.k === 'lineTo') && typeof op.args?.[1] === 'number')
+      .map((op) => op.args?.[1] as number);
+    expect(ys, `endPoint y=${y}`).toContain(y);
   });
 });
 
