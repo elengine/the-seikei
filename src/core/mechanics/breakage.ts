@@ -38,7 +38,6 @@ export function stepBreak(
     return { state: s, rng, broke: false };
   }
   let since = s.sinceCheckMs + dtMs;
-  let state: BreakState = { kind: 'running', sinceCheckMs: since };
   let curRng = rng;
   while (since >= p.checkMs) {
     since -= p.checkMs;
@@ -53,7 +52,7 @@ export function stepBreak(
       return { state: { kind: 'broken', thread, firstTapped: false }, rng: curRng, broke: true };
     }
   }
-  state = { kind: 'running', sinceCheckMs: since };
+  const state: BreakState = { kind: 'running', sinceCheckMs: since };
   return { state, rng: curRng, broke: false };
 }
 

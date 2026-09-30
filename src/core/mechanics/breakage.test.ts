@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { initBreak, stepBreak, tapEnd } from './breakage';
 import type { BreakParams } from './breakage';
-import { seedFrom, nextFloat } from '../clock/clock';
+import { seedFrom } from '../clock/clock';
 
 /** テスト用のパラメータ (P2/README の初期値) */
 function params(overrides?: Partial<BreakParams>): BreakParams {
