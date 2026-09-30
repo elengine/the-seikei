@@ -1182,3 +1182,39 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - npm run check エラー0 / npm test **469 passed・11 skipped** / build 成功
 - CI: a は `493d95d` success、b は eslint error 2回 (`b043fd6`→rebase `da3aba9`→`8df5028`) success
 - ブラウザ (1180×820): 帯を巻くと桟が横に流れ・裏側の桟が消え・円盤のスポークが回る。切れ端は糸の線の上に乗る。スクショ /opt/data/tmp/t210/
+
+## 2026-10-01 T2-10 追加修正 (a・b) ルビー
+
+### a. 桟の数・回る速さ・台が隠れる・controller のテスト (`b8aa1d2`)
+- 桟の数: `SLAT_COUNT` 10 → **24** (正面に 10〜12 本見え、かご状に見える)。renderer.parts.ts
+- 回る速さ: `DRUM_TURN_PER_SPEED` 0.1 → **0.25** (ペダル 50 で 1秒に 5 ラジアン ≒ 0.8 回転)。params.ts
+- 台が隠れる: ドラムの縦木の左の端を geometry.ts の **`PIN_RAIL_X` = 560** に置き、renderer もそれを使う。
+  台は `TABLE_AREA` を x420・幅120 に狭め、筬は `REED_X` 480 (台の中央)。台の右端 540 + 20 = 560 ≤ PIN_RAIL_X。
+  切れ端 (x290・360) と、まっすぐ横に進む区間は変えていない
+- controller のテスト: `vi.mock('./renderer')` で `drawBoard` の引数を記録し、
+  ① ペダル 50 で 1 秒進めると `drumAngle` が 4.5〜5.5 増える ② ペダル 0 のあいだは増えない、を追加。
+  jsdom の canvas は `getContext` が null を返すため、テストでは `HTMLCanvasElement.prototype.getContext` を偽の ctx に差し替えている
+- テスト: geometry 1件・renderer 1件・controller 2件を RED → GREEN
+
+### b. 上下の端・結び目とピンも回る・なめらかな回り方 (`bfbd00d`→`ba0934f`)
+- 上下の端: 上の端は楕円の**上半分の弧だけ** (山なり。面は見せない)、下の端は**楕円の面の全体** (円盤) + 放射状の腕。
+  胴の長方形は上は楕円の中心の高さ、下は下の楕円の中心の高さまで
+- ピンと結び目も回る: θpin = drumAngle + `PIN_ANGLE0` (−0.9) で描く。正面の x は 中心 + 半径 × sin θpin、
+  大きさは cos θpin 倍。cos θpin ≤ 0 (裏側) はピンも結び目も描かない。
+  'cutting' に入ると controller が **0.8 秒かけて** ドラムを回し、ピンが正面の少し左 (sin θpin = −0.5) に来てから結ぶ演出を始める
+  (動き出しと止まりをなめらかに: ease-in-out)。結び目の輪の演出もそのピンの位置に描く
+- なめらかな回り方: 角速度 `drumOmega` を目標 (speed × DRUM_TURN_PER_SPEED) へ近づける。
+  係数は 1 − exp(−dtMs / (EASE_MS / 2.3))。**`DRUM_EASE_MS` は「目標の 9 割に達するまでの時間」の意味**とし、
+  速くなるとき `DRUM_EASE_UP_MS` 600・遅くなるとき `DRUM_EASE_DOWN_MS` 400。
+  糸が切れたときだけ `DRUM_STOP_MS` 250 で急停止 (drumStopping)。ほぼ止まったら ω を 0 に落とす。
+  仕様書の式 ω += (target−ω)×min(1, dtMs/EASE_MS) を 1フレーム (16ms) ごとに適用すると
+  0.6 秒で 6 割しか上がらず「0.6 秒で 9 割」のテストと両立しないため、指数式に置き換えた (報告に記載)
+- テスト: renderer 3件 (fill される ellipse は下の端だけ・結び目の輪の x が drumAngle で変わる・裏側は輪も無い)、
+  controller 2件 (ペダル 100 直後の1フレームは目標の半分未満・0.6 秒で ω 9 割以上。ペダル 0 で 0.4 秒ほどで止まる) を RED → GREEN
+
+### 検証
+- npm run check エラー0 / npm test **478 passed・11 skipped** / build 成功
+- CI: a `b8aa1d2` success、b は eslint error 1回 (`bfbd00d` failure → `ba0934f` success)
+- ブラウザ (1180×820): 桟がかご状に 10 本以上、上の端は山なり・下に円盤、台と筬が隠れない、
+  桟と帯の筋がなめらかに流れる (0.4 秒差で位置が変わる)、結ぶとピンと結び目が正面に来てから結ばれる。
+  スクショ /opt/data/tmp/t210fix/
