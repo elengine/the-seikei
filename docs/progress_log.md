@@ -1147,3 +1147,20 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - mismatch の文言 (「その端は別の糸です」) はテストで担保。実機では 1手目のやり直しの場面を作れなかった
 - 止まる音の 0.75 秒は headless では聞こえないため、audio.test 2 で担保
 
+## 2026-10-01 T2-08 追加修正2: 桟が消える・メーターの横あふれ・帯の縞と結び目・遊び方の絵・コーンの輪郭
+
+- コミット: f7342fd (4e2f53d で eslint の未使用変数を修正。CI success)
+- やったこと:
+  1. 巻いている途中の帯の桟が消える (不具合): 桟を飛ばしてよいのは巻き終えた区画だけに変えた (巻き始めた区画は桟を描き、その上に縞を重ねる)。renderer.parts.ts の桟ループの continue 条件を (i < current || done) に
+  2. 960×720 でメーターが 4px あふれる (不具合): .meter__band に box-sizing: border-box を追加 (枠線 2px ずつが max-width に含まれる)
+  3. 帯の縞が1本ずつ: params.ts に STRIPE_H = 6 (論理座標) を置き、柄の並びの色を区画の高さの中で上から順に繰り返す (最後の縞は区画の下端で打ち切る)
+  4. 結び目が帯の色に埋もれる: drawKnot を3重の輪に (kinari の縁取り → 糸の色 → sumi の輪郭)。KNOT を { w: 24, h: 30 } に広げてピンの横木に少し重なる程度に
+  5. 遊び方の1ページ目のドラムが横向き: tutorial.ts の drawDrum を盤面と同じ縦向きに (円盤は上と下の鋼色の板、桟は縦長の板を左右に)、巻いた帯は一番上の区画に横の縞
+  6. 白いコーンが背景に溶ける: drawCreel のコーンに sumiSub の輪郭線 (線の太さは fontPx で最低 1.5px)。すべての色のコーンに付ける
+- テスト (先に RED を確認): renderer.test.ts 4件 (巻いている区画に wood の桟がある・巻き終えた区画の縞が繰り返され1本の高さは STRIPE_H 以下・結び目に sumi の stroke・コーンの fill のあとに sumiSub の stroke)、tutorial.test.ts 1件 (1ページ目で円盤が上と下)、tokens.test.ts 1件 (.meter__band に box-sizing: border-box)
+- 報告直前の確認: npm run check エラー0 / npm test 463 passed・11 skipped / npm run build 成功 / git status に余計なファイルなし
+- ブラウザ確認 (preview 4173。IndexedDB に records を書いて解放):
+  - 1180×820: 帯1を 20% 巻いた画面で、今の区画に桟が透けて見える (紺の薄い縞の下に茶色の桟)。白っぽいコーンに輪郭線があって背景と区別できる (スクショ添付)
+  - 帯1を巻き終えて結ぶと、区画に細い縞が繰り返し現れ、結び目の束が白い縁取りで見分けられる。台と筬は帯2の高さへ移動 (スクショ添付)
+  - 960×720: 操作欄 scrollWidth 309 = clientWidth 309 (横あふれ解消)。meter__band は border-box で 309px に収まる
+  - 遊び方の1ページ目: ドラムの軸が縦、巻いた帯は一番上の区画に横の縞 (スクショ添付)
