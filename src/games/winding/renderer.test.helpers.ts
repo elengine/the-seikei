@@ -17,6 +17,7 @@ export function makeFakeCtx(): { ctx: CanvasRenderingContext2D; rec: FakeRecorde
     save: () => rec.ops.push({ k: 'save' }),
     restore: () => rec.ops.push({ k: 'restore' }),
     translate: (x: number, y: number) => rec.ops.push({ k: 'translate', args: [x, y] }),
+    scale: (x: number, y: number) => rec.ops.push({ k: 'scale', args: [x, y] }),
     beginPath: () => rec.ops.push({ k: 'beginPath' }),
     closePath: () => rec.ops.push({ k: 'closePath' }),
     moveTo: (x: number, y: number) => rec.ops.push({ k: 'moveTo', args: [x, y] }),

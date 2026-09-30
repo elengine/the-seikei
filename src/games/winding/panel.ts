@@ -82,6 +82,8 @@ export function createWindingPanel(
       section.appendChild(pctLabel);
       meter.update(s.tension, opts.range);
       pedal.setEnabled(s.phase === 'winding');
+      // 横木の位置を状態に合わせる (setValue は onChange を呼ばないので、繰り返しにはならない)
+      pedal.setValue(s.pedal.pedal);
       showButton(s);
     },
     destroy(): void {
