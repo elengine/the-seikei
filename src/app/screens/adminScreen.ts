@@ -1,7 +1,8 @@
 import type { AppContext } from '../context';
 import type { Screen } from '../screenManager';
 import type { ImportReport } from '../../core/storage/types';
-import { createButton } from '../../core/ui/widgets';
+import { createButton, setLockedReason } from '../../core/ui/widgets';
+import { createCard, createPage, createScreenHeader, createSectionHeading } from '../../core/ui/layout';
 import { collectDiagnostics, hasInstallPromptEvent, promptInstall, isUpdateAvailable, applyUpdateNow } from '../diagnostics';
 import { confirmDialog } from '../../core/ui/widgets';
 
@@ -19,22 +20,36 @@ export function createAdminScreen(ctx: AppContext): Screen {
   return {
     mount(container: HTMLElement): void {
       const root = document.createElement('div');
-      root.classList.add('settings');
+      root.classList.add('settings', 'admin');
+      root.appendChild(createScreenHeader({ title: '管理者', onBack: () => ctx.navigate('/settings') }));
+      const page = createPage({ width: 'form' });
+      root.appendChild(page);
 
-      const title = document.createElement('h1');
-      title.classList.add('settings__title');
-      title.textContent = '管理者';
-      root.appendChild(title);
+      /** 節 (見出し + 白いカード)。カードを返す */
+      function section(heading: string): HTMLElement {
+        const wrap = document.createElement('section');
+        wrap.classList.add('admin__section');
+        wrap.appendChild(createSectionHeading(heading));
+        const card = createCard();
+        card.classList.add('admin__card');
+        wrap.appendChild(card);
+        page.appendChild(wrap);
+        return card;
+      }
 
-      const backBtn = createButton({
-        label: '戻る',
-        variant: 'secondary',
-        onClick: () => {
-          ctx.audio.play('tap');
-          ctx.navigate('/settings');
-        },
-      });
-      root.appendChild(backBtn);
+      /** 押せないボタンの理由を出す欄 (カードの中) */
+      function noticeIn(card: HTMLElement): HTMLElement {
+        const n = document.createElement('p');
+        n.classList.add('admin__notice');
+        card.appendChild(n);
+        return n;
+      }
+
+      const diagCard = section('診断');
+      const updateCard = section('版の切り替え');
+      const backupCard = section('バックアップ');
+      const installCard = section('インストール');
+      const logCard = section('ログ');
 
       // ---- バックアップを書き出す ----
       const exportBtn = createButton({
@@ -85,7 +100,7 @@ export function createAdminScreen(ctx: AppContext): Screen {
           }
         },
       });
-      root.appendChild(exportBtn);
+      backupCard.appendChild(exportBtn);
 
       // ---- バックアップを読み込む ----
       const importInput = document.createElement('input');
@@ -122,21 +137,14 @@ export function createAdminScreen(ctx: AppContext): Screen {
           importInput.value = '';
         })();
       });
-      root.appendChild(importBtn);
-      root.appendChild(importInput);
-      root.appendChild(importResult);
+      backupCard.appendChild(importBtn);
+      backupCard.appendChild(importInput);
+      backupCard.appendChild(importResult);
 
       // ---- データの状態 ----
-      const stateBox = document.createElement('div');
-      stateBox.classList.add('admin__state');
-      const stateTitle = document.createElement('p');
-      stateTitle.classList.add('settings__label');
-      stateTitle.textContent = 'データの状態';
-      stateBox.appendChild(stateTitle);
       const stateList = document.createElement('ul');
       stateList.classList.add('admin__list');
-      stateBox.appendChild(stateList);
-      root.appendChild(stateBox);
+      diagCard.appendChild(stateList);
 
       void (async () => {
         const items: string[] = [];
@@ -165,16 +173,9 @@ export function createAdminScreen(ctx: AppContext): Screen {
       })();
 
       // ---- 診断 ----
-      const diagBox = document.createElement('div');
-      diagBox.classList.add('admin__state');
-      const diagTitle = document.createElement('p');
-      diagTitle.classList.add('settings__label');
-      diagTitle.textContent = '診断';
-      diagBox.appendChild(diagTitle);
       const diagList = document.createElement('ul');
       diagList.classList.add('admin__list');
-      diagBox.appendChild(diagList);
-      root.appendChild(diagBox);
+      diagCard.appendChild(diagList);
       void (async () => {
         const items = await collectDiagnostics({ installPromptRecorded: false });
         diagList.textContent = '';
@@ -190,27 +191,36 @@ export function createAdminScreen(ctx: AppContext): Screen {
       })();
 
       // ---- アプリとしてインストール (beforeinstallprompt が保存されているときだけ押せる) ----
+      const installNotice = noticeIn(installCard);
       const installBtn = createButton({
         label: 'アプリとしてインストール',
-        variant: 'primary',
+        variant: 'secondary',
+        lockedReason: hasInstallPromptEvent() ? undefined : 'この端末では、いまはインストールできません',
+        onLocked: (reason) => {
+          installNotice.textContent = reason;
+        },
         onClick: async () => {
           const result = await promptInstall();
           if (result !== null) {
             ctx.logger.log('info', `インストールの確認: ${result.outcome === 'accepted' ? '受け入れられた' : '見送られた'} (${result.outcome})`);
           }
-          installBtn.disabled = true; // prompt() は1回しか使えないので押せなく戻す
+          setLockedReason(installBtn, 'インストールの確認は1回だけです'); // prompt() は1回しか使えないので押せなく戻す
         },
       });
-      // 保存したイベントが無いときは押せない
-      installBtn.disabled = !hasInstallPromptEvent();
-      root.appendChild(installBtn);
+      installCard.insertBefore(installBtn, installNotice);
 
       // ---- 今すぐ新しい版に切り替える (新しい版が届いているときだけ押せる) ----
+      const updateNotice = noticeIn(updateCard);
       const updateBtn = createButton({
         label: '今すぐ新しい版に切り替える',
         variant: 'secondary',
+        lockedReason: isUpdateAvailable() ? undefined : '新しい版はまだ届いていません',
+        onLocked: (reason) => {
+          updateNotice.textContent = reason;
+        },
         onClick: async () => {
           const ok = await confirmDialog(root, {
+            title: '新しい版に切り替える',
             message: '新しい版に切り替えますか? (画面が再読み込みされます)',
             okLabel: '切り替える',
             cancelLabel: 'やめる',
@@ -223,16 +233,9 @@ export function createAdminScreen(ctx: AppContext): Screen {
           await applyUpdateNow(); // 画面が再読み込みされる
         },
       });
-      updateBtn.disabled = !isUpdateAvailable(); // 届いていないときは押せない
-      root.appendChild(updateBtn);
+      updateCard.insertBefore(updateBtn, updateNotice);
 
       // ---- ログ ----
-      const logBox = document.createElement('div');
-      logBox.classList.add('admin__state');
-      const logTitle = document.createElement('p');
-      logTitle.classList.add('settings__label');
-      logTitle.textContent = 'ログ';
-      logBox.appendChild(logTitle);
       const logList = document.createElement('ul');
       logList.classList.add('admin__list');
       for (const entry of ctx.logger.entries()) {
@@ -240,8 +243,7 @@ export function createAdminScreen(ctx: AppContext): Screen {
         li.textContent = `${entry.at} [${entry.level}] ${entry.message}`;
         logList.appendChild(li);
       }
-      logBox.appendChild(logList);
-      root.appendChild(logBox);
+      logCard.appendChild(logList);
 
       container.textContent = '';
       container.appendChild(root);

@@ -20,39 +20,30 @@ describe('settingsScreen (選択中ボタンの見た目)', () => {
     document.body.textContent = '';
   });
 
-  it('選ばれているボタンにだけ「✓」と settings__current が付く', async () => {
+  /** 選ぶ部品 (choice) の中で、選ばれている (aria-pressed=true) ボタンの文字 */
+  const pressedOf = (row: Element): string[] =>
+    Array.from(row.querySelectorAll('.choice button'))
+      .filter((x) => x.getAttribute('aria-pressed') === 'true')
+      .map((x) => x.textContent ?? '');
+
+  it('選ばれているボタンにだけ aria-pressed=true と「✓」が付く', async () => {
     const ctx = await makeCtx();
     const container = document.createElement('div');
     document.body.appendChild(container);
     const screen = createSettingsScreen(ctx);
     screen.mount(container, {});
+    const rows = Array.from(document.querySelectorAll('.settings__row'));
 
-    // 文字の大きさ: 既定 large → 「大」に ✓
-    const fontRow = Array.from(document.querySelectorAll('.settings__row'))[2]!;
-    const fontBtns = Array.from(fontRow.querySelectorAll('button'));
-    const large = fontBtns.find((b) => b.textContent === '✓ 大');
-    const xlarge = fontBtns.find((b) => b.textContent === '特大');
-    expect(large).toBeDefined();
-    expect(large!.classList.contains('settings__current')).toBe(true);
-    expect(xlarge).toBeDefined();
-    expect(xlarge!.classList.contains('settings__current')).toBe(false);
-    expect(xlarge!.textContent).toBe('特大'); // 選ばれていない方に ✓ は付かない
-
-    // 音: 既定 soundOn=true → 「鳴らす」に ✓
-    const soundRow = Array.from(document.querySelectorAll('.settings__row'))[3]!;
-    const soundBtns = Array.from(soundRow.querySelectorAll('button'));
-    expect(soundBtns.find((b) => b.textContent === '✓ 鳴らす')?.classList.contains('settings__current')).toBe(true);
-    expect(soundBtns.find((b) => b.textContent === '鳴らさない')?.classList.contains('settings__current')).toBe(false);
-
-    // 音の大きさ: 既定 volume 0.7 → 「中」に ✓
-    const volumeRow = Array.from(document.querySelectorAll('.settings__row'))[4]!;
-    const volumeBtns = Array.from(volumeRow.querySelectorAll('button'));
-    expect(volumeBtns.find((b) => b.textContent === '✓ 中')?.classList.contains('settings__current')).toBe(true);
-    expect(volumeBtns.find((b) => b.textContent === '小')?.classList.contains('settings__current')).toBe(false);
-    expect(volumeBtns.find((b) => b.textContent === '大')?.classList.contains('settings__current')).toBe(false);
+    // 文字の大きさ: 既定 large → 「大」だけ
+    expect(pressedOf(rows[2]!)).toEqual(['✓大']);
+    expect(Array.from(rows[2]!.querySelectorAll('.choice button')).map((b) => b.textContent)).toEqual(['✓大', '特大']);
+    // 音: 既定 soundOn=true → 「鳴らす」だけ
+    expect(pressedOf(rows[3]!)).toEqual(['✓鳴らす']);
+    // 音の大きさ: 既定 volume 0.7 → 「中」だけ
+    expect(pressedOf(rows[4]!)).toEqual(['✓中']);
   });
 
-  it('選択を変えると ✓ と settings__current が移る', async () => {
+  it('選択を変えると ✓ が移る', async () => {
     const ctx = await makeCtx();
     const container = document.createElement('div');
     document.body.appendChild(container);
@@ -60,14 +51,36 @@ describe('settingsScreen (選択中ボタンの見た目)', () => {
     screen.mount(container, {});
 
     const volumeRow = Array.from(document.querySelectorAll('.settings__row'))[4]!;
-    const big = Array.from(volumeRow.querySelectorAll('button')).find((b) => b.textContent === '大')!;
+    const big = Array.from(volumeRow.querySelectorAll('.choice button')).find((b) => b.textContent === '大') as HTMLButtonElement;
     big.click();
     await vi_waitForVolume(ctx, 1.0);
 
     // 再描画後: 「大」に ✓ が付き、「中」からは消える
-    const btns = Array.from(volumeRow.querySelectorAll('button'));
-    expect(btns.find((b) => b.textContent === '✓ 大')?.classList.contains('settings__current')).toBe(true);
-    expect(btns.find((b) => b.textContent === '✓ 中')).toBeUndefined();
+    expect(pressedOf(volumeRow)).toEqual(['✓大']);
+    expect(Array.from(volumeRow.querySelectorAll('.choice button')).map((b) => b.textContent)).toEqual(['小', '中', '✓大']);
+  });
+
+  it('文字の大きさの「特大」を押すと設定が変わる', async () => {
+    const ctx = await makeCtx();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    createSettingsScreen(ctx).mount(container, {});
+    const fontRow = Array.from(document.querySelectorAll('.settings__row'))[2]!;
+    const xl = Array.from(fontRow.querySelectorAll('.choice button')).find((b) => b.textContent === '特大') as HTMLButtonElement;
+    xl.click();
+    const { vi } = await import('vitest');
+    await vi.waitFor(() => {
+      expect(ctx.settings.get().fontScale).toBe('xlarge');
+    });
+  });
+
+  it('節の見出しが3つ (お店とお名前・見やすさと音・ことば)', async () => {
+    const ctx = await makeCtx();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    createSettingsScreen(ctx).mount(container, {});
+    const heads = Array.from(document.querySelectorAll('.section-heading')).map((h) => h.textContent);
+    expect(heads).toEqual(['お店とお名前', '見やすさと音', 'ことば']);
   });
 });
 
@@ -90,9 +103,9 @@ describe('T1-17: 設定画面の「戻る」と「管理者」の配置', () => 
     const screen = createSettingsScreen(ctx);
     screen.mount(container, {});
     // 題名「設定」と同じ見出しの要素の中に「戻る」がある
-    const bar = document.querySelector('.settings__bar');
+    const bar = document.querySelector('.screen-header');
     expect(bar).not.toBeNull();
-    expect(bar!.querySelector('.settings__title')?.textContent).toBe('設定');
+    expect(bar!.querySelector('.screen-header__title')?.textContent).toBe('設定');
     const backInBar = Array.from(bar!.querySelectorAll('button')).find((b) => b.textContent === '戻る');
     expect(backInBar).toBeDefined();
     // 画面の下に単独の「戻る」は無い (見出しの外に戻るボタンがない)
@@ -104,19 +117,16 @@ describe('T1-17: 設定画面の「戻る」と「管理者」の配置', () => 
     expect(bar!.compareDocumentPosition(adminBtn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('「管理者」が画面の最後の要素の中にあり、区切りの線の要素がある', async () => {
+  it('「管理者」が画面の最後の要素の中にある', async () => {
     const ctx = await makeCtx();
     const container = document.createElement('div');
     document.body.appendChild(container);
     const screen = createSettingsScreen(ctx);
     screen.mount(container, {});
-    const root = container.querySelector('.settings')!;
+    const page = container.querySelector('.settings .page')!;
     const adminArea = document.querySelector('.settings__admin')!;
-    // 管理者が root の最後の要素
-    expect(root.lastElementChild).toBe(adminArea);
-    // 区切りの線の要素が admin の直前にある
-    const divider = adminArea.previousElementSibling;
-    expect(divider?.classList.contains('settings__divider')).toBe(true);
+    // 管理者が中身の最後の要素
+    expect(page.lastElementChild).toBe(adminArea);
   });
 });
 

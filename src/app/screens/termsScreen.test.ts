@@ -77,9 +77,9 @@ describe('T1-19: 呼び名の変更画面の区分け', () => {
     document.body.appendChild(container);
     const screen = createTermsScreen(ctx);
     screen.mount(container, {});
-    const bar = document.querySelector('.settings__bar');
+    const bar = document.querySelector('.screen-header');
     expect(bar).not.toBeNull();
-    expect(bar!.querySelector('.settings__title')?.textContent).toBe('呼び名の変更');
+    expect(bar!.querySelector('.screen-header__title')?.textContent).toBe('呼び名の変更');
     const backInBar = Array.from(bar!.querySelectorAll('button')).find((b) => b.textContent === '戻る');
     expect(backInBar).toBeDefined();
   });

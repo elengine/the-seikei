@@ -467,28 +467,24 @@ body {
 }
 
 
-.settings {
+.settings,
+.terms {
   height: 100%;
   box-sizing: border-box;
   overflow-y: auto;
-  padding: var(--gap) calc(var(--gap) * 2) calc(var(--gap) * 4);
-  display: flex;
-  flex-direction: column;
-  gap: calc(var(--gap) * 1.5);
 }
 
-.settings__bar {
-  display: flex;
-  align-items: center;
-  gap: var(--gap);
-  padding: 0 var(--gap);
+.settings__section,
+.terms__section,
+.admin__section {
+  margin-bottom: var(--sp-6);
 }
 
-.settings__title {
-  flex: 1;
-  text-align: center;
-  font-size: var(--fs-heading);
-  margin: 0;
+.settings__card,
+.terms__rows,
+.admin__card {
+  padding-top: var(--sp-2);
+  padding-bottom: var(--sp-2);
 }
 
 .settings__row {
@@ -496,7 +492,13 @@ body {
   display: grid;
   grid-template-columns: minmax(9em, auto) 1fr auto;
   align-items: center;
-  gap: var(--gap);
+  gap: var(--sp-4);
+  padding: var(--sp-3) 0;
+}
+
+.settings__row + .settings__row,
+.terms__row + .terms__row {
+  border-top: 1px solid var(--c-line-soft);
 }
 
 .settings__label {
@@ -516,24 +518,13 @@ body {
 
 .settings__actions {
   display: flex;
-  gap: var(--gap);
+  gap: var(--sp-4);
   flex-wrap: wrap;
   justify-content: flex-end;
 }
 
-.settings__current {
-  background: var(--c-ai);
-  color: var(--c-white);
-}
-
-.settings__divider {
-  border: none;
-  border-top: 1px solid var(--c-steel);
-  margin: calc(var(--gap) * 3) 0; /* 上下に 48px 以上の余白 (--gap=16 の3倍) */
-}
-
 .settings__admin {
-  margin-top: auto;
+  margin-top: var(--sp-7);
   display: flex;
   justify-content: flex-start; /* 一番下の左に置く */
 }
@@ -541,6 +532,8 @@ body {
 .settings__admin-btn {
   min-height: var(--btn-min-h);
   font-size: var(--fs-body);
+  border-color: var(--c-muted);
+  color: var(--c-muted);
 }
 
 /* 細い画面 (600px 未満) は2段: 1段目が項目名、2段目が今の値とボタン */
@@ -557,68 +550,49 @@ body {
 
 /* ---- 呼び名の変更と管理者メニュー ---- */
 
-.terms {
-  height: 100%;
-  box-sizing: border-box;
-  overflow-y: auto;
-  padding: var(--gap) calc(var(--gap) * 2) calc(var(--gap) * 4);
-  display: flex;
-  flex-direction: column;
-  gap: calc(var(--gap) * 1.5);
+.terms__row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-3) 0;
 }
 
-.terms__list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap);
-}
-
-/* T1-19: 「整経の用語」と「ゲームの名前」の区画 */
-.terms__section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap);
-}
-
-.terms__section + .terms__section {
-  border-top: 1px solid var(--c-steel);
-  margin-top: 24px;
-  padding-top: 24px;
-}
-
-.terms__head {
+.terms__value {
   font-size: var(--fs-label);
   font-weight: 700;
   margin: 0;
 }
 
-.terms__row {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  gap: var(--gap);
-}
-
-.terms__value {
-  font-size: var(--fs-heading);
-  margin: 0;
-}
-
 .terms__desc {
   font-size: var(--fs-body);
-  color: var(--c-sumi-sub);
+  color: var(--c-muted);
   margin: 0;
 }
 
-.admin__state {
-  margin-top: var(--gap);
+.admin__card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-3);
 }
 
 .admin__list {
   font-size: var(--fs-body);
   color: var(--c-sumi-sub);
-  margin: var(--gap) 0 0;
+  margin: 0;
   padding-left: 1.4em;
+  overflow-wrap: anywhere;
+}
+
+.admin__notice {
+  margin: 0;
+  font-size: var(--fs-body);
+  color: var(--c-sumi-sub);
+}
+
+.admin__notice:empty {
+  display: none;
 }
 
 
