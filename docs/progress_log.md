@@ -928,3 +928,39 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
     2つ目は game.creel・game.winding・game.beaming など (game. のみ)。
   - 入力の画面の題名は「『クリール』の呼び名」(キーの英字は出ない)。「戻る」は題名と同じ行の左。
 - CI: success (コミット 08eedb2 の push のあとに確認)。
+
+
+## 2026-09-30 T1-20: 遊び方の説明文の呼び名の置き換え、「ヒント」が使える条件の表示と説明
+
+- やったこと:
+  - A. 遊び方の説明文の {{…}}: showTutorial の opts に renderText (無ければ文をそのまま) を足し、
+    各ページの文は renderText を通してから表示するようにした。
+    呼び出す2か所 (gameScreen.ts の初回の遊び方・games/creel/controller.ts の「遊び方」ボタン) で、
+    それぞれ ctx.terms.render・deps.terms.render を渡した。
+    呼び名を設定で変えた場合も変えた呼び名で表示される (terms.render のため)。
+  - B. ヒントのボタン: checks が HINT_MIN_CHECKS (2) 未満のとき「ヒント(あと N 回)」
+    (N は HINT_MIN_CHECKS − checks)。使えるときは「ヒント」。
+    完成後・✕ が無いとき (checks は足りているが使えない) も「ヒント」のまま押せない。
+    文字の大きさ・ボタンの高さは変えていない。
+  - C. 遊び方に4ページ目を足した: 文は「「確認する」を2回押しても ✕ が残るときは、
+    「ヒント」で1か所を直せます(ヒントを使うと星は1つになります)」
+    (starsOf の決まりと食い違わない)。
+    絵は ✕ の付いたマスの横に「ヒント」のボタンの形を描き、矢印の先で ✕ が
+    正しい色のマスに変わる様子。
+    あわせて tutorial.ts の直書きの色 ('#2B2A24' など) を tokens の COLORS に、
+    書体 (sans-serif) を FONT_FAMILY に置き換えた。
+- テスト (先に書いて RED を確認): gameParts.test.ts に2件 (renderText で置き換わる・
+  渡さないとそのまま)。panel.test.ts に1件 (最初「ヒント(あと 2 回)」で押せない、
+  1回確認で「ヒント(あと 1 回)」、2回で「ヒント」になり押せる)。
+  tutorial.test.ts を新規に3件 (4ページで4ページ目に「ヒント」「確認する」「星は1つ」、
+  2ページ目が {{spindle}}・{{cone}} を含む、tutorial.ts に直書きの色・sans-serif が無い)。
+- 報告直前の確認: npm run check エラー0 / npm test 388 passed・11 skipped / npm run build 成功。
+- ブラウザ確認 (build → preview 4173、SW 掃除のうえ新規タブ):
+  - 遊び方が4ページ。2ページ目は「品番の書かれた箱を選び、軸に触れるとコーンが立ちます」
+    ({{…}} が出ない)。設定で「コーン」の呼び名を「糸かたまり」に変えると、
+    遊び方の2ページ目が「…軸に触れると糸かたまりが立ちます」になった (1180×820・412×915 の両方)。
+  - ヒントのボタンの文字は「ヒント(あと 2 回)」→ 確認1回で「ヒント(あと 1 回)」→
+    2回で「ヒント」になり押せる (段階1と、IndexedDB に確認用の記録を書いて解放した段階5 の両方)。
+    操作欄のスクロールは出ない (scrollHeight = clientHeight)。
+  - 412×915: ボタンの文字は折り返さず (高さ 64px のまま)、はみ出し無し (scrollWidth = clientWidth)。
+- CI: success (push のあとに確認)。
