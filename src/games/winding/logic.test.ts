@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { init, reduce, qualities, starsOf, isValidResume, lastTapResult } from './logic';
-import { resultOf } from './messages';
+import { resultOf, messageFor } from './messages';
 import type { WindingState } from './logic';
 import { paramsOf, SECTION_LENGTH, MAX_SPEED, TENSION } from './params';
 import { tensionOf } from '../../core/mechanics/pedal';
@@ -332,5 +332,53 @@ describe('T2-09 追加修正a (糸量の +4 をやめる)', () => {
     const t0 = tensionOf(s, p, 0);
     const t9 = tensionOf(s, p, 0.9);
     expect(t0).toBe(t9);
+  });
+});
+
+describe('T2-09 追加修正b (複数の糸切れの文言と回数)', () => {
+  /** 2本切れた State を作る */
+  function twoBroken(): WindingState {
+    const s = init({ level: 3, patternId: 'p-alt-kon', sections: 7, seed: 5 });
+    return { ...s, phase: 'broken', brk: { kind: 'broken', threads: [1, 4], tied: [], first: null } };
+  }
+
+  it('1. mismatch の文は「その端は別の糸です」を含む', () => {
+    const s = twoBroken();
+    const first = reduce(s, { type: 'tapEnd', thread: 1, side: 'creel' });
+    const next = reduce(first, { type: 'tapEnd', thread: 4, side: 'creel' });
+    expect(next.wrongTaps).toBe(first.wrongTaps); // mismatch は wrongTaps に数えない (仕様 C-4)
+    const text = messageFor(next, first, next, (x: string) => x);
+    expect(text).toContain('その端は別の糸です');
+  });
+
+  it('2. 1本つないで残りがあるとき、文は「1本つながりました。あと 1 本です」の形', () => {
+    const s = twoBroken();
+    const first = reduce(s, { type: 'tapEnd', thread: 1, side: 'creel' });
+    const next = reduce(first, { type: 'tapEnd', thread: 1, side: 'drum' });
+    const text = messageFor(next, first, next, (x: string) => x);
+    expect(text).toContain('1本つながりました');
+    expect(text).toContain('あと 1 本');
+  });
+
+  it('3. mismatch のたびに mismatches が1増える。init は 0。resume でも保存される', () => {
+    const s = twoBroken();
+    expect(s.mismatches).toBe(0);
+    const first = reduce(s, { type: 'tapEnd', thread: 1, side: 'creel' });
+    const next = reduce(first, { type: 'tapEnd', thread: 4, side: 'creel' });
+    expect(next.mismatches).toBe(1);
+    expect(isValidResume(next)).toBe(true);
+    // mismatches が無い (古いセーブ) は resume できない
+    const old = JSON.parse(JSON.stringify(next)) as Record<string, unknown>;
+    delete old.mismatches;
+    expect(isValidResume(old as never)).toBe(false);
+  });
+});
+
+describe('T2-09 追加修正b (成績欄)', () => {
+  it('4. 結果の成績欄に「違う端を結ぼうとした回数 N回」がある', () => {
+    const s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 3 });
+    const done = { ...s, phase: 'done' as const, mismatches: 2 };
+    const r = resultOf(done, 'standalone', '2026-09-30T21:00:00+09:00');
+    expect(r.summary?.some((line) => line.includes('違う端を結ぼうとした回数 2回'))).toBe(true);
   });
 });

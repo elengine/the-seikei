@@ -29,6 +29,7 @@ export interface WindingState {
   brk: BreakState;
   breaks: number;
   wrongTaps: number;
+  mismatches: number; // 違う端を結ぼうとした回数 (mismatch。星には影響しない。T2-09 追加修正b)
   rng: RngState;
 }
 
@@ -85,6 +86,7 @@ export function init(opts: { level: Level; patternId: string; sections: number; 
     brk: initBreak(),
     breaks: 0,
     wrongTaps: 0,
+  mismatches: 0,
     rng: r.rng,
   };
 }
@@ -118,9 +120,13 @@ export function reduce(s: WindingState, a: WindingAction): WindingState {
         // 全部つながった。ペダルは切れたときに 0 になっているので、0 のまま 'winding' に戻る
         return { ...s, brk: r.state, phase: 'winding' };
       }
-      if (r.result === 'tiedOne' || r.result === 'mismatch') {
-        // 1本つながった / 別の糸だった。まだ 'broken' のまま
+      if (r.result === 'tiedOne') {
+        // 1本つながった。まだ 'broken' のまま
         return { ...s, brk: r.state };
+      }
+      if (r.result === 'mismatch') {
+        // 違う端を結ぼうとした (T2-09 追加修正b)
+        return { ...s, brk: r.state, mismatches: s.mismatches + 1 };
       }
       return { ...s, brk: r.state };
     }
@@ -242,8 +248,11 @@ export function isValidResume(x: unknown): x is WindingState {
       if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) return false;
     }
   }
-  for (const key of ['breaks', 'wrongTaps', 'tension', 'elapsedMs'] as const) {
+  for (const key of ['breaks', 'wrongTaps', 'mismatches', 'tension', 'elapsedMs'] as const) {
     if (typeof o[key] !== 'number' || !Number.isFinite(o[key])) return false;
+  }
+  if (typeof o.mismatches !== 'number' || !Number.isInteger(o.mismatches) || o.mismatches < 0) {
+    return false;
   }
   if (typeof o.patternId !== 'string') return false;
   if (typeof o.rng !== 'number') return false;

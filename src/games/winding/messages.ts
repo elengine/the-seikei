@@ -33,14 +33,16 @@ export function messageFor(s: WindingState, prev: WindingState | undefined, next
       return render('その糸は切れていません');
     }
     if (tap === 'mismatch') {
-      return render('別の糸です。結ぶ糸の両方の切れ端を押してください');
+      return render('その端は別の糸です。同じ糸の両端をつないでください');
     }
-    if (tap === 'tiedOne') {
-      return render('つながりました。残りの切れた糸もつないでください');
+    if (tap === 'tiedOne' && s.brk.kind === 'broken') {
+      const left = s.brk.threads.length;
+      return render(`1本つながりました。あと ${left} 本です`);
     }
     if (s.brk.kind === 'broken') {
       if (s.brk.tied.length > 0 && s.brk.first === null) {
-        return render('つながりました。残りの切れた糸もつないでください');
+        const left = s.brk.threads.length;
+        return render(`1本つながりました。あと ${left} 本です`);
       }
       if (s.brk.first !== null) {
         return render('もう一方の切れ端を押してください');
@@ -99,6 +101,7 @@ export function resultOf(s: WindingState, mode: GameProps['mode'], finishedAt: s
       `巻いた時間 ${msToText(s.elapsedMs)}(目標 ${msToText(target)})`,
       `糸切れ ${s.breaks}回`,
       `違う糸を押した回数 ${s.wrongTaps}回`,
+      `違う端を結ぼうとした回数 ${s.mismatches}回`,
     ],
     finishedAt,
   };
