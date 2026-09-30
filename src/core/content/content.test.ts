@@ -22,14 +22,14 @@ function validRaw(): { colors: unknown; yarns: unknown; patterns: unknown; creel
 }
 
 describe('loadContent', () => {
-  it('本物の4つの JSON を読み込むと problems が空で、お題5件・柄5件', () => {
+  it('本物の4つの JSON を読み込むと problems が空で、お題15件・柄15件', () => {
     const content = getContent();
     expect(content.problems).toEqual([]);
-    expect(content.creelPuzzles).toHaveLength(5);
-    expect(content.patterns.size).toBe(5);
-    // stage の昇順に並んでいる
+    expect(content.creelPuzzles).toHaveLength(15);
+    expect(content.patterns.size).toBe(15);
+    // stage の昇順に並んでいる (各段階3題ずつ)
     const stages = content.creelPuzzles.map((p) => p.stage);
-    expect(stages).toEqual([1, 2, 3, 4, 5]);
+    expect(stages).toEqual([1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5]);
   });
 
   it('存在しない yarn を参照する柄は読み飛ばされ、problems に入る', () => {
@@ -86,5 +86,62 @@ describe('loadContent', () => {
     expect(content.yarns.has('kon-b')).toBe(false);
     expect(content.yarns.has('kon-a')).toBe(true);
     expect(content.problems).toHaveLength(1);
+  });
+});
+
+describe('T1-16: お題15題・糸の色11色', () => {
+  const content = getContent();
+
+  it('色が11、糸が16、柄が15、お題が15', () => {
+    expect(content.colors.size).toBe(11);
+    expect(content.yarns.size).toBe(16);
+    expect(content.patterns.size).toBe(15);
+    expect(content.creelPuzzles).toHaveLength(15);
+  });
+
+  it('お題の順番: 段階が 1,1,1,2,2,2,3,3,3,4,4,4,5,5,5 の順に並ぶ', () => {
+    const stages = content.creelPuzzles.map((p) => p.stage);
+    expect(stages).toEqual([1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5]);
+  });
+
+  it('どの色の記号も重ならず、どの品番も重ならない', () => {
+    const symbols = [...content.colors.values()].map((c) => c.symbol);
+    expect(new Set(symbols).size).toBe(symbols.length);
+    const hinbans = [...content.yarns.values()].map((y) => y.hinban);
+    expect(new Set(hinbans).size).toBe(hinbans.length);
+  });
+
+  it('15題すべてで answerFor の長さが rows × cols。段階1は色1つ、段階2は色2つ、段階4は同じ色で品番が違う糸を含む', async () => {
+    const { answerFor } = await import('../../core/domain/stripe');
+    for (const puzzle of content.creelPuzzles) {
+      const pattern = content.patterns.get(puzzle.patternId)!;
+      const answer = answerFor(puzzle, pattern);
+      expect(answer).toHaveLength(puzzle.rows * puzzle.cols);
+    }
+    // 段階ごとの色数
+    for (const puzzle of content.creelPuzzles) {
+      const pattern = content.patterns.get(puzzle.patternId)!;
+      const answer = answerFor(puzzle, pattern);
+      const colors = new Set(answer.map((yarnId) => content.yarns.get(yarnId)!.color));
+      if (puzzle.stage === 1) {
+        expect(colors.size).toBe(1);
+      } else if (puzzle.stage === 2) {
+        expect(colors.size).toBe(2);
+      } else if (puzzle.stage === 3) {
+        expect(colors.size).toBeGreaterThanOrEqual(2);
+        expect(colors.size).toBeLessThanOrEqual(3);
+      } else if (puzzle.stage === 4) {
+        // 同じ色で品番が違う糸を含む
+        const byColor = new Map<string, Set<string>>();
+        for (const yarnId of answer) {
+          const color = content.yarns.get(yarnId)!.color;
+          const set = byColor.get(color) ?? new Set<string>();
+          set.add(yarnId);
+          byColor.set(color, set);
+        }
+        const dup = [...byColor.values()].some((ids) => ids.size >= 2);
+        expect(dup).toBe(true);
+      }
+    }
   });
 });

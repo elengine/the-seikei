@@ -1,10 +1,68 @@
 [
-  { "id": "kon", "name": "紺", "hex": "#1F2A44", "symbol": "●" },
-  { "id": "kuro", "name": "黒", "hex": "#1A1A1A", "symbol": "■" },
-  { "id": "charcoal", "name": "チャコール", "hex": "#3C3C3C", "symbol": "▲" },
-  { "id": "hai", "name": "灰", "hex": "#8A8A8A", "symbol": "◆" },
-  { "id": "shiro", "name": "白", "hex": "#F2F0EA", "symbol": "○" },
-  { "id": "mizu", "name": "水色", "hex": "#8DB4D6", "symbol": "△" },
-  { "id": "enji", "name": "えんじ", "hex": "#7A2632", "symbol": "★" },
-  { "id": "cha", "name": "茶", "hex": "#6B4A2F", "symbol": "□" }
+ {
+  "id": "kon",
+  "name": "紺",
+  "hex": "#1F2A44",
+  "symbol": "●"
+ },
+ {
+  "id": "kuro",
+  "name": "黒",
+  "hex": "#1A1A1A",
+  "symbol": "■"
+ },
+ {
+  "id": "charcoal",
+  "name": "チャコール",
+  "hex": "#3C3C3C",
+  "symbol": "▲"
+ },
+ {
+  "id": "hai",
+  "name": "灰",
+  "hex": "#8A8A8A",
+  "symbol": "◆"
+ },
+ {
+  "id": "shiro",
+  "name": "白",
+  "hex": "#F2F0EA",
+  "symbol": "○"
+ },
+ {
+  "id": "mizu",
+  "name": "水色",
+  "hex": "#8DB4D6",
+  "symbol": "△"
+ },
+ {
+  "id": "enji",
+  "name": "えんじ",
+  "hex": "#7A2632",
+  "symbol": "★"
+ },
+ {
+  "id": "cha",
+  "name": "茶",
+  "hex": "#6B4A2F",
+  "symbol": "□"
+ },
+ {
+  "id": "ao",
+  "name": "青",
+  "hex": "#2F5D9A",
+  "symbol": "▼"
+ },
+ {
+  "id": "midori",
+  "name": "深緑",
+  "hex": "#2E4A3A",
+  "symbol": "◎"
+ },
+ {
+  "id": "beige",
+  "name": "ベージュ",
+  "hex": "#CDBA96",
+  "symbol": "◇"
+ }
 ]

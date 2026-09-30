@@ -1,78 +1,103 @@
 [
-  {
-    "id": "kon-a",
-    "color": "kon",
-    "hinban": "W-4812",
-    "spec": "ウール 2/48"
-  },
-  {
-    "id": "kon-b",
-    "color": "kon",
-    "hinban": "W-4821",
-    "spec": "ウール 2/60",
-    "tone": -10
-  },
-  {
-    "id": "kon-c",
-    "color": "kon",
-    "hinban": "W-5310",
-    "spec": "ウール紡毛 1/20",
-    "tone": 18
-  },
-  {
-    "id": "kuro-a",
-    "color": "kuro",
-    "hinban": "W-1200",
-    "spec": "ウール 2/48"
-  },
-  {
-    "id": "charcoal-a",
-    "color": "charcoal",
-    "hinban": "W-3300",
-    "spec": "ウール 2/48"
-  },
-  {
-    "id": "charcoal-b",
-    "color": "charcoal",
-    "hinban": "W-3360",
-    "spec": "ウール 2/60",
-    "tone": -12
-  },
-  {
-    "id": "hai-a",
-    "color": "hai",
-    "hinban": "W-2410",
-    "spec": "ウール 2/48"
-  },
-  {
-    "id": "hai-b",
-    "color": "hai",
-    "hinban": "W-2460",
-    "spec": "ウール紡毛 1/20",
-    "tone": 12
-  },
-  {
-    "id": "shiro-a",
-    "color": "shiro",
-    "hinban": "W-2200",
-    "spec": "ウール 2/48"
-  },
-  {
-    "id": "mizu-a",
-    "color": "mizu",
-    "hinban": "W-6120",
-    "spec": "ウール 2/48"
-  },
-  {
-    "id": "enji-a",
-    "color": "enji",
-    "hinban": "W-7040",
-    "spec": "ウール 2/48"
-  },
-  {
-    "id": "cha-a",
-    "color": "cha",
-    "hinban": "W-8150",
-    "spec": "ウール 2/48"
-  }
+ {
+  "id": "kon-a",
+  "color": "kon",
+  "hinban": "W-4812",
+  "spec": "ウール 2/48"
+ },
+ {
+  "id": "kon-b",
+  "color": "kon",
+  "hinban": "W-4821",
+  "spec": "ウール 2/60",
+  "tone": -10
+ },
+ {
+  "id": "kon-c",
+  "color": "kon",
+  "hinban": "W-5310",
+  "spec": "ウール紡毛 1/20",
+  "tone": 18
+ },
+ {
+  "id": "kuro-a",
+  "color": "kuro",
+  "hinban": "W-1200",
+  "spec": "ウール 2/48"
+ },
+ {
+  "id": "charcoal-a",
+  "color": "charcoal",
+  "hinban": "W-3300",
+  "spec": "ウール 2/48"
+ },
+ {
+  "id": "charcoal-b",
+  "color": "charcoal",
+  "hinban": "W-3360",
+  "spec": "ウール 2/60",
+  "tone": -12
+ },
+ {
+  "id": "hai-a",
+  "color": "hai",
+  "hinban": "W-2410",
+  "spec": "ウール 2/48"
+ },
+ {
+  "id": "hai-b",
+  "color": "hai",
+  "hinban": "W-2460",
+  "spec": "ウール紡毛 1/20",
+  "tone": 12
+ },
+ {
+  "id": "shiro-a",
+  "color": "shiro",
+  "hinban": "W-2200",
+  "spec": "ウール 2/48"
+ },
+ {
+  "id": "mizu-a",
+  "color": "mizu",
+  "hinban": "W-6120",
+  "spec": "ウール 2/48"
+ },
+ {
+  "id": "enji-a",
+  "color": "enji",
+  "hinban": "W-7040",
+  "spec": "ウール 2/48"
+ },
+ {
+  "id": "cha-a",
+  "color": "cha",
+  "hinban": "W-8150",
+  "spec": "ウール 2/48"
+ },
+ {
+  "id": "ao-a",
+  "color": "ao",
+  "hinban": "W-6340",
+  "spec": "ウール 2/48"
+ },
+ {
+  "id": "ao-b",
+  "color": "ao",
+  "hinban": "W-6430",
+  "spec": "ウール 2/60",
+  "tone": -8
+ },
+ {
+  "id": "midori-a",
+  "color": "midori",
+  "hinban": "W-7520",
+  "spec": "ウール 2/48"
+ },
+ {
+  "id": "beige-a",
+  "color": "beige",
+  "hinban": "W-8260",
+  "spec": "ウール 2/48"
+ }
 ]

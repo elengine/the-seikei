@@ -94,8 +94,11 @@ describe('createCreelModule', () => {
     const parent2 = document.createElement('div');
     document.body.appendChild(parent2);
     module2.mount(parent2, { mode: 'standalone', onFinish: () => undefined, onExit: () => undefined });
+    // s1 の星があると、次の未クリアのお題 (s1-2。T1-16 で追加) が押せる
+    const s1b2 = parent2.querySelector<HTMLButtonElement>('[data-testid="creel-puzzle-s1-2"]');
+    expect(s1b2?.disabled).toBe(false);
     const s2b = parent2.querySelector<HTMLButtonElement>('[data-testid="creel-puzzle-s2"]');
-    expect(s2b?.disabled).toBe(false);
+    expect(s2b?.disabled).toBe(true);
     instance.unmount();
   });
 
@@ -300,17 +303,18 @@ describe('T1-15: プレイ画面の「戻る」でお題の一覧に戻る', () 
       confirmAnswers.push(true); // 「一覧に戻る」
       parent.querySelector<HTMLButtonElement>('.game-frame__bar-left')!.click();
       await vi.waitFor(() => {
-        expect(parent.querySelector('[data-testid="creel-puzzle-s2"]')).not.toBeNull();
+        // s1 がクリア済みなので、次の未クリアのお題 (s1-2。T1-16 で追加) が押せる
+        expect(parent.querySelector('[data-testid="creel-puzzle-s1-2"]')).not.toBeNull();
       }, { timeout: 5000 });
       // 「やめる」→ 一覧のまま
       confirmAnswers.push(false);
-      parent.querySelector<HTMLButtonElement>('[data-testid="creel-puzzle-s2"]')!.click();
+      parent.querySelector<HTMLButtonElement>('[data-testid="creel-puzzle-s1-2"]')!.click();
       await new Promise((r) => setTimeout(r, 10));
       expect(parent.querySelector('canvas')).toBeNull();
-      expect(parent.querySelector('[data-testid="creel-puzzle-s2"]')).not.toBeNull();
+      expect(parent.querySelector('[data-testid="creel-puzzle-s1-2"]')).not.toBeNull();
       // 「始める」→ 新しいお題が始まる
       confirmAnswers.push(true);
-      parent.querySelector<HTMLButtonElement>('[data-testid="creel-puzzle-s2"]')!.click();
+      parent.querySelector<HTMLButtonElement>('[data-testid="creel-puzzle-s1-2"]')!.click();
       await vi.waitFor(() => {
         expect(parent.querySelector('canvas')).not.toBeNull();
       }, { timeout: 5000 });
@@ -386,3 +390,45 @@ describe('T1-15: プレイ画面の「戻る」でお題の一覧に戻る', () 
     });
   });
 
+describe('T1-16: 追加したお題の箱と依頼書', () => {
+  function puzzleById(id: string): { stage: 1|2|3|4|5; rows: number; cols: number } & Record<string, unknown> {
+    return content.creelPuzzles.find((p) => p.id === id)! as unknown as { stage: 1|2|3|4|5; rows: number; cols: number } & Record<string, unknown>;
+  }
+
+  it('s3-3 (深緑とえんじの縞): 箱は3色 (深緑・えんじ・ベージュ) で、盤面が2段×8本で開く', async () => {
+    const deps = makeDeps();
+    const module = createCreelModule(deps);
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const state = init(puzzleById('s3-3') as never, content);
+    module.mount(parent, { mode: 'standalone', resume: state, onFinish: () => undefined, onExit: () => undefined });
+    expect(parent.querySelector('canvas')).not.toBeNull();
+    const boxes = Array.from(parent.querySelectorAll('[data-testid^="creel-box-"]')).map((b) => b.textContent ?? '');
+    expect(boxes).toHaveLength(3);
+    expect(boxes.join(' ')).toContain('W-7520'); // midori-a
+    expect(boxes.join(' ')).toContain('W-7040'); // enji-a
+    expect(boxes.join(' ')).toContain('W-8260'); // beige-a
+    // 依頼書に3行ある
+    const orderText = parent.querySelector('[data-testid="creel-order"]')?.textContent ?? '';
+    expect(orderText).toContain('W-7520');
+    expect(orderText).toContain('W-7040');
+    expect(orderText).toContain('W-8260');
+  });
+
+  it('s5-3 (紺と青の多色縞): 箱に似た品番 W-6340 と W-6430 が別々に出る', async () => {
+    const deps = makeDeps();
+    const module = createCreelModule(deps);
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const state = init(puzzleById('s5-3') as never, content);
+    module.mount(parent, { mode: 'standalone', resume: state, onFinish: () => undefined, onExit: () => undefined });
+    expect(parent.querySelector('canvas')).not.toBeNull();
+    const boxes = Array.from(parent.querySelectorAll('[data-testid^="creel-box-"]')).map((b) => b.textContent ?? '');
+    const joined = boxes.join(' ');
+    expect(joined).toContain('W-4812'); // kon-a
+    expect(joined).toContain('W-4821'); // kon-b
+    expect(joined).toContain('W-6340'); // ao-a
+    expect(joined).toContain('W-6430'); // ao-b (似た品番)
+    expect(joined).toContain('W-2200'); // shiro-a
+  });
+});
