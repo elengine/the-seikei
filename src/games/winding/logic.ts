@@ -1,12 +1,14 @@
 import type { RngState } from '../../core/clock/clock';
-import { seedFrom } from '../../core/clock/clock';
-import { initPedal, setPedal, speedOf, tensionOf, stepNoise } from '../../core/mechanics/pedal';
+import { seedFrom, nextFloat } from '../../core/clock/clock';
+import { initPedal, setPedal, speedOf, tensionOf, stepNoise, stepDrift, stepSnag } from '../../core/mechanics/pedal';
 import type { PedalState } from '../../core/mechanics/pedal';
 import { initBreak, stepBreak, tapEnd } from '../../core/mechanics/breakage';
 import type { BreakState } from '../../core/mechanics/breakage';
-import { SECTION_LENGTH, RANGE, BREAK_RATE, TENSION, BREAK, MAX_TICK_MS, STARS3, STARS2 } from './params';
+import {
+  SECTION_LENGTH, RANGE_WIDTH, RANGE_CENTER, DRIFT, NOISE_AMP, BREAK_RATE, TENSION, BREAK,
+  MAX_TICK_MS, STARS3, STARS2, TARGET_SEC_PER_SECTION,
+} from './params';
 import type { Level } from './params';
-
 
 export type { Level } from './params';
 
@@ -21,6 +23,9 @@ export interface WindingState {
   okMs: number[]; // 帯ごとの、適正範囲に入っていた時間
   pedal: PedalState;
   tension: number; // 最後に計算した張り(描画用)
+  range: { min: number; max: number }; // このお題の適正範囲 (お題ごとに乱数で決める。T2-09a)
+  snagRaised: boolean; // 直前の tick で引っかかった (メッセージ用。T2-09a)
+  elapsedMs: number; // 巻いていた時間と止まっていた時間の合計 (目標の時間の比較用。T2-09a)
   brk: BreakState;
   breaks: number;
   wrongTaps: number;
@@ -35,9 +40,9 @@ export type WindingAction =
   | { type: 'cut' } // 「帯の端を結ぶ」
   | { type: 'pausePedal' }; // 裏に回ったときなど、ペダルを 0 にする
 
-/** 難易度ごとの張りの計算のパラメータ */
-function tensionParams(level: Level): typeof TENSION {
-  return { ...TENSION, range: RANGE(level) };
+/** 難易度ごとの張りの計算のパラメータ (範囲は State のものを使う) */
+function tensionParams(level: Level, range: { min: number; max: number }) {
+  return { ...TENSION, noiseAmp: NOISE_AMP(level), range };
 }
 
 /** 難易度ごとの糸切れのパラメータ */
@@ -45,9 +50,19 @@ function breakParams(level: Level): typeof BREAK {
   return { ...BREAK, rate: BREAK_RATE(level) };
 }
 
+/** お題の適正範囲を乱数で決める (中心は RANGE_CENTER の中、幅は RANGE_WIDTH) */
+function rollRange(level: Level, rng: RngState): { range: { min: number; max: number }; rng: RngState } {
+  const center = RANGE_CENTER(level);
+  const width = RANGE_WIDTH(level);
+  const [raw, next] = nextFloat(rng);
+  const c = center.min + (center.max - center.min) * raw;
+  return { range: { min: c - width / 2, max: c + width / 2 }, rng: next };
+}
+
 /** 新しいゲームの状態。phase 'ready'、current 0、各配列は 0 で埋める */
 export function init(opts: { level: Level; patternId: string; sections: number; seed: number }): WindingState {
   const sections = opts.sections;
+  const r = rollRange(opts.level, seedFrom(opts.seed));
   return {
     level: opts.level,
     patternId: opts.patternId,
@@ -57,12 +72,15 @@ export function init(opts: { level: Level; patternId: string; sections: number; 
     lengths: new Array<number>(sections).fill(0),
     windMs: new Array<number>(sections).fill(0),
     okMs: new Array<number>(sections).fill(0),
-    pedal: initPedal(seedFrom(opts.seed)),
+    pedal: initPedal(r.rng),
     tension: TENSION.base,
+    range: r.range,
+    snagRaised: false,
+    elapsedMs: 0,
     brk: initBreak(),
     breaks: 0,
     wrongTaps: 0,
-    rng: seedFrom(opts.seed),
+    rng: r.rng,
   };
 }
 
@@ -109,36 +127,49 @@ export function reduce(s: WindingState, a: WindingAction): WindingState {
   }
 }
 
-/** tick。dtMs を MAX_TICK_MS で丸め、'winding' のときだけ進める */
+/** tick。dtMs を MAX_TICK_MS で丸め、'winding' と 'broken' で時間を進める */
 function tick(s: WindingState, dtMs: number): WindingState {
-  if (s.phase !== 'winding') return s;
+  if (s.phase !== 'winding' && s.phase !== 'broken') return s;
   const dt = Math.min(MAX_TICK_MS, Math.max(0, dtMs)) / 1000; // 秒
-  const tp = tensionParams(s.level);
+  const dtClamped = Math.min(MAX_TICK_MS, Math.max(0, dtMs));
+  const dp = DRIFT(s.level);
+  // 時間は巻いていた時間と止まっていた時間の合計 (糸切れを直している時間も含む。T2-09a)
+  const elapsedMs = s.elapsedMs + dtClamped;
+
+  if (s.phase === 'broken') {
+    // 糸切れ中は張りの流れだけ進む (戻したときの見た目のため)。切れは進まない
+    const drifted = stepDrift(s.pedal, dp, dtClamped);
+    return { ...s, pedal: drifted, elapsedMs, snagRaised: false };
+  }
+
+  const tp = tensionParams(s.level, s.range);
   const bp = breakParams(s.level);
 
-  // 1. noise を進める
-  const pedal = stepNoise(s.pedal, tp, Math.min(MAX_TICK_MS, Math.max(0, dtMs)));
-  // 2. progress を出して張りを計算し、保存する
+  // 1. noise → 流れ → 引っかかりを進める
+  let pedal = stepNoise(s.pedal, tp, dtClamped);
+  pedal = stepDrift(pedal, dp, dtClamped);
+  const snag = stepSnag(pedal, dp, dtClamped);
+  pedal = snag.state;
+  // 2. 張りを計算して保存する
   const curLen = s.lengths[s.current] ?? 0;
   const progress = (s.current + curLen / SECTION_LENGTH) / s.sections;
   const tension = tensionOf(pedal, tp, progress);
-  let cur: WindingState = { ...s, pedal, tension };
+  let cur: WindingState = { ...s, pedal, tension, elapsedMs, snagRaised: snag.raised > 0 };
 
   // 3. speed > 0 なら長さを進め、糸切れの判定をする
   const speed = speedOf(pedal, tp);
   if (speed > 0) {
-    const dtMsClamped = Math.min(MAX_TICK_MS, Math.max(0, dtMs));
     const lengths = [...cur.lengths];
     const windMs = [...cur.windMs];
     const okMs = [...cur.okMs];
     lengths[cur.current] = (lengths[cur.current] ?? 0) + speed * dt;
-    windMs[cur.current] = (windMs[cur.current] ?? 0) + dtMsClamped;
+    windMs[cur.current] = (windMs[cur.current] ?? 0) + dtClamped;
     if (tension >= tp.range.min && tension <= tp.range.max) {
-      okMs[cur.current] = (okMs[cur.current] ?? 0) + dtMsClamped;
+      okMs[cur.current] = (okMs[cur.current] ?? 0) + dtClamped;
     }
     cur = { ...cur, lengths, windMs, okMs };
 
-    const br = stepBreak(cur.brk, bp, dtMsClamped, tension, tp.range.max, cur.rng);
+    const br = stepBreak(cur.brk, bp, dtClamped, tension, tp.range.max, cur.rng);
     if (br.broke) {
       // 4. 切れたら phase 'broken'、breaks + 1、ペダルを 0 にする (実物どおり)
       return { ...cur, brk: br.state, breaks: cur.breaks + 1, phase: 'broken', pedal: setPedal(cur.pedal, 0), rng: br.rng };
@@ -164,11 +195,21 @@ export function qualities(s: WindingState): number[] {
   });
 }
 
-/** 平均 0.8 以上で3、0.6 以上で2、それ未満で1 */
+/** お題の目標の時間 (ms)。1本あたりの秒数 × 帯の数 (T2-09a) */
+export function targetMsOf(s: WindingState): number {
+  return TARGET_SEC_PER_SECTION(s.level) * 1000 * s.sections;
+}
+
+/**
+ * 星 (T2-09a):
+ * - 星3: 適正な張りの割合の平均が 0.8 以上 かつ 目標の時間内
+ * - 星2: 平均が 0.6 以上 (時間は問わない)
+ * - 星1: それ以外
+ */
 export function starsOf(s: WindingState): 1 | 2 | 3 {
   const qs = qualities(s);
   const avg = qs.reduce((sum, q) => sum + q, 0) / qs.length;
-  if (avg >= STARS3) return 3;
+  if (avg >= STARS3 && s.elapsedMs <= targetMsOf(s)) return 3;
   if (avg >= STARS2) return 2;
   return 1;
 }
@@ -192,13 +233,17 @@ export function isValidResume(x: unknown): x is WindingState {
       if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) return false;
     }
   }
-  for (const key of ['breaks', 'wrongTaps', 'tension'] as const) {
+  for (const key of ['breaks', 'wrongTaps', 'tension', 'elapsedMs'] as const) {
     if (typeof o[key] !== 'number' || !Number.isFinite(o[key])) return false;
   }
   if (typeof o.patternId !== 'string') return false;
   if (typeof o.rng !== 'number') return false;
   if (typeof o.pedal !== 'object' || o.pedal === null) return false;
   if (typeof o.brk !== 'object' || o.brk === null) return false;
+  if (typeof o.snagRaised !== 'boolean') return false;
+  if (typeof o.range !== 'object' || o.range === null) return false;
+  const r = o.range as Record<string, unknown>;
+  if (typeof r.min !== 'number' || typeof r.max !== 'number') return false;
   return true;
 }
 

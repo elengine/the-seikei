@@ -24,7 +24,7 @@ describe('winding panel (T2-06)', () => {
   beforeEach(() => {
     document.body.innerHTML = '';
     onAction = vi.fn();
-    panel = createWindingPanel(document.body, { terms, range: { min: 30, max: 70 }, onAction });
+    panel = createWindingPanel(document.body, { terms, onAction });
   });
 
   afterEach(() => {
@@ -94,7 +94,7 @@ describe('winding panel T2-05-fix (横木が状態に合わせて戻る)', () =>
   it('ペダル 60 の状態で update したあと、ペダル 0 の状態で update すると、表示の数字が「速さ 0」になる', () => {
     document.body.innerHTML = '';
     const onAction2 = vi.fn();
-    const panel2 = createWindingPanel(document.body, { terms, range: { min: 30, max: 70 }, onAction: onAction2 });
+    const panel2 = createWindingPanel(document.body, { terms, onAction: onAction2 });
     let s = init({ level: 1, patternId: 'p-pin-kon', sections: 5, seed: 1 });
     s = reduce(s, { type: 'start' });
     s = reduce(s, { type: 'setPedal', value: 60 });

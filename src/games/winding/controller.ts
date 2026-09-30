@@ -9,7 +9,7 @@ import { getContent, type Content } from '../../core/content/content';
 import { init, reduce, seedFromText } from './logic';
 import { messageFor, soundFor, resultOf } from './messages';
 import type { WindingState, WindingAction, Level } from './logic';
-import { RANGE, MESSAGE_HOLD_MS } from './params';
+import { MESSAGE_HOLD_MS } from './params';
 
 const TIE_ANIM_MS = 1000; // 帯の端を結ぶ演出の長さ
 const DONE_WAIT_MS = 1500; // done のあと結果を出すまでの見せる時間
@@ -65,9 +65,9 @@ export function createWindingController(parent: HTMLElement, deps: GameDeps, pro
   });
 
   // ---- 操作欄 ----
+  // メーターの範囲は State のもの (お題ごとに決まる。T2-09a)。update のたびに panel へ渡す
   const panel = createWindingPanel(frame.panel, {
     terms: deps.terms,
-    range: RANGE(opts.level),
     onAction: (a: WindingAction) => {
       dispatch(a);
     },
@@ -105,7 +105,7 @@ export function createWindingController(parent: HTMLElement, deps: GameDeps, pro
     }
   }
   function updateMessage(prev?: WindingState, next?: WindingState): void {
-    const text = messageFor(s, prev, next, (x) => deps.terms.render(x), s.level);
+    const text = messageFor(s, prev, next, (x) => deps.terms.render(x));
     // 張りの 3 文 (適正・強すぎ・弱め) だけホールドする
     const hold = s.phase === 'winding' && pendingMsg !== null;
     setMessage(text, hold || s.phase === 'winding');

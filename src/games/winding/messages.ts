@@ -1,8 +1,7 @@
 import type { GameResult, GameProps } from '../../core/game/types';
-import { starsOf, qualities } from './logic';
+import { starsOf, qualities, targetMsOf } from './logic';
 import type { WindingState, WindingAction } from './logic';
 import { lastTapResult } from './logic';
-import { RANGE } from './params';
 
 /**
  * プレイ画面のメッセージと効果音 (T2-07 追加修正a で controller.ts から分離)。
@@ -11,8 +10,17 @@ import { RANGE } from './params';
 
 type Render = (text: string) => string;
 
+/** 秒を「1分20秒」の形にする (T2-09a) */
+export function msToText(ms: number): string {
+  const total = Math.max(0, Math.round(ms / 1000));
+  const min = Math.floor(total / 60);
+  const sec = total % 60;
+  if (min === 0) return `${sec}秒`;
+  return `${min}分${sec}秒`;
+}
+
 /** 状態に応じたメッセージを返す */
-export function messageFor(s: WindingState, prev: WindingState | undefined, next: WindingState | undefined, render: Render, level: 1 | 2 | 3): string {
+export function messageFor(s: WindingState, prev: WindingState | undefined, next: WindingState | undefined, render: Render): string {
   if (s.phase === 'ready') {
     return render('{{pedal}}を踏むと巻き始めます。「巻き始める」を押してください');
   }
@@ -30,11 +38,14 @@ export function messageFor(s: WindingState, prev: WindingState | undefined, next
     return render('糸が切れました。切れた糸を探して、つないでください');
   }
   if (s.phase === 'winding') {
-    const range = RANGE(level);
-    if (s.tension > range.max) {
+    // 引っかかりは、張りのメッセージより先に出す (すぐに切り替わる)
+    if (s.snagRaised) {
+      return render('糸が引っかかりました。張りに注意してください');
+    }
+    if (s.tension > s.range.max) {
       return render('張りが強すぎます。{{pedal}}を戻してください');
     }
-    if (s.tension < range.min) {
+    if (s.tension < s.range.min) {
       return render('張りが弱めです');
     }
     return render('適正な張りです');
@@ -64,13 +75,19 @@ export function resultOf(s: WindingState, mode: GameProps['mode'], finishedAt: s
   const qs = qualities(s);
   const total = qs.reduce((a: number, b: number) => a + b, 0);
   const okRate = Math.round((total / Math.max(1, qs.length)) * 100);
+  const target = targetMsOf(s);
   return {
     gameId: 'winding',
     mode,
     stars,
     stats: { breaks: s.breaks, wrongTaps: s.wrongTaps, okRate, [`level:${s.level}`]: stars },
     unlockedPatternIds: [],
-    summary: [`適正な張りで巻いた割合 ${okRate}%`, `糸切れ ${s.breaks}回`, `違う糸を押した回数 ${s.wrongTaps}回`],
+    summary: [
+      `適正な張りで巻いた割合 ${okRate}%`,
+      `巻いた時間 ${msToText(s.elapsedMs)}(目標 ${msToText(target)})`,
+      `糸切れ ${s.breaks}回`,
+      `違う糸を押した回数 ${s.wrongTaps}回`,
+    ],
     finishedAt,
   };
 }

@@ -1,11 +1,13 @@
 import { createPedalControl, createTensionMeter } from '../../core/ui/pedalControl';
 import type { WindingState, WindingAction } from './logic';
+import { targetMsOf } from './logic';
 import { SECTION_LENGTH } from './params';
 
 /**
- * ドラム巻きの操作欄 (P2 T2-06)。
- * 区画は上から: 帯の番号と長さ、張りのメーター、ペダル、ボタン。
+ * ドラム巻きの操作欄 (P2 T2-06・T2-09a)。
+ * 区画は上から: 帯の番号と長さと経過時間、張りのメーター、ペダル、ボタン。
  * メッセージは GameFrame の message 欄を使う (controller が書く)。この部品はメッセージ欄を作らない。
+ * メーターの範囲は State のもの (お題ごとに決まる)。
  */
 
 export interface WindingPanel {
@@ -17,17 +19,21 @@ export function createWindingPanel(
   parent: HTMLElement,
   opts: {
     terms: { t(k: string): string };
-    range: { min: number; max: number };
     onAction: (a: WindingAction) => void;
   },
 ): WindingPanel {
   const root = document.createElement('div');
   root.className = 'winding-panel';
 
-  // 1. 帯の番号と長さ
+  // 1. 帯の番号と長さと経過時間
   const section = document.createElement('div');
   section.className = 'winding-panel__section';
   root.appendChild(section);
+
+  // 経過時間 (「0:42 / 1:30」の形。20px 以上は CSS 側。T2-09a)
+  const timeLabel = document.createElement('div');
+  timeLabel.className = 'winding-panel__time';
+  root.appendChild(timeLabel);
 
   // 2. 張りのメーター
   const meterHost = document.createElement('div');
@@ -63,6 +69,14 @@ export function createWindingPanel(
 
   parent.appendChild(root);
 
+  /** 経過時間を「0:42 / 1:30」の形にする (T2-09a) */
+  function clockText(ms: number): string {
+    const total = Math.max(0, Math.floor(ms / 1000));
+    const min = Math.floor(total / 60);
+    const sec = total % 60;
+    return `${min}:${String(sec).padStart(2, '0')}`;
+  }
+
   /** ボタンの表示を phase で切り替える (場所は空けたまま) */
   function showButton(s: WindingState): void {
     startBtn.style.display = s.phase === 'ready' ? '' : 'none';
@@ -80,7 +94,8 @@ export function createWindingPanel(
       pctLabel.textContent = `巻いた長さ ${pct}%`;
       section.appendChild(label);
       section.appendChild(pctLabel);
-      meter.update(s.tension, opts.range);
+      timeLabel.textContent = `${clockText(s.elapsedMs)} / ${clockText(targetMsOf(s))}`;
+      meter.update(s.tension, s.range);
       pedal.setEnabled(s.phase === 'winding');
       // 横木の位置を状態に合わせる (setValue は onChange を呼ばないので、繰り返しにはならない)
       pedal.setValue(s.pedal.pedal);

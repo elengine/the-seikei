@@ -481,7 +481,10 @@ describe('winding module (T2-07)', () => {
     const { init, reduce } = await import('./logic');
     const { paramsOf } = await import('./params');
     const p2 = paramsOf(2);
-    let state = init({ level: 2, patternId: p2.patternId, sections: p2.sections, seed: 2025059162 });
+    let state = init({ level: 2, patternId: p2.patternId, sections: p2.sections, seed: 35 });
+    // お題の範囲は乱数なので、テストでは固定する (35〜53。pedal 90 の張り 66+ は強すぎ)。
+    // seed 35 は、pedal 90 を 6 秒保っても糸が切れないことを確認済み (T2-09a の範囲で再確認)
+    state = { ...state, range: { min: 35, max: 53 } };
     state = reduce(state, { type: 'start' });
     state = reduce(state, { type: 'setPedal', value: 90 });
     const instance2 = module.mount(container, makeProps({ resume: state }));

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { initPedal, setPedal, speedOf, tensionOf, stepNoise, zoneOf } from './pedal';
-import type { TensionParams } from './pedal';
+import { initPedal, setPedal, speedOf, tensionOf, stepNoise, zoneOf, stepDrift, stepSnag } from './pedal';
+import type { TensionParams, DriftParams } from './pedal';
 import { seedFrom } from '../clock/clock';
 
 /** テスト用のパラメータ (P2/README の初期値) */
@@ -42,7 +42,7 @@ describe('pedal (T2-01)', () => {
   it('3. tensionOf: 式どおりの値。progress は 0〜1 に丸める', () => {
     const p = params();
     // base + perPedal * pedal + yarnDrift * progress + noise
-    const s = { pedal: 40, noise: 0, rng: seedFrom(1) };
+    const s = { ...initPedal(seedFrom(1)), pedal: 40, noise: 0 };
     expect(tensionOf(s, p, 0)).toBeCloseTo(30 + 0.4 * 40 + 0);
     expect(tensionOf(s, p, 0.5)).toBeCloseTo(30 + 0.4 * 40 + 2);
     expect(tensionOf(s, p, 1)).toBeCloseTo(30 + 0.4 * 40 + 4);
@@ -50,7 +50,7 @@ describe('pedal (T2-01)', () => {
     expect(tensionOf(s, p, -0.5)).toBeCloseTo(tensionOf(s, p, 0));
     expect(tensionOf(s, p, 1.5)).toBeCloseTo(tensionOf(s, p, 1));
     // noise も足される
-    const s2 = { pedal: 40, noise: 2, rng: seedFrom(1) };
+    const s2 = { ...initPedal(seedFrom(1)), pedal: 40, noise: 2 };
     expect(tensionOf(s2, p, 0)).toBeCloseTo(30 + 0.4 * 40 + 2);
   });
 
@@ -79,23 +79,8 @@ describe('pedal (T2-01)', () => {
     expect(stepNoise(c, p, 100).noise).toBe(first.noise);
   });
 
-  it('5. 安全なペダルの保証: 3つの難易度で pedal 40・progress 0/0.5/1・noise -2/0/+2 のすべてで zoneOf が ok', () => {
-    const ranges: Array<{ min: number; max: number }> = [
-      { min: 30, max: 70 }, // 初級
-      { min: 38, max: 62 }, // 中級
-      { min: 44, max: 56 }, // 上級
-    ];
-    for (const range of ranges) {
-      const p = params({ range });
-      for (const progress of [0, 0.5, 1]) {
-        for (const noise of [-2, 0, 2]) {
-          const s = { pedal: 40, noise, rng: seedFrom(1) };
-          const tension = tensionOf(s, p, progress);
-          expect(zoneOf(tension, p), `range ${range.min}-${range.max} progress ${progress} noise ${noise} tension ${tension}`).toBe('ok');
-        }
-      }
-    }
-  });
+  // 旧テスト5「安全なペダルの保証」は T2-09a で「ゆっくり踏めば必ず適正範囲に入る」の約束が
+  // なくなったため削除した (「置いておくだけでは外れる」を新しいテスト4で確かめる)。
 
   it('6. zoneOf: 範囲の境目 (min ちょうど・max ちょうど) は ok', () => {
     const p = params({ range: { min: 30, max: 70 } });
@@ -103,5 +88,124 @@ describe('pedal (T2-01)', () => {
     expect(zoneOf(70, p)).toBe('ok');
     expect(zoneOf(29.9, p)).toBe('low');
     expect(zoneOf(70.1, p)).toBe('high');
+  });
+});
+
+/** テスト用の流れ・引っかかりのパラメータ (T2-09 の初期値) */
+function driftParams(level: 1 | 2 | 3): DriftParams {
+  const table = {
+    1: { perSec: 0.6, turnRate: 0.15, max: 8, snagRate: 0.02, snagSize: 6 },
+    2: { perSec: 1.0, turnRate: 0.15, max: 12, snagRate: 0.04, snagSize: 9 },
+    3: { perSec: 1.6, turnRate: 0.15, max: 16, snagRate: 0.06, snagSize: 12 },
+  } as const;
+  return table[level];
+}
+
+describe('pedal T2-09a A (張りが自然に動く)', () => {
+  it('1. stepDrift: 同じ種と同じ操作なら、流れも同じ動きになる', () => {
+    const p = driftParams(1);
+    let a = initPedal(seedFrom(31));
+    let b = initPedal(seedFrom(31));
+    for (let i = 0; i < 200; i++) {
+      a = stepDrift(a, p, 100);
+      b = stepDrift(b, p, 100);
+      expect(a.drift).toBe(b.drift);
+    }
+  });
+
+  it('2. stepDrift: 流れは ±DRIFT_MAX を超えない。1秒あたりの動きは上限以内', () => {
+    const p = driftParams(2);
+    let s = initPedal(seedFrom(5));
+    for (let i = 0; i < 500; i++) {
+      const prev = s.drift;
+      s = stepDrift(s, p, 100);
+      expect(s.drift).toBeGreaterThanOrEqual(-p.max);
+      expect(s.drift).toBeLessThanOrEqual(p.max);
+      expect(Math.abs(s.drift - prev)).toBeLessThanOrEqual(p.perSec + 1e-9);
+    }
+  });
+
+  it('3. stepSnag: 引っかかりが起きたら、張りの上がり分を返し、2秒かけて元に戻る', () => {
+    const p = driftParams(1);
+    let s = initPedal(seedFrom(9));
+    // 引っかかりが起きるまで進める (長めに回す)
+    let raised = 0;
+    for (let i = 0; i < 6000 && raised === 0; i++) {
+      const r = stepSnag(s, p, 100);
+      s = r.state;
+      if (r.raised > 0) raised = r.raised;
+    }
+    expect(raised).toBeGreaterThan(0);
+    // 以降は 2 秒かけて 0 に戻る (上がり分は減っていく)
+    let prev = raised;
+    for (let i = 0; i < 30; i++) {
+      const r = stepSnag(s, p, 100);
+      s = r.state;
+      expect(r.raised).toBeLessThanOrEqual(prev);
+      prev = r.raised;
+    }
+    expect(s.snag).toBeCloseTo(0, 9);
+  });
+
+  it('4. 「置いておくだけでは外れる」: どの難易度でも、ペダルを範囲の中心に固定しても、流れとぶれで範囲から外れる時間がある (種をいくつか試す)', () => {
+    const ranges = [
+      { min: 30, max: 70, width: 30, centerMin: 45, centerMax: 55 },
+      { min: 38, max: 62, width: 18, centerMin: 40, centerMax: 60 },
+      { min: 44, max: 56, width: 10, centerMin: 35, centerMax: 65 },
+    ];
+    for (let level = 1; level <= 3; level++) {
+      const r = ranges[level - 1]!;
+      const range = { min: r.centerMin - r.width / 2, max: r.centerMin + r.width / 2 };
+      const p = params({ noiseAmp: level === 1 ? 1 : level === 2 ? 1.5 : 2, range });
+      const dp = driftParams(level as 1 | 2 | 3);
+      let outOfRangeFound = false;
+      for (const seed of [1, 7, 13, 42, 99]) {
+        let s = initPedal(seedFrom(seed));
+        let sawOutOfRange = false;
+        for (let i = 0; i < 600; i++) {
+          s = stepNoise(setPedal(s, r.centerMin), p, 100);
+          s = stepDrift(s, dp, 100);
+          const tension = tensionOf(s, p, 0) + s.drift + s.snag;
+          if (tension < range.min || tension > range.max) sawOutOfRange = true;
+        }
+        if (sawOutOfRange) outOfRangeFound = true;
+      }
+      expect(outOfRangeFound, `level ${level}`).toBe(true);
+    }
+  });
+
+  it('5. 「調整すれば上級でも星3が取れる」: 毎秒ペダルを合わせ直す簡単なやり方で、適正の割合が 0.8 以上 (中心と種をいくつか試す)', () => {
+    const dp = driftParams(3);
+    let anyAbove = false;
+    // 上級の中心の範囲 35〜65 からいくつか試す (幅は RANGE_WIDTH 10)
+    for (const center of [45, 50, 55, 60]) {
+      if (anyAbove) break;
+      const r = { min: center - 5, max: center + 5 };
+      const p = params({ noiseAmp: 2, range: r });
+      for (const seed of [1, 7, 13]) {
+        let s = initPedal(seedFrom(seed));
+        let okMs = 0;
+        let windMs = 0;
+        for (let i = 0; i < 600; i++) {
+          // 毎秒 (10フレームごと) 張りを見てペダルを合わせ直す簡単なやり方
+          if (i % 10 === 0) {
+            // 目標の張り (範囲の中心) に合うペダルの値を、流れと引っかかりとぶれを見て出す
+            const target = (r.min + r.max) / 2;
+            const want = (target - p.base - s.drift - s.snag - s.noise) / p.perPedal;
+            s = setPedal(s, Math.min(100, Math.max(0, Math.round(want))));
+          }
+          s = stepNoise(s, p, 100);
+          s = stepDrift(s, dp, 100);
+          const tension = tensionOf(s, p, 0);
+          windMs += 100;
+          if (tension >= r.min && tension <= r.max) okMs += 100;
+        }
+        if (okMs / windMs >= 0.8) {
+          anyAbove = true;
+          break;
+        }
+      }
+    }
+    expect(anyAbove).toBe(true);
   });
 });
