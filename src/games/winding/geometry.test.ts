@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { LOGICAL_W, LOGICAL_H, endPoint, hitEnd, toPx, fromPx, threadY, drumSectionY, tableY, TABLE_AREA, REED_X, DRUM_END_X, DRUM_AREA, pointOnPath, threadPath } from './geometry';
+import { LOGICAL_W, LOGICAL_H, endPoint, hitEnd, toPx, fromPx, threadY, drumSectionY, tableY, TABLE_AREA, REED_X, DRUM_END_X, DRUM_AREA, pointOnPath, threadPath, PIN_RAIL_X } from './geometry';
 
 const fit = { scale: 1, offsetX: 0, offsetY: 0 };
 
@@ -205,5 +205,14 @@ describe('winding geometry T2-10a (糸の道筋と切れ端の位置)', () => {
       // 台の左端より左 (切れ端の上に台を描かない)
       expect(d.x).toBeLessThan(TABLE_AREA.x);
     }
+  });
+});
+
+describe('winding geometry T2-10 追加修正 a (台とドラムの縦木が重ならない)', () => {
+  it('台の右端 + 20 ≤ ドラムの縦木の左の端。筬は台の中。台の左端はドラム側の切れ端より右', () => {
+    expect(TABLE_AREA.x + TABLE_AREA.w + 20).toBeLessThanOrEqual(PIN_RAIL_X);
+    expect(TABLE_AREA.x).toBeLessThan(REED_X);
+    expect(REED_X).toBeLessThan(TABLE_AREA.x + TABLE_AREA.w);
+    expect(DRUM_END_X).toBeLessThan(TABLE_AREA.x);
   });
 });

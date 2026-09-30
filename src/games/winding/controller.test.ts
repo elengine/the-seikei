@@ -6,6 +6,20 @@ import { createAppContext } from '../../app/context';
 import type { AppContext } from '../../app/context';
 import { createFixedClock } from '../../core/clock/clock';
 
+const drawBoardCalls: unknown[][] = [];
+vi.mock('./renderer', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./renderer')>();
+  return { ...actual, drawBoard: (...args: unknown[]) => { drawBoardCalls.push(args); } };
+});
+
+/** drawBoard に渡された opts (最後の呼び出し) */
+function lastDrawOpts(): { drumAngle?: number } | undefined {
+  const last = drawBoardCalls[drawBoardCalls.length - 1];
+  if (last === undefined) return undefined;
+  return last[4] as { drumAngle?: number } | undefined;
+}
+
+
 let dbSeq = 0;
 
 async function makeDeps(): Promise<{ deps: GameDeps; ctx: AppContext }> {
@@ -649,5 +663,68 @@ describe('winding module T2-09 追加修正a (引っかかりのメッセージ�
     for (let i = 0; i < 120; i++) raf.advance(2);
     expect(plays2.filter((n) => n === 'stop').length).toBe(count);
     expect(count).toBe(1);
+  });
+});
+
+describe('winding module T2-10 追加修正 a (ドラムの回る速さ・drumAngle)', () => {
+  let raf: ReturnType<typeof installFakeRaf>;
+
+  beforeEach(() => {
+    document.body.textContent = '';
+    raf = installFakeRaf();
+    drawBoardCalls.length = 0;
+    // jsdom の canvas は getContext が null を返す。drawBoard が呼ばれるように偽の ctx を返す
+    // (drawBoard は mock なので、中身は実行されない)
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      canvas: document.createElement('canvas'),
+    } as unknown as CanvasRenderingContext2D);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  async function setup(): Promise<HTMLElement> {
+    const { deps } = await makeDeps();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const module = createWindingModule(deps);
+    module.mount(container, makeProps());
+    return container;
+  }
+
+  const btn = (container: HTMLElement, label: string): HTMLButtonElement | undefined =>
+    Array.from(container.querySelectorAll('button')).find((b) => b.textContent === label);
+
+  it('1. ペダル 50 で 1 秒進めると、drumAngle が 4.5〜5.5 増える (DRUM_TURN_PER_SPEED 0.25)', async () => {
+    const container = await setup();
+    container.querySelector<HTMLButtonElement>('button[data-testid="winding-level-1"]')!.click();
+    await vi.waitFor(() => expect(btn(container, '巻き始める')).toBeDefined());
+    btn(container, '巻き始める')!.click();
+    // ペダル 50 (「踏み込む」×5)
+    for (let i = 0; i < 5; i++) {
+      btn(container, '踏み込む')!.click();
+    }
+    await vi.waitFor(() => expect(lastDrawOpts()?.drumAngle).toBeDefined());
+    const before = lastDrawOpts()!.drumAngle!;
+    // 1 秒 (62フレーム × 16ms)
+    raf.advance(62);
+    const after = lastDrawOpts()!.drumAngle!;
+    expect(after - before).toBeGreaterThanOrEqual(4.5);
+    expect(after - before).toBeLessThanOrEqual(5.5);
+  });
+
+  it('2. 糸が切れたあと・ペダル 0 のあいだは drumAngle が増えない', async () => {
+    const container = await setup();
+    container.querySelector<HTMLButtonElement>('button[data-testid="winding-level-1"]')!.click();
+    await vi.waitFor(() => expect(btn(container, '巻き始める')).toBeDefined());
+    btn(container, '巻き始める')!.click();
+    // ペダルを踏まず (speed 0) のまま進める
+    await vi.waitFor(() => expect(lastDrawOpts()?.drumAngle).toBeDefined());
+    const before = lastDrawOpts()!.drumAngle!;
+    raf.advance(30);
+    const after = lastDrawOpts()!.drumAngle!;
+    expect(after).toBe(before);
   });
 });

@@ -2,7 +2,7 @@ import type { WindingState } from './logic';
 import { COLORS } from '../../core/ui/tokens';
 import { SECTION_LENGTH, STRIPE_H } from './params';
 import type { StageFit } from '../../core/viewport/viewport';
-import { DRUM_AREA, fontPx, drumSectionY, threadY, CREEL_AREA, CREEL_END_X, DRUM_END_X } from './geometry';
+import { DRUM_AREA, fontPx, drumSectionY, threadY, CREEL_AREA, CREEL_END_X, DRUM_END_X, PIN_RAIL_X } from './geometry';
 
 /**
  * ドラム巻きの盤面のうち、ドラム (円筒) と結び目を描く部品。
@@ -17,8 +17,8 @@ const KNOT = { w: 24, h: 30 } as const; // 幅はピンの横木に少し重な�
 /** ドラムの円筒の見た目の半分の厚み (帯の面の左右のふくらみ) */
 const DRUM_BULGE = 10;
 
-/** ドラムの桟の数 (円筒の周りに等間隔に並ぶ) */
-export const SLAT_COUNT = 10;
+/** ドラムの桟の数 (円筒の周りに等間隔に並ぶ。正面に 10〜12 本見える。T2-10 追加修正) */
+export const SLAT_COUNT = 24;
 
 /** 4. ドラム: 縦向き円筒。明るさの勾配は横向き (中央を明るく、左右の端を暗く)。
  * drumAngle (ラジアン) で桟が横に流れて回って見える (T2-10b)。見た目だけの値で State には入らない */
@@ -147,19 +147,19 @@ export function drawDrum(
 
   // ピン (灰みの緑の縦木 + 鋼のピン。帯ごとに1本。ドラムの左の縁に沿って縦に)
   ctx.fillStyle = COLORS.machineDark;
-  ctx.fillRect(x - DRUM_BULGE - fontPx(fit, 10), y, fontPx(fit, 10), h + fontPx(fit, 16));
+  ctx.fillRect(PIN_RAIL_X, y, fontPx(fit, 10), h + fontPx(fit, 16)); // 縦木の左の端は geometry の PIN_RAIL_X (T2-10 追加修正)
   for (let i = 0; i < s.sections; i++) {
     const py = drumSectionPinY(i, s.sections);
     ctx.fillStyle = COLORS.steel;
-    ctx.fillRect(x - DRUM_BULGE - fontPx(fit, 12), py - fontPx(fit, 3), fontPx(fit, 12), fontPx(fit, 6));
+    ctx.fillRect(PIN_RAIL_X - fontPx(fit, 2), py - fontPx(fit, 3), fontPx(fit, 12), fontPx(fit, 6));
     // 巻いている帯のピンには糸の束が掛かる
     if (i === s.current && s.phase === 'winding') {
       ctx.strokeStyle = base;
       ctx.lineWidth = fontPx(fit, 1.5);
       ctx.beginPath();
       for (let k = 0; k < 4; k++) {
-        ctx.moveTo(x - DRUM_BULGE - fontPx(fit, 10), py - fontPx(fit, 5) + fontPx(fit, 2.5) * k);
-        ctx.lineTo(x - DRUM_BULGE - fontPx(fit, 22), py - fontPx(fit, 5) + fontPx(fit, 2.5) * k);
+        ctx.moveTo(PIN_RAIL_X + fontPx(fit, 10), py - fontPx(fit, 5) + fontPx(fit, 2.5) * k);
+        ctx.lineTo(PIN_RAIL_X - fontPx(fit, 2), py - fontPx(fit, 5) + fontPx(fit, 2.5) * k);
       }
       ctx.stroke();
     }

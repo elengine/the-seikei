@@ -12,7 +12,9 @@ export const LOGICAL_H = 750;
 
 /** 区画: 左にクリール、中央に台と筬、右にドラム (T2-10a で台と筬を右へ) */
 export const CREEL_AREA = { x: 40, y: 90, w: 200, h: 600 } as const;
-export const TABLE_AREA = { x: 430, y: 90, w: 220, h: 600 } as const;
+export const TABLE_AREA = { x: 420, y: 90, w: 120, h: 600 } as const;
+/** ドラムの左の縦木 (ピンの横木) の左の端の x (T2-10 追加修正。台と重ならないようにする) */
+export const PIN_RAIL_X = 560;
 export const DRUM_AREA = { x: 580, y: 90, w: 380, h: 600 } as const;
 /** 上の余白 (目盛り盤と赤ランプ) */
 export const TOP_AREA = { y: 0, h: 90 } as const;
@@ -26,7 +28,7 @@ const END_Y_TOP = 300;
 const END_Y_BOTTOM = 620;
 
 /** 筬 (くし状の金具) の x (台の中央。T2-10a で 520 へ) */
-export const REED_X = 520;
+export const REED_X = 480;
 /** 帯のシートの半分の幅 (論理座標。糸がまとまる帯の幅) */
 export const THREAD_SHEET_HALF = 30;
 

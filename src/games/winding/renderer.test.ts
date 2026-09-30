@@ -514,3 +514,21 @@ describe('winding renderer T2-10b (ドラムが回って見える)', () => {
     expect(inBand.length).toBeGreaterThan(0);
   });
 });
+
+describe('winding renderer T2-10 追加修正 a (桟の数)', () => {
+  const fit = { scale: 1, offsetX: 0, offsetY: 0 };
+
+  it('1. drumAngle 0 で、今の帯の区画に描かれる桟の fillRect が 10 本以上 (かごに見える)', () => {
+    const s = windingState();
+    const { ctx, rec } = makeFakeCtx();
+    drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0, drumAngle: 0 });
+    const sy0 = drumSectionY(s.current, s.sections);
+    const sy1 = drumSectionY(s.current + 1, s.sections);
+    const slats = fillRectsWithColor(rec).filter(
+      (f) => f.v === COLORS.wood && f.w > 0 && f.h > 20 &&
+        f.x >= DRUM_AREA.x - 20 && f.x < DRUM_AREA.x + DRUM_AREA.w + 20 &&
+        f.y >= sy0 && f.y < sy1,
+    );
+    expect(slats.length).toBeGreaterThanOrEqual(10);
+  });
+});

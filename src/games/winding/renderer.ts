@@ -193,13 +193,13 @@ function drawTable(ctx: CanvasRenderingContext2D, fit: StageFit, s: WindingState
   const boardH = fontPx(fit, 12);
   // 台の板 (木)
   ctx.fillStyle = COLORS.wood;
-  ctx.fillRect(x + fontPx(fit, 20), boardY, w - fontPx(fit, 40), boardH);
+  ctx.fillRect(x + fontPx(fit, 10), boardY, w - fontPx(fit, 20), boardH);
   // 脚 (2本)
   ctx.fillStyle = COLORS.machineDark;
-  ctx.fillRect(x + fontPx(fit, 40), boardY + boardH, fontPx(fit, 8), fontPx(fit, 50));
-  ctx.fillRect(x + w - fontPx(fit, 48), boardY + boardH, fontPx(fit, 8), fontPx(fit, 50));
+  ctx.fillRect(x + fontPx(fit, 20), boardY + boardH, fontPx(fit, 8), fontPx(fit, 50));
+  ctx.fillRect(x + w - fontPx(fit, 28), boardY + boardH, fontPx(fit, 8), fontPx(fit, 50));
   // 筬: 台の上に置く。鋼色の枠の中に細い縦の歯
-  const reedW = fontPx(fit, 90);
+  const reedW = fontPx(fit, 80);
   const reedH = fontPx(fit, 46);
   const reedX = REED_X - reedW / 2;
   const reedY = ty - REED_RISE - reedH / 2;

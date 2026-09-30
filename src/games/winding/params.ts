@@ -91,8 +91,8 @@ export function BREAK_MAX_THREADS(level: Level): number {
   return level === 1 ? 1 : level === 2 ? 2 : 3;
 }
 
-/** ドラムが回って見える角度の進み方 (速さ1あたりのラジアン/秒。T2-10b。ペダル 50 で 1秒に約 0.8 回転) */
-export const DRUM_TURN_PER_SPEED = 0.1;
+/** ドラムが回って見える角度の進み方 (速さ1あたりのラジアン/秒。T2-10 追加修正。ペダル 50 (速さ 20) で 1秒に 5 ラジアン ≒ 0.8 回転) */
+export const DRUM_TURN_PER_SPEED = 0.25;
 
 /** 帯の縞1本の高さ (論理座標。柄の並びを区画の中で繰り返す。T2-08 追加修正2) */
 export const STRIPE_H = 6;
