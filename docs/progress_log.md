@@ -1339,3 +1339,30 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - renderer.ts: drawBoard(ctx, fit, puzzle, view, content)。view = {angle, feed, outcome, progress, showResult}。背景 kinari → 表面 (wood+穴) → 羽 (null は点線=短い線の連続、選択で wood の平行四边形の板+明るい縁) → 層 (progress×30 層、mainHex 色。good=斜面に沿う/crush=斜面を越えてはみ出し(上ほど多く、はみ出しは sumi 30% で濃く)/collapse=斜面より内側で段/badAngle=6層が斜めにずり落ち) → 文字 (toPx で画面px。上の端「1回転 送り ○.○○mm／羽 ○°」20px、結果の印 24px: good=藍「きれいに登った」・crush/collapse=朱「潰れ」「崩れ」)
 - テスト: RED (geometry 3・renderer 7) → GREEN。全体 **714 passed / 11 skipped**、check 0、build 成功
 - commit 52eb34a、CI 1回で success。偽 Canvas は winding/renderer.test.helpers.ts を利用
+
+
+## T2c-03 (2026-10-04)
+
+### T2c-03a「操作欄・電卓・進行」commit `fcdc826`
+
+- calculator.ts: 四則・小数点・C・= の calc() (純粋) と openCalculatorBody (見た目: 表示は右揃え・キーは64px 以上・tan の表/厚みの係数の表・「この答えを送り量に入れる」)
+- messages.ts: messageFor (試し巻きをしています/潰れました。送り量が少なすぎます/崩れました。送り量が多すぎます/その糸には、この角度は使えません/羽の角度を選んで、送り量を合わせてください/きれいに登りました…/設定できました)・soundFor (試し巻きの始まり tap、終わり ok/gentleNo)・resultOf (羽の角度/送り量(正しい値)/試し巻きの回数 + 正しい計算3行・starHint「送り量の誤差が5%以内で星3です」)
+- panel.ts: 依頼書/計算のメモ(段階で減る。段階5 は「表は電卓から見られます」)/羽の角度(段階1〜2 は使える角度に○)/送り量(大きな数字+±ボタン、数字を押すと電卓)/下に固定の電卓・試し巻き(+星3でない結果のあと「ここで終える」)。試し巻きのあいだは押せない(理由「試し巻きの途中です」)
+- controller.ts: ドラム巻きと同じ形。試し巻きは 5 秒 (TRIAL_MS) かけて progress を renderer へ。裏に回ったら絵を止めて結果だけ決める。suspend/unmount 対応
+- 変更 (許可): core/game/types.ts の GameId に 'drumsetup' を追加 (GameResult/GameModule の型に必要)・params.ts に TRIAL_MS=5000 (仕様書が認めている)・base.css に drumsetup の節
+- テスト: calculator 4・panel 7・controller 6 (角度9°+電卓で1.07→星3・0.96→潰れ→やり直し+ここで終える→星2・5°は badAngle・unmount で rAF 停止・resume・visibilitychange)
+
+### T2c-03b「一覧・遊び方・組み立て」commit `a02ff1f` (+`bac2aaa` `/games/drumsetup` を gameScreen の許可リストへ、+`fb4113d` 試し巻きの前は層を描かない+リサイズ後に描き直し、+`9351333` 電卓で答えを入れたら閉じる)
+
+- listView.ts: ドラム巻きと同じ形 (5節15題・星/次はこれ/鍵・補足「2/48・帯 400本」・クリール立て済み・途中)
+- tutorial.ts: 4ページ (設定/厚み/式と電卓/試し巻き)・Canvas の絵 (tokens)
+- index.ts: createDrumSetupModule (一覧↔プレイ・戻る確認・別のお題の確認・次のお題へ/もう一度/一覧へ・resume は DrumSetupState のまま)
+- main.ts に登録 (クリール立て → ドラム設定 → ドラム巻き)・terms.default.json に game.drumsetup=ドラム設定・homeCards.ts に断面のカード絵と「お題 15」・homeScreen.ts はカードの絵の割り当て
+- テスト: listView 4・tutorial 3
+
+### ブラウザ確認 (本番と同じビルド, localhost:4173)
+
+- 1180×820: ホームのカードの並び (クリール立て → ドラム設定 → ドラム巻き)・遊び方 4ページ・一覧 (15題・5節・次はこれ/鍵/補足)・s1 を電卓 (1 . 0 7 → この答えを送り量に入れる) で星3 (DOM で ★★★・aria-label 星3)・0.96 で「潰れました。送り量が少なすぎます」+はみ出す絵+「ここで終える」・1.18 で「崩れました。送り量が多すぎます」+すき間と段の絵
+- 412×915 (詰めた形): 盤面が上・操作欄が下でスクロール・電卓/試し巻きは下に固定 ✓
+- 915×412: 盤面 左・操作欄 右 ✓
+- 直した不具合: gameScreen の known id に drumsetup が無く /games/drumsetup がホームへ戻る・試し巻きの前に層が描かれる (progress の初期値)・リサイズ後に盤面が消える・電卓が開いたまま
