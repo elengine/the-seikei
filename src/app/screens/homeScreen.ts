@@ -3,6 +3,7 @@ import type { Screen } from '../screenManager';
 import { createButton } from '../../core/ui/widgets';
 import { listGames } from '../../core/game/registry';
 import { createCardArt, gameStatusText } from './homeCards';
+import { isUpdateReady, onUpdateState } from '../updater';
 
 /** 準備中のゲーム (名前は用語辞書の項目。無いものは固定の文字) */
 const COMING_SOON: { termKey?: string; fixedName?: string; summary: string }[] = [
@@ -24,6 +25,7 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, ...classes: string[])
 /** ホーム画面。屋号とアプリ名、ゲームのカード (登録済みと準備中)、設定への入り口 */
 export function createHomeScreen(ctx: AppContext): Screen {
   const timers = new Set<ReturnType<typeof setTimeout>>();
+  let offUpdate: (() => void) | null = null;
 
   function card(opts: {
     kind: 'creel' | 'drumsetup' | 'winding' | 'soon';
@@ -75,14 +77,28 @@ export function createHomeScreen(ctx: AppContext): Screen {
         titles.appendChild(greeting);
       }
       header.appendChild(titles);
-      header.appendChild(
-        createButton({
-          label: '設定',
-          variant: 'secondary',
-          icon: 'settings',
-          onClick: () => ctx.navigate('/settings'),
-        }),
-      );
+      const settingsBtn = createButton({
+        label: '設定',
+        variant: 'secondary',
+        icon: 'settings',
+        onClick: () => ctx.navigate('/settings'),
+      });
+      header.appendChild(settingsBtn);
+      // 新しい版が届いていれば、「設定」に朱の小さな丸 (バッジ) を付ける (設定の画面で「アップデートがあります。」を出す)
+      const applyBadge = (ready: boolean): void => {
+        settingsBtn.querySelector('.btn__badge')?.remove();
+        if (ready) {
+          const badge = el('span', 'btn__badge');
+          badge.setAttribute('aria-hidden', 'true');
+          settingsBtn.appendChild(badge);
+          settingsBtn.setAttribute('aria-label', '設定(アップデートがあります)');
+        } else {
+          settingsBtn.removeAttribute('aria-label');
+        }
+      };
+      applyBadge(isUpdateReady());
+      offUpdate?.();
+      offUpdate = onUpdateState(applyBadge);
       root.appendChild(header);
 
       // 下: ゲームのカード
@@ -132,6 +148,8 @@ export function createHomeScreen(ctx: AppContext): Screen {
     },
 
     unmount(): void {
+      offUpdate?.();
+      offUpdate = null;
       for (const t of timers) {
         clearTimeout(t);
       }

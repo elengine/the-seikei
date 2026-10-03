@@ -3,8 +3,7 @@ import type { Screen } from '../screenManager';
 import type { ImportReport } from '../../core/storage/types';
 import { createButton, setLockedReason } from '../../core/ui/widgets';
 import { createCard, createPage, createScreenHeader, createSectionHeading } from '../../core/ui/layout';
-import { collectDiagnostics, hasInstallPromptEvent, promptInstall, isUpdateAvailable, applyUpdateNow } from '../diagnostics';
-import { confirmDialog } from '../../core/ui/widgets';
+import { collectDiagnostics, hasInstallPromptEvent, promptInstall } from '../diagnostics';
 
 function pad2(n: number): string {
   return String(n).padStart(2, '0');
@@ -46,7 +45,6 @@ export function createAdminScreen(ctx: AppContext): Screen {
       }
 
       const diagCard = section('診断');
-      const updateCard = section('版の切り替え');
       const backupCard = section('バックアップ');
       const installCard = section('インストール');
       const logCard = section('ログ');
@@ -208,32 +206,6 @@ export function createAdminScreen(ctx: AppContext): Screen {
         },
       });
       installCard.insertBefore(installBtn, installNotice);
-
-      // ---- 今すぐ新しい版に切り替える (新しい版が届いているときだけ押せる) ----
-      const updateNotice = noticeIn(updateCard);
-      const updateBtn = createButton({
-        label: '今すぐ新しい版に切り替える',
-        variant: 'secondary',
-        lockedReason: isUpdateAvailable() ? undefined : '新しい版はまだ届いていません',
-        onLocked: (reason) => {
-          updateNotice.textContent = reason;
-        },
-        onClick: async () => {
-          const ok = await confirmDialog(root, {
-            title: '新しい版に切り替える',
-            message: '新しい版に切り替えますか? (画面が再読み込みされます)',
-            okLabel: '切り替える',
-            cancelLabel: 'やめる',
-          });
-          if (!ok) {
-            return;
-          }
-          ctx.logger.log('info', '新しい版へ切り替え');
-          await ctx.logger.flush(); // 再読み込み前にログを保存する
-          await applyUpdateNow(); // 画面が再読み込みされる
-        },
-      });
-      updateCard.insertBefore(updateBtn, updateNotice);
 
       // ---- ログ ----
       const logList = document.createElement('ul');

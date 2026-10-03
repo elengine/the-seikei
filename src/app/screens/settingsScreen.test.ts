@@ -1,9 +1,30 @@
 import 'fake-indexeddb/auto';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createSettingsScreen } from './settingsScreen';
 import { createAppContext } from '../context';
 import type { AppContext } from '../context';
 import { createFixedClock } from '../../core/clock/clock';
+// アップデートの確認 (updater) は偽物にする。Service Worker は使わない
+const upd = vi.hoisted(() => ({
+  ready: false,
+  listeners: new Set<(ready: boolean) => void>(),
+  check: undefined as unknown as () => Promise<'available' | 'latest' | 'offline'>,
+  apply: undefined as unknown as () => void,
+}));
+vi.mock('../updater', () => ({
+  isUpdateReady: () => upd.ready,
+  checkForUpdate: () => upd.check(),
+  applyUpdate: () => {
+    upd.apply();
+  },
+  onUpdateState: (cb: (ready: boolean) => void) => {
+    upd.listeners.add(cb);
+    return () => {
+      upd.listeners.delete(cb);
+    };
+  },
+}));
+
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -191,5 +212,114 @@ describe('T1-19: 設定画面の今の値 (お名前・屋号)', () => {
     const value2 = Array.from(document.querySelectorAll('.settings__row'))[0]!.querySelector('.settings__value')!;
     expect(value2.classList.contains('settings__value--empty')).toBe(false);
     expect(value2.textContent).toBe('テスト屋さん');
+  });
+});
+
+describe('PU-10a: 設定の画面のアップデートの確認', () => {
+  async function mountSettings(): Promise<{ container: HTMLElement; ctx: AppContext; screen: ReturnType<typeof createSettingsScreen> }> {
+    const ctx = await makeCtx();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const screen = createSettingsScreen(ctx);
+    screen.mount(container, {});
+    return { container, ctx, screen };
+  }
+
+  const refreshBtn = (): HTMLButtonElement =>
+    document.querySelector<HTMLButtonElement>('.screen-header__right button[aria-label="アップデートを確認"]')!;
+
+  beforeEach(() => {
+    document.body.textContent = '';
+    upd.ready = false;
+    upd.listeners.clear();
+    upd.check = async () => 'latest';
+    upd.apply = vi.fn();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('見出しの行の右上に、丸い「アップデートを確認」のボタン (回る矢印のアイコン、文字なし)', async () => {
+    await mountSettings();
+    const b = refreshBtn();
+    expect(b).not.toBeNull();
+    expect(b.classList.contains('btn--circle')).toBe(true);
+    expect(b.textContent).toBe('');
+    expect(b.querySelector('svg')).not.toBeNull();
+  });
+
+  it('新しい版があるとき、見出しの行の下に朱の「アップデートがあります。」と「アップデートする」(primary) が出る。押すと切り替える', async () => {
+    upd.check = async () => 'available';
+    await mountSettings();
+    refreshBtn().click();
+    await vi.waitFor(() => {
+      expect(document.querySelector('.update-notice')!.textContent).toContain('アップデートがあります。');
+    });
+    const go = Array.from(document.querySelectorAll('button')).find((b) => b.textContent === 'アップデートする')!;
+    expect(go.classList.contains('btn--primary')).toBe(true);
+    expect(document.querySelector('.update-notice__text')!.classList.contains('update-notice__text--alert')).toBe(true);
+    go.click();
+    expect(upd.apply).toHaveBeenCalledTimes(1);
+  });
+
+  it('新しい版が無いとき「最新の版です」が出て、3 秒で消える', async () => {
+    await mountSettings();
+    vi.useFakeTimers(); // 画面の用意 (IndexedDB) のあとに偽の時計にする
+    refreshBtn().click();
+    await vi.advanceTimersByTimeAsync(900); // 確認の最低の長さ (0.8 秒)
+    expect(document.querySelector('.update-notice')!.textContent).toContain('最新の版です');
+    await vi.advanceTimersByTimeAsync(3100);
+    expect(document.querySelector('.update-notice')!.textContent).toBe('');
+  });
+
+  it('通信できなければ「確認できませんでした。通信を確かめてください」', async () => {
+    upd.check = async () => 'offline';
+    await mountSettings();
+    vi.useFakeTimers();
+    refreshBtn().click();
+    await vi.advanceTimersByTimeAsync(900);
+    expect(document.querySelector('.update-notice')!.textContent).toContain('確認できませんでした。通信を確かめてください');
+  });
+
+  it('確認している間、ボタンに回るクラス (btn--spinning) が付き、最低 0.8 秒たってから外れる。2 回続けて押しても確認は 1 回', async () => {
+    const check = vi.fn(async () => 'latest' as const);
+    upd.check = check;
+    await mountSettings();
+    vi.useFakeTimers();
+    const b = refreshBtn();
+    b.click();
+    b.click();
+    expect(b.classList.contains('btn--spinning')).toBe(true);
+    await vi.advanceTimersByTimeAsync(400);
+    expect(b.classList.contains('btn--spinning')).toBe(true); // 確認が終わっていても、最低 0.8 秒は回る
+    await vi.advanceTimersByTimeAsync(500);
+    expect(b.classList.contains('btn--spinning')).toBe(false);
+    expect(check).toHaveBeenCalledTimes(1);
+  });
+
+  it('開いたときすでに新しい版が届いていれば、最初から「アップデートがあります。」が出る。届いたことを知らされても出る', async () => {
+    upd.ready = true;
+    await mountSettings();
+    expect(document.querySelector('.update-notice')!.textContent).toContain('アップデートがあります。');
+    document.body.textContent = '';
+    upd.ready = false;
+    await mountSettings();
+    expect(document.querySelector('.update-notice')!.textContent).toBe('');
+    upd.ready = true;
+    for (const cb of upd.listeners) {
+      cb(true);
+    }
+    expect(document.querySelector('.update-notice')!.textContent).toContain('アップデートがあります。');
+  });
+
+  it('unmount で、状態の購読を外し、タイマーも残さない', async () => {
+    const { screen } = await mountSettings();
+    vi.useFakeTimers();
+    refreshBtn().click();
+    expect(upd.listeners.size).toBe(1);
+    screen.unmount();
+    expect(upd.listeners.size).toBe(0);
+    expect(vi.getTimerCount()).toBe(0);
   });
 });

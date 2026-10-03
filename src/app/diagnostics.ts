@@ -59,6 +59,11 @@ export function isUpdateAvailable(): boolean {
   return updateApply !== null;
 }
 
+/** テスト用: 記録した更新の関数を消す */
+export function clearUpdateAvailableForTest(): void {
+  updateApply = null;
+}
+
 /** 保持した更新実行関数を reload=true で呼ぶ。未記録なら何もしない */
 export async function applyUpdateNow(): Promise<void> {
   const apply = updateApply;

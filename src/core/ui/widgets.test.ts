@@ -417,3 +417,13 @@ describe('PU-08b: 歯車のアイコン (settings)', () => {
     expect(b.textContent).toBe('設定'); // 文字も付いたまま
   });
 });
+
+describe('PU-10a: 回る矢印のアイコン (refresh)', () => {
+  it('円弧と矢じりの線があり、押している間の回転 (btn--spinning) を CSS で指定している (動きを減らす設定では回さない)', () => {
+    const b = createButton({ label: 'アップデートを確認', icon: 'refresh', shape: 'circle', onClick: () => {} });
+    expect(b.querySelectorAll('svg path').length).toBeGreaterThanOrEqual(2);
+    const css = baseCss();
+    expect(css).toMatch(/\.btn--spinning \.btn__icon\s*\{[^}]*animation:/);
+    expect(css).toMatch(/prefers-reduced-motion: reduce\)\s*\{[^@]*\.btn--spinning \.btn__icon\s*\{[^}]*animation: none/);
+  });
+});

@@ -3,6 +3,27 @@ import { createHomeScreen } from './homeScreen';
 import type { AppContext } from '../context';
 import type { GameModule } from '../../core/game/types';
 import { registerGame, clearGamesForTest } from '../../core/game/registry';
+// アップデートの確認 (updater) は偽物にする。Service Worker は使わない
+const upd = vi.hoisted(() => ({
+  ready: false,
+  listeners: new Set<(ready: boolean) => void>(),
+  check: undefined as unknown as () => Promise<'available' | 'latest' | 'offline'>,
+  apply: undefined as unknown as () => void,
+}));
+vi.mock('../updater', () => ({
+  isUpdateReady: () => upd.ready,
+  checkForUpdate: () => upd.check(),
+  applyUpdate: () => {
+    upd.apply();
+  },
+  onUpdateState: (cb: (ready: boolean) => void) => {
+    upd.listeners.add(cb);
+    return () => {
+      upd.listeners.delete(cb);
+    };
+  },
+}));
+
 
 function fakeModule(id: 'creel' | 'winding', titleTermKey: string, summary: string): GameModule {
   return {
@@ -126,5 +147,35 @@ describe('ホーム画面 (PU-03a)', () => {
     root.querySelector<HTMLButtonElement>('.game-card--soon')!.click();
     unmount();
     expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe('PU-10a: ホームの「設定」ボタンのバッジ', () => {
+  beforeEach(() => {
+    upd.ready = false;
+    upd.listeners.clear();
+  });
+
+  it('新しい版が届いていなければバッジは無く、届いていれば朱の小さな丸 (btn__badge) が付く。aria-label でも伝わる', () => {
+    clearGamesForTest();
+    const a = mountHome();
+    expect(a.root.querySelector('.btn__badge')).toBeNull();
+    document.body.textContent = '';
+    upd.ready = true;
+    const b = mountHome();
+    const settings = Array.from(b.root.querySelectorAll('button')).find((x) => x.textContent === '設定')!;
+    expect(settings.querySelector('.btn__badge')).not.toBeNull();
+    expect(settings.getAttribute('aria-label')).toContain('アップデートがあります');
+  });
+
+  it('開いたあとで届いたことを知らされるとバッジが付く。unmount で購読を外す', () => {
+    const { root, unmount } = mountHome();
+    expect(root.querySelector('.btn__badge')).toBeNull();
+    for (const cb of upd.listeners) {
+      cb(true);
+    }
+    expect(root.querySelector('.btn__badge')).not.toBeNull();
+    unmount();
+    expect(upd.listeners.size).toBe(0);
   });
 });

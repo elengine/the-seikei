@@ -4,6 +4,7 @@ import { createButton, createChoice, textInputDialog } from '../../core/ui/widge
 import { createCard, createPage, createScreenHeader, createSectionHeading } from '../../core/ui/layout';
 import { FONT } from '../../core/ui/tokens';
 import type { FontScale } from '../../core/ui/tokens';
+import { applyUpdate, checkForUpdate, isUpdateReady, onUpdateState } from '../updater';
 
 /** 音の大きさの3段階 (小・中・大) */
 const VOLUMES = [
@@ -70,13 +71,116 @@ function createFontSlider(
 
 /** 設定画面。節の見出し+カードのまとまりに、項目を1行ずつ並べる */
 export function createSettingsScreen(ctx: AppContext): Screen {
+  const timers = new Set<ReturnType<typeof setTimeout>>();
+  let offUpdate: (() => void) | null = null;
+  let disposed = false;
+
+  /** タイマーを予約する (unmount で全部止める) */
+  function later(ms: number, fn: () => void): void {
+    const t = setTimeout(() => {
+      timers.delete(t);
+      fn();
+    }, ms);
+    timers.add(t);
+  }
+
   return {
     mount(container: HTMLElement): void {
+      disposed = false;
       const root = document.createElement('div');
       root.classList.add('settings');
-      root.appendChild(createScreenHeader({ title: '設定', onBack: () => ctx.navigate('/') }));
+
+      // 見出しの行の右上: アップデートの確認 (押すとアイコンが回り、新しい版を確かめる)
+      const refreshBtn = createButton({
+        label: 'アップデートを確認',
+        variant: 'secondary',
+        icon: 'refresh',
+        shape: 'circle',
+        onClick: () => {
+          void runCheck();
+        },
+      });
+      root.appendChild(createScreenHeader({ title: '設定', onBack: () => ctx.navigate('/'), right: refreshBtn }));
       const page = createPage({ width: 'form' });
       root.appendChild(page);
+
+      // 見出しの行のすぐ下: 「アップデートがあります。」+「アップデートする」、または短い案内
+      const notice = document.createElement('div');
+      notice.classList.add('update-notice');
+      notice.setAttribute('role', 'status');
+      page.appendChild(notice);
+      let noticeTimer: ReturnType<typeof setTimeout> | null = null;
+
+      function clearNotice(): void {
+        if (noticeTimer !== null) {
+          clearTimeout(noticeTimer);
+          timers.delete(noticeTimer);
+          noticeTimer = null;
+        }
+        notice.textContent = '';
+      }
+
+      function showText(text: string, hideAfterMs?: number): void {
+        clearNotice();
+        const p = document.createElement('p');
+        p.classList.add('update-notice__text');
+        p.textContent = text;
+        notice.appendChild(p);
+        if (hideAfterMs !== undefined) {
+          const t = setTimeout(() => {
+            timers.delete(t);
+            noticeTimer = null;
+            notice.textContent = '';
+          }, hideAfterMs);
+          timers.add(t);
+          noticeTimer = t;
+        }
+      }
+
+      function showAvailable(): void {
+        clearNotice();
+        const p = document.createElement('p');
+        p.classList.add('update-notice__text', 'update-notice__text--alert'); // 朱の文字
+        p.textContent = 'アップデートがあります。';
+        notice.appendChild(p);
+        notice.appendChild(createButton({ label: 'アップデートする', variant: 'primary', onClick: () => applyUpdate() }));
+      }
+
+      let checking = false;
+      async function runCheck(): Promise<void> {
+        if (checking) {
+          return;
+        }
+        checking = true;
+        refreshBtn.classList.add('btn--spinning');
+        clearNotice();
+        // 確認が早く終わっても、最低 0.8 秒は回して「確かめた」ことを見せる
+        const minWait = new Promise<void>((resolve) => later(800, resolve));
+        const [result] = await Promise.all([checkForUpdate(), minWait]);
+        if (disposed) {
+          return;
+        }
+        checking = false;
+        refreshBtn.classList.remove('btn--spinning');
+        if (result === 'available') {
+          showAvailable();
+        } else if (result === 'latest') {
+          showText('最新の版です', 3000);
+        } else {
+          showText('確認できませんでした。通信を確かめてください');
+        }
+      }
+
+      // 開いたときすでに届いていれば最初から出す。あとから届いたことも受け取る
+      if (isUpdateReady()) {
+        showAvailable();
+      }
+      offUpdate?.();
+      offUpdate = onUpdateState((ready) => {
+        if (ready) {
+          showAvailable();
+        }
+      });
 
       function row(label: string): { row: HTMLDivElement; value: HTMLSpanElement; actions: HTMLDivElement } {
         const line = document.createElement('div');
@@ -272,6 +376,13 @@ export function createSettingsScreen(ctx: AppContext): Screen {
     },
 
     unmount(): void {
+      disposed = true;
+      offUpdate?.();
+      offUpdate = null;
+      for (const t of timers) {
+        clearTimeout(t);
+      }
+      timers.clear();
       // root は container ごと取り除かれる
     },
   };

@@ -1,4 +1,4 @@
-type ButtonIcon = 'back' | 'next' | 'check' | 'settings' | 'help';
+type ButtonIcon = 'back' | 'next' | 'check' | 'settings' | 'help' | 'refresh';
 
 interface ButtonOpts {
   label: string;
@@ -32,6 +32,7 @@ const ICON_SHAPES: Record<ButtonIcon, string[]> = {
     'M16.9 7.1 L19.1 4.9',
   ],
   help: ['M9 9.5 A3 3 0 1 1 12.8 12.3 C12.2 12.7 12 13.2 12 14.2', 'M12 18 L12.01 18'], // ? の線
+  refresh: ['M20 12 A8 8 0 1 1 17.6 6.3', 'M18 2.5 L18 7 L13.5 7'], // 回る矢印 (円弧と矢じり)
 };
 
 function createIcon(icon: ButtonIcon, size = 24): SVGElement {

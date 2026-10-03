@@ -2,7 +2,8 @@ import './styles/base.css';
 import { registerSW } from 'virtual:pwa-register';
 import { createSystemClock } from './core/clock/clock';
 import { boot } from './app/boot';
-import { setInstallPromptRecorded, setUpdateAvailable } from './app/diagnostics';
+import { setInstallPromptRecorded } from './app/diagnostics';
+import { checkForUpdate, markUpdateAvailable } from './app/updater';
 import { createScreenManager } from './app/screenManager';
 import type { Route } from './app/screenManager';
 import { createHomeScreen } from './app/screens/homeScreen';
@@ -18,11 +19,11 @@ import { gameDepsFrom } from './app/context';
 import { getContent } from './core/content/content';
 
 // Service Worker を登録する (registerType: 'prompt'。お父さん向けの画面では案内を出さず、
-// 次回起動時に自動で切り替わる。管理者メニューの「今すぐ新しい版に切り替える」ボタンからも切り替えられる)
+// 設定の画面の「アップデートを確認」と、起動時の自動の確認で届いたことを知らせ、「アップデートする」で切り替える)
 const updateSW = registerSW({
   immediate: false,
   onNeedRefresh() {
-    setUpdateAvailable(updateSW);
+    markUpdateAvailable(updateSW);
   },
 });
 
@@ -100,6 +101,13 @@ async function main(): Promise<void> {
   ];
   const screens = createScreenManager(app, routes);
   screens.start();
+
+  // 起動の 3 秒後に 1 回、新しい版を自動で確認する (待ち受けの間は確認しない)。届いていれば、ホームの「設定」にバッジが付く
+  setTimeout(() => {
+    if (document.visibilityState === 'visible') {
+      void checkForUpdate();
+    }
+  }, 3000);
 }
 
 void main();

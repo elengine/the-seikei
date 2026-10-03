@@ -67,12 +67,13 @@ describe('PU-03b: 管理者の画面の節と押せないボタン', () => {
     document.body.appendChild(container);
     createAdminScreen(ctx).mount(container, {});
     const heads = Array.from(container.querySelectorAll('.section-heading')).map((h) => h.textContent);
-    expect(heads).toEqual(['診断', '版の切り替え', 'バックアップ', 'インストール', 'ログ']);
+    expect(heads).toEqual(['診断', 'バックアップ', 'インストール', 'ログ']); // 「版の切り替え」は設定の画面に移した (PU-10a)
     expect(container.querySelector('.screen-header__title')!.textContent).toBe('管理者');
-    const update = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '今すぐ新しい版に切り替える')!;
-    expect(update.classList.contains('btn--locked')).toBe(true);
-    expect(update.hasAttribute('disabled')).toBe(false);
-    update.click();
-    expect(container.textContent).toContain('新しい版はまだ届いていません');
+    expect(Array.from(container.querySelectorAll('button')).some((b) => b.textContent === '今すぐ新しい版に切り替える')).toBe(false);
+    const install = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'アプリとしてインストール')!;
+    expect(install.classList.contains('btn--locked')).toBe(true);
+    expect(install.hasAttribute('disabled')).toBe(false);
+    install.click();
+    expect(container.textContent).toContain('この端末では、いまはインストールできません');
   });
 });

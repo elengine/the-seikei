@@ -1945,3 +1945,63 @@ button {
   gap: var(--sp-3);
 }
 
+/* アップデートの確認 (PU-10a): 押している間アイコンが回る / ホームの「設定」の朱のバッジ / 設定の画面の案内 */
+.btn--spinning .btn__icon {
+  animation: btn-spin 0.8s linear infinite;
+}
+
+@keyframes btn-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn--spinning .btn__icon {
+    animation: none;
+  }
+}
+
+.btn {
+  position: relative;
+}
+
+.btn__badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--c-shu);
+  border: 2px solid var(--c-white);
+  box-sizing: border-box;
+}
+
+.update-notice {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+}
+
+.update-notice:empty {
+  display: none;
+  margin: 0;
+}
+
+.update-notice {
+  margin-bottom: var(--sp-4);
+}
+
+.update-notice__text {
+  margin: 0;
+  font-size: var(--fs-label);
+  color: var(--c-muted);
+}
+
+.update-notice__text--alert {
+  font-weight: 700;
+  color: var(--c-shu);
+}
+
