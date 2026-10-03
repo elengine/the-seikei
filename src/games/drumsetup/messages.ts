@@ -12,7 +12,7 @@ type Render = (text: string) => string;
 /** 状態に応じたメッセージを返す */
 export function messageFor(s: DrumSetupState, render: Render): string {
   if (s.phase === 'trial') {
-    return render('試し巻きをしています');
+    return render('巻いています');
   }
   if (s.phase === 'done') {
     return render('設定できました');
@@ -34,7 +34,7 @@ export function messageFor(s: DrumSetupState, render: Render): string {
   if (s.angle === null) {
     return render('羽の角度を選んで、送り量を合わせてください');
   }
-  return render('送り量を合わせて「試し巻き」を押してください');
+  return render('送り量を合わせて「巻く」を押してください');
 }
 
 /** 操作の効果音。試し巻きの始まりと終わり (音の名前を返す。音なしは null) */

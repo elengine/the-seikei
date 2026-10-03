@@ -97,21 +97,31 @@ describe('drumsetup panel T2c-03a (操作欄)', () => {
     expect(memo5).toContain('表は電卓から見られます');
   });
 
-  it('3b. 羽の角度の入れ物は2列×2段の格子 (base.css に2列の格子がある・T2c-03-fix 1)', () => {
+  it('3b. 羽の角度と送り量の入れ物は、どちらも1行に4つの格子。ボタンの文字は折り返さない (T2c-04a 2)', () => {
     const css = readFileSync('src/styles/base.css', 'utf8');
-    expect(/\.drumsetup-panel__angles\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/.test(css)).toBe(true);
+    const grid4 = /\.drumsetup-panel__(angles|steps)\s*\{[^}]*grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/;
+    expect(grid4.test(css), 'angles').toBe(true);
+    expect(css.match(grid4)?.length ?? 0).toBeGreaterThanOrEqual(2); // angles と steps の両方
+    expect(/white-space:\s*nowrap/.test(css.split('ドラム設定')[1] ?? '')).toBe(true);
     const p = p1();
     const h = mount(p, init(p));
     const box = h.root.querySelector('.drumsetup-panel__angles');
     expect(box).not.toBeNull();
     expect(box!.querySelectorAll('.choice__item').length).toBe(4); // 5°・7°・9°・11°
+    expect(h.root.querySelectorAll('.drumsetup-panel__steps button').length).toBe(4);
   });
 
-  it('4. 羽の角度は 5°・7°・9°・11° から選ぶ。段階1 では使える角度に「○」を添える', () => {
+  it('4. 羽の角度は 5°・7°・9°・11° から選ぶ。段階1 では使える角度に「○」を角度の下に小さく出す (T2c-04a 2)', () => {
     const p = p1();
     const h = mount(p, init(p));
     const labels = Array.from(h.root.querySelectorAll('.choice__item')).map((e) => e.textContent?.trim() ?? '');
     expect(labels).toEqual(['5°', '7°○', '9°○', '11°○']);
+    // 「○」は角度の下 (別の要素・小さい文字)
+    const marks = h.root.querySelectorAll('.choice__item .drumsetup-panel__ok');
+    expect(marks.length).toBe(3);
+    for (const m of Array.from(marks)) {
+      expect(m.textContent).toBe('○');
+    }
     buttonByText(h, '9°○').click();
     expect(h.actions).toEqual([{ type: 'selectAngle', angle: 9 }]);
   });
@@ -140,7 +150,7 @@ describe('drumsetup panel T2c-03a (操作欄)', () => {
     expect(h.calculatorOpens).toBe(before + 1);
   });
 
-  it('6. 試し巻きのあいだは「電卓」「試し巻き」とも押せない形 (理由は「試し巻きの途中です」)', () => {
+  it('6. 巻いているあいだは「電卓」「巻く」とも押せない形 (理由が出る・T2c-04a 3)', () => {
     const p = p1();
     const h = mount(p, init(p));
     let s = init(p);
@@ -148,14 +158,22 @@ describe('drumsetup panel T2c-03a (操作欄)', () => {
     s = reduce(s, p, { type: 'setFeed', value: 1.07 });
     s = reduce(s, p, { type: 'trial' });
     h.update(s);
-    for (const text of ['電卓', '試し巻き']) {
+    for (const text of ['電卓', '巻く']) {
       const b = buttonByText(h, text);
       expect(b.getAttribute('aria-disabled')).toBe('true');
       b.click();
       const actionsAfter = h.actions.length;
       expect(actionsAfter, text).toBe(h.actions.length); // 操作は送られない
     }
-    expect(h.notices).toContain('試し巻きの途中です');
+    expect(h.notices).toContain('巻いているあいだは待ってください');
+  });
+
+  it('6b. 主な操作の文字は「巻く」 (2行に折れない・T2c-04a 3)', () => {
+    const p = p1();
+    const h = mount(p, init(p));
+    expect(buttonByText(h, '巻く')).not.toBeNull();
+    const texts = Array.from(h.root.querySelectorAll('button')).map((b) => b.textContent?.trim() ?? '');
+    expect(texts.some((t) => t.includes('試し巻き'))).toBe(false);
   });
 
   it('7. 星3でない結果のあとに「ここで終える」が出る (押すと finish を送る)', () => {

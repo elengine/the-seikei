@@ -1295,15 +1295,32 @@ button {
   margin-top: var(--sp-2);
 }
 
-/* 羽の角度の選ぶ部品は2列×2段 (操作欄からはみ出さない。T2c-03-fix 1) */
-.drumsetup-panel__angles {
+/* 羽の角度・送り量のボタンは1行に4つ (T2c-04a 2)。文字は折り返さない */
+.drumsetup-panel__angles,
+.drumsetup-panel__steps {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--sp-2);
 }
 
-.drumsetup-panel__angles .choice__item {
+.drumsetup-panel__angles .choice__item,
+.drumsetup-panel__steps .btn {
   min-height: 64px;
+  white-space: nowrap;
+}
+
+/* 入りきらない幅では文字を一段小さく (20px は下回らない。T2c-04a 2) */
+@media (max-width: 599px) {
+  .drumsetup-panel__angles .choice__item,
+  .drumsetup-panel__steps .btn {
+    font-size: 20px;
+  }
+}
+
+/* 「○」は角度の下に小さく出す (T2c-04a 2) */
+.drumsetup-panel__ok {
+  display: block;
+  font-size: 20px;
 }
 
 .drumsetup-panel__actions {

@@ -5,8 +5,8 @@ import { TRIAL_TURNS } from './params';
 import type { DrumSetupPuzzle } from './puzzles';
 import type { TrialOutcome } from './logic';
 import {
-  DRUM_RECT, SECTION_X, WING_BASE, WING_THICK_PX, TOP_TEXT, RESULT_TEXT, LAYER_H_PX,
-  wingDir, wingLen, slopeXAt, layerTopY, layerEdgeX, toPx,
+  DRUM_RECT, SECTION_RIGHT, WING_BASE, WING_THICK_PX, TOP_TEXT, RESULT_TEXT, LAYER_H_PX,
+  wingDir, wingLen, slopeXAt, layerTopY, layerLeftEdgeX, toPx,
 } from './geometry';
 import { correctFeed } from './logic';
 
@@ -155,14 +155,14 @@ function drawWing(ctx: CanvasRenderingContext2D, angle: number | null): void {
 /** 層の1本ぶんの高さ (collapse は層のあいだに縦のすき間をあける。T2c-03-fix 4) */
 const LAYER_GAP_PX = 3;
 
-/** 層を積み上げて描く */
+/** 層を積み上げて描く (層は羽の斜面に沿って左へ登る。T2c-04a 1) */
 function drawLayers(ctx: CanvasRenderingContext2D, p: DrumSetupPuzzle, view: DrumSetupView, hex: string): void {
   if (view.angle === null) return; // 角度が未選択のときは層を描かない
   const n = Math.max(0, Math.min(TRIAL_TURNS, Math.round(view.progress * TRIAL_TURNS)));
   if (n === 0) return;
   const bad = view.outcome === 'badAngle';
   const count = bad ? Math.min(n, BAD_LAYERS) : n;
-  // 層の右の端は、羽の斜面と同じ見た目の決まりで決める (T2c-03-fix 4)
+  // 層の左の端は、羽の斜面と同じ見た目の決まりで決める (T2c-03-fix 4 を左右入れ替え)
   const correct = correctFeed(p, view.angle);
   const ratio = correct > 0 ? view.feed / correct : 1;
   for (let j = 1; j <= count; j++) {
@@ -171,30 +171,27 @@ function drawLayers(ctx: CanvasRenderingContext2D, p: DrumSetupPuzzle, view: Dru
     const slope = slopeXAt(heightPx, view.angle);
     const collapse = view.outcome === 'collapse';
     const height = collapse ? LAYER_H_PX - LAYER_GAP_PX : LAYER_H_PX - 1;
-    let left = SECTION_X;
-    let right = layerEdgeX(j, view.angle, ratio); // 送り量が正しければ斜面の上
-    let overhang = 0;
+    let left = layerLeftEdgeX(j, view.angle, ratio); // 送り量が正しければ斜面の上
+    let right = SECTION_RIGHT;
+    let bulge = 0;
     if (view.outcome === 'crush') {
-      // 少なすぎる:斜面より左に遅れ、ほぼ真上に積み重なる。上の層ほど左右にふくらむ (潰れて広がる)
-      const bulge = Math.min(j * 1.2, 40);
-      left = SECTION_X - bulge / 2;
-      right = right + bulge / 2;
-      overhang = bulge / 2; // ふくらんだ部分 (濃く塗る)
+      // 少なすぎる:斜面より右に遅れ、ほぼ真上に積み重なる。上の層ほど左右にふくらむ (潰れて広がる)
+      bulge = Math.min(j * 1.2, 40);
+      left = left + bulge / 2;
     } else if (collapse) {
-      // 多すぎる:右の端は斜面を越えられないので、斜面の上で止める。層のあいだにすき間と段
-      right = Math.min(right, slope) - (4 + ((count - j) % 2) * 4);
+      // 多すぎる:左の端は斜面を越えられないので、斜面の上で止める。層のあいだにすき間と段
+      left = Math.max(left, slope) + (4 + ((count - j) % 2) * 4);
     } else if (bad) {
-      left = SECTION_X + j * BAD_SLIP_PX; // 斜めにずり落ちる
-      right = slope + j * BAD_SLIP_PX;
+      right = SECTION_RIGHT - j * BAD_SLIP_PX; // 左へずり落ちる
+      left = slope + j * BAD_SLIP_PX;
     }
     ctx.fillStyle = hex;
     ctx.fillRect(left, yTop, right - left, height);
-    if (overhang > 0) {
+    if (bulge > 0) {
       // ふくらんだ (重なった) 部分を少し濃く
       ctx.fillStyle = COLORS.sumi;
       ctx.globalAlpha = 0.3;
-      ctx.fillRect(right - overhang, yTop, overhang, height);
-      ctx.fillRect(left, yTop, overhang, height);
+      ctx.fillRect(left, yTop, bulge / 2, height);
       ctx.globalAlpha = 1;
     }
   }

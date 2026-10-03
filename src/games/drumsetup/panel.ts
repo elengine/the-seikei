@@ -8,7 +8,7 @@ import { GRADE_LABEL, ANGLES, ALLOWED_ANGLES, YARN_COEF, FEED_STEP_SMALL, FEED_S
 
 /**
  * ドラム設定の操作欄 (T2c-03a)。区画は上から:依頼書・計算のメモ・羽の角度・送り量。
- * 一番下に「電卓」「試し巻き」を固定する (詰めた形では操作欄が縦にスクロールし、主な操作は下に固定)。
+ * 一番下に「電卓」「巻く」を固定する (詰めた形では操作欄が縦にスクロールし、主な操作は下に固定)。
  * メッセージは GameFrame の message 欄を使う (controller が書く)。この部品はメッセージ欄を作らない。
  */
 
@@ -101,7 +101,22 @@ export function createDrumSetupPanel(
     ariaLabel: '羽の角度',
     onChange: (v) => opts.onAction({ type: 'selectAngle', angle: Number(v) }),
   });
-  // 2列×2段の格子にする (操作欄からはみ出さない。T2c-03-fix 1)
+  // 「○」は角度の下に小さく出す (T2c-04a 2。文字を分けて改行する)
+  for (const b of Array.from(choice.root.querySelectorAll('.choice__item'))) {
+    const tn = Array.from(b.childNodes).find((n) => n.nodeType === 3);
+    if (!tn) continue;
+    const m = /^(.*?°)(○?)$/.exec(String(tn.textContent ?? ''));
+    if (!m) continue;
+    tn.textContent = m[1]!;
+    if (m[2] === '○') {
+      const mark = document.createElement('span');
+      mark.className = 'drumsetup-panel__ok';
+      mark.textContent = '○';
+      mark.setAttribute('aria-hidden', 'true');
+      b.appendChild(mark);
+    }
+  }
+  // 1行に4つの格子にする (T2c-04a 2)
   choice.root.classList.add('drumsetup-panel__angles');
   angleBox.appendChild(choice.root);
   root.appendChild(angleBox);
@@ -125,7 +140,7 @@ export function createDrumSetupPanel(
   feedBox.appendChild(feedRow);
   root.appendChild(feedBox);
 
-  // 5. 一番下の主な操作 (電卓・試し巻き。星3でない結果のあとは「ここで終える」)
+  // 5. 一番下の主な操作 (電卓・巻く。星3でない結果のあとは「ここで終える」)
   const buttonRow = document.createElement('div');
   buttonRow.className = 'drumsetup-panel__actions';
   const calcBtn = createButton({
@@ -135,7 +150,7 @@ export function createDrumSetupPanel(
     onLocked: (reason) => opts.onNotice(reason),
   });
   const trialBtn = createButton({
-    label: '試し巻き',
+    label: '巻く',
     variant: 'primary',
     onClick: () => opts.onAction({ type: 'trial' }),
     onLocked: (reason) => opts.onNotice(reason),
@@ -149,7 +164,7 @@ export function createDrumSetupPanel(
 
   parent.appendChild(root);
 
-  const TRIAL_LOCK_TEXT = '試し巻きの途中です';
+  const TRIAL_LOCK_TEXT = '巻いているあいだは待ってください';
 
   return {
     update(s: DrumSetupState): void {

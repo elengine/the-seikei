@@ -86,27 +86,29 @@ describe('drumsetup renderer T2c-02 (盤面)', () => {
     }
   });
 
-  it('4. crush は上の層ほどはみ出す (層の右端が下ほど短い)。collapse は層の右端が斜面より内側', () => {
+  it('4. crush は上の層ほどふくらむ (層の左端が上ほど短い=右へ遅れる)。collapse は層の左端が斜面より内側 (T2c-04a 1)', () => {
     const hex = expectedHex('p-muji-kon');
-    const edges = (view: DrumSetupView): number[] => {
+    const lefts = (view: DrumSetupView): number[] => {
       const rec = draw(p1(), view);
       const xs: number[] = [];
       for (let i = 0; i < rec.ops.length; i++) {
         const o = rec.ops[i]!;
         if (o.k === 'fillRect' && styleBefore(rec.ops, i) === hex) {
-          xs.push(Number(o.args?.[0]) + Number(o.args?.[2])); // x + w = 右端
+          xs.push(Number(o.args?.[0])); // x = 左端
         }
       }
       return xs;
     };
-    const crush = edges({ angle: 9, feed: 1.07, outcome: 'crush', progress: 1, showResult: false });
+    const crush = lefts({ angle: 9, feed: 1.07, outcome: 'crush', progress: 1, showResult: false });
     expect(crush.length).toBe(30);
-    expect(crush[29]!).toBeGreaterThan(crush[0]!); // 上の層ほど右へはみ出す
-    const collapse = edges({ angle: 9, feed: 1.07, outcome: 'collapse', progress: 1, showResult: false });
-    // collapse はどの層も斜面 (good の右端) より内側
-    const good = edges({ angle: 9, feed: 1.07, outcome: 'good', progress: 1, showResult: false });
-    expect(collapse[0]!).toBeLessThan(good[0]!);
-    expect(collapse[29]!).toBeLessThan(good[29]!);
+    // crush は上の層ほど斜面から右へ遅れる (斜面とのずれ = ふくらみが増える)
+    const slopeAt = (j: number): number => slopeXAt(j * LAYER_H_PX, 9);
+    expect(crush[29]! - slopeAt(30)).toBeGreaterThan(crush[0]! - slopeAt(1));
+    const collapse = lefts({ angle: 9, feed: 1.07, outcome: 'collapse', progress: 1, showResult: false });
+    // collapse はどの層も斜面 (good の左端) より内側 (右)
+    const good = lefts({ angle: 9, feed: 1.07, outcome: 'good', progress: 1, showResult: false });
+    expect(collapse[0]!).toBeGreaterThan(good[0]!);
+    expect(collapse[29]!).toBeGreaterThan(good[29]!);
   });
 
   it('5. 盤面の上の端に「1回転 送り ○.○○mm/羽 ○°」を出す', () => {
@@ -128,7 +130,7 @@ describe('drumsetup renderer T2c-02 (盤面)', () => {
     expect(mainHex(content, 'p-muji-kon')).toBe(expectedHex('p-muji-kon'));
   });
 
-  it('8. 送り量が正しい値のとき、すべての層の右の端が羽の斜面に乗る (ずれ 2px 以内。T2c-03-fix 4)', () => {
+  it('8. 送り量が正しい値のとき、すべての層の左の端が羽の斜面に乗る (ずれ 2px 以内。T2c-04a 1)', () => {
     const hex = expectedHex('p-muji-kon');
     const correct = correctFeed(p1(), 9); // 1.07
     const rec = draw(p1(), { angle: 9, feed: correct, outcome: 'good', progress: 1, showResult: false });
@@ -137,32 +139,30 @@ describe('drumsetup renderer T2c-02 (盤面)', () => {
       .filter((e) => e.o.k === 'fillRect' && e.style === hex)
       .map((e) => e.o.args as unknown[]);
     expect(rects.length).toBe(30);
-    for (const [x, y, w] of rects) {
-      const right = Number(x) + Number(w);
+    for (const [x, y] of rects) {
       const heightPx = DRUM_RECT.y - Number(y);
-      expect(Math.abs(right - slopeXAt(heightPx, 9))).toBeLessThanOrEqual(2);
+      expect(Math.abs(Number(x) - slopeXAt(heightPx, 9))).toBeLessThanOrEqual(2);
     }
   });
 
-  it('9. 送り量が半分 (crush) なら層30の右の端は斜面より左。2倍 (collapse) なら右の端は斜面を越えない (T2c-03-fix 4)', () => {
+  it('9. 送り量が半分 (crush) なら層30の左の端は斜面より右。2倍 (collapse) なら左の端は斜面を越えない (T2c-04a 1)', () => {
     const hex = expectedHex('p-muji-kon');
     const correct = correctFeed(p1(), 9);
-    const edges = (view: DrumSetupView): number[] => {
+    const lefts = (view: DrumSetupView): number[] => {
       const rec = draw(p1(), view);
       return rec.ops
         .map((o, i) => ({ o, style: styleBefore(rec.ops, i) }))
         .filter((e) => e.o.k === 'fillRect' && e.style === hex)
-        .map((e) => Number(e.o.args?.[0]) + Number(e.o.args?.[2]));
+        .map((e) => Number(e.o.args?.[0]));
     };
-    const crush = edges({ angle: 9, feed: Math.round((correct / 2) * 100) / 100, outcome: 'crush', progress: 1, showResult: false });
+    const crush = lefts({ angle: 9, feed: Math.round((correct / 2) * 100) / 100, outcome: 'crush', progress: 1, showResult: false });
     expect(crush.length).toBe(30);
-    expect(crush[29]!).toBeLessThan(slopeXAt(30 * LAYER_H_PX, 9));
-    const collapse = edges({ angle: 9, feed: Math.round((correct * 2) * 100) / 100, outcome: 'collapse', progress: 1, showResult: false });
+    expect(crush[29]!).toBeGreaterThan(slopeXAt(30 * LAYER_H_PX, 9));
+    const collapse = lefts({ angle: 9, feed: Math.round((correct * 2) * 100) / 100, outcome: 'collapse', progress: 1, showResult: false });
     expect(collapse.length).toBe(30);
-    for (const right of collapse) {
-      // 層の高さの位置の斜面より左に止まる (越えない)
-      // (右端だけでは高さが分からないので、いちばん右の層でも斜面を越えないことで確かめる)
-      expect(right).toBeLessThanOrEqual(slopeXAt(30 * LAYER_H_PX, 9) + 2);
+    for (const left of collapse) {
+      // 層の左端は斜面より右に止まる (斜面を越えない)
+      expect(left).toBeGreaterThanOrEqual(slopeXAt(30 * LAYER_H_PX, 9) - 2);
     }
   });
 });

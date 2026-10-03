@@ -136,7 +136,7 @@ describe('drumsetup controller T2c-03a', () => {
     const feed = parent.querySelector('[data-testid="drumsetup-feed"]')!.textContent!;
     expect(feed).toContain('1.07 mm');
     // 試し巻き → 5 秒 (TRIAL_MS) 進める
-    buttonByText(parent, '試し巻き').click();
+    buttonByText(parent, '巻く').click();
     expect(lastView()?.outcome).toBe('good');
     r.advance(320); // 16ms × 320 = 5.1秒
     await wait(1700); // done の見せる時間 (1.5秒)
@@ -155,7 +155,7 @@ describe('drumsetup controller T2c-03a', () => {
   it('2. 送り量が少なすぎると「潰れました」のメッセージが出て、setting に戻り「ここで終える」で星2の結果になる', async () => {
     drawBoardCalls.length = 0;
     const { parent, instance, props, raf: r } = await setupToTrial(p1(), ['0', '.', '9', '6']);
-    buttonByText(parent, '試し巻き').click();
+    buttonByText(parent, '巻く').click();
     expect(lastView()?.outcome).toBe('crush');
     r.advance(320);
     // trialEnd で setting に戻る (結果の画面は出ない)
@@ -173,7 +173,7 @@ describe('drumsetup controller T2c-03a', () => {
   it('3. 使えない角度 (2/48 に 5°) で試し巻きをすると badAngle になり、盤面にその結果が渡る', async () => {
     drawBoardCalls.length = 0;
     const { parent, instance, raf: r } = await setupToTrial(p1(), ['1', '.', '0', '7'], '5°');
-    buttonByText(parent, '試し巻き').click();
+    buttonByText(parent, '巻く').click();
     expect(lastView()?.outcome).toBe('badAngle');
     r.advance(320);
     expect(parent.querySelector('.game-frame__message')?.textContent).toContain('使えません');
@@ -211,7 +211,7 @@ describe('drumsetup controller T2c-03a', () => {
   it('6. 裏に回ったら試し巻きの絵を止めて、結果だけ決める', async () => {
     drawBoardCalls.length = 0;
     const { parent, instance, raf: r } = await setupToTrial(p1(), ['0', '.', '9', '6']);
-    buttonByText(parent, '試し巻き').click();
+    buttonByText(parent, '巻く').click();
     r.advance(30); // 途中まで
     // 裏に回る
     Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
