@@ -134,6 +134,21 @@ export const PUZZLE_STAGE: Record<number, { sections: number; level: Level }> = 
   5: { sections: 7, level: 3 },
 };
 
+/** 糸の手応え (T2-14b)。standard=標準、fine=細い糸 (切れやすい)、thick=太い糸 (流れやすい) */
+export type YarnFeel = 'standard' | 'fine' | 'thick';
+
+/** 手応えごとのパラメータの倍率・差分 (T2-14b。初期値。管理者が遊んで調整する) */
+export const YARN_FEEL: Record<YarnFeel, {
+  breakRateMul: number; // 糸切れのしやすさの倍率
+  breakExtraStepDelta: number; // 切れる本数が 1本増える外れの量の差分 (最小 4)
+  driftMul: number; // 張りの流れの速さの倍率
+  snagMul: number; // 引っかかりのしやすさの倍率
+}> = {
+  standard: { breakRateMul: 1, breakExtraStepDelta: 0, driftMul: 1, snagMul: 1 },
+  fine: { breakRateMul: 1.5, breakExtraStepDelta: -2, driftMul: 1, snagMul: 1 },
+  thick: { breakRateMul: 1, breakExtraStepDelta: 0, driftMul: 1.3, snagMul: 1.3 },
+};
+
 /** 帯の縞1本の高さ (論理座標。柄の並びを区画の中で繰り返す。T2-08 追加修正2) */
 export const STRIPE_H = 6;
 

@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { init, reduce, qualities, starsOf, isValidResume, lastTapResult } from './logic';
 import { resultOf, messageFor } from './messages';
 import type { WindingState } from './logic';
-import { paramsOf, SECTION_LENGTH, MAX_SPEED, TENSION, DRIFT, NOISE_AMP, RANGE_CENTER, RANGE_WIDTH, RANGE_WIDTH_SWING } from './params';
+import { paramsOf, SECTION_LENGTH, MAX_SPEED, TENSION, DRIFT, NOISE_AMP, RANGE_CENTER, RANGE_WIDTH, RANGE_WIDTH_SWING, YARN_FEEL } from './params';
+import type { YarnFeel } from './params';
 import { tensionOf } from '../../core/mechanics/pedal';
 import { seedFrom } from '../../core/clock/clock';
 
@@ -484,5 +485,56 @@ describe('winding logic T2-14a (お題15題・puzzleId)', () => {
     const old = JSON.parse(JSON.stringify(s)) as Record<string, unknown>;
     delete old.puzzleId;
     expect(isValidResume(old as never)).toBe(false);
+  });
+});
+
+describe('winding logic T2-14b (糸の手応え)', () => {
+  it('1. 細い糸のお題は、同じ種・同じ外れ方で標準より早く切れる', () => {
+    const run = (feel: YarnFeel): number => {
+      let s = init({ level: 1, patternId: 'x', sections: 3, seed: 7, feel });
+      s = reduce(s, { type: 'start' });
+      s = reduce(s, { type: 'setPedal', value: 100 }); // 範囲の上を外れ続ける
+      for (let i = 0; i < 2000; i++) {
+        s = reduce(s, { type: 'tick', dtMs: 500 });
+        if (s.brk.kind === 'broken') return i;
+      }
+      return 2000;
+    };
+    const fine = run('fine');
+    const std = run('standard');
+    expect(fine, `fine ${fine} / standard ${std}`).toBeLessThan(std);
+  });
+
+  it('2. 太い糸のお題は、同じ種で流れの動きが大きい (1フレームの流れの量を比べる)', () => {
+    const run = (feel: YarnFeel, seed: number): number => {
+      let s = init({ level: 2, patternId: 'x', sections: 3, seed, feel });
+      s = reduce(s, { type: 'start' });
+      s = reduce(s, { type: 'setPedal', value: 50 });
+      s = reduce(s, { type: 'tick', dtMs: 100 });
+      return Math.abs(s.pedal.drift);
+    };
+    for (const seed of [5, 11, 23]) {
+      expect(run('thick', seed), `seed ${seed}`).toBeGreaterThan(run('standard', seed));
+    }
+  });
+
+  it('3. どの手応え・どの難易度でも、流れ・ぶれが最大に振れたときペダル 10〜100 で範囲の中に入れられる (T2-11)', () => {
+    for (const feel of ['standard', 'fine', 'thick'] as const) {
+      const f = YARN_FEEL[feel];
+      for (const level of [1, 2, 3] as const) {
+        const dp = DRIFT(level);
+        const eff = { ...dp, perSec: dp.perSec * f.driftMul, snagRate: dp.snagRate * f.snagMul };
+        const amp = NOISE_AMP(level);
+        const c = RANGE_CENTER(level);
+        const width = RANGE_WIDTH(level);
+        for (const center of [c.min, c.max]) {
+          const range = { min: center - width / 2, max: center + width / 2 };
+          const worstLow = TENSION.base + TENSION.perPedal * 10 - eff.max - amp;
+          const worstHigh = TENSION.base + TENSION.perPedal * 100 + eff.max + amp;
+          expect(worstLow, `feel ${feel} level ${level} c${center}`).toBeLessThanOrEqual(range.min);
+          expect(worstHigh, `feel ${feel} level ${level} c${center}`).toBeGreaterThanOrEqual(range.max);
+        }
+      }
+    }
   });
 });

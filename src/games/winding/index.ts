@@ -8,6 +8,7 @@ import { SECTIONS, STANDALONE_PATTERN } from './params';
 import type { WindingState } from './logic';
 import { windingPuzzles, puzzleById } from './puzzles';
 import type { WindingPuzzle } from './puzzles';
+import type { YarnFeel } from './params';
 import { getContent } from '../../core/content/content';
 import { confirmDialog } from '../../core/ui/widgets';
 import { showTutorial } from '../../core/ui/tutorialOverlay';
@@ -49,7 +50,7 @@ export function createWindingModule(deps: GameDeps): GameModule {
         patternId: string,
         sections: number,
         resume: WindingState | undefined,
-        puzzle?: { id: string; stage: number; name: string },
+        puzzle?: { id: string; stage: number; name: string; feel: YarnFeel },
         onBack: () => void = onBackFromPlay,
       ): void => {
         currentList?.destroy();
@@ -87,6 +88,7 @@ export function createWindingModule(deps: GameDeps): GameModule {
                                 id: nextPuzzle.id,
                                 stage: nextPuzzle.stage,
                                 name: nextPuzzle.name,
+                                feel: nextPuzzle.feel,
                               });
                             },
                           }
@@ -94,7 +96,7 @@ export function createWindingModule(deps: GameDeps): GameModule {
                     again: () => {
                       leavePlay();
                       startPlay(level, STANDALONE_PATTERN(level), SECTIONS(level), undefined,
-                        puzzle !== undefined ? { id: puzzle.id, stage: puzzle.stage, name: puzzle.name } : undefined);
+                        puzzle !== undefined ? { id: puzzle.id, stage: puzzle.stage, name: puzzle.name, feel: puzzle.feel } : undefined);
                     },
                     toList: () => {
                       leavePlay();
@@ -114,6 +116,7 @@ export function createWindingModule(deps: GameDeps): GameModule {
           puzzleStage: puzzle?.stage,
           puzzleName: puzzle?.name,
           puzzleId: puzzle?.id,
+          feel: puzzle?.feel,
         });
       };
 
@@ -171,6 +174,7 @@ export function createWindingModule(deps: GameDeps): GameModule {
           id: puzzle.id,
           stage: puzzle.stage,
           name: puzzle.name,
+          feel: puzzle.feel,
         });
       }
 
@@ -211,7 +215,7 @@ export function createWindingModule(deps: GameDeps): GameModule {
           state.puzzleId !== ''
             ? (() => {
                 const p = puzzleById(getContent(), state.puzzleId);
-                return p !== null ? { id: p.id, stage: p.stage, name: p.name } : undefined;
+                return p !== null ? { id: p.id, stage: p.stage, name: p.name, feel: p.feel } : undefined;
               })()
             : undefined;
         startPlay(state.level, state.patternId, state.sections, state, puzzle);

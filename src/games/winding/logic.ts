@@ -8,8 +8,9 @@ import {
   SECTION_LENGTH, RANGE_WIDTH, RANGE_CENTER, RANGE_MOVE_PER_SEC, RANGE_WIDTH_SWING, RANGE_BREATHE_SEC,
   RANGE_TURN_RATE, DRIFT, NOISE_AMP, BREAK_RATE, TENSION, BREAK,
   MAX_TICK_MS, STARS3, STARS2, TARGET_SEC_PER_SECTION, BREAK_EXTRA_STEP, BREAK_MAX_THREADS,
+  YARN_FEEL,
 } from './params';
-import type { Level } from './params';
+import type { Level, YarnFeel } from './params';
 
 export type { Level } from './params';
 
@@ -18,6 +19,8 @@ export interface WindingState {
   patternId: string;
   /** お題の id (T2-14a。クリール立てのお題と同じ。job モードなどお題でないときは空文字) */
   puzzleId: string;
+  /** 糸の手応え (T2-14b。お題でないときは標準) */
+  feel: YarnFeel;
   sections: number; // 帯の数
   phase: 'ready' | 'winding' | 'broken' | 'cutting' | 'done';
   current: number; // 巻いている帯(0 始まり)
@@ -50,12 +53,13 @@ function tensionParams(level: Level, range: { min: number; max: number }) {
   return { ...TENSION, noiseAmp: NOISE_AMP(level), range };
 }
 
-/** 難易度ごとの糸切れのパラメータ */
-function breakParams(level: Level): typeof BREAK {
+/** 難易度と糸の手応えごとの糸切れのパラメータ (T2-14b: 細い糸は切れやすい) */
+function breakParams(level: Level, feel: YarnFeel = 'standard'): typeof BREAK {
+  const f = YARN_FEEL[feel] ?? YARN_FEEL.standard;
   return {
     ...BREAK,
-    rate: BREAK_RATE(level),
-    extraStep: BREAK_EXTRA_STEP(level),
+    rate: BREAK_RATE(level) * f.breakRateMul,
+    extraStep: Math.max(4, BREAK_EXTRA_STEP(level) + f.breakExtraStepDelta),
     maxThreads: BREAK_MAX_THREADS(level),
   };
 }
@@ -103,13 +107,14 @@ function rollRange(level: Level, rng: RngState): { range: { center: number; widt
 }
 
 /** 新しいゲームの状態。phase 'ready'、current 0、各配列は 0 で埋める */
-export function init(opts: { level: Level; patternId: string; sections: number; seed: number; puzzleId?: string }): WindingState {
+export function init(opts: { level: Level; patternId: string; sections: number; seed: number; puzzleId?: string; feel?: YarnFeel }): WindingState {
   const sections = opts.sections;
   const r = rollRange(opts.level, seedFrom(opts.seed));
   return {
     level: opts.level,
     patternId: opts.patternId,
     puzzleId: opts.puzzleId ?? '',
+    feel: opts.feel ?? 'standard',
     sections,
     phase: 'ready',
     current: 0,
@@ -182,7 +187,9 @@ function tick(s: WindingState, dtMs: number): WindingState {
   if (s.phase !== 'winding' && s.phase !== 'broken') return s;
   const dt = Math.min(MAX_TICK_MS, Math.max(0, dtMs)) / 1000; // 秒
   const dtClamped = Math.min(MAX_TICK_MS, Math.max(0, dtMs));
-  const dp = DRIFT(s.level);
+  const f = YARN_FEEL[s.feel] ?? YARN_FEEL.standard;
+  const baseDp = DRIFT(s.level);
+  const dp = { ...baseDp, perSec: baseDp.perSec * f.driftMul, snagRate: baseDp.snagRate * f.snagMul }; // 手応え (T2-14b)
   // 時間は巻いていた時間と止まっていた時間の合計 (糸切れを直している時間も含む。T2-09a)
   const elapsedMs = s.elapsedMs + dtClamped;
 
@@ -196,7 +203,7 @@ function tick(s: WindingState, dtMs: number): WindingState {
   const moved = s.phase === 'winding' ? moveRange(s, dtClamped) : null;
   const range = moved !== null ? moved.range : s.range;
   const tp = tensionParams(s.level, range);
-  const bp = breakParams(s.level);
+  const bp = breakParams(s.level, s.feel);
 
   // 1. noise → 流れ → 引っかかりを進める
   let pedal = stepNoise(s.pedal, tp, dtClamped);

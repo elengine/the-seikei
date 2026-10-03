@@ -14,6 +14,8 @@ import type { WindingState, WindingAction, Level } from './logic';
 import { MESSAGE_HOLD_MS, DRUM_TURN_PER_SPEED, DRUM_EASE_UP_MS, DRUM_EASE_DOWN_MS, DRUM_STOP_MS, TENSION } from './params';
 
 const LEVEL_NAMES: Record<Level, string> = { 1: '初級', 2: '中級', 3: '上級' };
+import { feelLabel } from './puzzles';
+import type { YarnFeel } from './params';
 const TIE_ANIM_MS = 1000; // 帯の端を結ぶ演出の長さ
 const PIN_TURN_MS = 800; // 結ぶ前にピンを正面へ回す時間 (0.6〜1 秒のまんなか)
 const DONE_WAIT_MS = 1500; // done のあと結果を出すまでの見せる時間
@@ -32,11 +34,15 @@ export function createWindingController(parent: HTMLElement, deps: GameDeps, pro
   puzzleStage?: number;
   puzzleName?: string;
   puzzleId?: string;
+  /** 糸の手応え (T2-14b。無ければ標準) */
+  feel?: YarnFeel;
   tutorial: TutorialSpec;
   onBack: () => void; // 「戻る」(確認は呼び出し側で行う)
 }): GameInstance {
   // ---- 状態 ----
   const startState = opts.resume as WindingState | undefined;
+  // 手応え (T2-14b)。無ければ標準
+  const feel: YarnFeel = opts.feel ?? 'standard';
   let s: WindingState =
     startState !== undefined
       ? reduce(startState, { type: 'pausePedal' }) // 再開のときはペダル 0
@@ -46,6 +52,7 @@ export function createWindingController(parent: HTMLElement, deps: GameDeps, pro
           sections: opts.sections,
           seed: seedFromText(deps.clock.now()),
           puzzleId: opts.puzzleId ?? '',
+          feel,
         });
   let lastFit: StageFit = { scale: 1, offsetX: 0, offsetY: 0 };
   let disposed = false;
@@ -68,11 +75,13 @@ let pinTurnPrevEased = 0; // 前フレームの ease の値 (角速度を決め�
   // ---- 枠 ----
   const frame = createGameFrame(parent, {
     title: deps.terms.t('game.winding'),
-    // 今のお題。お題で開いたときは「段階N 柄の名前」、それ以外 (仕事モードなど) は難易度と帯の数 (T2-14a)
+    // 今のお題。お題で開いたときは「段階N 柄の名前」、それ以外 (仕事モードなど) は難易度と帯の数 (T2-14a)。
+    // 手応えが標準でないお題は、題名の下に手応えを出す (T2-14b)
     subtitle:
-      opts.puzzleStage !== undefined && opts.puzzleName !== undefined
+      (opts.puzzleStage !== undefined && opts.puzzleName !== undefined
         ? `段階${opts.puzzleStage} ${opts.puzzleName}`
-        : `${LEVEL_NAMES[opts.level]} 帯 ${opts.sections}本`,
+        : `${LEVEL_NAMES[opts.level]} 帯 ${opts.sections}本`) +
+      (feel !== 'standard' ? `・${feelLabel(feel)}` : ''),
     onBack: opts.onBack,
     onHelp: () => {
       void showTutorial(frame.root, opts.tutorial, { renderText: (t) => deps.terms.render(t) }).then(() => undefined);

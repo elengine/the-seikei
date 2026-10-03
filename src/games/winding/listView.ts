@@ -5,6 +5,7 @@ import { createButton } from '../../core/ui/widgets';
 import { createListRow, createPage, createScreenHeader, createSectionHeading } from '../../core/ui/layout';
 import { createFabricSwatch } from '../../core/ui/fabricPreview';
 import { windingPuzzles } from './puzzles';
+import { feelLabel } from './puzzles';
 import type { WindingPuzzle } from './puzzles';
 
 /** 押せない行の理由を出しておく時間 (ミリ秒) */
@@ -83,9 +84,10 @@ export function createListView(parent: HTMLElement, opts: {
     } else {
       status = { kind: 'locked', reason: '前のお題をクリアすると遊べます' };
     }
-    // 補足: 帯の数。クリール立てで同じお題をクリアしていれば「クリール立て済み」を添える
+    // 補足: 帯の数と手応え。クリール立てで同じお題をクリアしていれば「クリール立て済み」を添える
     const creelCleared = (creelRec.best[`puzzle:${puzzle.id}`] ?? 0) > 0;
-    const meta = `帯 ${puzzle.sections}本${creelCleared ? '・クリール立て済み' : ''}`;
+    const feel = feelLabel(puzzle.feel);
+    const meta = `帯 ${puzzle.sections}本${feel !== '' ? `・${feel}` : ''}${creelCleared ? '・クリール立て済み' : ''}`;
     const row = createListRow({
       swatch: createFabricSwatch(pattern, content),
       name: puzzle.name,

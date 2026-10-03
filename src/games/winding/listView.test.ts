@@ -69,4 +69,14 @@ describe('ドラム巻きの一覧 T2-14a (お題15題・クリール立てと�
     const s2meta = parent.querySelector('[data-testid="winding-puzzle-s2"] .list-row__meta')!.textContent!;
     expect(s2meta).toBe('帯 4本'); // クリール立てで未クリアなら付かない
   });
+
+  it('手応えの補足: 細い糸のお題は「細い糸(切れやすい)」、太い糸のお題は「太い糸(流れやすい)」 (T2-14b)', () => {
+    const { parent } = mountList({});
+    const fine = parent.querySelector('[data-testid="winding-puzzle-s4-2"] .list-row__meta')!.textContent!;
+    expect(fine).toContain('帯 6本');
+    expect(fine).toContain('細い糸(切れやすい)');
+    const thick = parent.querySelector('[data-testid="winding-puzzle-s4"] .list-row__meta')!.textContent!;
+    expect(thick).toContain('帯 6本');
+    expect(thick).toContain('太い糸(流れやすい)');
+  });
 });

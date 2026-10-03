@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { windingPuzzles } from './puzzles';
+import { windingPuzzles, yarnFeelOf, feelLabel } from './puzzles';
 import { getContent } from '../../core/content/content';
 import { PUZZLE_STAGE } from './params';
 
@@ -36,5 +36,24 @@ describe('winding puzzles T2-14a (お題15題・クリール立てと同じ柄)'
     for (const p of ps) {
       expect(p.name.length, `id ${p.id} の名前`).toBeGreaterThan(0);
     }
+  });
+
+  it('4. yarnFeelOf: 「ウール 2/60」は細い糸、「ウール紡毛 1/20」は太い糸、「ウール 2/48」は標準 (T2-14b)', () => {
+    expect(yarnFeelOf('ウール 2/60')).toBe('fine');
+    expect(yarnFeelOf('ウール紡毛 1/20')).toBe('thick');
+    expect(yarnFeelOf('ウール 2/48')).toBe('standard');
+  });
+
+  it('5. お題の手応えは、柄でいちばん多く使う糸で決まる (同数のときはあとに出た糸)。s4 は太い糸、s4-2 は細い糸', () => {
+    const ps = windingPuzzles(content);
+    expect(ps.find((p) => p.id === 's4')!.feel).toBe('thick'); // 紺のシャドーストライプ: 2/48 4本と紡毛 1/20 4本
+    expect(ps.find((p) => p.id === 's4-2')!.feel).toBe('fine'); // チャコールのシャドーストライプ: 2/48 4本と 2/60 4本
+    expect(ps.find((p) => p.id === 's1')!.feel).toBe('standard');
+  });
+
+  it('6. feelLabel: 細い糸(切れやすい)・太い糸(流れやすい)・標準は空', () => {
+    expect(feelLabel('fine')).toBe('細い糸(切れやすい)');
+    expect(feelLabel('thick')).toBe('太い糸(流れやすい)');
+    expect(feelLabel('standard')).toBe('');
   });
 });

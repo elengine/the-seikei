@@ -1,5 +1,5 @@
 import type { Content } from '../../core/content/content';
-import type { Level } from './params';
+import type { Level, YarnFeel } from './params';
 import { PUZZLE_STAGE } from './params';
 
 /**
@@ -18,11 +18,62 @@ export interface WindingPuzzle {
   sections: number;
   /** 張り・糸切れなどの難易度の数値 (params の初級・中級・上級) */
   level: Level;
+  /** 糸の手応え (T2-14b。柄でいちばん多く使う糸で決める) */
+  feel: YarnFeel;
+}
+
+/**
+ * 糸の spec (例「ウール 2/60」「ウール紡毛 1/20」) から手応えを決める (T2-14b)。
+ * 紡毛、または番手の数が 30 以下なら太い糸。番手の数が 60 以上なら細い糸。それ以外は標準。
+ */
+export function yarnFeelOf(spec: string): YarnFeel {
+  const m = spec.match(/(\d+)\s*\/\s*(\d+)/);
+  const count = m !== null ? Number(m[2]) : NaN;
+  if (spec.includes('紡毛') || count <= 30) {
+    return 'thick';
+  }
+  if (count >= 60) {
+    return 'fine';
+  }
+  return 'standard';
+}
+
+/** 手応えを短く出すときの言葉 (T2-14b)。標準は空文字 */
+export function feelLabel(feel: YarnFeel): string {
+  if (feel === 'fine') return '細い糸(切れやすい)';
+  if (feel === 'thick') return '太い糸(流れやすい)';
+  return '';
+}
+
+/**
+ * 柄でいちばん多く使う糸の spec (T2-14b)。柄の plan の本数を糸ごとに合計し、
+ * いちばん多い糸を主な糸とする (同数のときは、あとに出てきた糸を主な糸とする)。
+ */
+export function mainYarnSpec(content: Content, patternId: string): string {
+  const pattern = content.patterns.get(patternId);
+  if (pattern === undefined) {
+    return '';
+  }
+  const totals = new Map<string, number>();
+  for (const e of pattern.plan) {
+    totals.set(e.yarn, (totals.get(e.yarn) ?? 0) + e.count);
+  }
+  let best: string | null = null;
+  let bestCount = -1;
+  for (const e of pattern.plan) {
+    const c = totals.get(e.yarn) ?? 0;
+    if (c >= bestCount) {
+      bestCount = c;
+      best = e.yarn; // 同数なら、あとに出てきた糸で上書きする
+    }
+  }
+  return best !== null ? (content.yarns.get(best)?.spec ?? '') : '';
 }
 
 /**
  * クリール立てのお題から、ドラム巻きのお題15題を作る。
  * 段階ごとの帯の数と難易度は params の PUZZLE_STAGE (T2-14a)。
+ * 手応えは、柄でいちばん多く使う糸の spec から決める (T2-14b)。
  */
 export function windingPuzzles(content: Content): WindingPuzzle[] {
   const out: WindingPuzzle[] = [];
@@ -39,6 +90,7 @@ export function windingPuzzles(content: Content): WindingPuzzle[] {
       name: pattern?.name ?? cp.patternId,
       sections: stageConf.sections,
       level: stageConf.level,
+      feel: yarnFeelOf(mainYarnSpec(content, cp.patternId)),
     });
   }
   return out;

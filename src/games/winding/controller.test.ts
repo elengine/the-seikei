@@ -271,6 +271,24 @@ describe('winding module (T2-07)', () => {
     instance.unmount();
   });
 
+  it('5b. 手応えつきのお題で再開すると、題名の下に手応えが出る (T2-14b)', async () => {
+    const { deps } = await makeDeps();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const module = createWindingModule(deps);
+    const { init, reduce } = await import('./logic');
+    const { paramsOf } = await import('./params');
+    const p1 = paramsOf(1);
+    let state = init({ level: 2, patternId: 'p-shadow-char', sections: 6, seed: 1, puzzleId: 's4-2', feel: 'fine' });
+    state = reduce(state, { type: 'start' });
+    const props = makeProps({ resume: state });
+    const instance = module.mount(container, props);
+    const sub = container.querySelector('.screen-header__subtitle')!.textContent!;
+    expect(sub).toContain('段階4');
+    expect(sub).toContain('細い糸(切れやすい)');
+    instance.unmount();
+  });
+
   it('6. fix-a1: broken で再開すると、切れたあたりを1回押すとつながり、ペダルを踏んで tick で帯の長さが増える (T2-13c)', async () => {
     const { deps } = await makeDeps();
     const container = document.createElement('div');
