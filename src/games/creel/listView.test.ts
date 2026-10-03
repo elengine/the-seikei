@@ -32,12 +32,12 @@ afterEach(() => {
 });
 
 describe('クリール立ての一覧 (PU-04)', () => {
-  it('節の数が段階の数と同じ。見出しは「段階N」', () => {
+  it('節の数が段階の数と同じ。見出しは「レベルN」', () => {
     const { parent } = mountList({});
     const stages = new Set(getContent().creelPuzzles.map((p) => p.stage));
     const heads = Array.from(parent.querySelectorAll('.section-heading')).map((h) => h.textContent);
     expect(heads).toHaveLength(stages.size);
-    expect(heads[0]).toBe('段階1');
+    expect(heads[0]).toBe('レベル1');
     expect(parent.querySelectorAll('.list-row')).toHaveLength(getContent().creelPuzzles.length);
   });
 

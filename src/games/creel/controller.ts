@@ -50,7 +50,7 @@ export function createController(parent: HTMLElement, deps: GameDeps, props: Gam
   // ---- 枠 ----
   const frame = createGameFrame(parent, {
     title: deps.terms.t('game.creel'),
-    subtitle: `段階${puzzle.stage} ${pattern?.name ?? ''}`.trim(), // 今のお題
+    subtitle: `レベル${puzzle.stage} ${pattern?.name ?? ''}`.trim(), // 今のお題
     onBack: () => handleBack(),
     onHelp: () => {
       void showTutorial(frame.root, opts.tutorial, { renderText: (s) => deps.terms.render(s) }).then(() => undefined);

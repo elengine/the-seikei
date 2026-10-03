@@ -30,7 +30,7 @@ export function createWindingController(parent: HTMLElement, deps: GameDeps, pro
   patternId: string;
   sections: number;
   resume?: unknown;
-  /** お題の情報 (T2-14a。あれば題名の下に「段階N 柄の名前」を出し、State の puzzleId に入れる) */
+  /** お題の情報 (T2-14a。あれば題名の下に「レベルN 柄の名前」を出し、State の puzzleId に入れる) */
   puzzleStage?: number;
   puzzleName?: string;
   puzzleId?: string;
@@ -75,11 +75,11 @@ let pinTurnPrevEased = 0; // 前フレームの ease の値 (角速度を決め�
   // ---- 枠 ----
   const frame = createGameFrame(parent, {
     title: deps.terms.t('game.winding'),
-    // 今のお題。お題で開いたときは「段階N 柄の名前」、それ以外 (仕事モードなど) は難易度と帯の数 (T2-14a)。
+    // 今のお題。お題で開いたときは「レベルN 柄の名前」、それ以外 (仕事モードなど) は難易度と帯の数 (T2-14a)。
     // 手応えが標準でないお題は、題名の下に手応えを出す (T2-14b)
     subtitle:
       (opts.puzzleStage !== undefined && opts.puzzleName !== undefined
-        ? `段階${opts.puzzleStage} ${opts.puzzleName}`
+        ? `レベル${opts.puzzleStage} ${opts.puzzleName}`
         : `${LEVEL_NAMES[opts.level]} 帯 ${opts.sections}本`) +
       (feel !== 'standard' ? `・${feelLabel(feel)}` : ''),
     onBack: opts.onBack,

@@ -30,10 +30,10 @@ afterEach(() => {
 });
 
 describe('ドラム巻きの一覧 T2-14a (お題15題・クリール立てと同じ柄)', () => {
-  it('節は「段階1」〜「段階5」の5つで、行はお題15行。名前は柄の名前、補足は「帯 N本」', () => {
+  it('節は「レベル1」〜「レベル5」の5つで、行はお題15行。名前は柄の名前、補足は「帯 N本」', () => {
     const { parent } = mountList({});
     const headings = Array.from(parent.querySelectorAll('.section-heading')).map((h) => h.textContent);
-    expect(headings).toEqual(['段階1', '段階2', '段階3', '段階4', '段階5']);
+    expect(headings).toEqual(['レベル1', 'レベル2', 'レベル3', 'レベル4', 'レベル5']);
     const rows = Array.from(parent.querySelectorAll('.list-row'));
     expect(rows).toHaveLength(getContent().creelPuzzles.length);
     const s1 = parent.querySelector('[data-testid="winding-puzzle-s1"]')!;

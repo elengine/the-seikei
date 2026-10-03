@@ -282,7 +282,7 @@ describe('winding module (T2-07)', () => {
     const props = makeProps({ resume: state });
     const instance = module.mount(container, props);
     const sub = container.querySelector('.screen-header__subtitle')!.textContent!;
-    expect(sub).toContain('段階4');
+    expect(sub).toContain('レベル4');
     expect(sub).toContain('細い糸(切れやすい)');
     instance.unmount();
   });
@@ -947,7 +947,7 @@ describe('PU-05c: ドラム巻きの結果のつなぎ', () => {
     return props.finished[0] as never;
   }
 
-  it('見出しの行の題名の下に今のお題「段階1 …」が出る。終わると resultLines 4行・starHint・next「次のお題へ」・again・toList が渡る (T2-13c で4行に・T2-14a でお題)', async () => {
+  it('見出しの行の題名の下に今のお題「レベル1 …」が出る。終わると resultLines 4行・starHint・next「次のお題へ」・again・toList が渡る (T2-13c で4行に・T2-14a でお題)', async () => {
     const { deps } = await makeDeps();
     const container = document.createElement('div');
     document.body.appendChild(container);
@@ -955,7 +955,7 @@ describe('PU-05c: ドラム巻きの結果のつなぎ', () => {
     const props = makeProps();
     const instance = module.mount(container, props);
     const result = await finishLevel1(container, props);
-    expect(container.querySelector('.screen-header__subtitle')!.textContent).toContain('段階1');
+    expect(container.querySelector('.screen-header__subtitle')!.textContent).toContain('レベル1');
     expect(result.resultLines).toHaveLength(4);
     expect(result.resultLines?.some((l) => l.label.includes('違う端'))).toBe(false);
     expect(result.starHint).toBe('適正な張りが8割以上、目標の時間内で星3です');
@@ -975,7 +975,7 @@ describe('PU-05c: ドラム巻きの結果のつなぎ', () => {
     const result = await finishLevel1(container, props);
     result.next!.start();
     // 次のお題は s1-2 (段階1・黒の無地)
-    expect(container.querySelector('.screen-header__subtitle')!.textContent).toContain('段階1');
+    expect(container.querySelector('.screen-header__subtitle')!.textContent).toContain('レベル1');
     expect(container.querySelector('.screen-header__subtitle')!.textContent).toContain(getContent().patterns.get('p-muji-kuro')!.name);
     result.again!();
     // やり直しは s1 (段階1・紺の無地)

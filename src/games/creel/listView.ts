@@ -61,7 +61,7 @@ export function createListView(parent: HTMLElement, opts: {
       currentStage = puzzle.stage;
       const section = document.createElement('section');
       section.classList.add('list-section');
-      section.appendChild(createSectionHeading(`段階${puzzle.stage}`, { underline: true }));
+      section.appendChild(createSectionHeading(`レベル${puzzle.stage}`, { underline: true }));
       rows = document.createElement('div');
       rows.classList.add('list-rows');
       section.appendChild(rows);

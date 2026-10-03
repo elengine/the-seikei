@@ -587,10 +587,10 @@ describe('PU-05b: クリール立てのプレイ画面と結果のつなぎ', ()
     vi.advanceTimersByTime(1600);
   }
 
-  it('見出しの行の題名の下に今のお題「段階1 …」が出る。「現在の帯の並び」の欄は無く、盤面の下の欄 (footer) は空', () => {
+  it('見出しの行の題名の下に今のお題「レベル1 …」が出る。「現在の帯の並び」の欄は無く、盤面の下の欄 (footer) は空', () => {
     const parent = mountAndOpen('s1');
     const sub = parent.querySelector('.screen-header__subtitle')!;
-    expect(sub.textContent).toMatch(/^段階1 /);
+    expect(sub.textContent).toMatch(/^レベル1 /);
     expect(parent.querySelector('.game-frame__footer')!.childElementCount).toBe(0);
     expect(parent.textContent).not.toContain('現在の帯の並び');
   });

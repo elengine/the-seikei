@@ -44,7 +44,7 @@ export function createDrumSetupController(
 
   const frame = createGameFrame(parent, {
     title: deps.terms.t('game.drumsetup'),
-    subtitle: `段階${p.stage} ${p.name}`,
+    subtitle: `レベル${p.stage} ${p.name}`,
     logicalW: 1000,
     logicalH: 750,
     onBack: opts.onBack,

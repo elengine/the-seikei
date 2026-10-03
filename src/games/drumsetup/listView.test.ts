@@ -38,13 +38,13 @@ function row(parent: HTMLElement, id: string): HTMLElement {
 }
 
 describe('drumsetup listView T2c-03b (お題一覧)', () => {
-  it('1. 15題が5つの節 (段階1〜5) に並ぶ。題名は「ドラム設定」', async () => {
+  it('1. 15題が5つの節 (レベル1〜5) に並ぶ。題名は「ドラム設定」', async () => {
     const ctx = await makeCtx();
     const parent = document.createElement('div');
     document.body.appendChild(parent);
     mount(parent, ctx);
     const headings = Array.from(parent.querySelectorAll('h2')).map((e) => e.textContent?.trim() ?? '');
-    expect(headings).toEqual(['段階1', '段階2', '段階3', '段階4', '段階5']);
+    expect(headings).toEqual(['レベル1', 'レベル2', 'レベル3', 'レベル4', 'レベル5']);
     expect(parent.querySelectorAll('[data-testid^="drumsetup-puzzle-"]').length).toBe(15);
     expect(parent.querySelector('.screen-header__title')?.textContent).toBe('ドラム設定');
   });

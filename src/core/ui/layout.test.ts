@@ -165,3 +165,35 @@ describe('base.css (PU-02a)', () => {
     expect(blockOf('.page--form')).toContain('820px');
   });
 });
+
+describe('PU-10b: 一覧の行の2段組み (名前の下に補足)', () => {
+  it('名前と補足は同じ列 (list-row__main) の上下にあり、補足は名前の下の段。見本は左、状態は右', () => {
+    const row = createListRow({ name: '無地', meta: '帯 6本・太い糸(流れやすい)', swatch: document.createElement('span'), status: { kind: 'stars', stars: 1 }, onClick: () => {} });
+    const kids = Array.from(row.children).map((c) => c.className.split(' ')[0]);
+    expect(kids).toEqual(['list-row__swatch', 'list-row__main', 'list-row__status']);
+    const main = row.querySelector('.list-row__main')!;
+    expect(Array.from(main.children).map((c) => c.className)).toEqual(['list-row__name', 'list-row__meta']);
+  });
+
+  it('補足が無ければ、列の中は名前だけ', () => {
+    const row = createListRow({ name: 'a', status: { kind: 'next' }, onClick: () => {} });
+    expect(row.querySelector('.list-row__main')!.children).toHaveLength(1);
+  });
+
+  it('base.css: 行は横にはみ出さない (min-width: 0 と折り返し)。名前は最小幅を持ち、状態の列は右に固定の幅', () => {
+    const css = baseCss();
+    const row = css.match(/\.list-row\s*\{([^}]*)\}/)![1]!;
+    expect(row).toContain('min-width: 0');
+    expect(row).toContain('max-width: 100%');
+    const main = css.match(/\.list-row__main\s*\{([^}]*)\}/)![1]!;
+    expect(main).toContain('flex: 1');
+    expect(main).toContain('min-width: 0');
+    expect(main).toContain('flex-direction: column');
+    expect(css.match(/\.list-row__name\s*\{([^}]*)\}/)![1]).toContain('overflow-wrap: break-word');
+    expect(css.match(/\.list-row__name\s*\{([^}]*)\}/)![1]).toContain('min-width: 6em');
+    expect(css.match(/\.list-row__meta\s*\{([^}]*)\}/)![1]).toContain('overflow-wrap: break-word');
+    const status = css.match(/\.list-row__status\s*\{([^}]*)\}/)![1]!;
+    expect(status).toContain('flex: none');
+    expect(status).toContain('min-width:');
+  });
+});

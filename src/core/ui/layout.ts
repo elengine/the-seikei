@@ -112,14 +112,17 @@ export function createListRow(opts: {
     sw.appendChild(opts.swatch);
     row.appendChild(sw);
   }
+  // 中央の列: 名前 (1段目) の下に補足 (2段目)
+  const main = el('span', 'list-row__main');
   const name = el('span', 'list-row__name');
   name.textContent = opts.name;
-  row.appendChild(name);
+  main.appendChild(name);
   if (opts.meta !== undefined) {
     const meta = el('span', 'list-row__meta');
     meta.textContent = opts.meta;
-    row.appendChild(meta);
+    main.appendChild(meta);
   }
+  row.appendChild(main);
   const status = el('span', 'list-row__status');
   const st = opts.status;
   if (st.kind === 'stars') {
