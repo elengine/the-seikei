@@ -596,6 +596,23 @@ describe('PU-11b: 依頼書の行の文字の大きさ', () => {
     expect(css).toMatch(/--fs-number: 32px/);
   });
 
+  it('base.css: 依頼書の行は狭い操作欄 (文字の段階5・幅 280px) でも右にはみ出さない。折り返す行 (flex-wrap)、個数は右端 (margin-left: auto)、下の段は行いっぱい', () => {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
+    const row = css.match(/\n\.creel-order-row\s*\{([^}]*)\}/)![1]!;
+    expect(row).toContain('display: flex');
+    expect(row).toContain('flex-wrap: wrap');
+    expect(css.match(/\n\.creel-order-row__hinban\s*\{([^}]*)\}/)![1]).toContain('white-space: nowrap');
+    expect(css.match(/\n\.creel-order-row__count\s*\{([^}]*)\}/)![1]).toContain('margin-left: auto');
+    expect(css.match(/\n\.creel-order-row__sub\s*\{([^}]*)\}/)![1]).toContain('flex: 1 0 100%');
+  });
+
+  it('base.css: 「ヒント」「完了」は狭い操作欄 (幅 約 260px・文字の段階5) でも並ぶ: ヒント最小 120px + 隙間 12px + 完了最小 100px が 260px に収まる', () => {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
+    expect(css.match(/\n\.creel-actions__check\s*\{([^}]*)\}/)![1]).toContain('min-width: 100px');
+    expect(css.match(/\n\.creel-actions\s*\{([^}]*)\}/)![1]).toContain('gap: var(--sp-3)');
+    expect(120 + 12 + 100).toBeLessThanOrEqual(260);
+  });
+
   it('個数の要素は「× N」で、クラス creel-order-row__count を持つ (繰り返しの行ではない)', () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);

@@ -433,6 +433,12 @@ body {
   margin: 0;
 }
 
+.home__version {
+  font-size: 20px;
+  color: var(--c-muted);
+  margin: var(--sp-1) 0 0;
+}
+
 .home__greeting {
   font-size: var(--fs-label);
   margin: var(--sp-2) 0 0;
@@ -695,10 +701,10 @@ body {
 }
 
 .creel-order-row {
-  display: grid;
-  grid-template-columns: minmax(6em, auto) 1fr auto;
+  display: flex;
+  flex-wrap: wrap; /* 狭い操作欄 (文字を大きくしたとき) では、色名や個数が下の段に折り返す */
   align-items: center;
-  gap: var(--sp-2);
+  column-gap: var(--sp-2);
   padding: var(--sp-1) var(--sp-2);
   border: 2px solid transparent;
   border-radius: var(--r-small);
@@ -709,15 +715,18 @@ body {
 .creel-order-row__hinban {
   font-size: var(--fs-number);
   font-weight: bold;
+  white-space: nowrap;
 }
 
 /* 色の記号と色名 (24px) */
 .creel-order-row__color {
+  flex: 1 1 auto;
   font-size: var(--fs-label);
 }
 
 /* 個数「× N」(32px 以上の太字。PU-11b) */
 .creel-order-row__count {
+  margin-left: auto; /* 右端 */
   font-size: var(--fs-number);
   font-weight: bold;
   white-space: nowrap;
@@ -725,7 +734,7 @@ body {
 
 /* 何本目から何本目か (段階1〜3) */
 .creel-order-row__sub {
-  grid-column: 1 / -1; /* 幅が狭くても収まるよう、行の下の段に置く */
+  flex: 1 0 100%; /* 幅が狭くても収まるよう、行の下の段に置く */
   display: flex;
   flex-wrap: wrap;
   column-gap: var(--sp-3);
@@ -840,7 +849,7 @@ body {
   bottom: 0;
   z-index: 1;
   display: flex;
-  gap: var(--sp-4);
+  gap: var(--sp-3);
   align-items: stretch;
   padding: var(--sp-3) 0 var(--sp-2);
   background: var(--c-white);
@@ -848,7 +857,7 @@ body {
 
 .creel-actions__check {
   flex: 1;
-  min-width: 140px;
+  min-width: 100px; /* 狭い操作欄 (文字の段階5・幅 約 260px) でも「ヒント」と並ぶ */
 }
 
 /* ゲーム画面の枠 (gameFrame) とゲーム画面 */
@@ -1702,7 +1711,8 @@ button {
 
 .list-rows {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  /* 1列の幅が 560px 未満になるときは1列にする (狭い画面や文字を大きくしたとき、名前が縦1文字ずつに折れない) */
+  grid-template-columns: repeat(auto-fill, minmax(min(560px, 100%), 1fr));
   gap: var(--sp-3);
 }
 
@@ -1718,12 +1728,6 @@ button {
   box-sizing: border-box;
   border: 1px solid var(--c-sumi-sub);
   border-radius: var(--r-small);
-}
-
-@media (min-width: 900px) {
-  .list-rows {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
 /* 引っぱっているチーズ (画面全体の上の重ね。dragView が作る)。糸の色の丸・紙の芯の輪・中央の穴 */
