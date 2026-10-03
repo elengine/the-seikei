@@ -108,19 +108,30 @@ export function displayValue(s: CalcState): string {
   return s.display;
 }
 
-/** 電卓の本体 (openSheet の中身。T2c-03a)。tan の表と厚みの係数の表も見られる */
+/** 電卓の本体 (openSheet の中身)。tan の表と厚みの係数の表も見られる (T2c-04b:大きなポップアップ) */
 export function openCalculatorBody(
   parent: HTMLElement,
   opts: { onUse: (value: number) => void },
 ): { destroy(): void } {
+  // controller は今は size を渡せないので、ここで大きな重ね表示 (sheet--tall) にする。
+  // controller.ts を触れるようになったら openSheet({ size: 'tall' }) 側へ移す。
+  const sheetRoot = parent.closest('.sheet');
+  if (sheetRoot !== null && !sheetRoot.classList.contains('sheet--tall')) {
+    sheetRoot.classList.add('sheet--tall');
+  }
   const root = document.createElement('div');
   root.className = 'drumsetup-calc';
+  // 横長の低い画面では左 (表示と表)・右 (ボタン) に分ける
+  const left = document.createElement('div');
+  left.className = 'drumsetup-calc__left';
+  const right = document.createElement('div');
+  right.className = 'drumsetup-calc__right';
 
-  // 表の切り替えと表示場所 (電卓の上に出す)
+  // 表の切り替えと表示場所 (表示の下。ボタンで開閉する)
   const tableArea = document.createElement('div');
   tableArea.className = 'drumsetup-calc__tables';
-  const tanBtn = createButton({ label: 'tan の表', variant: 'secondary', onClick: () => showTable('tan') });
-  const coefBtn = createButton({ label: '厚みの係数の表', variant: 'secondary', onClick: () => showTable('coef') });
+  const tanBtn = createButton({ label: 'tan の表', variant: 'secondary', onClick: () => toggleTable('tan') });
+  const coefBtn = createButton({ label: '厚みの係数の表', variant: 'secondary', onClick: () => toggleTable('coef') });
   const tableRow = document.createElement('div');
   tableRow.className = 'drumsetup-calc__tablebtns';
   tableRow.appendChild(tanBtn);
@@ -131,6 +142,7 @@ export function openCalculatorBody(
   tableArea.appendChild(tableRow);
   tableArea.appendChild(table);
 
+  let openKind: 'tan' | 'coef' | null = null;
   function showTable(kind: 'tan' | 'coef'): void {
     table.textContent = '';
     if (kind === 'tan') {
@@ -147,38 +159,51 @@ export function openCalculatorBody(
       }
     }
   }
+  /** 同じ表のボタンをもう一度押すと閉じる */
+  function toggleTable(kind: 'tan' | 'coef'): void {
+    if (openKind === kind) {
+      table.textContent = '';
+      openKind = null;
+      return;
+    }
+    openKind = kind;
+    showTable(kind);
+  }
 
-  // 表示 (右揃え・大きな数字)
+  // 表示 (上・右揃え・大きな数字)
   const display = document.createElement('div');
   display.className = 'drumsetup-calc__display';
   display.dataset.testid = 'drumsetup-calc-display';
   display.textContent = '0';
 
-  // キー
+  // キー (4列×5段。= は横に2つ分)
   const keys: { key: CalcKey; label: string }[] = [
     { key: '7', label: '7' }, { key: '8', label: '8' }, { key: '9', label: '9' }, { key: '/', label: '÷' },
     { key: '4', label: '4' }, { key: '5', label: '5' }, { key: '6', label: '6' }, { key: '*', label: '×' },
     { key: '1', label: '1' }, { key: '2', label: '2' }, { key: '3', label: '3' }, { key: '-', label: '−' },
-    { key: '0', label: '0' }, { key: '.', label: '.' }, { key: '=', label: '=' }, { key: '+', label: '+' },
+    { key: '0', label: '0' }, { key: '.', label: '.' }, { key: 'C', label: 'C' }, { key: '+', label: '+' },
+    { key: '=', label: '=' },
   ];
   const pad = document.createElement('div');
   pad.className = 'drumsetup-calc__keys';
   let state = initialCalc();
   for (const k of keys) {
-    const b = createButton({ label: k.label, onClick: () => {
-      state = calc(state, k.key);
-      display.textContent = displayValue(state);
-    } });
+    const b = createButton({
+      label: k.label,
+      variant: k.key === 'C' ? 'secondary' : k.key === '=' ? 'primary' : undefined,
+      onClick: () => {
+        state = calc(state, k.key);
+        display.textContent = displayValue(state);
+      },
+    });
     b.classList.add('drumsetup-calc__key');
+    if (k.key === '=') {
+      b.classList.add('drumsetup-calc__eq');
+    }
     pad.appendChild(b);
   }
-  const clearBtn = createButton({ label: 'C', variant: 'secondary', onClick: () => {
-    state = calc(state, 'C');
-    display.textContent = displayValue(state);
-  } });
-  clearBtn.classList.add('drumsetup-calc__key', 'drumsetup-calc__clear');
 
-  // この答えを送り量に入れる
+  // この答えを送り量に入れる (一番下)
   const useBtn = createButton({ label: 'この答えを送り量に入れる', variant: 'primary', size: 'large', onClick: () => {
     const v = Number(displayValue(state));
     if (Number.isFinite(v) && !state.error) {
@@ -187,11 +212,12 @@ export function openCalculatorBody(
   } });
   useBtn.classList.add('drumsetup-calc__use');
 
-  root.appendChild(tableArea);
-  root.appendChild(display);
-  root.appendChild(clearBtn);
-  root.appendChild(pad);
-  root.appendChild(useBtn);
+  left.appendChild(display);
+  left.appendChild(tableArea);
+  right.appendChild(pad);
+  right.appendChild(useBtn);
+  root.appendChild(left);
+  root.appendChild(right);
   parent.appendChild(root);
   return {
     destroy(): void {
