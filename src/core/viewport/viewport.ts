@@ -10,6 +10,14 @@ export function layoutOf(size: ViewportSize): Layout {
   return size.width >= size.height ? 'landscape' : 'portrait';
 }
 
+/**
+ * 狭い・低い画面 (Fold のカバー画面など) の「詰めた形」にするか (PU-09a)。
+ * 幅が 600px 未満、または高さが 560px 未満 (CSS px)。回転のたびに判定し直す。
+ */
+export function isCompact(width: number, height: number): boolean {
+  return width < 600 || height < 560;
+}
+
 export interface StageFit {
   scale: number;
   offsetX: number;

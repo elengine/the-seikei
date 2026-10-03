@@ -90,7 +90,7 @@ describe('gameFrame', () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);
     parent.getBoundingClientRect = () =>
-      ({ width: 500, height: 1000, top: 0, left: 0, right: 500, bottom: 1000, x: 0, y: 0, toJSON: () => undefined }) as DOMRect;
+      ({ width: 700, height: 1000, top: 0, left: 0, right: 700, bottom: 1000, x: 0, y: 0, toJSON: () => undefined }) as DOMRect;
     const frame = createGameFrame(parent, {
       title: 'テスト',
       onBack: () => undefined,
@@ -108,7 +108,7 @@ describe('gameFrame', () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);
     parent.getBoundingClientRect = () =>
-      ({ width: 500, height: 1000, top: 0, left: 0, right: 500, bottom: 1000, x: 0, y: 0, toJSON: () => undefined }) as DOMRect;
+      ({ width: 700, height: 1000, top: 0, left: 0, right: 700, bottom: 1000, x: 0, y: 0, toJSON: () => undefined }) as DOMRect;
     const frame = createGameFrame(parent, {
       title: 'テスト',
       onBack: () => undefined,
@@ -131,7 +131,7 @@ describe('gameFrame', () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);
     parent.getBoundingClientRect = () =>
-      ({ width: 500, height: 1000, top: 0, left: 0, right: 500, bottom: 1000, x: 0, y: 0, toJSON: () => undefined }) as DOMRect;
+      ({ width: 700, height: 1000, top: 0, left: 0, right: 700, bottom: 1000, x: 0, y: 0, toJSON: () => undefined }) as DOMRect;
     const frame = createGameFrame(parent, {
       title: 'テスト',
       onBack: () => undefined,
@@ -698,5 +698,108 @@ describe('PU-08a: ゲームの画面の「遊び方」は丸いボタン', () =>
   it('base.css: 600px 未満でも見出しの行を1段にする (戻る・遊び方を上の段に分ける規則が無い)', () => {
     const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
     expect(css).not.toContain('.game-frame__bar .screen-header__center');
+  });
+});
+
+describe('PU-09a: 詰めた形の枠', () => {
+  function rectOf(w: number, h: number): () => DOMRect {
+    return () => ({ width: w, height: h, top: 0, left: 0, right: w, bottom: h, x: 0, y: 0, toJSON: () => undefined }) as DOMRect;
+  }
+
+  function make(w: number, h: number, subtitle?: string) {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    parent.getBoundingClientRect = rectOf(w, h);
+    const frame = createGameFrame(parent, {
+      title: 'クリール立て',
+      subtitle,
+      onBack: () => undefined,
+      onHelp: () => undefined,
+      logicalW: 1000,
+      logicalH: 750,
+    });
+    return { parent, frame };
+  }
+
+  it('詰めた形 (幅 600px 未満 または 高さ 560px 未満) で game-frame--compact が付き、data-layout が向きになる', () => {
+    const a = make(412, 915);
+    expect(a.frame.root.classList.contains('game-frame--compact')).toBe(true);
+    expect(a.frame.root.dataset.layout).toBe('portrait');
+    const b = make(915, 412);
+    expect(b.frame.root.classList.contains('game-frame--compact')).toBe(true);
+    expect(b.frame.root.dataset.layout).toBe('landscape');
+    const c = make(1180, 820);
+    expect(c.frame.root.classList.contains('game-frame--compact')).toBe(false);
+    expect(c.frame.root.dataset.layout).toBe('landscape');
+  });
+
+  it('詰めた形では、メッセージ欄の親が盤面のカード。そうでないときは今までどおり操作欄の中', () => {
+    const compact = make(412, 915);
+    expect(compact.frame.message.parentElement).toBe(compact.frame.root.querySelector('.game-frame__stage'));
+    const normal = make(1180, 820);
+    expect(normal.frame.message.parentElement).toBe(normal.frame.panel);
+    expect(normal.frame.panel.firstElementChild).toBe(normal.frame.message);
+  });
+
+  it('回転 (大きさを変えて resize) で、詰めた形と今の形が切り替わり、メッセージ欄も行き来する', () => {
+    const { parent, frame } = make(1180, 820);
+    expect(frame.message.parentElement).toBe(frame.panel);
+    parent.getBoundingClientRect = rectOf(915, 412); // 横向きの Fold のカバー画面
+    frame.resize();
+    expect(frame.root.classList.contains('game-frame--compact')).toBe(true);
+    expect(frame.message.parentElement!.classList.contains('game-frame__stage')).toBe(true);
+    parent.getBoundingClientRect = rectOf(1180, 820);
+    frame.resize();
+    expect(frame.root.classList.contains('game-frame--compact')).toBe(false);
+    expect(frame.message.parentElement).toBe(frame.panel);
+    expect(frame.panel.firstElementChild).toBe(frame.message);
+  });
+
+  it('詰めた形の縦では、盤面は使える高さの 45%。操作欄はその残り (portraitStageRatio は使わない)', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    parent.getBoundingClientRect = rectOf(412, 915);
+    const frame = createGameFrame(parent, {
+      title: 'テスト',
+      onBack: () => undefined,
+      onHelp: () => undefined,
+      logicalW: 1000,
+      logicalH: 750,
+      portraitStageRatio: 0.4,
+    });
+    const stageBox = frame.root.querySelector('.game-frame__stage') as HTMLElement;
+    const bodyH = 915 - 72;
+    expect(parseFloat(stageBox.style.height)).toBe(Math.floor(bodyH * 0.45));
+    const panel = frame.root.querySelector('.game-frame__panel') as HTMLElement;
+    expect(parseFloat(panel.style.height)).toBe(bodyH - Math.floor(bodyH * 0.45));
+  });
+
+  it('詰めた形の横では、盤面は左で使える幅の 60% (compactStageWidthRatio で変えられる)', () => {
+    const { frame } = make(915, 412);
+    const stageCol = frame.root.querySelector('.game-frame__stage-col') as HTMLElement;
+    expect(parseFloat(stageCol.style.width)).toBe(Math.floor(915 * 0.6));
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    parent.getBoundingClientRect = rectOf(915, 412);
+    const f2 = createGameFrame(parent, {
+      title: 'テスト',
+      onBack: () => undefined,
+      onHelp: () => undefined,
+      logicalW: 1000,
+      logicalH: 750,
+      compactStageWidthRatio: 0.55,
+    });
+    expect(parseFloat((f2.root.querySelector('.game-frame__stage-col') as HTMLElement).style.width)).toBe(Math.floor(915 * 0.55));
+  });
+
+  it('base.css: 詰めた形では題名の下のお題の名前を出さず、見出しの上下の余白は 8px、メッセージ欄は盤面の上に重なる (最大2行)', () => {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
+    const sub = css.match(/\.game-frame--compact \.screen-header__subtitle\s*\{([^}]*)\}/);
+    expect(sub![1]).toContain('display: none');
+    const bar = css.match(/\.game-frame--compact \.game-frame__bar\s*\{([^}]*)\}/);
+    expect(bar![1]).toContain('var(--sp-2)');
+    const msg = css.match(/\.game-frame--compact \.game-frame__message\s*\{([^}]*)\}/);
+    expect(msg![1]).toContain('position: absolute');
+    expect(msg![1]).toContain('-webkit-line-clamp: 2');
   });
 });

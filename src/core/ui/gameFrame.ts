@@ -1,4 +1,4 @@
-import { setupCanvas, fitStage, onViewportChange, layoutOf } from '../viewport/viewport';
+import { setupCanvas, fitStage, onViewportChange, layoutOf, isCompact } from '../viewport/viewport';
 import type { StageFit, Layout } from '../viewport/viewport';
 import { createButton } from './widgets';
 import { createScreenHeader } from './layout';
@@ -26,11 +26,12 @@ export function splitWidths(
   layout: 'landscape' | 'portrait',
   bodyInnerW: number,
   gap: number,
+  stageRatio = 0.65, // 横長のとき、盤面の列が使う幅の割合
 ): { stageColW: number; panelW: number } {
   if (layout === 'portrait') {
     return { stageColW: bodyInnerW, panelW: bodyInnerW };
   }
-  const stageColW = Math.floor((bodyInnerW - gap) * 0.65);
+  const stageColW = Math.floor((bodyInnerW - gap) * stageRatio);
   return { stageColW, panelW: bodyInnerW - gap - stageColW };
 }
 
@@ -46,7 +47,8 @@ export function createGameFrame(
     onHelp: () => void; // 「遊び方」
     logicalW: number;
     logicalH: number;
-    portraitStageRatio?: number; // 縦長のときに盤面が使う高さの割合 (無ければ 0.6)
+    portraitStageRatio?: number; // 縦長のときに盤面が使う高さの割合 (無ければ 0.6。詰めた形では 0.45)
+    compactStageWidthRatio?: number; // 詰めた形の横長で盤面が使う幅の割合 (無ければ 0.6)
     onStageResize?: (fit: StageFit) => void;
   },
 ): GameFrame {
@@ -107,12 +109,28 @@ export function createGameFrame(
 
   let offViewport: (() => void) | null = null;
 
+  /** メッセージ欄の置き場: 詰めた形は盤面のカードの上 (盤面に重ねる)、今の形は操作欄の一番上 */
+  function placeMessage(compact: boolean): void {
+    if (compact) {
+      if (message.parentElement !== stageBox) {
+        stageBox.appendChild(message);
+      }
+    } else if (message.parentElement !== panel) {
+      panel.insertBefore(message, panel.firstChild);
+    }
+  }
+
   function applyLayout(): void {
     // 画面全体ではなく parent の実際の内寸を基準にする (#app の safe-area padding を考慮)
     const rect = parent.getBoundingClientRect();
     const innerW = Math.max(0, rect.width);
     const innerH = Math.max(0, rect.height);
     const layout: Layout = layoutOf({ width: innerW, height: innerH }); // レイアウト判定も parent の内寸
+    // 狭い・低い画面は「詰めた形」(測れない環境 (jsdom 等) の 0×0 は今の形のまま)。回転のたびに判定し直す
+    const compact = innerW > 0 && innerH > 0 && isCompact(innerW, innerH);
+    root.classList.toggle('game-frame--compact', compact);
+    root.dataset.layout = layout;
+    placeMessage(compact);
     const bodyH = Math.max(0, innerH - barHeight());
     body.style.height = `${bodyH}px`;
     // body の内寸 (padding を引いた高さ = content box)。style 変更を反映させるため一度読む。
@@ -127,7 +145,7 @@ export function createGameFrame(
       ? Math.max(0, body.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight))
       : innerW;
     const colGap = parseFloat(cs.columnGap) || 0;
-    const { stageColW, panelW } = splitWidths(layout, bodyInnerW, colGap);
+    const { stageColW, panelW } = splitWidths(layout, bodyInnerW, colGap, compact ? (opts.compactStageWidthRatio ?? 0.6) : 0.65);
     if (layout === 'landscape') {
       // 左:盤面の列 (Canvas の上・footer の下)・右:panel
       // footer が空 (子が無い) のときは隠す。Canvas の高さは盤面の列の高さのまま
@@ -154,7 +172,7 @@ export function createGameFrame(
       // 上:盤面 (残り高さの portraitStageRatio、無ければ 60%)・下:panel。footer は使わないので隠す
       footer.style.display = 'none';
       stageCol.style.width = `${stageColW}px`;
-      const stageH = Math.floor(bodyInnerH * (opts.portraitStageRatio ?? 0.6));
+      const stageH = Math.floor(bodyInnerH * (compact ? 0.45 : (opts.portraitStageRatio ?? 0.6)));
       stageCol.style.height = `${stageH}px`; // 縦長では盤面の列は盤面だけ (footer は隠す)
       stageBox.style.width = '100%';
       stageBox.style.height = `${stageH}px`;

@@ -1687,3 +1687,55 @@ button {
   }
 }
 
+/* 詰めた形 (幅 600px 未満 または 高さ 560px 未満。Fold のカバー画面など。PU-09a): gameFrame が game-frame--compact を付ける */
+.game-frame--compact .game-frame__bar {
+  padding: calc(var(--stripe-h) + var(--sp-2)) var(--sp-2) var(--sp-2);
+}
+
+.game-frame--compact .screen-header__title {
+  font-size: var(--fs-heading);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* お題の名前は出さない (高さを使わない) */
+.game-frame--compact .screen-header__subtitle {
+  display: none;
+}
+
+.game-frame--compact .game-frame__body {
+  gap: var(--sp-2);
+  padding: var(--sp-2);
+}
+
+.game-frame--compact .game-frame__stage {
+  position: relative;
+}
+
+/* メッセージ欄は、盤面のカードの上の端に重ねる (操作欄の高さを使わない)。最大 2 行 */
+.game-frame--compact .game-frame__message {
+  position: absolute;
+  top: var(--sp-2);
+  left: var(--sp-2);
+  right: var(--sp-2);
+  z-index: 3;
+  margin: 0;
+  min-height: 0;
+  padding: var(--sp-2) var(--sp-3);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  pointer-events: none; /* 盤面の操作をじゃましない */
+}
+
+.game-frame--compact .game-frame__message:empty {
+  display: none;
+}
+
+/* 操作欄の中の余白も詰める */
+.game-frame--compact .game-frame__panel {
+  padding: var(--sp-2) var(--sp-3);
+}
+

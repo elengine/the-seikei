@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { layoutOf, fitStage, currentSize, onViewportChange, setupCanvas } from './viewport';
+import { isCompact, layoutOf, fitStage, currentSize, onViewportChange, setupCanvas } from './viewport';
 
 describe('layoutOf', () => {
   it('1. 1180×820 は landscape、393×873 は portrait、800×800 は landscape', () => {
@@ -203,5 +203,18 @@ describe('setupCanvas', () => {
     vi.stubGlobal('devicePixelRatio', 0.5);
     setupCanvas(c2, 100, 100);
     expect(c2.width).toBe(100); // 1 倍まで
+  });
+});
+
+describe('isCompact (PU-09a)', () => {
+  it('幅 600px 未満、または高さ 560px 未満が詰めた形。境目は 599/600 と 559/560', () => {
+    expect(isCompact(599, 900)).toBe(true);
+    expect(isCompact(600, 900)).toBe(false);
+    expect(isCompact(900, 559)).toBe(true);
+    expect(isCompact(900, 560)).toBe(false);
+    expect(isCompact(412, 915)).toBe(true); // Fold のカバー画面 (縦)
+    expect(isCompact(915, 412)).toBe(true); // 同 (横)
+    expect(isCompact(1180, 820)).toBe(false);
+    expect(isCompact(960, 720)).toBe(false);
   });
 });
