@@ -15,7 +15,7 @@ export interface SettingsData {
 export const DEFAULT_SETTINGS: SettingsData = {
   playerName: '',
   shopName: '整経所',
-  fontScale: 'large',
+  fontScale: 1,
   soundOn: true,
   volume: 0.7,
   tutorialSeen: {},
@@ -34,13 +34,24 @@ export interface SettingsService {
 
 const SETTINGS_ID = 'main';
 
+/** 保存してある fontScale を段階 (1〜5) に直す。古い値: 'large' → 1、'xlarge' → 3。それ以外・範囲の外は 1 */
+function toFontScale(v: unknown): FontScale {
+  if (v === 'xlarge') {
+    return 3;
+  }
+  if (typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 5) {
+    return v as FontScale;
+  }
+  return 1;
+}
+
 /** 保存データを SettingsData に整える。無いキーは既定値で補う (将来キーが増えても壊れない) */
 function normalize(data: Partial<SettingsData> | undefined): SettingsData {
   const d = data ?? {};
   return {
     playerName: typeof d.playerName === 'string' ? d.playerName : DEFAULT_SETTINGS.playerName,
     shopName: typeof d.shopName === 'string' ? d.shopName : DEFAULT_SETTINGS.shopName,
-    fontScale: d.fontScale === 'xlarge' ? 'xlarge' : DEFAULT_SETTINGS.fontScale,
+    fontScale: toFontScale(d.fontScale),
     soundOn: typeof d.soundOn === 'boolean' ? d.soundOn : DEFAULT_SETTINGS.soundOn,
     volume: typeof d.volume === 'number' ? d.volume : DEFAULT_SETTINGS.volume,
     tutorialSeen: d.tutorialSeen !== undefined && typeof d.tutorialSeen === 'object' ? d.tutorialSeen : DEFAULT_SETTINGS.tutorialSeen,

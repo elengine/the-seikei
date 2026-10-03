@@ -35,11 +35,15 @@ export const SPACE = [4, 8, 12, 16, 20, 24, 32, 48] as const;
 /** 角の丸み (--r-*) */
 export const RADIUS = { small: 8, button: 12, card: 14, dialog: 16 } as const;
 
-export type FontScale = 'large' | 'xlarge';
+/** 文字の大きさの段階 (1 がいちばん小さい)。段階1 は今までの「大」、段階3 は「特大」 */
+export type FontScale = 1 | 2 | 3 | 4 | 5;
 
 export const FONT = {
-  large: { body: 20, button: 22, label: 24, heading: 28, number: 32 },
-  xlarge: { body: 24, button: 26, label: 28, heading: 34, number: 38 },
+  1: { body: 20, button: 22, label: 24, heading: 28, number: 32 },
+  2: { body: 22, button: 24, label: 26, heading: 31, number: 35 },
+  3: { body: 24, button: 26, label: 28, heading: 34, number: 38 },
+  4: { body: 26, button: 28, label: 30, heading: 37, number: 41 },
+  5: { body: 28, button: 30, label: 32, heading: 40, number: 44 },
 } as const;
 
 export const SIZE = {
@@ -60,5 +64,5 @@ export const FONT_FAMILY_HEADING = '"Shippori Mincho", "Hiragino Mincho ProN", s
 
 /** root の data-font 属性を設定する */
 export function applyFontScale(root: HTMLElement, scale: FontScale): void {
-  root.dataset.font = scale;
+  root.dataset.font = String(scale);
 }

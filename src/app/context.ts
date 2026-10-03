@@ -15,6 +15,7 @@ import type { ZukanRegistry } from '../core/zukanRegistry/zukan';
 import { createRecords } from '../core/game/records';
 import type { Records } from '../core/game/records';
 import { applyFontScale } from '../core/ui/tokens';
+import type { FontScale } from '../core/ui/tokens';
 import type { GameDeps } from '../core/game/types';
 
 /**
@@ -59,7 +60,7 @@ export async function createAppContext(opts: {
   const records = await createRecords(repo);
 
   // settings の fontScale を反映し、変更時にも追従させる
-  function applyFont(s: { fontScale: 'large' | 'xlarge' }): void {
+  function applyFont(s: { fontScale: FontScale }): void {
     applyFontScale(document.documentElement, s.fontScale);
   }
   applyFont(settings.get());

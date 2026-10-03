@@ -4,6 +4,9 @@ import { createSettingsScreen } from './settingsScreen';
 import { createAppContext } from '../context';
 import type { AppContext } from '../context';
 import { createFixedClock } from '../../core/clock/clock';
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 let dbSeq = 0;
 
@@ -34,9 +37,6 @@ describe('settingsScreen (選択中ボタンの見た目)', () => {
     screen.mount(container, {});
     const rows = Array.from(document.querySelectorAll('.settings__row'));
 
-    // 文字の大きさ: 既定 large → 「大」だけ
-    expect(pressedOf(rows[2]!)).toEqual(['✓大']);
-    expect(Array.from(rows[2]!.querySelectorAll('.choice button')).map((b) => b.textContent)).toEqual(['✓大', '特大']);
     // 音: 既定 soundOn=true → 「鳴らす」だけ
     expect(pressedOf(rows[3]!)).toEqual(['✓鳴らす']);
     // 音の大きさ: 既定 volume 0.7 → 「中」だけ
@@ -60,18 +60,57 @@ describe('settingsScreen (選択中ボタンの見た目)', () => {
     expect(Array.from(volumeRow.querySelectorAll('.choice button')).map((b) => b.textContent)).toEqual(['小', '中', '✓大']);
   });
 
-  it('文字の大きさの「特大」を押すと設定が変わる', async () => {
+  function fontSlider(): HTMLInputElement {
+    return document.querySelector<HTMLInputElement>('input[type="range"][aria-label="文字の大きさ"]')!;
+  }
+
+  it('PU-08c: 文字の大きさは 1〜5 のスライダー (step 1)。両端に「小」「大」、目盛り 5 つ、見本の文', async () => {
     const ctx = await makeCtx();
     const container = document.createElement('div');
     document.body.appendChild(container);
     createSettingsScreen(ctx).mount(container, {});
-    const fontRow = Array.from(document.querySelectorAll('.settings__row'))[2]!;
-    const xl = Array.from(fontRow.querySelectorAll('.choice button')).find((b) => b.textContent === '特大') as HTMLButtonElement;
-    xl.click();
+    const input = fontSlider();
+    expect(input).not.toBeNull();
+    expect([input.min, input.max, input.step]).toEqual(['1', '5', '1']);
+    expect(input.value).toBe('1');
+    expect(input.getAttribute('aria-valuetext')).toBe('段階1');
+    const row = input.closest('.settings__row')!;
+    expect(row.textContent).toContain('小');
+    expect(row.textContent).toContain('大');
+    expect(row.querySelectorAll('.font-slider__tick')).toHaveLength(5);
+    expect(row.querySelector('.font-slider__sample')!.textContent).toBe('この大きさで表示します');
+    expect(document.querySelector('.choice [data-testid]')).toBeNull();
+  });
+
+  it('PU-08c: スライダーを動かす (input) と見本の文がすぐ変わり、保存は指を離したとき (change)。設定が 4 になり data-font が "4"', async () => {
+    const ctx = await makeCtx();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    createSettingsScreen(ctx).mount(container, {});
+    const input = fontSlider();
+    const sample = document.querySelector<HTMLElement>('.font-slider__sample')!;
+    input.value = '4';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(sample.style.fontSize).toBe('26px'); // 段階4 の本文
+    expect(input.getAttribute('aria-valuetext')).toBe('段階4');
+    expect(ctx.settings.get().fontScale).toBe(1); // まだ保存しない
+    input.dispatchEvent(new Event('change', { bubbles: true }));
     const { vi } = await import('vitest');
     await vi.waitFor(() => {
-      expect(ctx.settings.get().fontScale).toBe('xlarge');
+      expect(ctx.settings.get().fontScale).toBe(4);
     });
+    expect(document.documentElement.dataset.font).toBe('4');
+  });
+
+  it('PU-08c: スライダーの CSS は自前の溝とつまみ (appearance: none、つまみ 44px 以上、溝 8px、touch-action: none)', () => {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
+    const input = css.match(/\.font-slider__input\s*\{([^}]*)\}/);
+    expect(input![1]).toContain('-webkit-appearance: none');
+    expect(input![1]).toContain('touch-action: none');
+    expect(css).toMatch(/\.font-slider__input::-webkit-slider-thumb\s*\{[^}]*width: 44px/);
+    expect(css).toMatch(/\.font-slider__input::-webkit-slider-runnable-track\s*\{[^}]*height: 8px/);
+    expect(css).toContain('.font-slider__input::-moz-range-thumb');
+    expect(css).toContain('.font-slider__input::-moz-range-track');
   });
 
   it('節の見出しが3つ (お店とお名前・見やすさと音・ことば)', async () => {

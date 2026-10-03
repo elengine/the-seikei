@@ -51,20 +51,49 @@ describe('tokens と base.css の CSS 変数の一致', () => {
     expect(root.get('--btn-min-w')).toBe(`${SIZE.buttonMinW}px`);
   });
 
-  it("FONT の値が :root[data-font='xlarge'] の --fs-* と一致する", () => {
-    const xl = cssVars(":root[data-font='xlarge']");
-    expect(xl.get('--fs-body')).toBe(`${FONT.xlarge.body}px`);
-    expect(xl.get('--fs-button')).toBe(`${FONT.xlarge.button}px`);
-    expect(xl.get('--fs-heading')).toBe(`${FONT.xlarge.heading}px`);
-    expect(xl.get('--fs-number')).toBe(`${FONT.xlarge.number}px`);
+  it("FONT の値が :root[data-font='N'] の --fs-* と一致する (段階 2〜5)", () => {
+    for (const n of [2, 3, 4, 5] as const) {
+      const v = cssVars(`:root[data-font='${n}']`);
+      expect(v.get('--fs-body'), `段階${n}`).toBe(`${FONT[n].body}px`);
+      expect(v.get('--fs-button')).toBe(`${FONT[n].button}px`);
+      expect(v.get('--fs-label')).toBe(`${FONT[n].label}px`);
+      expect(v.get('--fs-heading')).toBe(`${FONT[n].heading}px`);
+      expect(v.get('--fs-number')).toBe(`${FONT[n].number}px`);
+    }
   });
 
-  it('既定 (大) の --fs-* は FONT.large と一致する', () => {
+  it('既定 (段階1) の --fs-* は FONT[1] と一致する', () => {
     const root = cssVars(':root');
-    expect(root.get('--fs-body')).toBe(`${FONT.large.body}px`);
-    expect(root.get('--fs-button')).toBe(`${FONT.large.button}px`);
-    expect(root.get('--fs-heading')).toBe(`${FONT.large.heading}px`);
-    expect(root.get('--fs-number')).toBe(`${FONT.large.number}px`);
+    expect(root.get('--fs-body')).toBe(`${FONT[1].body}px`);
+    expect(root.get('--fs-button')).toBe(`${FONT[1].button}px`);
+    expect(root.get('--fs-heading')).toBe(`${FONT[1].heading}px`);
+    expect(root.get('--fs-number')).toBe(`${FONT[1].number}px`);
+  });
+
+  it('PU-08c: 5段階のどれでも本文は 20px 以上。段階が上がると、どの大きさも大きくなる。段階1 と 3 は今の「大」「特大」', () => {
+    for (const n of [1, 2, 3, 4, 5] as const) {
+      expect(FONT[n].body).toBeGreaterThanOrEqual(20);
+    }
+    for (const key of ['body', 'button', 'label', 'heading', 'number'] as const) {
+      for (const n of [1, 2, 3, 4] as const) {
+        expect(FONT[(n + 1) as 2 | 3 | 4 | 5][key], `${key} 段階${n + 1}`).toBeGreaterThan(FONT[n][key]);
+      }
+    }
+    expect(FONT[1]).toEqual({ body: 20, button: 22, label: 24, heading: 28, number: 32 });
+    expect(FONT[3]).toEqual({ body: 24, button: 26, label: 28, heading: 34, number: 38 });
+    expect(FONT[5]).toEqual({ body: 28, button: 30, label: 32, heading: 40, number: 44 });
+  });
+
+  it('PU-08c: 題名・星・結果の見出し・アプリ名の大きさも、段階 1〜5 の変数がある', () => {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
+    for (const n of [2, 3, 4, 5]) {
+      expect(css, `:root[data-font='${n}']`).toContain(`:root[data-font='${n}']`);
+      expect(css).toContain(`:root[data-font='${n}'] .home`);
+    }
+    expect(css).not.toContain("data-font='xlarge'");
+    expect(css).toContain('--fs-title: 32px;');
+    expect(css).toContain('--fs-title: 44px;');
+    expect(cssVars(":root[data-font='5']").get('--fs-body')).toBe('28px');
   });
 });
 
@@ -149,16 +178,16 @@ describe('T1-11a: iPad (Safari) への備え (文字と見た目)', () => {
 });
 
 describe('T1-17: 設定画面・ホーム画面の文字の大きさと配置', () => {
-  it('FONT.large.label = 24, FONT.xlarge.label = 28', () => {
-    expect(FONT.large.label).toBe(24);
-    expect(FONT.xlarge.label).toBe(28);
+  it('FONT[1].label = 24, FONT[3].label = 28', () => {
+    expect(FONT[1].label).toBe(24);
+    expect(FONT[3].label).toBe(28);
   });
 
-  it('--fs-label が FONT.large.label・FONT.xlarge.label と一致する', () => {
+  it("--fs-label が FONT[1].label と、:root[data-font='3'] の FONT[3].label と一致する", () => {
     const root = cssVars(':root');
-    const xl = cssVars(":root[data-font='xlarge']");
-    expect(root.get('--fs-label')).toBe(`${FONT.large.label}px`);
-    expect(xl.get('--fs-label')).toBe(`${FONT.xlarge.label}px`);
+    const v3 = cssVars(":root[data-font='3']");
+    expect(root.get('--fs-label')).toBe(`${FONT[1].label}px`);
+    expect(v3.get('--fs-label')).toBe(`${FONT[3].label}px`);
   });
 
   it('.settings__label は font-size: var(--fs-label) で太字', () => {

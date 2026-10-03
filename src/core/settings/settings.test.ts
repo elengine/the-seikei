@@ -23,7 +23,7 @@ describe('settings', () => {
     expect(settings.get()).toEqual(DEFAULT_SETTINGS);
     expect(DEFAULT_SETTINGS.playerName).toBe('');
     expect(DEFAULT_SETTINGS.shopName).toBe('整経所');
-    expect(DEFAULT_SETTINGS.fontScale).toBe('large');
+    expect(DEFAULT_SETTINGS.fontScale).toBe(1);
     expect(DEFAULT_SETTINGS.soundOn).toBe(true);
     expect(DEFAULT_SETTINGS.volume).toBe(0.7);
     expect(DEFAULT_SETTINGS.tutorialSeen).toEqual({});
@@ -58,7 +58,7 @@ describe('settings', () => {
     const s = settings.get();
     expect(s.playerName).toBe('まさお'); // 保存済みのキー
     expect(s.shopName).toBe('整経所'); // 無いキーは既定値
-    expect(s.fontScale).toBe('large');
+    expect(s.fontScale).toBe(1);
     expect(s.soundOn).toBe(true);
     expect(s.volume).toBe(0.7);
     expect(s.tutorialSeen).toEqual({});
@@ -110,5 +110,30 @@ describe('settings', () => {
     });
     expect(settings.get().shopName).toBe('山田整経'); // 保存データが読み直されている
     expect(seen[seen.length - 1]).toBe('山田整経'); // onChange に新しい設定が渡る
+  });
+});
+
+describe('PU-08c: fontScale は 1〜5 の数。古い値は読み込むときに置き換える', () => {
+  async function loadWith(fontScale: unknown): Promise<number> {
+    const { repo, clock } = await make();
+    await repo.put('settings', { fontScale }, 'main');
+    return (await createSettingsService(repo, clock)).get().fontScale;
+  }
+
+  it("'large' → 1、'xlarge' → 3、不明 → 1", async () => {
+    expect(await loadWith('large')).toBe(1);
+    expect(await loadWith('xlarge')).toBe(3);
+    expect(await loadWith('はてな')).toBe(1);
+    expect(await loadWith(undefined)).toBe(1);
+  });
+
+  it('1〜5 の数はそのまま。範囲の外・小数・数でないものは 1', async () => {
+    for (const n of [1, 2, 3, 4, 5]) {
+      expect(await loadWith(n)).toBe(n);
+    }
+    expect(await loadWith(0)).toBe(1);
+    expect(await loadWith(6)).toBe(1);
+    expect(await loadWith(2.5)).toBe(1);
+    expect(await loadWith('4')).toBe(1);
   });
 });

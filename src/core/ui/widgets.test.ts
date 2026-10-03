@@ -166,10 +166,10 @@ describe('textInputDialog', () => {
 describe('applyFontScale', () => {
   it('4. data-font 属性が変わる', () => {
     const root = document.createElement('div');
-    applyFontScale(root, 'large');
-    expect(root.dataset.font).toBe('large');
-    applyFontScale(root, 'xlarge');
-    expect(root.dataset.font).toBe('xlarge');
+    applyFontScale(root, 1);
+    expect(root.dataset.font).toBe('1');
+    applyFontScale(root, 4);
+    expect(root.dataset.font).toBe('4');
   });
 });
 

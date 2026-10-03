@@ -114,12 +114,36 @@ body {
   --font-family-heading: "Shippori Mincho", "Hiragino Mincho ProN", serif;
 }
 
-:root[data-font='xlarge'] {
+:root[data-font='2'] {
+  --fs-body: 22px;
+  --fs-button: 24px;
+  --fs-label: 26px;
+  --fs-heading: 31px;
+  --fs-number: 35px;
+}
+
+:root[data-font='3'] {
   --fs-body: 24px;
   --fs-button: 26px;
   --fs-label: 28px;
   --fs-heading: 34px;
   --fs-number: 38px;
+}
+
+:root[data-font='4'] {
+  --fs-body: 26px;
+  --fs-button: 28px;
+  --fs-label: 30px;
+  --fs-heading: 37px;
+  --fs-number: 41px;
+}
+
+:root[data-font='5'] {
+  --fs-body: 28px;
+  --fs-button: 30px;
+  --fs-label: 32px;
+  --fs-heading: 40px;
+  --fs-number: 44px;
 }
 
 /* ---- 部品用のクラス ---- */
@@ -361,9 +385,24 @@ body {
   padding: calc(var(--stripe-h) + var(--sp-6)) var(--page-pad) var(--sp-8);
 }
 
-:root[data-font='xlarge'] .home {
+:root[data-font='2'] .home {
+  --fs-app: 47px;
+  --fs-card-name: 32px;
+}
+
+:root[data-font='3'] .home {
   --fs-app: 50px;
   --fs-card-name: 34px;
+}
+
+:root[data-font='4'] .home {
+  --fs-app: 53px;
+  --fs-card-name: 36px;
+}
+
+:root[data-font='5'] .home {
+  --fs-app: 56px;
+  --fs-card-name: 38px;
 }
 
 .home__header {
@@ -1217,11 +1256,32 @@ button {
   --stripe-h: 10px;
 }
 
-:root[data-font='xlarge'] {
+:root[data-font='2'] {
+  --fs-title: 35px;
+  --fs-star-list: 26px;
+  --fs-star-result: 60px;
+  --fs-result-title: 39px;
+}
+
+:root[data-font='3'] {
   --fs-title: 38px;
   --fs-star-list: 28px;
   --fs-star-result: 64px;
   --fs-result-title: 42px;
+}
+
+:root[data-font='4'] {
+  --fs-title: 41px;
+  --fs-star-list: 30px;
+  --fs-star-result: 68px;
+  --fs-result-title: 45px;
+}
+
+:root[data-font='5'] {
+  --fs-title: 44px;
+  --fs-star-list: 32px;
+  --fs-star-result: 72px;
+  --fs-result-title: 48px;
 }
 
 .font-heading {
@@ -1507,6 +1567,123 @@ button {
 @media (prefers-reduced-motion: reduce) {
   .creel-drag {
     transition: none !important;
+  }
+}
+
+/* 文字の大きさのスライダー (PU-08c)。iPad Safari では既定の見た目が違うので、溝とつまみを自分で描く */
+.settings__row--slider {
+  grid-template-columns: minmax(9em, auto) minmax(0, 1fr);
+}
+
+.font-slider {
+  min-width: 0;
+}
+
+.font-slider__track {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: 64px; /* 行全体の高さは 64px 以上。つまみの当たりは上下に広い */
+}
+
+.font-slider__end {
+  flex: none;
+  font-size: var(--fs-body);
+  color: var(--c-sumi-sub);
+}
+
+.font-slider__wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 64px;
+}
+
+.font-slider__input {
+  --fill: 0%;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 64px;
+  margin: 0;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+  touch-action: none; /* 横に動かすので、画面のスクロール・拡大を止める */
+  cursor: pointer;
+}
+
+.font-slider__input:focus-visible {
+  outline: 3px solid var(--c-ai);
+  outline-offset: 2px;
+}
+
+.font-slider__input::-webkit-slider-runnable-track {
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(to right, var(--c-ai) var(--fill), var(--c-line) var(--fill));
+}
+
+.font-slider__input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 44px;
+  height: 44px;
+  margin-top: -18px; /* 溝 8px の中央に */
+  border-radius: 50%;
+  border: 3px solid var(--c-ai);
+  background: var(--c-white);
+  box-sizing: border-box;
+}
+
+.font-slider__input::-moz-range-track {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--c-line);
+}
+
+.font-slider__input::-moz-range-progress {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--c-ai);
+}
+
+.font-slider__input::-moz-range-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 3px solid var(--c-ai);
+  background: var(--c-white);
+  box-sizing: border-box;
+}
+
+/* 目盛り (5つの点)。つまみの中心が通る位置 (両端はつまみの半径ぶん内側) に並べる */
+.font-slider__ticks {
+  position: absolute;
+  left: 22px;
+  right: 22px;
+  top: 40px;
+  display: flex;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.font-slider__tick {
+  width: 8px;
+  height: 8px;
+  margin: 0 -4px;
+  border-radius: 50%;
+  background: var(--c-sumi-sub);
+}
+
+.font-slider__sample {
+  margin: 0;
+  color: var(--c-sumi);
+}
+
+@media (max-width: 599px) {
+  .settings__row--slider .font-slider {
+    grid-column: 1 / -1;
   }
 }
 

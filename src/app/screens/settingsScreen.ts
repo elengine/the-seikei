@@ -2,6 +2,7 @@ import type { AppContext } from '../context';
 import type { Screen } from '../screenManager';
 import { createButton, createChoice, textInputDialog } from '../../core/ui/widgets';
 import { createCard, createPage, createScreenHeader, createSectionHeading } from '../../core/ui/layout';
+import { FONT } from '../../core/ui/tokens';
 import type { FontScale } from '../../core/ui/tokens';
 
 /** 音の大きさの3段階 (小・中・大) */
@@ -10,6 +11,62 @@ const VOLUMES = [
   { value: '0.7', label: '中' },
   { value: '1', label: '大' },
 ] as const;
+
+/** 文字の大きさのスライダー (1〜5)。両端に「小」「大」、5つの目盛り、見本の文。onCommit は指を離したとき */
+function createFontSlider(
+  initial: FontScale,
+  onCommit: (v: FontScale) => void,
+): { root: HTMLElement; setValue(v: FontScale): void } {
+  const root = document.createElement('div');
+  root.classList.add('font-slider');
+  const track = document.createElement('div');
+  track.classList.add('font-slider__track');
+  const small = document.createElement('span');
+  small.textContent = '小';
+  small.classList.add('font-slider__end');
+  const large = document.createElement('span');
+  large.textContent = '大';
+  large.classList.add('font-slider__end');
+  const input = document.createElement('input');
+  input.type = 'range';
+  input.min = '1';
+  input.max = '5';
+  input.step = '1';
+  input.classList.add('font-slider__input');
+  input.setAttribute('aria-label', '文字の大きさ');
+  const wrap = document.createElement('div');
+  wrap.classList.add('font-slider__wrap');
+  wrap.appendChild(input);
+  const ticks = document.createElement('div');
+  ticks.classList.add('font-slider__ticks');
+  ticks.setAttribute('aria-hidden', 'true');
+  for (let i = 0; i < 5; i++) {
+    const t = document.createElement('span');
+    t.classList.add('font-slider__tick');
+    ticks.appendChild(t);
+  }
+  wrap.appendChild(ticks);
+  track.appendChild(small);
+  track.appendChild(wrap);
+  track.appendChild(large);
+  const sample = document.createElement('p');
+  sample.classList.add('font-slider__sample');
+  sample.textContent = 'この大きさで表示します';
+  root.appendChild(track);
+  root.appendChild(sample);
+
+  const asScale = (n: number): FontScale => (n >= 1 && n <= 5 ? (Math.round(n) as FontScale) : 1);
+  function show(v: FontScale): void {
+    input.value = String(v);
+    input.setAttribute('aria-valuetext', `段階${v}`);
+    input.style.setProperty('--fill', `${((v - 1) / 4) * 100}%`);
+    sample.style.fontSize = `${FONT[v].body}px`; // 選んでいる大きさで見せる (まだ画面全体は変えない)
+  }
+  show(initial);
+  input.addEventListener('input', () => show(asScale(Number(input.value))));
+  input.addEventListener('change', () => onCommit(asScale(Number(input.value))));
+  return { root, setValue: show };
+}
 
 /** 設定画面。節の見出し+カードのまとまりに、項目を1行ずつ並べる */
 export function createSettingsScreen(ctx: AppContext): Screen {
@@ -108,25 +165,21 @@ export function createSettingsScreen(ctx: AppContext): Screen {
       // ---- 見やすさと音 ----
       const viewCard = section('見やすさと音');
 
-      // 文字の大きさ: 大 / 特大 (画面全体が切り替わる。context の onChange が反映)
+      // 文字の大きさ: 1〜5 の5段階のスライダー。動かしているあいだは見本の文だけがすぐ変わり、
+      // 設定の保存 (画面全体の切り替え) は指を離したとき (change)
       const fontRow = row('文字の大きさ');
-      const fontChoice = createChoice<FontScale>({
-        options: [
-          { value: 'large', label: '大' },
-          { value: 'xlarge', label: '特大' },
-        ],
-        value: ctx.settings.get().fontScale,
-        ariaLabel: '文字の大きさ',
-        onChange: (v) => {
-          void (async () => {
-            await ctx.settings.update({ fontScale: v });
-            ctx.audio.play('tap'); // 選ぶ部品 (choice) は音を鳴らさないので、ここで鳴らす
-            refresh();
-          })();
-        },
+      fontRow.row.classList.add('settings__row--slider');
+      const slider = createFontSlider(ctx.settings.get().fontScale, (v) => {
+        void (async () => {
+          await ctx.settings.update({ fontScale: v });
+          ctx.audio.play('tap'); // スライダーは音を鳴らさないので、ここで鳴らす
+          refresh();
+        })();
       });
-      fontRow.actions.appendChild(fontChoice.root);
-      refreshers.push(() => fontChoice.setValue(ctx.settings.get().fontScale));
+      fontRow.row.appendChild(slider.root);
+      fontRow.value.remove();
+      fontRow.actions.remove();
+      refreshers.push(() => slider.setValue(ctx.settings.get().fontScale));
       viewCard.appendChild(fontRow.row);
 
       // 音: 鳴らす / 鳴らさない
