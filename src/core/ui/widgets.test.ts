@@ -401,3 +401,19 @@ describe('PU-08a: 丸いボタン (shape: circle)', () => {
     expect(m![1]).toContain('border-radius: 50%');
   });
 });
+
+describe('PU-08b: 歯車のアイコン (settings)', () => {
+  it('外側の輪・中央の丸・歯 8 本の線 (計 10 本の線) で、今までの 3 本の横線の形ではない', () => {
+    const b = createButton({ label: '設定', icon: 'settings', onClick: () => {} });
+    const paths = Array.from(b.querySelectorAll('svg path')).map((p) => p.getAttribute('d') ?? '');
+    expect(paths).toHaveLength(10);
+    // 歯: 中心 (12, 12) から外へ向かう短い線が 8 本
+    const teeth = paths.filter((d) => /^M[\d.]+ [\d.]+ L[\d.]+ [\d.]+$/.test(d));
+    expect(teeth).toHaveLength(8);
+    // 輪と丸は円弧 (A) で描く
+    expect(paths.filter((d) => d.includes('A'))).toHaveLength(2);
+    // 今までの形 (横線 3 本のつまみ) が残っていない
+    expect(paths.some((d) => d.startsWith('M4 7 H20'))).toBe(false);
+    expect(b.textContent).toBe('設定'); // 文字も付いたまま
+  });
+});
