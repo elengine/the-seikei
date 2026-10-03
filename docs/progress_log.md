@@ -1400,3 +1400,9 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - 「試し巻き」→「巻く」(ボタン・messages・押せない理由)。○は角度の下へ。
 - 遊び方の絵を本編と同じ左右に入れ替え、文字24px以上、文字と絵を重ねない。
 - controller.test.ts はボタン名の置換のみ (controller.ts 本体は不変)。787 passed・CI success。
+
+## 2026-10-04 T2c-04b (ルビー)
+- 電卓を大きなポップアップに (openCalculatorBody 内で sheet--tall を付与。controller.ts は不変、コメントで移す先を明記)。
+- 並び:表示 (右寄せ40px) → 開閉する tan/係数の表 (小数第4位・同じボタンで閉じる) → 4列×5段の格子 (0 . C +・= は grid-column: 2/span 2) → 一番下に「この答えを送り量に入れる」。
+- 横長の低い画面 (orientation: landscape + max-height 500px) は左に表示と表・右に格子の2列 grid。
+- 796 passed・CI success。ブラウザ確認: 1180x820・915x412 (2列)・412x915 とも横スクロール0、1.07 を入れて送り量に反映されることを確認。
