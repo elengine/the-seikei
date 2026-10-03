@@ -36,6 +36,11 @@ export function messageFor(s: WindingState, prev: WindingState | undefined, next
       const left = s.brk.threads.length;
       return render(`1本つながりました。あと ${left} 本です`);
     }
+    if (s.brk.kind === 'broken' && s.brk.tied.length > 0) {
+      // 操作の直後でない再描画でも、つながったあとの文を出し続ける (T2-13c)
+      const left = s.brk.threads.length;
+      return render(`1本つながりました。あと ${left} 本です`);
+    }
     return render('糸が切れました。切れた糸のあたりを押して、つないでください');
   }
   if (s.phase === 'winding') {

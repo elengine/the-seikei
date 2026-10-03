@@ -359,6 +359,15 @@ describe('T2-13c (1回押してつなぐ・文言)', () => {
     expect(text).toContain('切れた糸のあたりを押して');
   });
 
+  it('2b. 1本つながった状態 (操作の直後でなくても) は「1本つながりました。あと 1 本です」を出し続ける', () => {
+    const s = twoBroken();
+    const tied1 = { ...s, brk: { kind: 'broken' as const, threads: [4], tied: [1] } };
+    // prev/next を渡さない再描画 (ループでの定期更新) でも同じ文を出す
+    const text = messageFor(tied1, undefined, undefined, (x: string) => x);
+    expect(text).toContain('1本つながりました');
+    expect(text).toContain('あと 1 本');
+  });
+
   it('3. 切れていない糸を押すと wrongTaps が1増える。mismatches は無くなった', () => {
     const s = twoBroken();
     const next = reduce(s, { type: 'tapThread', thread: 2 });
