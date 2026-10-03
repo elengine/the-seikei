@@ -9,14 +9,12 @@ const upd = vi.hoisted(() => ({
   ready: false,
   listeners: new Set<(ready: boolean) => void>(),
   check: undefined as unknown as () => Promise<'available' | 'latest' | 'offline'>,
-  apply: undefined as unknown as () => void,
+  apply: undefined as unknown as () => Promise<boolean>,
 }));
 vi.mock('../updater', () => ({
   isUpdateReady: () => upd.ready,
   checkForUpdate: () => upd.check(),
-  applyUpdate: () => {
-    upd.apply();
-  },
+  applyUpdate: () => upd.apply(),
   onUpdateState: (cb: (ready: boolean) => void) => {
     upd.listeners.add(cb);
     return () => {
@@ -233,7 +231,7 @@ describe('PU-10a: 設定の画面のアップデートの確認', () => {
     upd.ready = false;
     upd.listeners.clear();
     upd.check = async () => 'latest';
-    upd.apply = vi.fn();
+    upd.apply = vi.fn(async () => true);
   });
 
   afterEach(() => {
@@ -263,12 +261,12 @@ describe('PU-10a: 設定の画面のアップデートの確認', () => {
     expect(upd.apply).toHaveBeenCalledTimes(1);
   });
 
-  it('新しい版が無いとき「最新の版です」が出て、3 秒で消える', async () => {
+  it('新しい版が無いとき「最新のバージョンです」が出て、3 秒で消える', async () => {
     await mountSettings();
     vi.useFakeTimers(); // 画面の用意 (IndexedDB) のあとに偽の時計にする
     refreshBtn().click();
     await vi.advanceTimersByTimeAsync(900); // 確認の最低の長さ (0.8 秒)
-    expect(document.querySelector('.update-notice')!.textContent).toContain('最新の版です');
+    expect(document.querySelector('.update-notice')!.textContent).toContain('最新のバージョンです');
     await vi.advanceTimersByTimeAsync(3100);
     expect(document.querySelector('.update-notice')!.textContent).toBe('');
   });
@@ -321,5 +319,46 @@ describe('PU-10a: 設定の画面のアップデートの確認', () => {
     screen.unmount();
     expect(upd.listeners.size).toBe(0);
     expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe('PU-10f: 「アップデートする」が切り替えられなかったとき', () => {
+  async function openWithUpdate(): Promise<void> {
+    document.body.textContent = '';
+    upd.ready = true;
+    upd.listeners.clear();
+    const ctx = await makeCtx();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    createSettingsScreen(ctx).mount(container, {});
+  }
+  const goBtn = (): HTMLButtonElement =>
+    Array.from(document.querySelectorAll('button')).find((b) => b.textContent === 'アップデートする')!;
+
+  it('切り替えに失敗 (false) したら、案内「切り替えられませんでした。アプリを閉じて、もう一度開いてください」を出し、もう一度押せる', async () => {
+    await openWithUpdate();
+    upd.apply = vi.fn(async () => false);
+    goBtn().click();
+    await vi.waitFor(() => {
+      expect(document.querySelector('.update-notice')!.textContent).toContain('切り替えられませんでした。アプリを閉じて、もう一度開いてください');
+    });
+    // 押し直せる (「アップデートする」がまた出る)
+    expect(goBtn()).toBeDefined();
+    goBtn().click();
+    expect(upd.apply).toHaveBeenCalledTimes(2);
+  });
+
+  it('切り替え中 (まだ結果が出ていない) は、続けて押しても 1 回だけ呼ぶ', async () => {
+    await openWithUpdate();
+    let resolve: (v: boolean) => void = () => undefined;
+    upd.apply = vi.fn(() => new Promise<boolean>((r) => { resolve = r; }));
+    const b = goBtn();
+    b.click();
+    b.click();
+    expect(upd.apply).toHaveBeenCalledTimes(1);
+    resolve(true); // 成功: 再読み込みされる。案内は出さない
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(document.querySelector('.update-notice')!.textContent).not.toContain('切り替えられませんでした');
   });
 });

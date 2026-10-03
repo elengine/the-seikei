@@ -90,18 +90,88 @@ export async function checkForUpdate(): Promise<UpdateResult> {
   return 'latest';
 }
 
-/** 待っている新しい版に切り替えて、読み込み直す (確認のダイアログは出さない) */
-export function applyUpdate(): void {
-  if (isUpdateAvailable()) {
-    void applyUpdateNow(); // registerSW の更新の関数 (reload=true)
-    return;
-  }
-  const w = waiting;
-  const sw = navigator.serviceWorker;
-  if (w !== null && sw !== undefined) {
-    sw.addEventListener('controllerchange', () => window.location.reload(), { once: true });
+/** 切り替えの完了を待つ最長の時間 (ミリ秒)。これを過ぎても切り替わらなければ失敗とする */
+const SWITCH_WAIT_MS = 5000;
+
+let reloadFn: () => void = () => window.location.reload();
+
+/** テスト用: 再読み込みの処理を差し替える (null で戻す) */
+export function setReloadForTest(fn: (() => void) | null): void {
+  reloadFn = fn ?? (() => window.location.reload());
+}
+
+/**
+ * 待っている版に SKIP_WAITING を送り、切り替わったら読み込み直す。切り替わった印は 2 つ:
+ * controllerchange (この画面の担当が変わった) と、待っていた版が activated になること (クライアントを引き継がない
+ * Service Worker では controllerchange が来ないことがあるため)。どちらが先でも、再読み込みは 1 回。
+ * 5 秒たっても切り替わらなければ、読み込み直さず false を返す。
+ */
+function switchTo(w: ServiceWorker, swc: ServiceWorkerContainer): Promise<boolean> {
+  return new Promise((resolve) => {
+    let finished = false;
+    const timer = setTimeout(() => {
+      if (w.state === 'activated') {
+        finish(true); // 印を取りこぼしていても、切り替わっていれば読み込み直す
+      } else {
+        finish(false);
+      }
+    }, SWITCH_WAIT_MS);
+    function cleanup(): void {
+      clearTimeout(timer);
+      swc.removeEventListener('controllerchange', onChange);
+      w.removeEventListener('statechange', onState);
+    }
+    function finish(ok: boolean): void {
+      if (finished) {
+        return;
+      }
+      finished = true;
+      cleanup();
+      if (ok) {
+        reloadFn();
+      }
+      resolve(ok);
+    }
+    function onChange(): void {
+      finish(true);
+    }
+    function onState(): void {
+      if (w.state === 'activated') {
+        finish(true);
+      }
+    }
+    swc.addEventListener('controllerchange', onChange);
+    w.addEventListener('statechange', onState);
     w.postMessage({ type: 'SKIP_WAITING' });
+  });
+}
+
+/**
+ * 新しい版に切り替えて、読み込み直す (確認のダイアログは出さない)。成功なら true (読み込み直しを呼んだ)、
+ * 切り替わらなければ false。待っている版は registration から直接見つける (registerSW の更新の関数には頼らない。
+ * 関数は、待っている版が見つからないときの代わり)。
+ */
+export async function applyUpdate(): Promise<boolean> {
+  const swc = typeof navigator !== 'undefined' ? navigator.serviceWorker : undefined;
+  if (swc !== undefined) {
+    const reg = await swc.getRegistration();
+    if (reg !== undefined) {
+      let w: ServiceWorker | null = reg.waiting ?? waiting;
+      if (w === null && reg.installing !== null) {
+        await waitUntilInstalled(reg.installing);
+        w = reg.waiting;
+      }
+      if (w !== null) {
+        return switchTo(w, swc);
+      }
+    }
   }
+  if (isUpdateAvailable()) {
+    await applyUpdateNow(); // registerSW の更新の関数 (reload=true)
+    return true;
+  }
+  reloadFn(); // 待っている版が無い: ほかの画面ですでに切り替わっているかもしれない。読み込み直して今の版にそろえる
+  return true;
 }
 
 export function resetUpdaterForTest(): void {

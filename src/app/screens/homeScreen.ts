@@ -76,7 +76,7 @@ export function createHomeScreen(ctx: AppContext): Screen {
       const day = Number.isNaN(built.getTime())
         ? __BUILD_ID__.slice(0, 10)
         : `${built.getFullYear()}-${pad2(built.getMonth() + 1)}-${pad2(built.getDate())}`;
-      version.textContent = `版 ${__APP_VERSION__}(${day})`;
+      version.textContent = `バージョン ${__APP_VERSION__}(${day})`;
       titles.appendChild(version);
       const playerName = ctx.settings.get().playerName;
       if (playerName !== '') {
@@ -98,6 +98,7 @@ export function createHomeScreen(ctx: AppContext): Screen {
         if (ready) {
           const badge = el('span', 'btn__badge');
           badge.setAttribute('aria-hidden', 'true');
+          badge.textContent = '!';
           settingsBtn.appendChild(badge);
           settingsBtn.setAttribute('aria-label', '設定(アップデートがあります)');
         } else {

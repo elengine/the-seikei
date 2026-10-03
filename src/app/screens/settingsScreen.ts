@@ -143,7 +143,25 @@ export function createSettingsScreen(ctx: AppContext): Screen {
         p.classList.add('update-notice__text', 'update-notice__text--alert'); // 朱の文字
         p.textContent = 'アップデートがあります。';
         notice.appendChild(p);
-        notice.appendChild(createButton({ label: 'アップデートする', variant: 'primary', onClick: () => applyUpdate() }));
+        notice.appendChild(createButton({ label: 'アップデートする', variant: 'primary', onClick: () => void runApply() }));
+      }
+
+      // 「アップデートする」: 切り替われば画面が読み込み直される。切り替わらなかったときは、そのことを伝える (押し直せる)
+      let applying = false;
+      async function runApply(): Promise<void> {
+        if (applying) {
+          return;
+        }
+        applying = true;
+        const ok = await applyUpdate();
+        applying = false;
+        if (!ok && !disposed) {
+          showAvailable();
+          const p = document.createElement('p');
+          p.classList.add('update-notice__text');
+          p.textContent = '切り替えられませんでした。アプリを閉じて、もう一度開いてください';
+          notice.appendChild(p);
+        }
       }
 
       let checking = false;
@@ -165,7 +183,7 @@ export function createSettingsScreen(ctx: AppContext): Screen {
         if (result === 'available') {
           showAvailable();
         } else if (result === 'latest') {
-          showText('最新の版です', 3000);
+          showText('最新のバージョンです', 3000);
         } else {
           showText('確認できませんでした。通信を確かめてください');
         }

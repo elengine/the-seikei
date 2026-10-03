@@ -11,14 +11,12 @@ const upd = vi.hoisted(() => ({
   ready: false,
   listeners: new Set<(ready: boolean) => void>(),
   check: undefined as unknown as () => Promise<'available' | 'latest' | 'offline'>,
-  apply: undefined as unknown as () => void,
+  apply: undefined as unknown as () => Promise<boolean>,
 }));
 vi.mock('../updater', () => ({
   isUpdateReady: () => upd.ready,
   checkForUpdate: () => upd.check(),
-  applyUpdate: () => {
-    upd.apply();
-  },
+  applyUpdate: () => upd.apply(),
   onUpdateState: (cb: (ready: boolean) => void) => {
     upd.listeners.add(cb);
     return () => {
@@ -168,7 +166,7 @@ describe('PU-10a: ホームの「設定」ボタンのバッジ', () => {
     document.body.textContent = '';
     upd.ready = true;
     const b = mountHome();
-    const settings = Array.from(b.root.querySelectorAll('button')).find((x) => x.textContent === '設定')!;
+    const settings = Array.from(b.root.querySelectorAll('button')).find((x) => x.textContent!.startsWith('設定'))!;
     expect(settings.querySelector('.btn__badge')).not.toBeNull();
     expect(settings.getAttribute('aria-label')).toContain('アップデートがあります');
   });
@@ -186,10 +184,10 @@ describe('PU-10a: ホームの「設定」ボタンのバッジ', () => {
 });
 
 describe('PU-10e: 版の番号とアプリ名', () => {
-  it('題名の下に「版 0.1.0(2026-10-04)」が小さく出る (20px 以上・muted)。題名と挨拶のあいだ', () => {
+  it('題名の下に「バージョン 0.1.0(2026-10-04)」が小さく出る (20px 以上・muted)。題名と挨拶のあいだ', () => {
     const { root } = mountHome({ shopName: '山田整経', playerName: '太郎' });
     const v = root.querySelector('.home__version')!;
-    expect(v.textContent).toBe('版 0.1.0(2026-10-04)');
+    expect(v.textContent).toBe('バージョン 0.1.0(2026-10-04)');
     const app = root.querySelector('.home__app')!;
     expect(app.nextElementSibling).toBe(v);
     const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
@@ -208,5 +206,34 @@ describe('PU-10e: 版の番号とアプリ名', () => {
     expect(vite).toContain("scope: './'");
     const html = readFileSync(join(root, 'index.html'), 'utf-8');
     expect(html).toContain('<title>整経屋の一日</title>');
+  });
+});
+
+describe('PU-10f: 「設定」のバッジを目立たせる', () => {
+  it('バッジは朱の丸の中に白い「!」。aria-hidden で、読み上げは「設定(アップデートがあります)」のまま', () => {
+    upd.ready = true;
+    const { root } = mountHome();
+    const settings = Array.from(root.querySelectorAll('button')).find((b) => b.textContent!.startsWith('設定'))!;
+    const badge = settings.querySelector('.btn__badge')!;
+    expect(badge.textContent).toBe('!');
+    expect(badge.getAttribute('aria-hidden')).toBe('true');
+    expect(settings.getAttribute('aria-label')).toBe('設定(アップデートがあります)');
+    upd.ready = false;
+  });
+
+  it('base.css: 直径 24px 以上・白い縁 3px・白い「!」・右上の角に半分はみ出す。2 秒ごとに脈打ち、動きを減らす設定では止める', () => {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
+    const m = css.match(/\n\.btn__badge\s*\{([^}]*)\}/)![1]!;
+    const size = parseInt(m.match(/width: (\d+)px/)![1]!, 10);
+    expect(size).toBeGreaterThanOrEqual(24);
+    expect(m).toContain(`height: ${size}px`);
+    expect(m).toContain('border: 3px solid var(--c-white)');
+    expect(m).toContain('color: var(--c-white)');
+    expect(m).toContain('background: var(--c-shu)');
+    expect(m).toContain(`top: -${size / 2}px`);
+    expect(m).toContain(`right: -${size / 2}px`);
+    expect(m).toMatch(/animation: badge-pulse 2s/);
+    expect(css).toMatch(/@keyframes badge-pulse/);
+    expect(css).toMatch(/prefers-reduced-motion: reduce\)\s*\{[^@]*\.btn__badge\s*\{[^}]*animation: none/);
   });
 });
