@@ -20,7 +20,7 @@ export function createScreenHeader(opts: {
 
   const left = el('div', 'screen-header__left');
   if (opts.onBack !== undefined) {
-    left.appendChild(createButton({ label: '戻る', icon: 'back', onClick: opts.onBack }));
+    left.appendChild(createButton({ label: '戻る', icon: 'back', shape: 'circle', onClick: opts.onBack }));
   }
   header.appendChild(left);
 

@@ -58,7 +58,7 @@ export function createGameFrame(
     title: opts.title,
     subtitle: opts.subtitle,
     onBack: opts.onBack,
-    right: createButton({ label: '遊び方', variant: 'secondary', onClick: opts.onHelp }),
+    right: createButton({ label: '遊び方', variant: 'secondary', icon: 'help', shape: 'circle', onClick: opts.onHelp }),
   });
   header.classList.add('game-frame__bar');
   header.querySelector<HTMLElement>('.screen-header__left button')?.classList.add('game-frame__bar-left', 'game-frame__bar-btn');

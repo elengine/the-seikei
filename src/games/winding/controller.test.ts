@@ -367,7 +367,7 @@ describe('winding module (T2-07)', () => {
     raf.advance(10);
     // 「戻る」→ 確認
     Array.from(container.querySelectorAll<HTMLButtonElement>('.game-frame__bar-btn'))
-      .find((b) => b.textContent === '戻る')!
+      .find((b) => b.getAttribute('aria-label') === '戻る')!
       .click();
     await wait(50);
     // 確認の文言とボタン
@@ -421,7 +421,7 @@ describe('winding module (T2-07)', () => {
     raf.advance(10);
     // 戻る → 一覧に戻る
     Array.from(container.querySelectorAll<HTMLButtonElement>('.game-frame__bar-btn'))
-      .find((b) => b.textContent === '戻る')!.click();
+      .find((b) => b.getAttribute('aria-label') === '戻る')!.click();
     await wait(50);
     Array.from(container.querySelectorAll<HTMLButtonElement>('.dialog button'))
       .find((b) => b.textContent === '一覧に戻る')!.click();
@@ -457,7 +457,7 @@ describe('winding module (T2-07)', () => {
     const props = makeProps({ onExit: () => (exited = true) });
     const instance = module.mount(container, props);
     Array.from(container.querySelectorAll('button'))
-      .find((b) => b.textContent === '戻る')!.click();
+      .find((b) => b.getAttribute('aria-label') === '戻る')!.click();
     await wait(50);
     expect(exited).toBe(true);
     instance.unmount();
@@ -477,7 +477,7 @@ describe('winding module (T2-07)', () => {
     const instance = module.mount(container, props);
     await wait(50);
     Array.from(container.querySelectorAll<HTMLButtonElement>('.game-frame__bar-btn'))
-      .find((b) => b.textContent === '戻る')!.click();
+      .find((b) => b.getAttribute('aria-label') === '戻る')!.click();
     await wait(50);
     expect(exited).toBe(true);
     instance.unmount();

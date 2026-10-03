@@ -22,12 +22,15 @@ function blockOf(selector: string): string {
 }
 
 describe('createScreenHeader', () => {
-  it('onBack があると左に「戻る」(icon 付き)。押すと onBack が呼ばれる', () => {
+  it('onBack があると左に丸い「戻る」(aria-label と title が「戻る」、文字は出さずアイコンだけ)。押すと onBack が呼ばれる', () => {
     const onBack = vi.fn();
     const h = createScreenHeader({ title: '設定', onBack });
     const left = h.querySelector<HTMLElement>('.screen-header__left')!;
     const btn = left.querySelector('button')!;
-    expect(btn.textContent).toBe('戻る');
+    expect(btn.getAttribute('aria-label')).toBe('戻る');
+    expect(btn.title).toBe('戻る');
+    expect(btn.textContent).toBe('');
+    expect(btn.classList.contains('btn--circle')).toBe(true);
     expect(btn.querySelector('svg')).not.toBeNull();
     btn.click();
     expect(onBack).toHaveBeenCalledTimes(1);
@@ -145,11 +148,9 @@ describe('createListRow', () => {
 });
 
 describe('base.css (PU-02a)', () => {
-  it('.screen-header は 180px / 中央 / 180px の格子、600px 未満は 120px', () => {
-    expect(blockOf('.screen-header')).toContain('grid-template-columns: 180px minmax(0, 1fr) 180px');
-    const m = baseCss().match(/@media \(max-width: 599px\)\s*\{\s*\.screen-header\s*\{([^}]*)\}/);
-    expect(m, '600px 未満の .screen-header').not.toBeNull();
-    expect(m![1]).toContain('grid-template-columns: 120px minmax(0, 1fr) 120px');
+  it('.screen-header は 72px / 中央 / 72px の格子 (丸いボタンの幅に詰める)。600px 未満でも同じ', () => {
+    expect(blockOf('.screen-header')).toContain('grid-template-columns: 72px minmax(0, 1fr) 72px');
+    expect(baseCss()).not.toMatch(/@media \(max-width: 599px\)\s*\{\s*\.screen-header\s*\{/);
   });
 
   it('新しい節の CSS は数値を直書きせず変数を使う (色の16進が無い)', () => {

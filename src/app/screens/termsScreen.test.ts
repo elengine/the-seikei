@@ -80,7 +80,7 @@ describe('T1-19: 呼び名の変更画面の区分け', () => {
     const bar = document.querySelector('.screen-header');
     expect(bar).not.toBeNull();
     expect(bar!.querySelector('.screen-header__title')?.textContent).toBe('呼び名の変更');
-    const backInBar = Array.from(bar!.querySelectorAll('button')).find((b) => b.textContent === '戻る');
+    const backInBar = Array.from(bar!.querySelectorAll('button')).find((b) => b.getAttribute('aria-label') === '戻る');
     expect(backInBar).toBeDefined();
   });
 });

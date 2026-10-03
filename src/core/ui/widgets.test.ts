@@ -372,3 +372,32 @@ describe('PU-02b: ダイアログの見出しとボタン', () => {
     await p;
   });
 });
+
+describe('PU-08a: 丸いボタン (shape: circle)', () => {
+  it('文字は出さず、aria-label と title に label が入り、アイコン (28px) が中央にある。押すと onClick', () => {
+    const onClick = vi.fn();
+    const b = createButton({ label: '戻る', icon: 'back', shape: 'circle', onClick });
+    expect(b.textContent).toBe('');
+    expect(b.getAttribute('aria-label')).toBe('戻る');
+    expect(b.title).toBe('戻る');
+    expect(b.classList.contains('btn--circle')).toBe(true);
+    expect(b.classList.contains('btn--secondary')).toBe(true);
+    const svg = b.querySelector('svg')!;
+    expect(svg.getAttribute('width')).toBe('28');
+    b.click();
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it('アイコン help (? の線) がある', () => {
+    const b = createButton({ label: '遊び方', icon: 'help', shape: 'circle', onClick: () => {} });
+    expect(b.querySelectorAll('svg path').length).toBeGreaterThan(0);
+  });
+
+  it('base.css: .btn--circle は 64px の正円', () => {
+    const m = baseCss().match(/\.btn--circle\s*\{([^}]*)\}/);
+    expect(m).not.toBeNull();
+    expect(m![1]).toContain('width: 64px');
+    expect(m![1]).toContain('height: 64px');
+    expect(m![1]).toContain('border-radius: 50%');
+  });
+});

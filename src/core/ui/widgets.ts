@@ -1,10 +1,11 @@
-type ButtonIcon = 'back' | 'next' | 'check' | 'settings';
+type ButtonIcon = 'back' | 'next' | 'check' | 'settings' | 'help';
 
 interface ButtonOpts {
   label: string;
   variant?: 'primary' | 'secondary' | 'danger'; // 既定は 'secondary'
   size?: 'normal' | 'large'; // 既定: primary は 'large' (72px)、ほかは 'normal' (64px)
-  icon?: ButtonIcon; // 線の SVG。文字の前 (back・check・settings) か後ろ (next)
+  shape?: 'circle'; // 丸いボタン (直径 64px の正円)。文字は出さず、アイコンだけを置く。label は aria-label と title に入る
+  icon?: ButtonIcon; // 線の SVG。文字の前 (back・check・settings・help) か後ろ (next)
   lockedReason?: string; // 指定すると「押せない」形。押すと onLocked(lockedReason) を呼ぶ
   onLocked?: (reason: string) => void;
   sound?: boolean; // 既定 true
@@ -18,14 +19,15 @@ const ICON_SHAPES: Record<ButtonIcon, string[]> = {
   next: ['M9 5 L16 12 L9 19'],
   check: ['M5 12.5 L10 17.5 L19 7'],
   settings: ['M4 7 H20', 'M4 12 H20', 'M4 17 H20', 'M9 4.5 V9.5', 'M15 9.5 V14.5', 'M8 14.5 V19.5'],
+  help: ['M9 9.5 A3 3 0 1 1 12.8 12.3 C12.2 12.7 12 13.2 12 14.2', 'M12 18 L12.01 18'], // ? の線
 };
 
-function createIcon(icon: ButtonIcon): SVGElement {
+function createIcon(icon: ButtonIcon, size = 24): SVGElement {
   const ns = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(ns, 'svg');
   svg.setAttribute('viewBox', '0 0 24 24');
-  svg.setAttribute('width', '24');
-  svg.setAttribute('height', '24');
+  svg.setAttribute('width', String(size));
+  svg.setAttribute('height', String(size));
   svg.setAttribute('fill', 'none');
   svg.setAttribute('stroke', 'currentColor');
   svg.setAttribute('stroke-width', '2.5');
@@ -76,12 +78,23 @@ export function createButton(opts: ButtonOpts): HTMLButtonElement {
   if (size === 'large') {
     btn.classList.add('btn--large');
   }
-  const icon = opts.icon !== undefined ? createIcon(opts.icon) : null;
-  if (icon !== null && opts.icon !== 'next') {
-    btn.appendChild(icon);
+  const circle = opts.shape === 'circle';
+  const icon = opts.icon !== undefined ? createIcon(opts.icon, circle ? 28 : 24) : null;
+  if (circle) {
+    // 丸いボタン: 文字は出さず (文字の大きさの段階で形が崩れない)、読み上げと長押しのために label を入れる
+    btn.classList.add('btn--circle');
+    btn.setAttribute('aria-label', opts.label);
+    btn.title = opts.label;
+    if (icon !== null) {
+      btn.appendChild(icon);
+    }
+  } else {
+    if (icon !== null && opts.icon !== 'next') {
+      btn.appendChild(icon);
+    }
+    btn.appendChild(document.createTextNode(opts.label));
   }
-  btn.appendChild(document.createTextNode(opts.label));
-  if (icon !== null && opts.icon === 'next') {
+  if (!circle && icon !== null && opts.icon === 'next') {
     btn.appendChild(icon);
   }
   if (opts.testId !== undefined) {

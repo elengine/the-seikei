@@ -29,7 +29,7 @@ export function createListView(parent: HTMLElement, opts: {
 
   const right =
     opts.onTutorial !== undefined
-      ? createButton({ label: '遊び方', variant: 'secondary', testId: 'creel-list-tutorial', onClick: opts.onTutorial })
+      ? createButton({ label: '遊び方', variant: 'secondary', icon: 'help', shape: 'circle', testId: 'creel-list-tutorial', onClick: opts.onTutorial })
       : undefined;
   const header = createScreenHeader({ title: opts.title ?? 'クリール立て', onBack: opts.onExit, right });
   header.querySelector<HTMLElement>('.screen-header__left button')?.setAttribute('data-testid', 'creel-list-back');

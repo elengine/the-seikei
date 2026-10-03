@@ -32,8 +32,8 @@ describe('gameFrame', () => {
     const { parent, frame, onBack, onHelp } = setup();
     expect(frame.root.isConnected).toBe(true);
 
-    const back = Array.from(parent.querySelectorAll('button')).find((b) => b.textContent === '戻る');
-    const help = Array.from(parent.querySelectorAll('button')).find((b) => b.textContent === '遊び方');
+    const back = Array.from(parent.querySelectorAll('button')).find((b) => b.getAttribute('aria-label') === '戻る');
+    const help = Array.from(parent.querySelectorAll('button')).find((b) => b.getAttribute('aria-label') === '遊び方');
     expect(back).toBeDefined();
     expect(help).toBeDefined();
     back!.click();
@@ -647,8 +647,8 @@ describe('PU-05a: gameFrame の枠 (見出しの行と2つのカード)', () => 
     expect(header).not.toBeNull();
     expect(header.querySelector('.stripe-top')).not.toBeNull();
     expect(header.querySelector('.screen-header__title')!.textContent).toBe('クリール立て');
-    expect(header.querySelector('.screen-header__left button')!.textContent).toBe('戻る');
-    expect(header.querySelector('.screen-header__right button')!.textContent).toBe('遊び方');
+    expect(header.querySelector('.screen-header__left button')!.getAttribute('aria-label')).toBe('戻る');
+    expect(header.querySelector('.screen-header__right button')!.getAttribute('aria-label')).toBe('遊び方');
     expect(frame.root.querySelector('.game-frame__stage')).not.toBeNull();
     expect(frame.root.querySelector('.game-frame__panel')).not.toBeNull();
     frame.destroy();
@@ -675,5 +675,28 @@ describe('PU-05a: gameFrame の枠 (見出しの行と2つのカード)', () => 
     expect(panel).toContain('border-radius: var(--r-card)');
     expect(panel).toContain('var(--sp-5)');
     expect(cssBlock('.game-frame__body')).toContain('gap: var(--sp-6)');
+  });
+});
+
+describe('PU-08a: ゲームの画面の「遊び方」は丸いボタン', () => {
+  it('「遊び方」は aria-label と title が「遊び方」で、文字は出さず (アイコンだけ)、丸 (btn--circle)', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const frame = createGameFrame(parent, { title: 'クリール立て', onBack: () => undefined, onHelp: () => undefined, logicalW: 1000, logicalH: 750 });
+    const help = frame.root.querySelector<HTMLButtonElement>('.screen-header__right button')!;
+    expect(help.getAttribute('aria-label')).toBe('遊び方');
+    expect(help.title).toBe('遊び方');
+    expect(help.textContent).toBe('');
+    expect(help.classList.contains('btn--circle')).toBe(true);
+    expect(help.querySelector('svg')).not.toBeNull();
+    const back = frame.root.querySelector<HTMLButtonElement>('.screen-header__left button')!;
+    expect(back.classList.contains('btn--circle')).toBe(true);
+    expect(back.textContent).toBe('');
+    frame.destroy();
+  });
+
+  it('base.css: 600px 未満でも見出しの行を1段にする (戻る・遊び方を上の段に分ける規則が無い)', () => {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
+    expect(css).not.toContain('.game-frame__bar .screen-header__center');
   });
 });

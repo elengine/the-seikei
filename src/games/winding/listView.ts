@@ -27,7 +27,7 @@ export function createListView(parent: HTMLElement, opts: {
 
   const right =
     opts.onTutorial !== undefined
-      ? createButton({ label: '遊び方', variant: 'secondary', testId: 'winding-list-tutorial', onClick: opts.onTutorial })
+      ? createButton({ label: '遊び方', variant: 'secondary', icon: 'help', shape: 'circle', testId: 'winding-list-tutorial', onClick: opts.onTutorial })
       : undefined;
   const header = createScreenHeader({ title: opts.title ?? 'ドラム巻き', onBack: opts.onExit, right });
   header.querySelector<HTMLElement>('.screen-header__left button')?.setAttribute('data-testid', 'winding-list-back');
