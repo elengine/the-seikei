@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { LOGICAL_W, LOGICAL_H, endPoint, hitEnd, toPx, fromPx, threadY, drumSectionY, tableY, TABLE_AREA, REED_X, DRUM_END_X, DRUM_AREA, pointOnPath, threadPath, PIN_RAIL_X } from './geometry';
+import { LOGICAL_W, LOGICAL_H, endPoint, hitEnd, toPx, fromPx, threadY, drumSectionY, tableY, TABLE_AREA, REED_X, DRUM_END_X, DRUM_AREA, pointOnPath, threadPath, PIN_RAIL_X, DIAL_X, DIAL_Y, DIAL_R, reedRect, reedThreadY, THREAD_SHEET_HALF } from './geometry';
 
 const fit = { scale: 1, offsetX: 0, offsetY: 0 };
 
@@ -214,5 +214,52 @@ describe('winding geometry T2-10 追加修正 a (台とドラムの縦木が重�
     expect(TABLE_AREA.x).toBeLessThan(REED_X);
     expect(REED_X).toBeLessThan(TABLE_AREA.x + TABLE_AREA.w);
     expect(DRUM_END_X).toBeLessThan(TABLE_AREA.x);
+  });
+});
+
+describe('winding geometry T2-13a (目盛り盤と筬が重ならない・筬は縦の枠)', () => {
+  /** 四角が重なるか */
+  function overlap(
+    a: { x: number; y: number; w: number; h: number },
+    b: { x: number; y: number; w: number; h: number },
+  ): boolean {
+    return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+  }
+
+  it('1. 目盛り盤の外接の四角と、筬の四角が、どの区画でも重ならない', () => {
+    for (const sections of [3, 5, 7]) {
+      for (let cur = 0; cur < sections; cur++) {
+        const dial = { x: DIAL_X - DIAL_R, y: DIAL_Y - DIAL_R, w: DIAL_R * 2, h: DIAL_R * 2 };
+        const reed = reedRect(cur, sections);
+        expect(overlap(dial, reed), `sections${sections} cur${cur}`).toBe(false);
+      }
+    }
+  });
+
+  it('2. 筬の枠は縦長 (高さ > 幅) で、糸の束より少し大きい', () => {
+    for (const sections of [3, 7]) {
+      const reed = reedRect(0, sections);
+      expect(reed.h, `sections${sections}`).toBeGreaterThan(reed.w);
+      expect(reed.h).toBeGreaterThan(THREAD_SHEET_HALF * 2);
+    }
+  });
+
+  it('3. 筬の中心 x は REED_X、縦の位置は今の帯の高さに合わせて動く', () => {
+    const a = reedRect(0, 3);
+    const b = reedRect(1, 3);
+    expect(a.x + a.w / 2).toBeCloseTo(REED_X, 9);
+    expect(b.x + b.w / 2).toBeCloseTo(REED_X, 9);
+    expect(b.y).toBeGreaterThan(a.y);
+  });
+
+  it('4. 筬の位置の糸の y (reedThreadY) が、筬の四角の中に収まる (糸が歯のすき間を通る)', () => {
+    for (const sections of [3, 7]) {
+      const reed = reedRect(0, sections);
+      for (let t = 0; t < 8; t++) {
+        const y = reedThreadY(t, 8, 0, sections);
+        expect(y, `t${t} sections${sections}`).toBeGreaterThan(reed.y);
+        expect(y).toBeLessThan(reed.y + reed.h);
+      }
+    }
   });
 });

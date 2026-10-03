@@ -119,6 +119,9 @@ export const DRUM_EASE_DOWN_MS = 400;
 /** 糸が切れて機械が止まるとき (ms)。急に止める */
 export const DRUM_STOP_MS = 250;
 
+/** ドラムの羽 (斜めに張り出した板) の側面が見える最大の幅 (論理座標。T2-13a。のちの「ドラム設定」で変える) */
+export const WING_OUT = 14;
+
 /** 帯の縞1本の高さ (論理座標。柄の並びを区画の中で繰り返す。T2-08 追加修正2) */
 export const STRIPE_H = 6;
 

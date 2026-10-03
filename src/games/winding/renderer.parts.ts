@@ -1,13 +1,14 @@
 import type { WindingState } from './logic';
 import { COLORS } from '../../core/ui/tokens';
-import { SECTION_LENGTH, STRIPE_H } from './params';
+import { SECTION_LENGTH, STRIPE_H, WING_OUT } from './params';
 import type { StageFit } from '../../core/viewport/viewport';
 import { DRUM_AREA, fontPx, drumSectionY, threadY, CREEL_AREA, CREEL_END_X, DRUM_END_X } from './geometry';
 
 /**
  * ドラム巻きの盤面のうち、ドラム (円筒) と結び目を描く部品。
- * T2-08 追加修正a: ドラムの軸は縦。両端の円盤は上と下、木の桟は縦長の板を左右に並べる。
- * 帯の区画は上から下へ等分。巻いた帯は横の縞。結び目の束は各帯の区画の左の端。
+ * T2-08 追加修正a: ドラムの軸は縦。両端の円盤は上と下。
+ * T2-13a: 桟は端から端まで1本の木の板 (丸い穴が等間隔に並ぶ)。板は胴の外へ斜めに張り出した
+ * 羽で、正面から見た側面 (厚み) が片側に見える。上の端の面は胴と同じ色で塗る。
  * 色は COLORS と糸の色だけ。
  */
 
@@ -19,6 +20,11 @@ const DRUM_BULGE = 10;
 
 /** ドラムの桟の数 (円筒の周りに等間隔に並ぶ。正面に 10〜12 本見える。T2-10 追加修正) */
 export const SLAT_COUNT = 24;
+
+/** 板の穴の縦の間隔 (論理座標。T2-13a) */
+const HOLE_STEP = 60;
+/** 板の穴の半径 (論理座標) */
+const HOLE_R = 4;
 
 /** ピン (横木) の静止時の角度 (rad)。正面から少し左に来るように (T2-10 追加修正 b) */
 export const PIN_ANGLE0 = -0.9;
@@ -57,24 +63,51 @@ export function drawDrum(
     ctx.fillRect(leftX, sy, rightX - leftX, secH);
   }
 
-  // 胴の木の桟: 円筒の周りに等間隔に並ぶ。桟 k の角度 θ = drumAngle + 2π k / 桟の数。
-  // 正面から見た x は 中心 + 半径 × sin θ、幅は 桟の幅 × cos θ。cos θ ≤ 0 (裏側) は描かない。
-  // 巻き終えた区画でも桟は回る (帯の面の上に回る筋として見える) (T2-10b)
+  // 板の内側の、薄い緑の輪 (骨組み)。区画の境目に数本 (控えめに。T2-13a)
+  for (let i = 1; i < s.sections; i++) {
+    const by = drumSectionY(i, s.sections);
+    ctx.globalAlpha = 0.45;
+    ctx.strokeStyle = COLORS.machine;
+    ctx.lineWidth = fontPx(fit, 2.5);
+    ctx.beginPath();
+    ctx.moveTo(leftX, by);
+    ctx.lineTo(rightX, by);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  // 胴の木の板: 端から端まで1本の板として、円筒の周りに等間隔に並ぶ (区画の境目で切れない。T2-13a)。
+  // 板 k の角度 θ = drumAngle + 2π k / 板の数。正面から見た x は 中心 + 半径 × sin θ、
+  // 幅は 板の幅 × cos θ。cos θ ≤ 0 (裏側) は描かない。
+  // 板は胴の外へ斜めに張り出した羽: 側面 (厚み) を板の右側に、|sin θ| に比例した幅で描く
+  // (正面の中央では見えず、左右の端で太く見える。T2-13a)
   const slatW0 = fontPx(fit, 12);
-  const winding = s.phase === 'winding';
-  for (let i = 0; i < s.sections; i++) {
-    const finished = (i < s.current || s.phase === 'done') && s.phase !== 'ready';
-    if (finished && !winding) continue;
-    const sy = drumSectionY(i, s.sections);
-    const slatH = secH - fontPx(fit, 12);
-    ctx.fillStyle = COLORS.wood;
-    for (let k = 0; k < SLAT_COUNT; k++) {
-      const th = drumAngle + (Math.PI * 2 * k) / SLAT_COUNT;
-      const cosT = Math.cos(th);
-      if (cosT <= 0) continue; // 裏側の桟
-      const sx = cx + radius * Math.sin(th);
-      const sw = Math.max(2, slatW0 * cosT);
-      ctx.fillRect(sx - sw / 2, sy + fontPx(fit, 6), sw, slatH);
+  ctx.fillStyle = COLORS.wood;
+  for (let k = 0; k < SLAT_COUNT; k++) {
+    const th = drumAngle + (Math.PI * 2 * k) / SLAT_COUNT;
+    const cosT = Math.cos(th);
+    if (cosT <= 0) continue; // 裏側の板
+    const sx = cx + radius * Math.sin(th);
+    const sw = Math.max(2, slatW0 * cosT);
+    // 羽の側面 (少し薄い木の色。|sin θ| に比例。T2-13a)
+    const sideW = WING_OUT * Math.abs(Math.sin(th));
+    if (sideW > 1) {
+      ctx.globalAlpha = 0.8;
+      ctx.fillRect(sx + sw / 2, y, sideW, h);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = COLORS.wood;
+    }
+    // 板の面 (上端から下端まで1本)
+    ctx.fillRect(sx - sw / 2, y, sw, h);
+    // 板の丸い穴 (正面に近い板だけ。暗い色の小さな丸を縦に等間隔に。T2-13a)
+    if (cosT > 0.6) {
+      ctx.fillStyle = COLORS.machineDark;
+      for (let hy = y + HOLE_STEP / 2; hy < y + h - fontPx(fit, 10); hy += HOLE_STEP) {
+        ctx.beginPath();
+        ctx.arc(sx, hy, fontPx(fit, HOLE_R), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = COLORS.wood;
     }
   }
 
@@ -129,13 +162,15 @@ export function drawDrum(
     ctx.globalAlpha = 1;
   }
 
-  // 上の端: 楕円の上半分の弧だけ (胴の上の縁が山なりになる。面は見せない) (T2-10 追加修正 b)
+  // 上の端: 楕円の上半分の面 (胴と同じ灰緑の勾配で塗り、縁に線。胴が上まで続いて見える。T2-13a)
   const rx = (rightX - leftX) / 2;
   const topCy = y + fontPx(fit, 0);
-  ctx.strokeStyle = COLORS.sumiSub;
-  ctx.lineWidth = fontPx(fit, 2);
+  ctx.fillStyle = grads;
   ctx.beginPath();
   ctx.ellipse(cx, topCy, rx, fontPx(fit, 12), 0, Math.PI, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = COLORS.sumiSub;
+  ctx.lineWidth = fontPx(fit, 2);
   ctx.stroke();
   // 下の端: 楕円の面の全体 (灰色の金属の円盤) + 放射状の腕 (drumAngle で回す)
   const botCy = y + h;

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { drawBoard } from './renderer';
-import { endPoint, threadY, tableY, DRUM_END_X, drumSectionY, DRUM_AREA } from './geometry';
+import { endPoint, threadY, tableY, DRUM_END_X, drumSectionY, DRUM_AREA, REED_X } from './geometry';
 import { COLORS } from '../../core/ui/tokens';
 import type { FakeRecorder } from './renderer.test.helpers';
 
@@ -197,17 +197,23 @@ describe('winding renderer T2-08 (盤面の絵を実物らしくする)', () => 
     expect(ellipses.length).toBeGreaterThanOrEqual(2);
   });
 
-  it('3. 筬の歯として細い縦の線が10本以上描かれる', () => {
+  it('3. 筬の歯として横向きの線が7本以上描かれる (8本の糸のすき間。T2-13a で横向きに)', () => {
     const { ctx, rec } = makeFakeCtx();
     const s = windingState();
     drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
-    // 筬の区画 (TABLE_AREA の中) の moveTo で、y が上→下の短い縦線を数える
-    const tooth = rec.ops.filter(
-      (op) => op.k === 'moveTo' && typeof op.args?.[0] === 'number' &&
-        (op.args[0] as number) > 260 && (op.args[0] as number) < 560 &&
-        typeof op.args?.[1] === 'number',
-    );
-    expect(tooth.length).toBeGreaterThanOrEqual(10);
+    // 筬の区画 (REED_X 付近) の moveTo → lineTo で、y が同じ横線を数える
+    let teeth = 0;
+    for (let i = 0; i + 1 < rec.ops.length; i++) {
+      const a = rec.ops[i]!;
+      const b = rec.ops[i + 1]!;
+      if (a.k === 'moveTo' && b.k === 'lineTo' &&
+          Math.abs((a.args?.[0] as number) - REED_X) < 40 &&
+          Math.abs((b.args?.[0] as number) - REED_X) < 40 &&
+          Math.abs((a.args?.[1] as number) - (b.args?.[1] as number)) < 0.5) {
+        teeth++;
+      }
+    }
+    expect(teeth).toBeGreaterThanOrEqual(7);
   });
 
   it('4. 巻き終えた帯の数だけ結び目の束が描かれる (current が2なら2つ)', () => {
@@ -263,19 +269,22 @@ describe('winding renderer T2-08-fix a (ドラムの向き・台の移動・結�
     expect(centers.some((cy) => cy > 620)).toBe(true);
   });
 
-  it('2. 帯の縞は横の線 (fillRect の幅が区画の全幅、高さが区画の高さ未満)', () => {
+  it('2. 帯の縞は横の線 (fillRect の幅が区画の全幅、高さが区画の高さ未満)。板は全高さなので数えない (T2-13a)', () => {
     const { ctx, rec } = makeFakeCtx();
     let s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 1 });
     s = reduce(s, { type: 'start' });
     s = reduce(s, { type: 'setPedal', value: 50 });
-    for (let i = 0; i < 500 && s.phase === 'winding'; i++) {
+    // 巻き途中にする (tick で長さを進める。板は全高さになったので縞だけを見る)
+    for (let i = 0; i < 50 && s.phase === 'winding'; i++) {
       s = reduce(s, { type: 'tick', dtMs: 100 });
     }
+    expect((s.lengths[0] ?? 0)).toBeGreaterThan(0);
     drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
-    // 帯の縞: DRUM_AREA.x (580) から始まる fillRect で、高さが区画の高さ (200) より小さい
+    // 帯の縞: 帯の領域 (leftX 570 〜 rightX 970) から始まる fillRect で、幅が帯の全幅・高さが区画の高さ (200) より小さい
     const stripes = rec.ops.filter(
       (op) => op.k === 'fillRect' && typeof op.args?.[0] === 'number' &&
-        Math.abs((op.args[0] as number) - 580) < 5 &&
+        (op.args[0] as number) >= 560 && (op.args[0] as number) <= 580 &&
+        (op.args[2] as number) > 300 &&
         (op.args[3] as number) < 190,
     );
     expect(stripes.length).toBeGreaterThanOrEqual(1);
@@ -428,7 +437,7 @@ describe('winding renderer T2-09b (複数の糸切れ)', () => {
 describe('winding renderer T2-08 追加修正2', () => {
   const fit = { scale: 1, offsetX: 0, offsetY: 0 };
 
-  it('1. 巻いている途中の区画にも木の桟があり、縞より先に描かれる', () => {
+  it('1. 巻いている途中の区画にも木の板があり、縞より先に描かれる。板は上端から下端まで1本 (T2-13a)', () => {
     const { ctx, rec } = makeFakeCtx();
     let s = windingState();
     // current 0・lengths[0] を 10% に
@@ -436,11 +445,9 @@ describe('winding renderer T2-08 追加修正2', () => {
     drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
     const fills = fillRectsWithColor(rec).filter((f) => f.w > 0 && f.v === COLORS.wood);
     expect(fills.length).toBeGreaterThan(0);
-    // 桟の y が今の帯の区画の中 (drumSectionY(0) 〜 +secH)
-    const slat = fills[0]!;
-    const sy = drumSectionY(0, s.sections);
-    expect(slat.y).toBeGreaterThanOrEqual(sy);
-    expect(slat.y).toBeLessThan(sy + 900 / s.sections);
+    // ドラムの板: y がドラムの上端から始まり、高さは胴の高さ (区画ごとに分かれない。T2-13a)
+    const board = fills.find((f) => f.y >= DRUM_AREA.y - 1 && f.y <= DRUM_AREA.y + 1 && f.h > DRUM_AREA.h - 4);
+    expect(board, '上端から下端までの板がある').toBeDefined();
   });
 
   it('3. 巻き終えた区画の縞の fillRect の数が、柄の並びの色の数より多い (繰り返す)', () => {
@@ -520,25 +527,25 @@ describe('winding renderer T2-10b (ドラムが回って見える)', () => {
 describe('winding renderer T2-10 追加修正 a (桟の数)', () => {
   const fit = { scale: 1, offsetX: 0, offsetY: 0 };
 
-  it('1. drumAngle 0 で、今の帯の区画に描かれる桟の fillRect が 10 本以上 (かごに見える)', () => {
+  it('1. drumAngle 0 で、上端から下端までの板の fillRect が 10 本以上 (かごに見える)。板は区画ごとに分かれない (T2-13a)', () => {
     const s = windingState();
     const { ctx, rec } = makeFakeCtx();
     drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0, drumAngle: 0 });
-    const sy0 = drumSectionY(s.current, s.sections);
-    const sy1 = drumSectionY(s.current + 1, s.sections);
-    const slats = fillRectsWithColor(rec).filter(
+    const boards = fillRectsWithColor(rec).filter(
       (f) => f.v === COLORS.wood && f.w > 0 && f.h > 20 &&
         f.x >= DRUM_AREA.x - 20 && f.x < DRUM_AREA.x + DRUM_AREA.w + 20 &&
-        f.y >= sy0 && f.y < sy1,
+        f.y >= DRUM_AREA.y - 1 && f.y <= DRUM_AREA.y + 1,
     );
-    expect(slats.length).toBeGreaterThanOrEqual(10);
+    expect(boards.length).toBeGreaterThanOrEqual(10);
+    // 板の高さは胴の高さ (区画の高さではない)
+    expect(boards.every((b) => b.h > DRUM_AREA.h - 4)).toBe(true);
   });
 });
 
 describe('winding renderer T2-10 追加修正 b (上下の端・結び目とピンも回る)', () => {
   const fit = { scale: 1, offsetX: 0, offsetY: 0 };
 
-  it('5. ellipse の面を塗る (fill) は下の端の1回だけ。上の端は弧を描くだけ', () => {
+  it('5. ellipse の面を塗る (fill) は上の端と下の端の2つ (T2-13a で上の端にも色を付ける)', () => {
     const s = windingState();
     const { ctx, rec } = makeFakeCtx();
     drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0, drumAngle: 0 });
@@ -552,10 +559,11 @@ describe('winding renderer T2-10 追加修正 b (上下の端・結び目とピ�
     }
     const disks = filled.filter(
       (e) => Math.abs(e.rx - (DRUM_AREA.w / 2 + 10)) < 1 &&
-        e.y >= DRUM_AREA.y && e.y <= DRUM_AREA.y + DRUM_AREA.h + 1,
+        e.y >= DRUM_AREA.y - 1 && e.y <= DRUM_AREA.y + DRUM_AREA.h + 1,
     );
-    expect(disks.length).toBe(1); // 下の端だけ
-    expect(Math.abs(disks[0]!.y - (DRUM_AREA.y + DRUM_AREA.h))).toBeLessThan(1);
+    expect(disks.length).toBe(2); // 上の端の面 + 下の端の円盤
+    expect(Math.abs(disks[0]!.y - DRUM_AREA.y)).toBeLessThan(1);
+    expect(Math.abs(disks[1]!.y - (DRUM_AREA.y + DRUM_AREA.h))).toBeLessThan(1);
   });
 
   it('6. drumAngle を変えると結び目の輪の x が変わる (結び目もドラムと一緒に回る)', () => {
@@ -590,5 +598,124 @@ describe('winding renderer T2-10 追加修正 b (上下の端・結び目とピ�
         (op.args?.[1] as number) >= ky0 && (op.args?.[1] as number) < ky1,
     );
     expect(rings.length).toBe(0);
+  });
+});
+
+describe('winding renderer T2-13a (実物の写真に合わせた絵)', () => {
+  const fit = { scale: 1, offsetX: 0, offsetY: 0 };
+
+  it('1. 筬の歯の線は横向き (始点と終点の y が同じ)。枠の中に上下に並ぶ', () => {
+    const s = windingState();
+    const { ctx, rec } = makeFakeCtx();
+    drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
+    // 筬の枠の中 (REED_X 付近) の moveTo → lineTo のペアを集める
+    const pairs: Array<{ y1: number; y2: number; x1: number; x2: number }> = [];
+    for (let i = 0; i + 1 < rec.ops.length; i++) {
+      const a = rec.ops[i]!;
+      const b = rec.ops[i + 1]!;
+      if (a.k === 'moveTo' && b.k === 'lineTo' &&
+          Math.abs((a.args?.[0] as number) - REED_X) < 40 &&
+          Math.abs((b.args?.[0] as number) - REED_X) < 40) {
+        pairs.push({ x1: a.args?.[0] as number, y1: a.args?.[1] as number, x2: b.args?.[0] as number, y2: b.args?.[1] as number });
+      }
+    }
+    const teeth = pairs.filter((p) => Math.abs(p.y1 - p.y2) < 0.5 && Math.abs(p.x1 - p.x2) > 5);
+    expect(teeth.length, `横向きの歯 ${teeth.length} 本`).toBeGreaterThanOrEqual(7); // 8本の糸のすき間 = 7本
+  });
+
+  it('2. 筬の枠は縦長 (鋼色の fillRect の高さ > 幅)。枠の中に縦の歯の線は無い', () => {
+    const s = windingState();
+    const { ctx, rec } = makeFakeCtx();
+    drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
+    // 枠: REED_X 付近の fillRect で h > w
+    const frames = fillRectsWithColor(rec).filter(
+      (f) => f.v === COLORS.steel && Math.abs(f.x + f.w / 2 - REED_X) < 5 && f.h > f.w,
+    );
+    expect(frames.length).toBe(1);
+    const frame = frames[0]!;
+    // 縦の歯の線は無い (moveTo → lineTo で dx ≈ 0・dy > 3 の短い縦線。糸の斜めの線は数えない)
+    const verticalTeeth: Array<{ dx: number; dy: number }> = [];
+    for (let i = 0; i + 1 < rec.ops.length; i++) {
+      const a = rec.ops[i]!;
+      const b = rec.ops[i + 1]!;
+      if (a.k === 'moveTo' && b.k === 'lineTo' &&
+          Math.abs((a.args?.[0] as number) - REED_X) < 30 &&
+          (a.args?.[1] as number) > frame.y && (a.args?.[1] as number) < frame.y + frame.h) {
+        const dx = Math.abs((a.args?.[0] as number) - (b.args?.[0] as number));
+        const dy = Math.abs((a.args?.[1] as number) - (b.args?.[1] as number));
+        if (dx < 1 && dy > 3) verticalTeeth.push({ dx, dy });
+      }
+    }
+    expect(verticalTeeth.length).toBe(0);
+  });
+
+  it('3. 板の fillRect の高さがドラムの胴の高さとほぼ同じ (区画ごとに分かれていない)', () => {
+    const s = windingState();
+    const { ctx, rec } = makeFakeCtx();
+    drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0, drumAngle: 0 });
+    const boards = fillRectsWithColor(rec).filter(
+      (f) => f.v === COLORS.wood && f.w > 0 &&
+        f.x >= DRUM_AREA.x - 30 && f.x < DRUM_AREA.x + DRUM_AREA.w + 30 &&
+        f.y >= DRUM_AREA.y - 1 && f.y <= DRUM_AREA.y + 1,
+    );
+    expect(boards.length).toBeGreaterThanOrEqual(10); // 正面に見える板
+    for (const b of boards) {
+      expect(b.h, `板の高さ ${b.h}`).toBeGreaterThan(DRUM_AREA.h - 4); // 区画の高さ (SEC_H) ではなく胴の高さ
+    }
+  });
+
+  it('4. 上の端の山なりの内側を塗る fill がある (ellipse のあとに fill)。下の端の円盤と合わせて2つ', () => {
+    const s = windingState();
+    const { ctx, rec } = makeFakeCtx();
+    drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0, drumAngle: 0 });
+    const filled: Array<{ y: number }> = [];
+    for (let i = 0; i < rec.ops.length; i++) {
+      if (rec.ops[i]!.k === 'ellipse' && rec.ops[i + 1]?.k === 'fill') {
+        filled.push({ y: (rec.ops[i]!.args?.[1] as number) ?? 0 });
+      }
+    }
+    expect(filled.length).toBe(2);
+    const top = filled.find((e) => Math.abs(e.y - DRUM_AREA.y) < 1);
+    const bottom = filled.find((e) => Math.abs(e.y - (DRUM_AREA.y + DRUM_AREA.h)) < 1);
+    expect(top, '上の端の面').toBeDefined();
+    expect(bottom, '下の端の円盤').toBeDefined();
+  });
+
+  it('5. 羽の側面: 中央の板の隣には側面が無く、端に近い板の隣には幅のある側面がある', () => {
+    const s = windingState();
+    const { ctx, rec } = makeFakeCtx();
+    drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0, drumAngle: 0 });
+    const boards = fillRectsWithColor(rec).filter(
+      (f) => f.v === COLORS.wood && f.h > DRUM_AREA.h - 4 && f.y <= DRUM_AREA.y + 1,
+    );
+    const cx = DRUM_AREA.x + DRUM_AREA.w / 2;
+    // 側面 = 左端が別の板の右端に一致する板 (面の右側に描く)
+    const isSide = (b: { x: number }): boolean =>
+      boards.some((f) => f !== b && Math.abs(f.x + f.w - b.x) < 2);
+    const faces = boards.filter((b) => !isSide(b));
+    const sides = boards.filter((b) => isSide(b));
+    expect(faces.length).toBeGreaterThanOrEqual(10);
+    // 中央の板 (面の中心 x が cx に最も近い) の右隣に側面は無い (sin θ = 0)
+    const center = faces.reduce((m, b) => (Math.abs(b.x + b.w / 2 - cx) < Math.abs(m.x + m.w / 2 - cx) ? b : m), faces[0]!);
+    const nextToCenter = sides.filter((b) => Math.abs(b.x - (center.x + center.w)) < 2);
+    expect(nextToCenter.length, '中央の板の隣に側面は無い').toBe(0);
+    // 端に近い板 (面の中心 x が cx から最も遠い) の右隣には幅のある側面がある
+    const edge = faces.reduce((m, b) => (Math.abs(b.x + b.w / 2 - cx) > Math.abs(m.x + m.w / 2 - cx) ? b : m), faces[0]!);
+    const nextToEdge = sides.filter((b) => Math.abs(b.x - (edge.x + edge.w)) < 2 && b.w > 2);
+    expect(nextToEdge.length, '端の板の隣に側面がある').toBeGreaterThanOrEqual(1);
+  });
+
+  it('6. 板に丸い穴が並ぶ (正面に近い板に、暗い色の arc の fill が複数)', () => {
+    const s = windingState();
+    const { ctx, rec } = makeFakeCtx();
+    drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0, drumAngle: 0 });
+    // 穴: 半径が小さく (10 未満)、ドラムの中の arc
+    const holes = rec.ops.filter(
+      (op) => op.k === 'arc' && (op.args?.[2] as number) > 1 && (op.args?.[2] as number) < 10 &&
+        (op.args?.[0] as number) > DRUM_AREA.x && (op.args?.[0] as number) < DRUM_AREA.x + DRUM_AREA.w &&
+        (op.args?.[1] as number) > DRUM_AREA.y && (op.args?.[1] as number) < DRUM_AREA.y + DRUM_AREA.h &&
+        rec.ops[rec.ops.indexOf(op) + 1]?.k === 'fill',
+    );
+    expect(holes.length).toBeGreaterThanOrEqual(10);
   });
 });

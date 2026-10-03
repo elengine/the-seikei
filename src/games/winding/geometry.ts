@@ -35,6 +35,31 @@ export const THREAD_SHEET_HALF = 30;
 /** 筬が台の上に乗る高さ (論理座標。帯の中心から上へ) */
 export const REED_RISE = 40;
 
+/** 目盛り盤の中心と半径 (論理座標。上部の余白の、筬と重ならない位置。T2-13a) */
+export const DIAL_X = 700;
+export const DIAL_Y = 45;
+export const DIAL_R = 32;
+
+/**
+ * 筬の四角 (論理座標。T2-13a)。縦に立った枠: 幅は狭く、高さは糸の束 (THREAD_SHEET_HALF の
+ * 2倍) より少し大きい。中心 x は REED_X、中心 y は今の帯の高さ (tableY) − REED_RISE。
+ */
+export function reedRect(current: number, sections: number): { x: number; y: number; w: number; h: number } {
+  const w = 26;
+  const h = THREAD_SHEET_HALF * 2 + 16;
+  return { x: REED_X - w / 2, y: tableY(current, sections) - REED_RISE - h / 2, w, h };
+}
+
+/**
+ * 糸 thread が筬を通る y (論理座標。T2-13a)。threadPath と筬の歯 (すき間に置く) の両方が使う。
+ * 糸の束の幅の中で上下に並ぶ (端の糸が ±THREAD_SHEET_HALF)。
+ */
+export function reedThreadY(thread: number, threadCount: number, current: number, sections: number): number {
+  const n = Math.max(1, threadCount);
+  const k = n === 1 ? 0 : (thread / (n - 1)) * 2 - 1;
+  return tableY(current, sections) - REED_RISE + THREAD_SHEET_HALF * k;
+}
+
 /**
  * 帯 i (0〜sections-1) の区画の上端の y (論理座標)。
  * ドラムは軸を縦にして (T2-08 追加修正a)、帯は上から下へ等分して並ぶ。
@@ -68,15 +93,12 @@ export function threadPath(
   sections: number,
 ): Array<{ x: number; y: number }> {
   const y0 = threadY(thread, threadCount);
-  const yTarget = tableY(current, sections);
-  const half = THREAD_SHEET_HALF * ((thread / Math.max(1, threadCount - 1)) * 2 - 1);
-  const reedY = yTarget - REED_RISE + half;
   return [
     { x: CONE_X, y: y0 },
     { x: CREEL_END_X, y: y0 },
     { x: DRUM_END_X, y: y0 },
-    { x: REED_X, y: reedY },
-    { x: DRUM_AREA.x, y: yTarget },
+    { x: REED_X, y: reedThreadY(thread, threadCount, current, sections) },
+    { x: DRUM_AREA.x, y: tableY(current, sections) },
   ];
 }
 

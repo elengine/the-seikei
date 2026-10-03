@@ -5,7 +5,7 @@ import { COLORS, FONT_FAMILY } from '../../core/ui/tokens';
 import { speedOf } from '../../core/mechanics/pedal';
 import { TENSION, SECTION_LENGTH } from './params';
 import type { StageFit } from '../../core/viewport/viewport';
-import { CREEL_AREA, TABLE_AREA, DRUM_AREA, TOP_AREA, REED_X, THREAD_SHEET_HALF, REED_RISE, threadY, threadPath, drumSectionY, tableY, pointOnPath, toPx, fontPx } from './geometry';
+import { CREEL_AREA, TABLE_AREA, DRUM_AREA, TOP_AREA, REED_X, THREAD_SHEET_HALF, REED_RISE, DIAL_X, DIAL_Y, reedRect, reedThreadY, threadY, threadPath, drumSectionY, tableY, pointOnPath, toPx, fontPx } from './geometry';
 import { drawDrum, drawBrokenThread } from './renderer.parts';
 
 /**
@@ -61,7 +61,7 @@ export function drawBoard(
 
   drawCreel(ctx, fit, s, opts, hexes);
   drawThreads(ctx, fit, s, opts, base);
-  drawTable(ctx, fit, s);
+  drawTable(ctx, fit, s, opts.threadCount);
   drawDrum(ctx, fit, s, hexes, base, opts.tieProgress ?? 0, opts.drumAngle ?? 0);
   drawDial(ctx, fit, s);
   drawLamp(ctx, s);
@@ -83,11 +83,9 @@ export function drawBoard(
   }
 }
 
-/** 赤ランプ・目盛り盤の位置 (論理座標) */
+/** 赤ランプの位置 (論理座標)。目盛り盤の DIAL_X・DIAL_Y は geometry (T2-13a) */
 const LAMP_X = 620;
 const LAMP_Y = TOP_AREA.y + 45;
-const DIAL_X = 460;
-const DIAL_Y = TOP_AREA.y + 45;
 
 /** 1. クリール: 縦の柱・段の横木・ペグ + 横向きコーン + テンションの皿 + 赤い小ランプ */
 function drawCreel(
@@ -185,8 +183,13 @@ function drawThreads(
   }
 }
 
-/** 3. 中央の台: 脚の付いた台と、筬 (くし状の金具)。今の帯の区画の高さに置く */
-function drawTable(ctx: CanvasRenderingContext2D, fit: StageFit, s: WindingState): void {
+/** 3. 中央の台: 脚の付いた台と、筬 (縦に立った枠。T2-13a)。今の帯の区画の高さに置く */
+function drawTable(
+  ctx: CanvasRenderingContext2D,
+  fit: StageFit,
+  s: WindingState,
+  threadCount: number,
+): void {
   const { x, w } = TABLE_AREA;
   const ty = tableY(s.current, s.sections);
   const boardY = ty + fontPx(fit, 12);
@@ -198,20 +201,19 @@ function drawTable(ctx: CanvasRenderingContext2D, fit: StageFit, s: WindingState
   ctx.fillStyle = COLORS.machineDark;
   ctx.fillRect(x + fontPx(fit, 20), boardY + boardH, fontPx(fit, 8), fontPx(fit, 50));
   ctx.fillRect(x + w - fontPx(fit, 28), boardY + boardH, fontPx(fit, 8), fontPx(fit, 50));
-  // 筬: 台の上に置く。鋼色の枠の中に細い縦の歯
-  const reedW = fontPx(fit, 80);
-  const reedH = fontPx(fit, 46);
-  const reedX = REED_X - reedW / 2;
-  const reedY = ty - REED_RISE - reedH / 2;
+  // 筬: 縦に立った枠。鋼色の枠の中に横向きの細い歯を上下に並べる (T2-13a)。
+  // 歯は糸と糸のすき間の y に置く (糸の線が歯の線と重ならない)
+  const rect = reedRect(s.current, s.sections);
   ctx.fillStyle = COLORS.steel;
-  ctx.fillRect(reedX, reedY, reedW, reedH);
+  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
   ctx.strokeStyle = COLORS.sumiSub;
   ctx.lineWidth = fontPx(fit, 1.5);
-  for (let i = 0; i < 16; i++) {
-    const tx = reedX + ((reedW - fontPx(fit, 12)) / 15) * i + fontPx(fit, 6);
+  for (let t = 0; t + 1 < threadCount; t++) {
+    const gapY = (reedThreadY(t, threadCount, s.current, s.sections) +
+      reedThreadY(t + 1, threadCount, s.current, s.sections)) / 2;
     ctx.beginPath();
-    ctx.moveTo(tx, reedY + fontPx(fit, 5));
-    ctx.lineTo(tx, reedY + reedH - fontPx(fit, 5));
+    ctx.moveTo(rect.x + fontPx(fit, 2), gapY);
+    ctx.lineTo(rect.x + rect.w - fontPx(fit, 2), gapY);
     ctx.stroke();
   }
 }
