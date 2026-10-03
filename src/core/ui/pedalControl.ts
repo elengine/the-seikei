@@ -9,6 +9,9 @@ import { createButton, setLockedReason } from './widgets';
 /** 横木 (つまみ) の幅の目安。CSS の .pedal__bar の width と合わせる */
 const BAR_W = 64;
 
+/** この幅 (px) 未満の操作欄では、溝とボタンを 2 段に分ける */
+const STACK_BELOW_PX = 360;
+
 function clamp100(v: number): number {
   return Math.min(100, Math.max(0, v));
 }
@@ -131,6 +134,15 @@ export function createPedalControl(
 
   render();
 
+  // 操作欄が狭いとき (360px 未満) は、溝を上の段にして、「戻す」「踏み込む」を下の段に並べる (CSS の pedal-control--stacked)
+  let ro: ResizeObserver | null = null;
+  if (typeof ResizeObserver !== 'undefined') {
+    ro = new ResizeObserver(() => {
+      root.classList.toggle('pedal-control--stacked', root.clientWidth < STACK_BELOW_PX);
+    });
+    ro.observe(root);
+  }
+
   return {
     root,
     setValue(v: number): void {
@@ -151,6 +163,8 @@ export function createPedalControl(
       groove.removeEventListener('pointerup', onUp);
       groove.removeEventListener('pointercancel', onUp);
       captured = false;
+      ro?.disconnect();
+      ro = null;
       root.remove();
     },
   };

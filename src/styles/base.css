@@ -1103,6 +1103,20 @@ button {
   white-space: nowrap; /* 「踏み込む」が2行に折れない */
 }
 
+/* 操作欄が狭いとき: 溝は上の段いっぱい、「戻す」「踏み込む」は下の段で左右に広がる */
+.pedal-control--stacked .pedal__row {
+  flex-wrap: wrap;
+}
+
+.pedal-control--stacked .pedal__groove {
+  order: -1;
+  flex: 1 0 100%;
+}
+
+.pedal-control--stacked .pedal__btn {
+  flex: 1;
+}
+
 .pedal-control.disabled .pedal__groove,
 .pedal-control.disabled .pedal__bar,
 .pedal-control.disabled .pedal__value {

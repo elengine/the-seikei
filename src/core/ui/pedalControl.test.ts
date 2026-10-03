@@ -239,3 +239,44 @@ describe('PU-05c: ペダルの「踏み込む」「戻す」の押せない形',
     pc.destroy();
   });
 });
+
+describe('PU-09c: 操作欄が狭いときは、溝を上の段にして「戻す」「踏み込む」を下の段に並べる', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    document.body.innerHTML = '';
+  });
+
+  it('幅が 360px 未満なら pedal-control--stacked が付き、360px 以上で外れる。destroy で監視を止める', () => {
+    let callback: (() => void) | null = null;
+    const disconnect = vi.fn();
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(cb: () => void) {
+          callback = cb;
+        }
+        observe(): void {}
+        disconnect = disconnect;
+      },
+    );
+    document.body.innerHTML = '';
+    const pc = createPedalControl(document.body, { label: '', onChange: () => undefined });
+    let w = 300;
+    Object.defineProperty(pc.root, 'clientWidth', { configurable: true, get: () => w });
+    callback!();
+    expect(pc.root.classList.contains('pedal-control--stacked')).toBe(true);
+    w = 400;
+    callback!();
+    expect(pc.root.classList.contains('pedal-control--stacked')).toBe(false);
+    pc.destroy();
+    expect(disconnect).toHaveBeenCalled();
+  });
+
+  it('base.css: stacked のとき、溝は 1 行ぶんの幅を使い、ボタンは下の段で左右に広がる', () => {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
+    expect(css.match(/\.pedal-control--stacked \.pedal__row\s*\{([^}]*)\}/)![1]).toContain('flex-wrap: wrap');
+    const groove = css.match(/\.pedal-control--stacked \.pedal__groove\s*\{([^}]*)\}/)![1]!;
+    expect(groove).toContain('order: -1');
+    expect(groove).toContain('flex: 1 0 100%');
+  });
+});
