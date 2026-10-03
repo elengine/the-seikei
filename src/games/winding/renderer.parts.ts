@@ -1,6 +1,6 @@
 import type { WindingState } from './logic';
 import { COLORS } from '../../core/ui/tokens';
-import { SECTION_LENGTH, STRIPE_H, WING_OUT } from './params';
+import { SECTION_LENGTH, STRIPE_H, WING_OUT, WING_SIDE_MAX_RATIO } from './params';
 import type { StageFit } from '../../core/viewport/viewport';
 import { DRUM_AREA, fontPx, drumSectionY, threadY, CREEL_AREA, CREEL_END_X, DRUM_END_X } from './geometry';
 
@@ -89,8 +89,8 @@ export function drawDrum(
     if (cosT <= 0) continue; // 裏側の板
     const sx = cx + radius * Math.sin(th);
     const sw = Math.max(2, slatW0 * cosT);
-    // 羽の側面 (少し薄い木の色。|sin θ| に比例。T2-13a)
-    const sideW = WING_OUT * Math.abs(Math.sin(th));
+    // 羽の側面 (少し薄い木の色。|sin θ| に比例し、板の幅の 40% が上限。T2-13a・T2-13 追加修正)
+    const sideW = Math.min(WING_OUT, slatW0 * WING_SIDE_MAX_RATIO) * Math.abs(Math.sin(th));
     if (sideW > 1) {
       ctx.globalAlpha = 0.8;
       ctx.fillRect(sx + sw / 2, y, sideW, h);

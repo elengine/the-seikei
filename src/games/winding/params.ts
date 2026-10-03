@@ -122,6 +122,9 @@ export const DRUM_STOP_MS = 250;
 /** ドラムの羽 (斜めに張り出した板) の側面が見える最大の幅 (論理座標。T2-13a。のちの「ドラム設定」で変える) */
 export const WING_OUT = 14;
 
+/** 羽の側面の幅の上限 (板の幅 × この割合。T2-13 追加修正: 端で側面が太すぎるのを直す) */
+export const WING_SIDE_MAX_RATIO = 0.4;
+
 /** 帯の縞1本の高さ (論理座標。柄の並びを区画の中で繰り返す。T2-08 追加修正2) */
 export const STRIPE_H = 6;
 

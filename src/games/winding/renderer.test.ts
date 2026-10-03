@@ -8,6 +8,7 @@ import type { FakeRecorder } from './renderer.test.helpers';
 // 偽の ctx (呼ばれた命令を記録する) は helpers に置く
 import { makeFakeCtx } from './renderer.test.helpers';
 import { SLAT_COUNT, PIN_ANGLE0 } from './renderer.parts';
+import { WING_SIDE_MAX_RATIO } from './params';
 import { init, reduce } from './logic';
 import type { WindingState } from './logic';
 import { loadContent } from '../../core/content/content';
@@ -741,6 +742,29 @@ describe('winding renderer T2-13a (実物の写真に合わせた絵)', () => {
     const edge = faces.reduce((m, b) => (Math.abs(b.x + b.w / 2 - cx) > Math.abs(m.x + m.w / 2 - cx) ? b : m), faces[0]!);
     const nextToEdge = sides.filter((b) => Math.abs(b.x - (edge.x + edge.w)) < 2 && b.w > 2);
     expect(nextToEdge.length, '端の板の隣に側面がある').toBeGreaterThanOrEqual(1);
+  });
+
+  it('5b. 側面の幅はどの角度でも板の幅の 40% 以下 (T2-13 追加修正: 端で太すぎるのを直す)', () => {
+    const s = windingState();
+    // 板の幅 (fontPx(fit, 12)。fit scale 1 なので 12)
+    const slatW = 12;
+    const maxSide = slatW * WING_SIDE_MAX_RATIO + 0.5;
+    for (const angle of [0, 0.25, 0.5, 0.8, 1.1, 1.4]) {
+      const { ctx, rec } = makeFakeCtx();
+      drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0, drumAngle: angle });
+      const boards = fillRectsWithColor(rec).filter(
+        (f) => f.v === COLORS.wood && f.h > DRUM_AREA.h - 4 && f.y <= DRUM_AREA.y + 1,
+      );
+      const isSide = (b: { x: number }): boolean =>
+        boards.some((f) => f !== b && Math.abs(f.x + f.w - b.x) < 2);
+      const sides = boards.filter((b) => isSide(b));
+      for (const sd of sides) {
+        expect(
+          sd.w,
+          `angle=${angle} の側面の幅が板の幅の 40% を超える`,
+        ).toBeLessThanOrEqual(maxSide);
+      }
+    }
   });
 
   it('6. 板に丸い穴が並ぶ (正面に近い板に、暗い色の arc の fill が複数)', () => {
