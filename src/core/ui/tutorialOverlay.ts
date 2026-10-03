@@ -25,10 +25,48 @@ export function showTutorial(
   return new Promise((resolve) => {
     const { backdrop, dialog: box } = createDialogShell(opts.title ?? '遊び方', 'tutorial');
 
-    // 絵 (各ページの draw で描く)。幅は min(560px, 画面幅の90%)。ダイアログの幅より広いときは CSS で縮める、高さは幅の 2/3
+    // 横長の低い画面 (Fold のカバー画面の横など) では、絵を左・文を右に並べる (CSS の tutorial--side)
+    const side = window.innerWidth >= window.innerHeight && window.innerHeight < 560;
+    if (side) {
+      box.classList.add('tutorial--side');
+    }
+
+    // 終わらせる (最後のページの「始める」と、右上の「閉じる」で同じ結果)
+    let done = false;
+    function finish(): void {
+      if (!done) {
+        done = true;
+        backdrop.remove();
+        resolve();
+      }
+    }
+
+    // 右上の丸い「閉じる」: 最後まで読まなくても、閉じてゲームを始められる
+    const close = createButton({ label: '閉じる', variant: 'secondary', shape: 'circle', onClick: finish });
+    close.classList.add('tutorial__close');
+    const ns = 'http://www.w3.org/2000/svg';
+    const xmark = document.createElementNS(ns, 'svg');
+    xmark.setAttribute('viewBox', '0 0 24 24');
+    xmark.setAttribute('width', '28');
+    xmark.setAttribute('height', '28');
+    xmark.setAttribute('fill', 'none');
+    xmark.setAttribute('stroke', 'currentColor');
+    xmark.setAttribute('stroke-width', '2.5');
+    xmark.setAttribute('stroke-linecap', 'round');
+    xmark.setAttribute('aria-hidden', 'true');
+    const xpath = document.createElementNS(ns, 'path');
+    xpath.setAttribute('d', 'M6 6 L18 18 M18 6 L6 18');
+    xmark.appendChild(xpath);
+    close.appendChild(xmark);
+    box.appendChild(close);
+
+    // 絵 (各ページの draw で描く)。幅は min(560px, 画面幅の90%)。ダイアログの幅より広いときは CSS で縮める、高さは幅の 2/3。
+    // 横並びのときは、使える高さ (画面の 90% から見出しと下のボタンを引いた残り) と幅の半分強に収める
     const canvas = document.createElement('canvas');
     canvas.classList.add('tutorial__canvas');
-    const canvasW = Math.floor(Math.min(560, window.innerWidth * 0.9));
+    const canvasW = side
+      ? Math.floor(Math.min(560, window.innerWidth * 0.55 - 48, (window.innerHeight * 0.9 - 170) * 1.5))
+      : Math.floor(Math.min(560, window.innerWidth * 0.9));
     const canvasH = Math.floor((canvasW * 2) / 3);
     let ctx: CanvasRenderingContext2D | null = null;
     try {
@@ -54,7 +92,6 @@ export function showTutorial(
     actions.classList.add('dialog__actions');
 
     let page = 0;
-    let done = false;
 
     function render(): void {
       const p = spec.pages[page];
@@ -102,13 +139,7 @@ export function showTutorial(
           createButton({
             label: startLabel,
             variant: 'primary',
-            onClick: () => {
-              if (!done) {
-                done = true;
-                backdrop.remove();
-                resolve();
-              }
-            },
+            onClick: finish,
           }),
         );
       }

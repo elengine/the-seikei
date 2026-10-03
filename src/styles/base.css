@@ -2011,3 +2011,65 @@ button {
   color: var(--c-shu);
 }
 
+/* 遊び方 (PU-10d): 右上の丸い「閉じる」、小さい画面で幅いっぱい・高さ 90%、前へ・次へは下に固定、横長の低い画面は絵を左・文を右に */
+.tutorial__close {
+  position: absolute;
+  top: calc(var(--stripe-h) + var(--sp-3));
+  right: var(--sp-3);
+  z-index: 2;
+}
+
+.tutorial .dialog__title {
+  padding-right: calc(64px + var(--sp-3)); /* 右上の「閉じる」と重ならない */
+}
+
+.tutorial .dialog__actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  background: var(--c-white);
+  padding: var(--sp-3) 0 var(--sp-1);
+}
+
+@media (max-width: 599px) {
+  .dialog.tutorial {
+    width: calc(100vw - 2 * var(--sp-2));
+    max-height: 90%;
+  }
+}
+
+.tutorial--side {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    'title title'
+    'canvas text'
+    'canvas counter'
+    'actions actions';
+  column-gap: var(--sp-4);
+  align-items: start;
+  width: min(900px, calc(100vw - 2 * var(--sp-4)));
+  max-height: 90%;
+}
+
+.tutorial--side .dialog__title {
+  grid-area: title;
+}
+
+.tutorial--side .tutorial__canvas {
+  grid-area: canvas;
+}
+
+.tutorial--side .tutorial__text {
+  grid-area: text;
+  overflow-y: auto;
+}
+
+.tutorial--side .tutorial__counter {
+  grid-area: counter;
+}
+
+.tutorial--side .dialog__actions {
+  grid-area: actions;
+}
+
