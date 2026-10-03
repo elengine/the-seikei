@@ -1257,6 +1257,17 @@ button {
   margin-top: var(--sp-2);
 }
 
+/* 羽の角度の選ぶ部品は2列×2段 (操作欄からはみ出さない。T2c-03-fix 1) */
+.drumsetup-panel__angles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-2);
+}
+
+.drumsetup-panel__angles .choice__item {
+  min-height: 64px;
+}
+
 .drumsetup-panel__actions {
   min-height: 72px;
   /* 主ボタンは操作欄の下に固定する (ドラム巻きと同じ形) */

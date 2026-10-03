@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { createDrumSetupPanel } from './panel';
 import { init, reduce } from './logic';
 import type { DrumSetupState } from './logic';
@@ -82,15 +83,28 @@ describe('drumsetup panel T2c-03a (操作欄)', () => {
   });
 
   it('3. 計算のメモは段階で変える。段階1 は密度・厚み・tan の表、段階5 は空で「表は電卓から見られます」', () => {
-    const h1 = mount(p1(), init(p1()));
+    const p = p1();
+    const h1 = mount(p, init(p));
     const memo1 = h1.root.querySelector('[data-testid="drumsetup-memo"]')!.textContent!;
     expect(memo1).toContain('20本/cm'); // 密度
     expect(memo1).toContain('0.170mm'); // 厚み (第3位)
     expect(memo1).toContain('tan'); // tan の表
-    const h5 = mount(p5(), init(p5()));
+    expect(memo1).toContain('tan 9° = 0.1584'); // tan は小数第4位 (T2c-03-fix 2)
+    const puzzle5 = p5();
+    const h5 = mount(puzzle5, init(puzzle5));
     const memo5 = h5.root.querySelector('[data-testid="drumsetup-memo"]')!.textContent!;
     expect(memo5).not.toContain('本/cm');
     expect(memo5).toContain('表は電卓から見られます');
+  });
+
+  it('3b. 羽の角度の入れ物は2列×2段の格子 (base.css に2列の格子がある・T2c-03-fix 1)', () => {
+    const css = readFileSync('src/styles/base.css', 'utf8');
+    expect(/\.drumsetup-panel__angles\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/.test(css)).toBe(true);
+    const p = p1();
+    const h = mount(p, init(p));
+    const box = h.root.querySelector('.drumsetup-panel__angles');
+    expect(box).not.toBeNull();
+    expect(box!.querySelectorAll('.choice__item').length).toBe(4); // 5°・7°・9°・11°
   });
 
   it('4. 羽の角度は 5°・7°・9°・11° から選ぶ。段階1 では使える角度に「○」を添える', () => {

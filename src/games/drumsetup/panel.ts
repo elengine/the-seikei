@@ -21,7 +21,7 @@ export interface DrumSetupPanel {
 function memoLines(p: DrumSetupPuzzle): string[] {
   const dens = `${Math.round(density(p) * 100) / 100}本/cm`;
   const thick = `${thicknessPerTurn(p).toFixed(3)}mm`;
-  const tan = ANGLES.map((a) => `tan ${a}° = ${Math.round(Math.tan((a * Math.PI) / 180) * 100) / 100}`).join('　');
+  const tan = ANGLES.map((a) => `tan ${a}° = ${Math.tan((a * Math.PI) / 180).toFixed(4)}`).join('　');
   const coef = (Object.keys(YARN_COEF) as Array<keyof typeof YARN_COEF>)
     .map((g) => `${g}: ${YARN_COEF[g]}mm`)
     .join('　');
@@ -101,6 +101,8 @@ export function createDrumSetupPanel(
     ariaLabel: '羽の角度',
     onChange: (v) => opts.onAction({ type: 'selectAngle', angle: Number(v) }),
   });
+  // 2列×2段の格子にする (操作欄からはみ出さない。T2c-03-fix 1)
+  choice.root.classList.add('drumsetup-panel__angles');
   angleBox.appendChild(choice.root);
   root.appendChild(angleBox);
 

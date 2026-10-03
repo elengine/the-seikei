@@ -136,7 +136,7 @@ export function openCalculatorBody(
     if (kind === 'tan') {
       for (const a of ANGLES) {
         const span = document.createElement('span');
-        span.textContent = `tan ${a}° = ${Math.round(Math.tan((a * Math.PI) / 180) * 100) / 100}`;
+        span.textContent = `tan ${a}° = ${Math.tan((a * Math.PI) / 180).toFixed(4)}`;
         table.appendChild(span);
       }
     } else {
