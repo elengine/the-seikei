@@ -1,8 +1,8 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-10-05T23:30:00+09:00",
+  "updated_at": "2026-10-03T18:20:00+09:00",
   "phase": "P0",
-  "current_task": "T2-13b 完了 (T2-13c は次)",
+  "current_task": "T2-13 完了 (a/b/c すべて実装・push・CI success)。受け入れ待ち",
   "done": [
     "T0-00",
     "T0-01",
@@ -75,10 +75,14 @@
     "T2-11 (a: どの状態でも範囲に届く・範囲が動く / b: 止まる音 0.5 秒)",
     "T2-12 (ドラム巻きの遊び方を5ページに)",
     "T2-13a",
-    "T2-13b"
+    "T2-13b",
+    "T2-13a ドラム巻きの絵の直し (a87ce27)",
+    "T2-13b 切れた糸の印を朱に・「停止」を消す (07ef468)",
+    "T2-13c 切れたあたりを1回押してつなぐ (2c2f3d1+b37aee6)"
   ],
   "checks": [
-    "T2-13b: RED 3件→GREEN。npm test 671 passed/11 skipped。check・build 成功。CI success (07ef468)。ブラウザ確認: 朱の印+白い×3個・停止なし・赤ランプ"
+    "T2-13b: RED 3件→GREEN。npm test 671 passed/11 skipped。check・build 成功。CI success (07ef468)。ブラウザ確認: 朱の印+白い×3個・停止なし・赤ランプ",
+    "T2-13: npm test 676 passed / 11 skipped・check エラー0・build 成功・CI 1回で success (b37aee6)。ブラウザ: 上級2本切れ→1回押し×2でつなぐ・初級完走・成績欄4行"
   ],
   "notes": [
     "保存データをキャッシュして使う部品は、必ず repo.subscribe で外からの変更を見張り、読み直す (terms・settings は対応済み)。",

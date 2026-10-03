@@ -1291,3 +1291,11 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - テスト: RED 3件 (切れた糸の印が朱・白い×・停止の fillText 無し) → GREEN。既存の「停止」前提テスト4件は T2-13b の仕様どおりに更新 (盤面の文字は無い・restore の後に命令が無い等)。
 - npm test 671 passed / 11 skipped。check エラー0・build 成功。CI 1回で success (lint 落ちなし)。
 - ブラウザ確認 (上級・ペダル100で糸切れ): 朱の印＋白い×が3個 (切れた糸3本)、切れていない糸の印は鋼色のまま、「停止」の文字は無し、赤ランプ点灯。スクショ /opt/data/tmp/t213/b1.png。
+
+## 2026-10-03 T2-13c (切れたあたりを1回押してつなぐ) — ルビー
+- 実装 `2c2f3d1`・追加修正 `b37aee6`。CI completed success。
+- 変更: breakage.ts (first 削除・tapThread 追加) / logic.ts (tapThread・mismatches 削除・isValidResume で古い形の brk.first を拒否) / geometry.ts (hitBrokenThread 追加: 印から筬までの区間・画面上 40px 以内・最も近い糸) / controller.ts (1回押し) / messages.ts (文言・成績欄4行) / tutorial.ts (4ページ目の文) / renderer.parts.ts・renderer.test.ts (brk.first 参照の削除。13c の許可ファイル外だが型変更で必須)
+- テスト先に RED 19件 → GREEN **676 passed / 11 skipped**・check エラー0・build 成功。push 前 check は CI 落ちなし (1回で success)
+- 追加修正: 1本つなぐごとの「1本つながりました。あと N 本です」が、操作の直後でない定期再描画でも出続けるように (messages.ts)
+- ブラウザ確認: 上級で2本切れ→1回押し×2でつながり巻きに戻る・初級を完走 (途中3回の糸切れをすべて1回押しで回復)・結果の成績欄が4行 (「違う端を結ぼうとした回数」なし)・文「切れた糸のあたりを押して、つないでください」
+- 教訓: 並行作業者が同じ作業ツリーで git stash/pop を行い、作業中のファイルへの手動追記が消えた。デバッグ用の console.log は patch ツールで入れ、作業終わりに必ず消す。IndexedDB への手動注入は行の形 (rec で入れ子・deletedAt) が合わないと boot が落ちる
