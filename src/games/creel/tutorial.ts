@@ -1,197 +1,200 @@
 import type { TutorialSpec } from '../../core/game/types';
 import { COLORS, FONT_FAMILY } from '../../core/ui/tokens';
-import { drawCheese } from './renderer.parts';
-
-/** チュートリアルの絵。コーン・軸・依頼書の表の略図を Canvas で描く */
-
-/** 1ページ目: 依頼書の表の略図 */
-function drawOrderSheet(ctx: CanvasRenderingContext2D, w: number, h: number): void {
-  const x0 = w * 0.12;
-  const y0 = h * 0.2;
-  const tw = w * 0.76;
-  const th = h * 0.55;
-  // 紙
-  ctx.fillStyle = COLORS.white;
-  ctx.fillRect(x0, y0, tw, th);
-  ctx.strokeStyle = COLORS.sumi;
-  ctx.lineWidth = 3;
-  ctx.strokeRect(x0, y0, tw, th);
-  // 表 (3行)
-  const rows: [string, string][] = [['W-4812', '× 7'], ['W-2200', '× 1']];
-  ctx.fillStyle = COLORS.sumi;
-  ctx.font = `${Math.floor(h * 0.11)}px ${FONT_FAMILY}`;
-  ctx.textBaseline = 'middle';
-  for (let i = 0; i < rows.length; i++) {
-    const y = y0 + th * 0.35 + i * th * 0.25;
-    const row = rows[i]!;
-    ctx.fillText(row[0], x0 + tw * 0.1, y);
-    ctx.fillText(row[1], x0 + tw * 0.6, y);
-  }
-  // 見出し
-  ctx.fillStyle = COLORS.sumiSub;
-  ctx.font = `${Math.floor(h * 0.09)}px ${FONT_FAMILY}`;
-  ctx.fillText('依頼書', x0 + tw * 0.1, y0 + th * 0.15);
-}
-
-/** 2ページ目: クリールを正面から見た略図 (緑の柱・軸の丸・チーズ)。チーズは手前から軸に差し込む */
-function drawCreel(ctx: CanvasRenderingContext2D, w: number, h: number): void {
-  // 奥の地と、左右と真ん中の緑の柱
-  ctx.fillStyle = COLORS.creelBack;
-  ctx.fillRect(w * 0.08, h * 0.08, w * 0.84, h * 0.6);
-  const postW = w * 0.025;
-  for (const x of [w * 0.1, w * 0.5, w * 0.9]) {
-    ctx.fillStyle = COLORS.postLight;
-    ctx.fillRect(x - postW, h * 0.06, postW, h * 0.64);
-    ctx.fillStyle = COLORS.postDark;
-    ctx.fillRect(x, h * 0.06, postW, h * 0.64);
-  }
-  // 軸 2つ: 左はチーズを立てた軸、右は空いた軸 (点線の丸と、中央の木の色の丸)
-  const cy = h * 0.38;
-  const r = h * 0.2;
-  drawCheese(ctx, w * 0.3, cy, r, COLORS.ai, COLORS.shu);
-  const cx = w * 0.7;
-  ctx.strokeStyle = COLORS.woodLight;
-  ctx.lineWidth = 3;
-  ctx.setLineDash([8, 6]);
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.fillStyle = COLORS.woodLight;
-  ctx.beginPath();
-  ctx.arc(cx, cy, r * 0.24, 0, Math.PI * 2);
-  ctx.fill();
-  // 引っぱる矢印: 手前の箱から、空いた軸へ
-  const barY0 = h * 0.72;
-  const fromX = w * 0.23;
-  const fromY = barY0 + h * 0.08;
-  const toX = cx - r * 0.5;
-  const toY = cy + r * 1.05;
-  ctx.strokeStyle = COLORS.ai;
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.moveTo(fromX, fromY);
-  ctx.lineTo(toX, toY);
-  ctx.stroke();
-  const ang = Math.atan2(toY - fromY, toX - fromX);
-  ctx.beginPath();
-  ctx.moveTo(toX, toY);
-  ctx.lineTo(toX - 14 * Math.cos(ang - 0.45), toY - 14 * Math.sin(ang - 0.45));
-  ctx.moveTo(toX, toY);
-  ctx.lineTo(toX - 14 * Math.cos(ang + 0.45), toY - 14 * Math.sin(ang + 0.45));
-  ctx.stroke();
-  // 箱 (手前)
-  const barY = h * 0.72;
-  ctx.fillStyle = COLORS.machineLight;
-  ctx.fillRect(w * 0.12, barY + h * 0.09, w * 0.22, h * 0.14);
-  ctx.strokeStyle = COLORS.sumi;
-  ctx.lineWidth = 2;
-  ctx.strokeRect(w * 0.12, barY + h * 0.09, w * 0.22, h * 0.14);
-  ctx.fillStyle = COLORS.sumi;
-  ctx.font = `${Math.floor(h * 0.08)}px ${FONT_FAMILY}`;
-  ctx.textBaseline = 'middle';
-  ctx.fillText('W-4812', w * 0.15, barY + h * 0.16);
-}
-
-/** 3ページ目: 確認する の ✕ の略図 */
-function drawCheck(ctx: CanvasRenderingContext2D, w: number, h: number): void {
-  // マス 3つ
-  const size = w * 0.14;
-  const y = h * 0.38;
-  const xs = [w * 0.3, w * 0.3 + size * 1.3, w * 0.3 + size * 2.6];
-  xs.forEach((x, i) => {
-    ctx.strokeStyle = COLORS.sumiSub;
-    ctx.lineWidth = 3;
-    ctx.setLineDash(i === 1 ? [6, 5] : []);
-    ctx.strokeRect(x, y, size, size);
-    ctx.setLineDash([]);
-  });
-  // 真ん中に ✕
-  const x = xs[1]!;
-  ctx.strokeStyle = COLORS.shu;
-  ctx.lineWidth = 6;
-  ctx.beginPath();
-  ctx.moveTo(x + size * 0.2, y + size * 0.2);
-  ctx.lineTo(x + size * 0.8, y + size * 0.8);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(x + size * 0.8, y + size * 0.2);
-  ctx.lineTo(x + size * 0.2, y + size * 0.8);
-  ctx.stroke();
-}
+import { drawCheese, drawCross, drawEmptyPeg } from './renderer.parts';
+import type { Fit } from './renderer.parts';
 
 /**
- * 4ページ目: ヒントの説明の略図。
- * 3ページ目の ✕ の付いたマスの横に「ヒント」のボタンの形を描き、
- * 矢印の先で ✕ が正しい色のマスに変わる様子を描く。
+ * チュートリアルの絵 (PU-11c)。今の画面と同じ見た目で略図を Canvas に描く:
+ * 正面から見たクリール (緑の柱・軸の丸・チーズの丸と芯の輪)、段ボールの箱 (品番とチーズ)、依頼書の行、
+ * 箱から軸へ引っぱる矢印 (置く)、クリールの外へ引っぱる矢印 (外す)。色は tokens。
  */
-function drawHint(ctx: CanvasRenderingContext2D, w: number, h: number): void {
-  // 左: ✕ の付いたマス (3ページ目と同じ形)
-  const size = w * 0.13;
-  const y = h * 0.42;
-  const xLeft = w * 0.16;
-  ctx.strokeStyle = COLORS.sumiSub;
+
+/** 見本の糸 (図の中だけの飾り): 藍の糸に朱の芯、白い糸に金の芯 */
+interface Sample {
+  hinban: string;
+  body: string;
+  core: string;
+}
+const SAMPLE_A: Sample = { hinban: 'W-4812', body: COLORS.ai, core: COLORS.shu };
+const SAMPLE_B: Sample = { hinban: 'W-2200', body: COLORS.white, core: COLORS.gold };
+
+/** drawEmptyPeg・drawCross の線の太さの基準 (盤面の拡大率 1) */
+const FIT1: Fit = { scale: 1, offsetX: 0, offsetY: 0 };
+
+type Ctx = CanvasRenderingContext2D;
+
+/** 文字を描く (図の中の字。基準は高さ h に対する割合) */
+function text(ctx: Ctx, s: string, x: number, y: number, size: number, color: string, opts: { align?: CanvasTextAlign; bold?: boolean } = {}): void {
+  ctx.font = `${opts.bold === true ? 'bold ' : ''}${Math.floor(size)}px ${FONT_FAMILY}`;
+  ctx.fillStyle = color;
+  ctx.textAlign = opts.align ?? 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(s, x, y);
+}
+
+/** 矢印 (線と矢じり) */
+function arrow(ctx: Ctx, x0: number, y0: number, x1: number, y1: number, color: string, width = 5): void {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(x0, y0);
+  ctx.lineTo(x1, y1);
+  ctx.stroke();
+  const ang = Math.atan2(y1 - y0, x1 - x0);
+  const head = 16;
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x1 - head * Math.cos(ang - 0.45), y1 - head * Math.sin(ang - 0.45));
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x1 - head * Math.cos(ang + 0.45), y1 - head * Math.sin(ang + 0.45));
+  ctx.stroke();
+}
+
+/** 段ボールの箱: 地・ふたの線・横のテープ・品番 (太字)・チーズの絵 */
+function drawBox(ctx: Ctx, x: number, y: number, bw: number, bh: number, s: Sample): void {
+  const lid = bh * 0.16;
+  ctx.fillStyle = COLORS.cardboard;
+  ctx.fillRect(x, y, bw, bh);
+  ctx.fillStyle = COLORS.cardboardTape;
+  ctx.fillRect(x + bw * 0.3, y, bw * 0.4, lid);
+  ctx.strokeStyle = COLORS.cardboardDark;
   ctx.lineWidth = 3;
-  ctx.setLineDash([6, 5]);
-  ctx.strokeRect(xLeft, y, size, size);
-  ctx.setLineDash([]);
-  ctx.strokeStyle = COLORS.shu;
-  ctx.lineWidth = 6;
+  ctx.strokeRect(x, y, bw, bh);
   ctx.beginPath();
-  ctx.moveTo(xLeft + size * 0.2, y + size * 0.2);
-  ctx.lineTo(xLeft + size * 0.8, y + size * 0.8);
+  ctx.moveTo(x, y + lid);
+  ctx.lineTo(x + bw, y + lid);
   ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(xLeft + size * 0.8, y + size * 0.2);
-  ctx.lineTo(xLeft + size * 0.2, y + size * 0.8);
-  ctx.stroke();
-  // 中央: 「ヒント」のボタンの形 (副ボタン: 白地・藍の枠)
-  const btnW = w * 0.2;
-  const btnH = h * 0.16;
-  const btnX = w * 0.38;
-  const btnY = h * 0.44;
-  ctx.fillStyle = COLORS.white;
-  ctx.fillRect(btnX, btnY, btnW, btnH);
+  const inner = bh - lid;
+  text(ctx, s.hinban, x + bw / 2, y + lid + inner * 0.2, Math.min(bh * 0.13, bw * 0.17), COLORS.sumi, { align: 'center', bold: true });
+  drawCheese(ctx, x + bw / 2, y + lid + inner * 0.64, Math.min(bw * 0.22, inner * 0.3), s.body, s.core);
+}
+
+/** 正面から見たクリール (奥の地・緑の柱・軸の列)。軸の中心の x と y、チーズの半径を返す */
+function drawCreelRow(ctx: Ctx, x: number, y: number, cw: number, ch: number, cols: number): { xs: number[]; cy: number; r: number } {
+  ctx.fillStyle = COLORS.creelBack;
+  ctx.fillRect(x, y, cw, ch);
+  const pitch = cw / cols;
+  const postW = Math.max(4, cw * 0.012);
+  for (let i = 0; i <= cols; i++) {
+    const px = x + i * pitch;
+    ctx.fillStyle = COLORS.postLight;
+    ctx.fillRect(px - postW, y - ch * 0.05, postW, ch * 1.1);
+    ctx.fillStyle = COLORS.postDark;
+    ctx.fillRect(px, y - ch * 0.05, postW, ch * 1.1);
+  }
+  const xs: number[] = [];
+  for (let i = 0; i < cols; i++) {
+    xs.push(x + pitch * (i + 0.5));
+  }
+  return { xs, cy: y + ch / 2, r: Math.min(pitch * 0.36, ch * 0.4) };
+}
+
+/** ボタンの形 (primary: 藍の地・白い字 / secondary: 白地・藍の枠と字) */
+function drawButton(ctx: Ctx, x: number, y: number, bw: number, bh: number, label: string, primary: boolean, size: number): void {
+  ctx.fillStyle = primary ? COLORS.ai : COLORS.white;
+  ctx.fillRect(x, y, bw, bh);
   ctx.strokeStyle = COLORS.ai;
   ctx.lineWidth = 3;
-  ctx.strokeRect(btnX, btnY, btnW, btnH);
-  ctx.fillStyle = COLORS.ai;
-  ctx.font = `${Math.floor(h * 0.085)}px ${FONT_FAMILY}`;
-  ctx.textBaseline = 'middle';
-  ctx.fillText('ヒント', btnX + btnW * 0.2, btnY + btnH * 0.55);
-  // 矢印: ボタンから右のマスへ
-  const arrowY = y + size / 2;
-  const arrowX0 = btnX + btnW + 6;
-  const arrowX1 = w * 0.72;
+  ctx.strokeRect(x, y, bw, bh);
+  text(ctx, label, x + bw / 2, y + bh / 2, size, primary ? COLORS.white : COLORS.ai, { align: 'center', bold: true });
+}
+
+/** 1ページ目: 依頼書の行の見本 (品番・チーズの絵・個数・繰り返し) と、同じ品番の箱 */
+function drawOrder(ctx: Ctx, w: number, h: number): void {
+  const px = w * 0.04;
+  const py = h * 0.08;
+  const pw = w * 0.6;
+  const ph = h * 0.84;
+  ctx.fillStyle = COLORS.white;
+  ctx.fillRect(px, py, pw, ph);
   ctx.strokeStyle = COLORS.sumi;
   ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(arrowX0, arrowY);
-  ctx.lineTo(arrowX1, arrowY);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(arrowX1, arrowY);
-  ctx.lineTo(arrowX1 - 10, arrowY - 7);
-  ctx.moveTo(arrowX1, arrowY);
-  ctx.lineTo(arrowX1 - 10, arrowY + 7);
-  ctx.stroke();
-  // 右: ✕ が正しい色のマスに変わった様子 (紺で塗る)
-  const xRight = w * 0.74;
-  ctx.fillStyle = COLORS.ai;
-  ctx.fillRect(xRight, y, size, size);
-  ctx.strokeStyle = COLORS.sumiSub;
-  ctx.lineWidth = 3;
-  ctx.strokeRect(xRight, y, size, size);
+  ctx.strokeRect(px, py, pw, ph);
+  text(ctx, '依頼書', px + pw * 0.06, py + ph * 0.11, h * 0.075, COLORS.ai, { bold: true });
+  // 行 (品番・チーズの絵・個数)
+  const rows: [Sample, string][] = [[SAMPLE_A, '× 5'], [SAMPLE_B, '× 1']];
+  rows.forEach(([s, count], i) => {
+    const y = py + ph * (0.34 + i * 0.26);
+    text(ctx, s.hinban, px + pw * 0.06, y, h * 0.1, COLORS.sumi, { bold: true });
+    drawCheese(ctx, px + pw * 0.62, y, h * 0.065, s.body, s.core);
+    text(ctx, count, px + pw * 0.94, y, h * 0.1, COLORS.sumi, { align: 'right', bold: true });
+  });
+  text(ctx, '↻ 繰り返し × 2', px + pw * 0.06, py + ph * 0.88, h * 0.075, COLORS.sumiSub);
+  // 同じ品番の箱 (依頼書の1行目と同じ)
+  const bx = w * 0.7;
+  const by = h * 0.3;
+  const bw = w * 0.26;
+  const bh = h * 0.42;
+  drawBox(ctx, bx, by, bw, bh, SAMPLE_A);
+  arrow(ctx, bx - 6, by + bh * 0.45, px + pw * 0.78, py + ph * 0.34 + h * 0.05, COLORS.ai, 4);
+}
+
+/** 2ページ目: クリールを正面から見た図。箱から軸へ引っぱる (置く) 矢印と、クリールの外へ引っぱる (外す) 矢印 */
+function drawPlace(ctx: Ctx, w: number, h: number): void {
+  const row = drawCreelRow(ctx, w * 0.1, h * 0.2, w * 0.8, h * 0.4, 3);
+  // 左: チーズを立てた軸 (外す矢印の元)。真ん中と右: 空いた軸
+  drawCheese(ctx, row.xs[0]!, row.cy, row.r, SAMPLE_A.body, SAMPLE_A.core);
+  drawEmptyPeg(ctx, FIT1, row.xs[1]!, row.cy, row.r);
+  drawEmptyPeg(ctx, FIT1, row.xs[2]!, row.cy, row.r);
+  // 外す: 立っているチーズをクリールの外 (上) へ
+  arrow(ctx, row.xs[0]!, row.cy - row.r * 0.9, row.xs[0]!, h * 0.04, COLORS.shu);
+  text(ctx, '外す', row.xs[0]! + w * 0.04, h * 0.1, h * 0.085, COLORS.shu, { bold: true });
+  // 置く: 手前の箱から空いた軸へ
+  const bx = w * 0.12;
+  const by = h * 0.66;
+  const bw = w * 0.26;
+  const bh = h * 0.32;
+  drawBox(ctx, bx, by, bw, bh, SAMPLE_A);
+  arrow(ctx, bx + bw * 0.75, by - 4, row.xs[1]! - row.r * 0.3, row.cy + row.r * 1.05, COLORS.ai);
+  text(ctx, '置く', bx + bw + w * 0.04, h * 0.76, h * 0.085, COLORS.ai, { bold: true });
+}
+
+/** 3ページ目: 「完了」を押すと、違う軸と空の軸に ✕ が付く。箱から引っぱり直す */
+function drawDone(ctx: Ctx, w: number, h: number): void {
+  const row = drawCreelRow(ctx, w * 0.1, h * 0.1, w * 0.8, h * 0.4, 3);
+  drawCheese(ctx, row.xs[0]!, row.cy, row.r, SAMPLE_A.body, SAMPLE_A.core); // 合っている
+  drawCheese(ctx, row.xs[1]!, row.cy, row.r, SAMPLE_B.body, SAMPLE_B.core); // 違う糸
+  drawCross(ctx, FIT1, row.xs[1]!, row.cy, row.r * 0.6);
+  drawEmptyPeg(ctx, FIT1, row.xs[2]!, row.cy, row.r); // まだ立てていない軸
+  drawCross(ctx, FIT1, row.xs[2]!, row.cy, row.r * 0.6);
+  // 箱 (引っぱり直す元) と、「完了」のボタン
+  const bx = w * 0.1;
+  const by = h * 0.6;
+  const bw = w * 0.26;
+  const bh = h * 0.36;
+  drawBox(ctx, bx, by, bw, bh, SAMPLE_A);
+  arrow(ctx, bx + bw * 0.8, by - 4, row.xs[2]! - row.r * 0.5, row.cy + row.r * 1.05, COLORS.ai, 4);
+  drawButton(ctx, w * 0.56, h * 0.7, w * 0.34, h * 0.2, '完了', true, h * 0.09);
+}
+
+/** 4ページ目: ✕ の軸 →「ヒント」→ 正しいチーズが立つ。正しい糸は箱にある */
+function drawHint(ctx: Ctx, w: number, h: number): void {
+  const cy = h * 0.3;
+  const r = h * 0.14;
+  // 左: ✕ の付いた空の軸
+  const xLeft = w * 0.16;
+  drawEmptyPeg(ctx, FIT1, xLeft, cy, r);
+  drawCross(ctx, FIT1, xLeft, cy, r * 0.6);
+  // 中央: 「ヒント」のボタン (副ボタン)
+  drawButton(ctx, w * 0.34, cy - h * 0.09, w * 0.26, h * 0.18, 'ヒント', false, h * 0.085);
+  // 矢印 → 右: 正しいチーズが立った軸
+  const xRight = w * 0.84;
+  arrow(ctx, w * 0.62, cy, xRight - r - 8, cy, COLORS.sumi, 4);
+  drawCheese(ctx, xRight, cy, r, SAMPLE_A.body, SAMPLE_A.core);
+  // 正しい糸の箱
+  drawBox(ctx, w * 0.62, h * 0.58, w * 0.26, h * 0.38, SAMPLE_A);
+  arrow(ctx, w * 0.75, h * 0.57, xRight, cy + r + 8, COLORS.ai, 4);
 }
 
 export const creelTutorial: TutorialSpec = {
   pages: [
-    { draw: (ctx, w, h) => drawOrderSheet(ctx, w, h), text: '依頼書を見て、どの糸を何本立てるか確かめます' },
-    { draw: (ctx, w, h) => drawCreel(ctx, w, h), text: '箱から{{cone}}を引っぱって、{{spindle}}の丸に嵌めます。箱を押してから{{spindle}}を押しても置けます。外すときは、{{cone}}を{{creel}}の外へ引っぱります' },
-    { draw: (ctx, w, h) => drawCheck(ctx, w, h), text: '全部立てたら「確認する」を押します。間違いは ✕ で示されます' },
+    { draw: (ctx, w, h) => drawOrder(ctx, w, h), text: '依頼書には、品番と本数が並んでいます。同じ品番の箱から{{cone}}を取ります' },
+    { draw: (ctx, w, h) => drawPlace(ctx, w, h), text: '箱から{{cone}}を引っぱって、{{spindle}}の丸に嵌めます。外すときは、{{cone}}を{{creel}}の外へ引っぱります' },
+    { draw: (ctx, w, h) => drawDone(ctx, w, h), text: '全部立てたら「完了」を押します。間違いは ✕ で示されるので、箱から引っぱり直します' },
     {
       draw: (ctx, w, h) => drawHint(ctx, w, h),
-      text: '「確認する」を2回押しても ✕ が残るときは、「ヒント」で1か所を直せます(ヒントを使うと星は1つになります)',
+      text: '「完了」を2回押しても ✕ が残るときは、「ヒント」で1か所を直せます(ヒントを使うと星は1つになります)',
     },
   ],
 };
