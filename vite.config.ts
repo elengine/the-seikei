@@ -20,8 +20,8 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,png,json,woff2}'],
       },
       manifest: {
-        name: '整経ゲーム',
-        short_name: '整経',
+        name: '整経屋の一日',
+        short_name: '整経屋の一日',
         // アプリの識別子。解決後は https://elengine.github.io/the-seikei となる。
         // 実機にインストールした後に変えると別アプリ扱いになるため、00_rules.md のとおり今後は変更しない
         id: 'the-seikei',

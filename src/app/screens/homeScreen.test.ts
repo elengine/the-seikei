@@ -1,4 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createHomeScreen } from './homeScreen';
 import type { AppContext } from '../context';
 import type { GameModule } from '../../core/game/types';
@@ -69,6 +72,8 @@ function mountHome(settings = { shopName: '山田整経', playerName: '' }): {
 }
 
 beforeEach(() => {
+  vi.stubGlobal('__APP_VERSION__', '0.1.0');
+  vi.stubGlobal('__BUILD_ID__', '2026-10-04T12:00:00.000Z');
   clearGamesForTest();
   registerGame(fakeModule('creel', 'game.creel', '依頼書のとおりにコーンを立てる'));
   registerGame(fakeModule('winding', 'game.winding', '張りを見ながら、帯をドラムに巻く'));
@@ -76,16 +81,17 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.unstubAllGlobals();
   document.body.textContent = '';
   clearGamesForTest();
 });
 
 describe('ホーム画面 (PU-03a)', () => {
-  it('屋号とアプリ名「整経ゲーム」(明朝) が出る。上端に縞、右に「設定」', () => {
+  it('屋号とアプリ名「整経屋の一日」(明朝) が出る。上端に縞、右に「設定」', () => {
     const { root } = mountHome();
     expect(root.querySelector('.home__shop')!.textContent).toBe('山田整経');
     const app = root.querySelector('.home__app')!;
-    expect(app.textContent).toBe('整経ゲーム');
+    expect(app.textContent).toBe('整経屋の一日');
     expect(app.classList.contains('font-heading')).toBe(true);
     expect(root.querySelector('.stripe-top')).not.toBeNull();
     const settings = Array.from(root.querySelectorAll('button')).find((b) => b.textContent === '設定')!;
@@ -119,14 +125,13 @@ describe('ホーム画面 (PU-03a)', () => {
     expect(navigate).toHaveBeenCalledWith('/games/winding');
   });
 
-  it('準備中のカード (糸割り・ビーミング・整経屋の一日・柄の図鑑) は「準備中」。押すと「準備中です」が2秒出て、移らない', () => {
+  it('準備中のカード (糸割り・ビーミング・柄の図鑑。題名と重なる「整経屋の一日」は無い) は「準備中」。押すと「準備中です」が2秒出て、移らない', () => {
     vi.useFakeTimers();
     const { root, navigate } = mountHome();
     const soon = Array.from(root.querySelectorAll<HTMLButtonElement>('.game-card--soon'));
     expect(soon.map((c) => c.querySelector('.game-card__name')!.textContent)).toEqual([
       '糸割り',
       'ビーミング',
-      '整経屋の一日',
       '柄の図鑑',
     ]);
     for (const c of soon) {
@@ -177,5 +182,31 @@ describe('PU-10a: ホームの「設定」ボタンのバッジ', () => {
     expect(root.querySelector('.btn__badge')).not.toBeNull();
     unmount();
     expect(upd.listeners.size).toBe(0);
+  });
+});
+
+describe('PU-10e: 版の番号とアプリ名', () => {
+  it('題名の下に「版 0.1.0(2026-10-04)」が小さく出る (20px 以上・muted)。題名と挨拶のあいだ', () => {
+    const { root } = mountHome({ shopName: '山田整経', playerName: '太郎' });
+    const v = root.querySelector('.home__version')!;
+    expect(v.textContent).toBe('版 0.1.0(2026-10-04)');
+    const app = root.querySelector('.home__app')!;
+    expect(app.nextElementSibling).toBe(v);
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
+    const m = css.match(/\n\.home__version\s*\{([^}]*)\}/)![1]!;
+    expect(m).toContain('color: var(--c-muted)');
+    expect(parseInt(m.match(/font-size: (\d+)px/)![1]!, 10)).toBeGreaterThanOrEqual(20);
+  });
+
+  it('アプリ名: マニフェストの name・short_name とタブの <title> が「整経屋の一日」。id・start_url・scope は変わらない', () => {
+    const root = join(dirname(fileURLToPath(import.meta.url)), '../../..');
+    const vite = readFileSync(join(root, 'vite.config.ts'), 'utf-8');
+    expect(vite).toContain("name: '整経屋の一日'");
+    expect(vite).toContain("short_name: '整経屋の一日'");
+    expect(vite).toContain("id: 'the-seikei'");
+    expect(vite).toContain("start_url: './'");
+    expect(vite).toContain("scope: './'");
+    const html = readFileSync(join(root, 'index.html'), 'utf-8');
+    expect(html).toContain('<title>整経屋の一日</title>');
   });
 });
