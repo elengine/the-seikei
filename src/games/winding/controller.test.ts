@@ -277,8 +277,6 @@ describe('winding module (T2-07)', () => {
     document.body.appendChild(container);
     const module = createWindingModule(deps);
     const { init, reduce } = await import('./logic');
-    const { paramsOf } = await import('./params');
-    const p1 = paramsOf(1);
     let state = init({ level: 2, patternId: 'p-shadow-char', sections: 6, seed: 1, puzzleId: 's4-2', feel: 'fine' });
     state = reduce(state, { type: 'start' });
     const props = makeProps({ resume: state });
