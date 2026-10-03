@@ -369,7 +369,7 @@ describe('winding renderer T2-07-fix b (盤面の文字の見せ方)', () => {
 describe('winding renderer T2-09b (複数の糸切れ)', () => {
   it('1. 切れた糸が2本のとき、切れ端が2本ぶん描かれる (quadraticCurveTo が 4回)', () => {
     const { ctx, rec } = makeFakeCtx();
-    const s = { ...brokenState(), brk: { kind: 'broken' as const, threads: [1, 4], tied: [], first: null } };
+    const s = { ...brokenState(), brk: { kind: 'broken' as const, threads: [1, 4], tied: [] } };
     drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
     const curves = rec.ops.filter((op) => op.k === 'quadraticCurveTo');
     // 糸ごとに creel 側 + drum 側の 2つの曲線
@@ -380,13 +380,13 @@ describe('winding renderer T2-09b (複数の糸切れ)', () => {
     expect(moves).toContain(threadY(4, 8));
   });
 
-  it('2. 1手目を押した側の端に藍の丸印 (drum 側から押したら DRUM_END_X に)', () => {
+  it('2. 1手目の藍の丸印は無い (T2-13c で 1回押しに変わり、印の装飾は無くなった)', () => {
     const { ctx, rec } = makeFakeCtx();
-    const s = { ...brokenState(), brk: { kind: 'broken' as const, threads: [2], tied: [], first: { thread: 2, side: 'drum' as const } } };
+    const s = { ...brokenState(), brk: { kind: 'broken' as const, threads: [2], tied: [] } };
     drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
     const arcs = rec.ops.filter((op) => op.k === 'arc');
     const knot = arcs.find((op) => Math.abs(((op.args?.[0] ?? 0) as number) - DRUM_END_X) < 1);
-    expect(knot).toBeDefined();
+    expect(knot).toBeUndefined();
   });
 });
 
@@ -596,7 +596,7 @@ describe('winding renderer T2-13b (切れた糸の印と「停止」)', () => {
 
   it('1. broken で切れた糸の印が朱、切れていない糸の印は今の色のまま', () => {
     const { ctx, rec } = makeFakeCtx();
-    const s = { ...brokenState(), brk: { kind: 'broken' as const, threads: [1, 4], tied: [], first: null } };
+    const s = { ...brokenState(), brk: { kind: 'broken' as const, threads: [1, 4], tied: [] } };
     drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
     expect(markFill(rec, 1)).toBe(COLORS.shu);
     expect(markFill(rec, 4)).toBe(COLORS.shu);
@@ -614,7 +614,7 @@ describe('winding renderer T2-13b (切れた糸の印と「停止」)', () => {
 
   it('3. broken で切れた糸の印に白い×が重なる (色だけに頼らない)', () => {
     const { ctx, rec } = makeFakeCtx();
-    const s = { ...brokenState(), brk: { kind: 'broken' as const, threads: [2], tied: [], first: null } };
+    const s = { ...brokenState(), brk: { kind: 'broken' as const, threads: [2], tied: [] } };
     drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
     // 白い線 (×の2画) が描かれる。印の位置の付近の moveTo で見る
     const p = markPos(2);

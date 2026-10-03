@@ -2,11 +2,11 @@ import type { RngState } from '../clock/clock';
 import { nextFloat } from '../clock/clock';
 
 /**
- * 糸切れと糸継ぎ (P2 T2-02・T2-09b)。ドラム巻きとビーミングで共有する。
+ * 糸切れと糸継ぎ (P2 T2-02・T2-09b・T2-13c)。ドラム巻きとビーミングで共有する。
  * すべて純粋関数。元の状態は変更しない。
  *
  * T2-09b: いちどに切れる糸は外れ方で 1〜maxThreads 本 (重ならない)。
- * つなぎ方は「切れた糸ごとに 2手」。どちらの端から押してもよい。
+ * T2-13c: つなぎ方は「切れた糸のあたりを1回押す」(両端の2手はやめた)。
  */
 export interface BreakParams {
   checkMs: number; // 500
@@ -17,12 +17,6 @@ export interface BreakParams {
   maxThreads: number; // いちどに切れる本数の上限 (T2-09b)
 }
 
-/** 結んでいるときの 1手目の記録 (どの糸の、どちら側の端を押したか) */
-export interface FirstTap {
-  thread: number;
-  side: 'creel' | 'drum';
-}
-
 export type BreakState =
   | { kind: 'running'; sinceCheckMs: number }
   | {
@@ -31,8 +25,6 @@ export type BreakState =
       threads: number[];
       /** 結んだ糸 */
       tied: number[];
-      /** 1手目で押した端。結ぶと次の糸のために null に戻る */
-      first: FirstTap | null;
     };
 
 /** running、sinceCheckMs 0 で始める */
@@ -89,7 +81,7 @@ export function stepBreak(
         }
       }
       return {
-        state: { kind: 'broken', threads, tied: [], first: null },
+        state: { kind: 'broken', threads, tied: [] },
         rng: pickRng,
         broke: true,
       };
@@ -101,23 +93,18 @@ export function stepBreak(
 
 /** 結びの結果 */
 export type TapResult =
-  | 'first' // 1手目として記録した
   | 'tiedOne' // 1本つながった (まだ切れている糸がある)
   | 'tiedAll' // 全部つながった (running に戻る)
-  | 'mismatch' // 2手目が別の糸の端。1手目からやり直し
-  | 'wrongThread' // 切れていない糸の端
+  | 'wrongThread' // 切れていない糸 (tied も含む)
   | 'ignored'; // running のとき
 
 /**
- * 切れ端をタップした。side は 'creel'(クリール側)か 'drum'(ドラム側)。
- * 1手目: 切れた糸のどちらの端でもよい。
- * 2手目: 同じ糸のもう一方の端 → つながる。
+ * 切れた糸のあたりを押した (T2-13c: 1回押し。両端の2手はやめた)。
  * 'running' のときは 'ignored'。回数 (BreakStats) は呼び出し側が result を見て数える。
  */
-export function tapEnd(
+export function tapThread(
   s: BreakState,
   thread: number,
-  side: 'creel' | 'drum',
 ): { state: BreakState; result: TapResult } {
   if (s.kind !== 'broken') {
     return { state: s, result: 'ignored' };
@@ -126,23 +113,11 @@ export function tapEnd(
     // 切れていない糸 (tied も含む)
     return { state: s, result: 'wrongThread' };
   }
-  if (s.first === null) {
-    // 1手目。どちらの端でもよい
-    return { state: { ...s, first: { thread, side } }, result: 'first' };
-  }
-  if (s.first.thread !== thread) {
-    // 2手目が別の糸の端。1手目からやり直し
-    return { state: { ...s, first: null }, result: 'mismatch' };
-  }
-  if (s.first.side === side) {
-    // 同じ側を2回押した。1手目を打ち直す
-    return { state: { ...s, first: { thread, side } }, result: 'first' };
-  }
   // つながる
   const tied = [...s.tied, thread];
   const left = s.threads.filter((t) => t !== thread);
   if (left.length > 0) {
-    return { state: { kind: 'broken', threads: left, tied, first: null }, result: 'tiedOne' };
+    return { state: { kind: 'broken', threads: left, tied }, result: 'tiedOne' };
   }
   return { state: initBreak(), result: 'tiedAll' };
 }

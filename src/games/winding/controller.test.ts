@@ -270,7 +270,7 @@ describe('winding module (T2-07)', () => {
     instance.unmount();
   });
 
-  it('6. fix-a1: broken で再開すると、tapEnd → ペダルを踏んで tick で帯の長さが増える', async () => {
+  it('6. fix-a1: broken で再開すると、切れたあたりを1回押すとつながり、ペダルを踏んで tick で帯の長さが増える (T2-13c)', async () => {
     const { deps } = await makeDeps();
     const container = document.createElement('div');
     document.body.appendChild(container);
@@ -278,6 +278,7 @@ describe('winding module (T2-07)', () => {
     // broken の途中状態を作る (最初の状態と違う: 1帯の長さが進んでいる)
     const { init, reduce } = await import('./logic');
     const { paramsOf } = await import('./params');
+    const { threadY } = await import('./geometry');
     const p1 = paramsOf(1);
     let state = init({ level: 1, patternId: p1.patternId, sections: p1.sections, seed: 1 });
     state = reduce(state, { type: 'start' });
@@ -288,32 +289,39 @@ describe('winding module (T2-07)', () => {
       ...state,
       phase: 'broken',
       breaks: state.breaks + 1,
-      brk: { kind: 'broken', threads: [0], tied: [], first: null },
+      brk: { kind: 'broken', threads: [0], tied: [] },
     };
     expect(state.lengths[0]).toBeGreaterThan(0); // 最初の状態と違うことを確認
-    const props = makeProps({ resume: state });
-    const instance = module.mount(container, props);
-    // 切れ端を結ぶ: 盤面のクリックではなく、tapEnd を直接送れないので、
-    // パネルの状態を見る (broken で開けていることの確認 → 「糸が切れました」のメッセージ)
-    const msg = jsMsg(container);
-    expect(msg).toContain('糸が切れました');
-    // 盤面のポインターダウンを送って切れ端を押す (endPoint thread 0 creel 側 = 論理 380, 300)
-    const rect = stageRect(container);
-    tapStage(container, rect, 380, 300);
-    await wait(50);
-    const msg2 = jsMsg(container);
-    expect(msg2).toContain('もう一方');
-    // ドラム側 (460, 300) を押して結ぶ
-    tapStage(container, rect, 460, 300);
-    await wait(50);
-    // 'winding' に戻る。ペダルを踏んで tick を進めると長さが増える
-    for (let i = 0; i < 4; i++) {
-      Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '踏み込む')!.click();
+    // jsdom では stage の clientWidth が 0 で fitStage の scale が 0 になるため、
+    // 盤面のサイズ (1000×750) を返すように差し替える (scale 1 になる)
+    const descW = Object.getOwnPropertyDescriptor(Element.prototype, 'clientWidth');
+    const descH = Object.getOwnPropertyDescriptor(Element.prototype, 'clientHeight');
+    Object.defineProperty(Element.prototype, 'clientWidth', { configurable: true, get(): number { return 1000; } });
+    Object.defineProperty(Element.prototype, 'clientHeight', { configurable: true, get(): number { return 750; } });
+    try {
+      const props = makeProps({ resume: state });
+      const instance = module.mount(container, props);
+      const msg = jsMsg(container);
+      expect(msg).toContain('糸が切れました');
+      // 切れた糸 (thread 0) のあたりを1回押す (span の中 x=380、糸 0 の y=threadY(0,8)=300)
+      const rect = stageRect(container);
+      tapStage(container, rect, 380, threadY(0, 8));
+      await wait(50);
+      // 'winding' に戻る (1回押しでつながる。T2-13c)。
+      // メッセージは張りの文をしばらく表示してから切り替えるので、状態のほうで確かめる
+      const resumed = instance.suspend() as { phase: string };
+      expect(resumed.phase).toBe('winding');
+      // ペダルを踏んで tick を進めると長さが増える
+      for (let i = 0; i < 4; i++) {
+        Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '踏み込む')!.click();
+      }
+      raf.advance(100);
+      expect(jsPanelText(container)).not.toContain('巻いた長さ 0%'); // 巻き直せている
+      instance.unmount();
+    } finally {
+      if (descW !== undefined) Object.defineProperty(Element.prototype, 'clientWidth', descW);
+      if (descH !== undefined) Object.defineProperty(Element.prototype, 'clientHeight', descH);
     }
-    raf.advance(100);
-    const msg3 = jsMsg(container);
-    expect(msg3).not.toContain('糸が切れました'); // 巻き直せている
-    instance.unmount();
   });
 
   it('7. fix-a3: 偽の rAF で 1000ms 進めると結びの演出が終わり、次の帯に進む (cut が送られる)', async () => {
@@ -919,7 +927,7 @@ describe('PU-05c: ドラム巻きの結果のつなぎ', () => {
     return props.finished[0] as never;
   }
 
-  it('見出しの行の題名の下に今のお題「初級 …」が出る。終わると resultLines 5行・starHint・next「中級へ」・again・toList が渡る', async () => {
+  it('見出しの行の題名の下に今のお題「初級 …」が出る。終わると resultLines 4行・starHint・next「中級へ」・again・toList が渡る (T2-13c で4行に)', async () => {
     const { deps } = await makeDeps();
     const container = document.createElement('div');
     document.body.appendChild(container);
@@ -928,7 +936,8 @@ describe('PU-05c: ドラム巻きの結果のつなぎ', () => {
     const instance = module.mount(container, props);
     const result = await finishLevel1(container, props);
     expect(container.querySelector('.screen-header__subtitle')!.textContent).toContain('初級');
-    expect(result.resultLines).toHaveLength(5);
+    expect(result.resultLines).toHaveLength(4);
+    expect(result.resultLines?.some((l) => l.label.includes('違う端'))).toBe(false);
     expect(result.starHint).toBe('適正な張りが8割以上、目標の時間内で星3です');
     expect(result.next?.label).toBe('中級へ');
     expect(typeof result.again).toBe('function');

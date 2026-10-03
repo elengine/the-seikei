@@ -303,15 +303,5 @@ export function drawBrokenThread(
     ctx.quadraticCurveTo(DRUM_END_X - sway, y + droop / 2, DRUM_END_X - sway, y + droop);
     ctx.stroke();
   }
-  // 1手目を済ませたら、押した側の端に藍の丸印
-  const first = s.brk.first;
-  if (first) {
-    const y = threadY(first.thread, opts.threadCount);
-    const droop = opts.show === 'small' ? 14 : 34;
-    ctx.fillStyle = COLORS.ai;
-    ctx.beginPath();
-    const x = first.side === 'creel' ? CREEL_END_X : DRUM_END_X;
-    ctx.arc(x, y + droop, fontPx(fit, 9), 0, Math.PI * 2);
-    ctx.fill();
-  }
+  // 1手目の藍の丸印は無くなった (T2-13c: 1回押し。押した点に印を出す装飾は今後の課題)
 }

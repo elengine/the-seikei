@@ -197,6 +197,72 @@ export function hitEnd(
   return best === null ? null : { thread: best.thread, side: best.side };
 }
 
+/** クリールの糸道の印 (テンションの皿) の x。renderer の皿と同じ位置 (T2-13c) */
+export const THREAD_MARK_X = 124;
+
+/** 点と線分の距離 */
+function distToSeg(p: { x: number; y: number }, a: { x: number; y: number }, b: { x: number; y: number }): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len2 = dx * dx + dy * dy;
+  const t = len2 === 0 ? 0 : Math.min(1, Math.max(0, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2));
+  return Math.hypot(p.x - (a.x + dx * t), p.y - (a.y + dy * t));
+}
+
+/**
+ * 切れた糸のあたりの判定 (T2-13c)。クリールの糸道の印から筬までの糸の区間
+ * (横の範囲 x は THREAD_MARK_X〜REED_X) の中で、押した点にいちばん近い糸を返す。
+ * 糸の線までの距離が画面上 40px 以内なら当たり。
+ * 切れている糸が近くにあればその糸、切れていない糸しか近くなければその糸
+ * (呼び出し側が wrongThread にする)。区間の外や遠くは null。
+ * current は 0 (巻いている帯の先頭) を基準にする (broken のあいだは current は動かない)。
+ */
+export function hitBrokenThread(
+  p: { x: number; y: number },
+  brokenThreads: number[],
+  threadCount: number,
+  scale: number,
+  current = 0,
+  sections = 1,
+): number | null {
+  // 区間の外は当たらない
+  if (p.x < THREAD_MARK_X || p.x > REED_X) {
+    return null;
+  }
+  const radius = 40 / scale; // 画面上 40px の論理距離
+  const nearest = (cands: number[]): { thread: number; d: number } | null => {
+    let best: { thread: number; d: number } | null = null;
+    for (const t of cands) {
+      const path = threadPath(t, threadCount, current, sections);
+      let min = Infinity;
+      for (let i = 0; i + 1 < path.length; i++) {
+        const a = path[i]!;
+        const b = path[i + 1]!;
+        // 区間の左の外は始点で打ち切る (糸は CONE_X から始まる)
+        if (b.x < THREAD_MARK_X) continue;
+        const ax = Math.max(a.x, THREAD_MARK_X);
+        min = Math.min(min, distToSeg(p, { x: ax, y: a.y }, b));
+      }
+      if (min <= radius && (best === null || min < best.d)) {
+        best = { thread: t, d: min };
+      }
+    }
+    return best;
+  };
+  // 1. 切れている糸のうち、いちばん近い糸
+  const hitBroken = nearest(brokenThreads);
+  if (hitBroken !== null) {
+    return hitBroken.thread;
+  }
+  // 2. 切れていない糸が近ければその糸 (呼び出し側が wrongThread にする)
+  const all: number[] = [];
+  for (let t = 0; t < threadCount; t++) {
+    if (!brokenThreads.includes(t)) all.push(t);
+  }
+  const hitOther = nearest(all);
+  return hitOther === null ? null : hitOther.thread;
+}
+
 /** 画面上で screenPx になる論理サイズ (文字などを画面 px で出すための逆数) */
 export function fontPx(fit: StageFit, screenPx: number): number {
   return screenPx / fit.scale;

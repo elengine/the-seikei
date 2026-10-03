@@ -2,7 +2,7 @@ import type { RngState } from '../../core/clock/clock';
 import { seedFrom, nextFloat } from '../../core/clock/clock';
 import { initPedal, setPedal, speedOf, tensionOf, stepNoise, stepDrift, stepSnag } from '../../core/mechanics/pedal';
 import type { PedalState } from '../../core/mechanics/pedal';
-import { initBreak, stepBreak, tapEnd } from '../../core/mechanics/breakage';
+import { initBreak, stepBreak, tapThread } from '../../core/mechanics/breakage';
 import type { BreakState, TapResult } from '../../core/mechanics/breakage';
 import {
   SECTION_LENGTH, RANGE_WIDTH, RANGE_CENTER, RANGE_MOVE_PER_SEC, RANGE_WIDTH_SWING, RANGE_BREATHE_SEC,
@@ -32,7 +32,6 @@ export interface WindingState {
   brk: BreakState;
   breaks: number;
   wrongTaps: number;
-  mismatches: number; // 違う端を結ぼうとした回数 (mismatch。星には影響しない。T2-09 追加修正b)
   rng: RngState;
 }
 
@@ -40,7 +39,7 @@ export type WindingAction =
   | { type: 'start' } // 「巻き始める」
   | { type: 'setPedal'; value: number }
   | { type: 'tick'; dtMs: number }
-  | { type: 'tapEnd'; thread: number; side: 'creel' | 'drum' }
+  | { type: 'tapThread'; thread: number }
   | { type: 'cut' } // 「帯の端を結ぶ」
   | { type: 'pausePedal' }; // 裏に回ったときなど、ペダルを 0 にする
 
@@ -124,7 +123,6 @@ export function init(opts: { level: Level; patternId: string; sections: number; 
     brk: initBreak(),
     breaks: 0,
     wrongTaps: 0,
-  mismatches: 0,
     rng: r.rng,
   };
 }
@@ -148,9 +146,9 @@ export function reduce(s: WindingState, a: WindingAction): WindingState {
     case 'tick':
       return tick(s, a.dtMs);
 
-    case 'tapEnd': {
+    case 'tapThread': {
       if (s.phase !== 'broken') return s;
-      const r = tapEnd(s.brk, a.thread, a.side);
+      const r = tapThread(s.brk, a.thread);
       if (r.result === 'wrongThread') {
         return { ...s, brk: r.state, wrongTaps: s.wrongTaps + 1 };
       }
@@ -161,10 +159,6 @@ export function reduce(s: WindingState, a: WindingAction): WindingState {
       if (r.result === 'tiedOne') {
         // 1本つながった。まだ 'broken' のまま
         return { ...s, brk: r.state };
-      }
-      if (r.result === 'mismatch') {
-        // 違う端を結ぼうとした (T2-09 追加修正b)
-        return { ...s, brk: r.state, mismatches: s.mismatches + 1 };
       }
       return { ...s, brk: r.state };
     }
@@ -292,11 +286,8 @@ export function isValidResume(x: unknown): x is WindingState {
       if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) return false;
     }
   }
-  for (const key of ['breaks', 'wrongTaps', 'mismatches', 'tension', 'elapsedMs'] as const) {
+  for (const key of ['breaks', 'wrongTaps', 'tension', 'elapsedMs'] as const) {
     if (typeof o[key] !== 'number' || !Number.isFinite(o[key])) return false;
-  }
-  if (typeof o.mismatches !== 'number' || !Number.isInteger(o.mismatches) || o.mismatches < 0) {
-    return false;
   }
   if (typeof o.patternId !== 'string') return false;
   if (typeof o.rng !== 'number') return false;
@@ -309,12 +300,16 @@ export function isValidResume(x: unknown): x is WindingState {
   if (typeof r.center !== 'number' || typeof r.width !== 'number') return false;
   if (typeof r.min !== 'number' || typeof r.max !== 'number') return false;
   // rangeDir・rangeElapsedMs も必須 (無ければ古い形)
-  if (o.rangeDir !== 1 && o.rangeDir !== -1) return false;
+    // T2-13c: 古い形 (brk.first がある) は再開しない
+  if (o.brk && typeof o.brk === 'object' && 'first' in (o.brk as Record<string, unknown>)) {
+    return false;
+  }
+if (o.rangeDir !== 1 && o.rangeDir !== -1) return false;
   if (typeof o.rangeElapsedMs !== 'number' || !Number.isFinite(o.rangeElapsedMs)) return false;
   return true;
 }
 
-/** 効果音とメッセージのため。controller が reduce の前後を比べて使う */
+/** 効果音とメッセージのため。controller が reduce の前後を比べて使う (T2-13c: 1回押し) */
 export function lastTapResult(
   prev: WindingState,
   next: WindingState,
@@ -324,14 +319,8 @@ export function lastTapResult(
     if (prev.brk.kind === 'broken' && next.brk.kind === 'running') return 'tiedAll';
     return null;
   }
-  const wasFirst = prev.brk.first;
-  const isFirst = next.brk.first;
-  const prevTied = prev.brk.tied.length;
-  const nextTied = next.brk.tied.length;
   if (next.wrongTaps > prev.wrongTaps) return 'wrongThread';
-  if (nextTied > prevTied) return 'tiedOne';
-  if (isFirst && !wasFirst) return 'first';
-  if (wasFirst && !isFirst) return 'mismatch';
+  if (next.brk.tied.length > prev.brk.tied.length) return 'tiedOne';
   return null;
 }
 

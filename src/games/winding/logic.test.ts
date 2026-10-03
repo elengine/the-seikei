@@ -104,7 +104,7 @@ describe('winding logic (T2-04)', () => {
     expect(passed).toBe(true);
   });
 
-  it("5. pedal 100 で巻くと、上級では同じ種で決まった回で 'broken'。切れた直後にペダル 0。tapEnd で creel → drum で 'winding' に戻り、ペダル 0 のまま、breaks 1", () => {
+  it("5. pedal 100 で巻くと、上級では同じ種で決まった回で 'broken'。切れた直後にペダル 0。tapThread で1回押すごとに1本つながり、全部で 'winding' に戻る。ペダル 0 のまま、breaks 1", () => {
     const p3 = paramsOf(3);
     const run = () => {
       let s = init({ level: 3, patternId: p3.patternId, sections: p3.sections, seed: 99 });
@@ -124,13 +124,16 @@ describe('winding logic (T2-04)', () => {
     // 同じ種なら同じ結果 (決まった回で切れる)
     expect(a.current).toBe(b.current);
     expect(a.lengths[0]).toBe(b.lengths[0]);
-    // tapEnd で切れた糸を全部つなぐと 'winding' に戻る (T2-09b: 糸ごとに 2手)
+    // tapThread で切れた糸を1回ずつ押すと 'winding' に戻る (T2-13c: 1回押し)
     if (a.brk.kind !== 'broken') throw new Error('brk should be broken');
     let next = a;
-    for (const t of a.brk.threads) {
-      next = reduce(next, { type: 'tapEnd', thread: t, side: 'creel' });
-      expect(next.phase).toBe('broken'); // 1手目ではまだ戻らない
-      next = reduce(next, { type: 'tapEnd', thread: t, side: 'drum' });
+    const threads = [...a.brk.threads];
+    for (let i = 0; i < threads.length; i++) {
+      next = reduce(next, { type: 'tapThread', thread: threads[i]! });
+      if (i < threads.length - 1) {
+        expect(next.phase).toBe('broken'); // 残りがあるあいだは 'broken'
+        expect(lastTapResult(a, next)).toBe('tiedOne');
+      }
     }
     expect(next.phase).toBe('winding');
     expect(next.pedal.pedal).toBe(0); // ペダルは 0 のまま
@@ -159,7 +162,7 @@ describe('winding logic (T2-04)', () => {
       }
     }
     expect(wrong).toBeGreaterThanOrEqual(0); // 8本のうち切れていない糸がある
-    const next = reduce(s, { type: 'tapEnd', thread: wrong, side: 'creel' });
+    const next = reduce(s, { type: 'tapThread', thread: wrong });
     expect(next.wrongTaps).toBe(s.wrongTaps + 1);
     expect(lastTapResult(s, next)).toBe('wrongThread');
   });
@@ -193,7 +196,7 @@ describe('winding logic (T2-04)', () => {
     cur = reduce(cur, { type: 'setPedal', value: 50 });
     cur = reduce(cur, { type: 'tick', dtMs: 100 });
     cur = reduce(cur, { type: 'cut' });
-    cur = reduce(cur, { type: 'tapEnd', thread: 0, side: 'creel' });
+    cur = reduce(cur, { type: 'tapThread', thread: 0 });
     cur = reduce(cur, { type: 'pausePedal' });
     expect(cur).toEqual(done);
   });
@@ -335,51 +338,53 @@ describe('T2-09 追加修正a (糸量の +4 をやめる)', () => {
   });
 });
 
-describe('T2-09 追加修正b (複数の糸切れの文言と回数)', () => {
+describe('T2-13c (1回押してつなぐ・文言)', () => {
   /** 2本切れた State を作る */
   function twoBroken(): WindingState {
     const s = init({ level: 3, patternId: 'p-alt-kon', sections: 7, seed: 5 });
-    return { ...s, phase: 'broken', brk: { kind: 'broken', threads: [1, 4], tied: [], first: null } };
+    return { ...s, phase: 'broken', brk: { kind: 'broken', threads: [1, 4], tied: [] } };
   }
 
-  it('1. mismatch の文は「その端は別の糸です」を含む', () => {
+  it('1. 1本つないで残りがあるとき、文は「1本つながりました。あと 1 本です」の形', () => {
     const s = twoBroken();
-    const first = reduce(s, { type: 'tapEnd', thread: 1, side: 'creel' });
-    const next = reduce(first, { type: 'tapEnd', thread: 4, side: 'creel' });
-    expect(next.wrongTaps).toBe(first.wrongTaps); // mismatch は wrongTaps に数えない (仕様 C-4)
-    const text = messageFor(next, first, next, (x: string) => x);
-    expect(text).toContain('その端は別の糸です');
-  });
-
-  it('2. 1本つないで残りがあるとき、文は「1本つながりました。あと 1 本です」の形', () => {
-    const s = twoBroken();
-    const first = reduce(s, { type: 'tapEnd', thread: 1, side: 'creel' });
-    const next = reduce(first, { type: 'tapEnd', thread: 1, side: 'drum' });
-    const text = messageFor(next, first, next, (x: string) => x);
+    const next = reduce(s, { type: 'tapThread', thread: 1 });
+    const text = messageFor(next, s, next, (x: string) => x);
     expect(text).toContain('1本つながりました');
     expect(text).toContain('あと 1 本');
   });
 
-  it('3. mismatch のたびに mismatches が1増える。init は 0。resume でも保存される', () => {
+  it('2. 切れたときの文は「切れた糸のあたりを押して、つないでください」', () => {
     const s = twoBroken();
-    expect(s.mismatches).toBe(0);
-    const first = reduce(s, { type: 'tapEnd', thread: 1, side: 'creel' });
-    const next = reduce(first, { type: 'tapEnd', thread: 4, side: 'creel' });
-    expect(next.mismatches).toBe(1);
-    expect(isValidResume(next)).toBe(true);
-    // mismatches が無い (古いセーブ) は resume できない
-    const old = JSON.parse(JSON.stringify(next)) as Record<string, unknown>;
-    delete old.mismatches;
+    const text = messageFor(s, undefined, undefined, (x: string) => x);
+    expect(text).toContain('切れた糸のあたりを押して');
+  });
+
+  it('3. 切れていない糸を押すと wrongTaps が1増える。mismatches は無くなった', () => {
+    const s = twoBroken();
+    const next = reduce(s, { type: 'tapThread', thread: 2 });
+    expect(next.wrongTaps).toBe(s.wrongTaps + 1);
+    expect('mismatches' in next).toBe(false);
+    expect(lastTapResult(s, next)).toBe('wrongThread');
+  });
+
+  it('4. 途中保存: 新しい形 (brk に first が無い) は再開できる。古い形 (brk.first がある) は再開しない', () => {
+    const s = twoBroken();
+    expect(isValidResume(s)).toBe(true);
+    const old = JSON.parse(JSON.stringify(s)) as Record<string, unknown>;
+    const brk = old.brk as Record<string, unknown>;
+    brk.first = { thread: 1, side: 'creel' };
     expect(isValidResume(old as never)).toBe(false);
   });
 });
 
-describe('T2-09 追加修正b (成績欄)', () => {
-  it('4. 結果の成績欄に「違う端を結ぼうとした回数 N回」がある', () => {
+describe('T2-13c (成績欄)', () => {
+  it('5. 結果の成績欄に「違う端を結ぼうとした回数」は無く、「違う糸を押した回数」はある', () => {
     const s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 3 });
-    const done = { ...s, phase: 'done' as const, mismatches: 2 };
-    const r = resultOf(done, 'standalone', '2026-09-30T21:00:00+09:00');
-    expect(r.summary?.some((line) => line.includes('違う端を結ぼうとした回数 2回'))).toBe(true);
+    const done = { ...s, phase: 'done' as const, wrongTaps: 2 };
+    const r = resultOf(done, 'standalone', '2026-10-05T23:00:00+09:00');
+    expect(r.summary?.some((line) => line.includes('違う糸を押した回数 2回'))).toBe(true);
+    expect(r.summary?.some((line) => line.includes('違う端'))).toBe(false);
+    expect(r.resultLines?.some((line) => line.label.includes('違う端'))).toBe(false);
   });
 });
 

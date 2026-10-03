@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { initBreak, stepBreak, tapEnd } from './breakage';
+import { initBreak, stepBreak, tapThread } from './breakage';
 import type { BreakParams } from './breakage';
 import { seedFrom } from '../clock/clock';
 
@@ -92,7 +92,7 @@ describe('breakage (T2-02 の共通の決まり。T2-09b で型を変えた)', (
 
   it("5. 'broken' の間は stepBreak が何もしない", () => {
     const p = params();
-    const broken = { kind: 'broken' as const, threads: [3], tied: [], first: null };
+    const broken = { kind: 'broken' as const, threads: [3], tied: [] };
     const r = stepBreak(broken, p, 1200, 80, 56, seedFrom(1));
     expect(r.state).toEqual(broken);
     expect(r.broke).toBe(false);
@@ -100,72 +100,41 @@ describe('breakage (T2-02 の共通の決まり。T2-09b で型を変えた)', (
   });
 });
 
-describe('breakage T2-09b (複数の糸切れのつなぎ方)', () => {
-  const broken2 = { kind: 'broken' as const, threads: [2, 5], tied: [], first: null };
+describe('breakage T2-13c (切れた糸を1回押してつなぐ)', () => {
+  const broken2 = { kind: 'broken' as const, threads: [2, 5], tied: [] };
 
-  it("6. 1手目: 切れた糸の端を押すと 'first'。どちら側でもよい。押した端に first が記録される", () => {
-    const r1 = tapEnd(broken2, 2, 'creel');
-    expect(r1.result).toBe('first');
-    if (r1.state.kind === 'broken') {
-      expect(r1.state.first).toEqual({ thread: 2, side: 'creel' });
-    }
-    // drum 側からでもよい
-    const r2 = tapEnd(broken2, 5, 'drum');
-    expect(r2.result).toBe('first');
-    if (r2.state.kind === 'broken') {
-      expect(r2.state.first).toEqual({ thread: 5, side: 'drum' });
+  it("1. 切れた糸を押すと 'tiedOne'。threads から除かれ tied に入る (1回押し)", () => {
+    const r = tapThread(broken2, 2);
+    expect(r.result).toBe('tiedOne');
+    if (r.state.kind === 'broken') {
+      expect(r.state.threads).toEqual([5]);
+      expect(r.state.tied).toEqual([2]);
+      expect('first' in r.state).toBe(false); // 1手目の記録は無くなった
     }
   });
 
-  it("7. 2手目: 同じ糸の反対側の端で 'tiedOne'。その糸が tied に入る。最後の1本なら 'tiedAll' で running に戻る", () => {
-    const r1 = tapEnd(broken2, 2, 'creel');
-    const r2 = tapEnd(r1.state, 2, 'drum');
-    expect(r2.result).toBe('tiedOne');
-    if (r2.state.kind === 'broken') {
-      expect(r2.state.tied).toEqual([2]);
-      expect(r2.state.threads).toEqual([5]); // 残りは結んでいない糸のみ
-      expect(r2.state.first).toBeNull(); // 次の1手目のために戻す
-    }
-    // もう1本を結ぶと全部つながる
-    const r3 = tapEnd(r2.state, 5, 'creel');
-    const r4 = tapEnd(r3.state, 5, 'drum');
-    expect(r4.result).toBe('tiedAll');
-    expect(r4.state.kind).toBe('running');
+  it("2. 最後の1本を押すと 'tiedAll'。running に戻る", () => {
+    const broken1 = { kind: 'broken' as const, threads: [3], tied: [] };
+    const r = tapThread(broken1, 3);
+    expect(r.result).toBe('tiedAll');
+    expect(r.state.kind).toBe('running');
   });
 
-  it("8. 2手目に別の切れた糸の端 → 'mismatch'。1手目からやり直し (first が null)", () => {
-    const r1 = tapEnd(broken2, 2, 'creel');
-    const r2 = tapEnd(r1.state, 5, 'creel');
-    expect(r2.result).toBe('mismatch');
-    if (r2.state.kind === 'broken') {
-      expect(r2.state.first).toBeNull();
-      expect(r2.state.tied).toEqual([]);
-    }
+  it('3. 2本切れているとき、1回押すごとに1本つながる', () => {
+    const r1 = tapThread(broken2, 5);
+    expect(r1.result).toBe('tiedOne');
+    const r2 = tapThread(r1.state, 2);
+    expect(r2.result).toBe('tiedAll');
+    expect(r2.state.kind).toBe('running');
   });
 
-  it('9. 切れていない糸を押すと wrongThread。切れていない糸は2手目でも wrongThread', () => {
-    const r1 = tapEnd(broken2, 3, 'creel');
-    expect(r1.result).toBe('wrongThread');
-    // 1手目のあとに切れていない糸
-    const r2 = tapEnd(broken2, 2, 'creel');
-    const r3 = tapEnd(r2.state, 6, 'drum');
-    expect(r3.result).toBe('wrongThread');
-    // tied の糸をもう一度押しても wrongThread
-    const r4 = tapEnd(broken2, 2, 'creel');
-    const r5 = tapEnd(r4.state, 2, 'drum'); // 2 を結ぶ
-    const r6 = tapEnd(r5.state, 2, 'creel');
-    expect(r6.result).toBe('wrongThread');
+  it("4. 切れていない糸 (tied も含む) を押すと 'wrongThread'", () => {
+    expect(tapThread(broken2, 3).result).toBe('wrongThread');
+    const r1 = tapThread(broken2, 2);
+    expect(tapThread(r1.state, 2).result).toBe('wrongThread'); // つないだ糸をもう一度
   });
 
-  it('10. どちら側から押してもつながる (drum 先 → creel でも tiedOne)', () => {
-    const r1 = tapEnd(broken2, 5, 'drum');
-    expect(r1.result).toBe('first');
-    const r2 = tapEnd(r1.state, 5, 'creel');
-    expect(r2.result).toBe('tiedOne');
-  });
-
-  it("11. running のときは 'ignored'", () => {
-    const r = tapEnd(initBreak(), 2, 'creel');
-    expect(r.result).toBe('ignored');
+  it("5. running のときは 'ignored'", () => {
+    expect(tapThread(initBreak(), 2).result).toBe('ignored');
   });
 });

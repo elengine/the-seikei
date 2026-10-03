@@ -32,23 +32,11 @@ export function messageFor(s: WindingState, prev: WindingState | undefined, next
     if (tap === 'wrongThread') {
       return render('その糸は切れていません');
     }
-    if (tap === 'mismatch') {
-      return render('その端は別の糸です。同じ糸の両端をつないでください');
-    }
     if (tap === 'tiedOne' && s.brk.kind === 'broken') {
       const left = s.brk.threads.length;
       return render(`1本つながりました。あと ${left} 本です`);
     }
-    if (s.brk.kind === 'broken') {
-      if (s.brk.tied.length > 0 && s.brk.first === null) {
-        const left = s.brk.threads.length;
-        return render(`1本つながりました。あと ${left} 本です`);
-      }
-      if (s.brk.first !== null) {
-        return render('もう一方の切れ端を押してください');
-      }
-    }
-    return render('糸が切れました。切れた糸を探して、つないでください');
+    return render('糸が切れました。切れた糸のあたりを押して、つないでください');
   }
   if (s.phase === 'winding') {
     // 引っかかりは、張りのメッセージより先に出す。引っかかりが戻りきるまで (最大2秒) 出し続ける
@@ -69,11 +57,9 @@ export function messageFor(s: WindingState, prev: WindingState | undefined, next
 
 /** 操作の効果音。音の名前を返す (音なしは null) */
 export function soundFor(a: WindingAction, prev: WindingState, next: WindingState): 'tap' | 'gentleNo' | 'knot' | 'stop' | null {
-  if (a.type === 'tapEnd') {
+  if (a.type === 'tapThread') {
     const tap = lastTapResult(prev, next);
     if (tap === 'wrongThread') return 'gentleNo';
-    if (tap === 'mismatch') return 'gentleNo';
-    if (tap === 'first') return 'tap';
     if (tap === 'tiedOne' || tap === 'tiedAll') return 'knot';
     return null;
   }
@@ -99,7 +85,6 @@ export function resultOf(s: WindingState, mode: GameProps['mode'], finishedAt: s
       { label: '巻いた時間', value: `${msToText(s.elapsedMs)}(目標 ${msToText(target)})` },
       { label: '糸切れ', value: `${s.breaks}回` },
       { label: '違う糸を押した回数', value: `${s.wrongTaps}回` },
-      { label: '違う端を結ぼうとした回数', value: `${s.mismatches}回` },
     ],
     starHint: '適正な張りが8割以上、目標の時間内で星3です',
     summary: [
@@ -107,7 +92,6 @@ export function resultOf(s: WindingState, mode: GameProps['mode'], finishedAt: s
       `巻いた時間 ${msToText(s.elapsedMs)}(目標 ${msToText(target)})`,
       `糸切れ ${s.breaks}回`,
       `違う糸を押した回数 ${s.wrongTaps}回`,
-      `違う端を結ぼうとした回数 ${s.mismatches}回`,
     ],
     finishedAt,
   };

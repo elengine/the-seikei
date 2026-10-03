@@ -5,7 +5,7 @@ import { showTutorial } from '../../core/ui/tutorialOverlay';
 import { drawBoard } from './renderer';
 import { PIN_ANGLE0 } from './renderer.parts';
 import { createWindingPanel } from './panel';
-import { fromPx, hitEnd } from './geometry';
+import { fromPx, hitBrokenThread } from './geometry';
 import { getContent, type Content } from '../../core/content/content';
 import { init, reduce, seedFromText } from './logic';
 import { speedOf } from '../../core/mechanics/pedal';
@@ -334,16 +334,19 @@ let pinTurnPrevEased = 0; // 前フレームの ease の値 (角速度を決め�
   }
   document.addEventListener('visibilitychange', onVisibilityChange);
 
-  // ---- 盤面のタップ (切れ端を当てる) ----
+  // ---- 盤面のタップ (切れた糸のあたりを押してつなぐ。T2-13c: 1回押し) ----
   function onPointerDown(e: PointerEvent): void {
     if (s.phase !== 'broken' || finished || disposed || tieRunning) {
       return; // 'broken' 以外のときは何もしない
     }
     const rect = frame.stage.getBoundingClientRect();
     const logical = fromPx(lastFit, { x: e.clientX - rect.left, y: e.clientY - rect.top });
-    const hit = hitEnd(logical, 8, lastFit.scale);
-    if (hit !== null) {
-      dispatch({ type: 'tapEnd', thread: hit.thread, side: hit.side });
+    // クリールの糸道の印から筬までの区間で、押した点にいちばん近い糸
+    const broken = s.brk.kind === 'broken' ? s.brk.threads : [];
+    const thread = hitBrokenThread(logical, broken, 8, lastFit.scale, s.current, s.sections);
+    if (thread !== null) {
+      // 切れた糸でも切れていない糸でも、押した糸をそのまま送る (wrongThread は reduce で数える)
+      dispatch({ type: 'tapThread', thread });
     }
   }
   frame.stage.addEventListener('pointerdown', onPointerDown);

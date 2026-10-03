@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { LOGICAL_W, LOGICAL_H, endPoint, hitEnd, toPx, fromPx, threadY, drumSectionY, tableY, TABLE_AREA, REED_X, DRUM_END_X, DRUM_AREA, pointOnPath, threadPath, PIN_RAIL_X, DIAL_X, DIAL_Y, DIAL_R, reedRect, reedThreadY, THREAD_SHEET_HALF } from './geometry';
+import { LOGICAL_W, LOGICAL_H, endPoint, hitEnd, toPx, fromPx, threadY, drumSectionY, tableY, TABLE_AREA, REED_X, DRUM_END_X, DRUM_AREA, pointOnPath, threadPath, PIN_RAIL_X, DIAL_X, DIAL_Y, DIAL_R, reedRect, reedThreadY, THREAD_SHEET_HALF, hitBrokenThread } from './geometry';
 
 const fit = { scale: 1, offsetX: 0, offsetY: 0 };
 
@@ -261,5 +261,40 @@ describe('winding geometry T2-13a (目盛り盤と筬が重ならない・筬は
         expect(y).toBeLessThan(reed.y + reed.h);
       }
     }
+  });
+});
+
+describe('winding geometry T2-13c (切れたあたりを1回押す当たり)', () => {
+  it('1. 2本切れているとき、中間より片方に寄った点を押すと近いほうの糸', () => {
+    const y1 = threadY(1, 8);
+    const y2 = threadY(2, 8);
+    // 糸1と糸2 (隣どうし) の中間より糸1寄り (span の中 x=200)
+    const p = { x: 200, y: y1 * 0.7 + y2 * 0.3 };
+    const hit = hitBrokenThread(p, [1, 2], 8, fit.scale);
+    expect(hit).not.toBeNull();
+    expect(hit).toBe(1);
+  });
+
+  it('2. 切れた糸から画面上 40px より遠く、切れていない糸に近い点は「切れていない糸」を返す (wrongThread 用)', () => {
+    // 糸 0 は切れていない。糸1とは 47.6 論理 (= 画面 47.6px) 離れている
+    const p = { x: 200, y: threadY(0, 8) };
+    const hit = hitBrokenThread(p, [1, 4], 8, fit.scale);
+    expect(hit).toBe(0);
+  });
+
+  it('3. 糸の区間の外 (ドラムの上・印より左) は当たらない', () => {
+    // ドラムの上
+    expect(hitBrokenThread({ x: 700, y: 200 }, [1, 4], 8, fit.scale)).toBeNull();
+    // 糸道の印より左
+    expect(hitBrokenThread({ x: 60, y: threadY(1, 8) }, [1, 4], 8, fit.scale)).toBeNull();
+  });
+
+  it('4. 画面上 40px 以内の距離で当たり。scale が小さいときは論理距離が広がる', () => {
+    // thread 1 から 30 論理 (= 画面 30px) 離れた点 → 当たる
+    const near = { x: 200, y: threadY(1, 8) + 30 };
+    expect(hitBrokenThread(near, [1, 4], 8, fit.scale)).toBe(1);
+    // scale 0.5 なら画面 40px = 論理 80。thread 1 から 60 論理離れても当たる
+    const nearSmall = { x: 200, y: threadY(1, 8) + 60 };
+    expect(hitBrokenThread(nearSmall, [1, 4], 8, 0.5)).toBe(1);
   });
 });

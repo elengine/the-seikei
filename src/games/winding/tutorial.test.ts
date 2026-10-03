@@ -89,10 +89,11 @@ describe('winding tutorial T2-12 (遊び方を5ページに)', () => {
     expect(windingTutorial.pages).toHaveLength(5);
   });
 
-  it('2. 3ページ目に「範囲」と「動き」を含む。4ページ目に「同じ糸」を含む。5ページ目に「目標の時間」を含む', () => {
+  it('2. 3ページ目に「範囲」と「動き」を含む。4ページ目に「押すとつながります」を含む。5ページ目に「目標の時間」を含む', () => {
     expect(windingTutorial.pages[2]?.text).toContain('範囲');
     expect(windingTutorial.pages[2]?.text).toContain('動き');
-    expect(windingTutorial.pages[3]?.text).toContain('同じ糸');
+    expect(windingTutorial.pages[3]?.text).toContain('押すとつながります');
+    expect(windingTutorial.pages[3]?.text).toContain('1本ずつ押してください');
     expect(windingTutorial.pages[4]?.text).toContain('目標の時間');
   });
 
