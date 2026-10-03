@@ -1299,3 +1299,9 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - 追加修正: 1本つなぐごとの「1本つながりました。あと N 本です」が、操作の直後でない定期再描画でも出続けるように (messages.ts)
 - ブラウザ確認: 上級で2本切れ→1回押し×2でつながり巻きに戻る・初級を完走 (途中3回の糸切れをすべて1回押しで回復)・結果の成績欄が4行 (「違う端を結ぼうとした回数」なし)・文「切れた糸のあたりを押して、つないでください」
 - 教訓: 並行作業者が同じ作業ツリーで git stash/pop を行い、作業中のファイルへの手動追記が消えた。デバッグ用の console.log は patch ツールで入れ、作業終わりに必ず消す。IndexedDB への手動注入は行の形 (rec で入れ子・deletedAt) が合わないと boot が落ちる
+
+## 2026-10-03 T2-13 追加修正 (羽の側面の太さ) — ルビー
+- 実装 `b3ddba8`。CI completed success。
+- 変更: params.ts に WING_SIDE_MAX_RATIO = 0.4、renderer.parts.ts の側面の幅を 板の幅 × 0.4 × |sin θ| に (従来は WING_OUT=14 固定の最大値)、renderer.test.ts に「6角度で側面の幅 ≤ 板の幅の40%」のテストを追加 (RED 確認後 GREEN)
+- npm test 677 passed / 11 skipped・check エラー0・build 成功・CI 1回で success。変更ファイルは params.ts / renderer.parts.ts / renderer.test.ts のみ
+- stash 事象の調査: コンテナ内に他のエージェント・git プロセスなし。HEAD reflog・refs/stash に私以外の記録なし。結論: 並行作業者でなく、自分の execute_code によるファイル書き込みの一部が反映されなかった可能性が高い。以後 patch ツールで編集し書き込み直後に確認する
