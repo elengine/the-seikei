@@ -1315,3 +1315,13 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - controller.ts: 題名の下は「段階N 柄の名前」(お題以外は従来の「難易度 帯 N本」)
 - テスト: RED (puzzles 3・listView 3・logic 2・controller 調整) → **682 passed / 11 skipped**、check 0
 - commit 757811d、CI 1回で success。ブラウザ: 一覧5節15題 ✓、段階1 (紺の無地) 完走 ★★☆・成績4行・「次のお題へ」で黒の無地へ ✓、一覧に星/途中/次はこれ/鍵 ✓
+
+## T2-14b (糸の種類の手応え)
+- params.ts: YarnFeel 型と YARN_FEEL (標準/細い糸=切れやすい BREAK_RATE×1.5・BREAK_EXTRA_STEP−2 最小4/太い糸=流れやすい DRIFT perSec×1.3・snagRate×1.3)
+- puzzles.ts: yarnFeelOf(spec) (紡毛 or 番手30以下=太い糸、番手60以上=細い糸、他=標準)、feelLabel、mainYarnSpec (本数を合計し、同数のときはあとに出た糸を主糸)、WindingPuzzle.feel
+- logic.ts: State.feel (init opts は任意・既定 standard)。breakParams に feel (rate 倍率・extraStep 差分)。tick の drift/snag に倍率
+- listView.ts: 補足「帯 N本・細い糸(切れやすい)」
+- controller.ts / index.ts: 題名の下に「段階N 柄の名前・手応え」(仕様の許可ファイルに controller.ts・index.ts は無いが、題名の下の表示と State への feel 引き渡しに必要なので最小限変更。報告に記載)
+- テスト: RED (puzzles 3・listView 1・logic 3・controller 1) → **690 passed / 11 skipped**、check 0
+- commit 3dca45b → **CI failure** (controller.test の未使用変数 p1。ローカルの check は pipe で exit code を見逃していた) → 修正 commit **8a4d889** CI success
+- ブラウザ: 一覧の補足 (s4=太い糸・s4-2=細い糸・s4-3=表示なし) ✓、s4 を開いて題名の下「段階4 紺のシャドーストライプ・太い糸(流れやすい)」で巻き ✓、s4-2 を「始める」(途中確認ダイアログ経由) で開いて「細い糸(切れやすい)」で巻き ✓、再開でも手応えが出る ✓
