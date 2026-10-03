@@ -5,6 +5,8 @@ import { HINT_MIN_CHECKS, ORDER_RANGE_MAX_STAGE } from './params';
 import { toRuns, splitRepeat } from '../../core/domain/stripe';
 import { createButton, setLockedReason } from '../../core/ui/widgets';
 import { createSectionHeading } from '../../core/ui/layout';
+import { openSheet } from '../../core/ui/sheet';
+import type { Sheet } from '../../core/ui/sheet';
 
 export interface CreelPanel {
   update(s: CreelState): void;   // 状態に合わせて表示を更新
@@ -100,6 +102,68 @@ export function createCreelPanel(parent: HTMLElement, opts: {
   root.appendChild(actions);
 
   parent.appendChild(root);
+
+  // ---- 詰めた形 (狭い・低い画面。gameFrame が game-frame--compact と data-layout を付ける) ----
+  // 依頼書は「依頼書を見る」ボタンで下から出る重ね表示に、箱は一列にして送る向きを data-scroll に出す
+  const frameEl = parent.closest<HTMLElement>('.game-frame');
+  let orderBtn: HTMLButtonElement | null = null;
+  let sheet: Sheet | null = null;
+
+  function closeSheet(): void {
+    sheet?.close(); // onClose で依頼書の表を戻す
+  }
+
+  function toggleSheet(): void {
+    if (sheet !== null && sheet.isOpen()) {
+      closeSheet();
+      return;
+    }
+    const opened = openSheet({
+      parent: frameEl ?? parent,
+      title: '依頼書',
+      onClose: () => {
+        sheet = null;
+        orderTable.remove(); // 詰めた形では、閉じているあいだ表は操作欄に置かない
+        if (!isCompactNow()) {
+          orderBox.appendChild(orderTable);
+        }
+      },
+    });
+    sheet = opened;
+    opened.body.appendChild(orderTable);
+  }
+
+  function isCompactNow(): boolean {
+    return frameEl?.classList.contains('game-frame--compact') ?? false;
+  }
+
+  function applyMode(): void {
+    const compact = isCompactNow();
+    boxes.dataset.scroll = compact ? (frameEl?.dataset.layout === 'landscape' ? 'y' : 'x') : '';
+    if (compact) {
+      if (orderBtn === null) {
+        orderBtn = createButton({ label: '依頼書を見る', variant: 'secondary', onClick: toggleSheet });
+        orderBtn.classList.add('creel-order-open');
+        orderBox.appendChild(orderBtn);
+        if (sheet === null) {
+          orderTable.remove();
+        }
+      }
+    } else {
+      closeSheet();
+      orderBtn?.remove();
+      orderBtn = null;
+      if (orderTable.parentElement !== orderBox) {
+        orderBox.appendChild(orderTable);
+      }
+    }
+  }
+  applyMode();
+  const modeObserver =
+    frameEl !== null && typeof MutationObserver !== 'undefined' ? new MutationObserver(applyMode) : null;
+  if (frameEl !== null) {
+    modeObserver?.observe(frameEl, { attributes: true, attributeFilter: ['class', 'data-layout'] });
+  }
 
   /** 紙の芯の色の表示 (16px の丸と「芯:赤」の文字。色だけに頼らない) */
   function coreTag(coreId: string | undefined): HTMLElement | null {
@@ -238,6 +302,8 @@ export function createCreelPanel(parent: HTMLElement, opts: {
     },
 
     destroy(): void {
+      modeObserver?.disconnect();
+      closeSheet();
       root.remove();
     },
   };

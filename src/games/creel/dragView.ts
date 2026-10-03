@@ -42,6 +42,7 @@ interface Active {
   yarn: YarnTypeId | null; // 引っぱるチーズの糸 (空の軸を押しただけなら null)
   target: Element;
   origin: HTMLElement | null; // 箱の要素 (戻る先)
+  scrollAxis: 'x' | 'y' | null; // 箱の列を送れる向き (詰めた形)。最初の動きがこの向きなら、引っぱらず送る
   pressIndex: number | null; // 盤面を押した軸
   layer: HTMLElement | null;
 }
@@ -168,11 +169,14 @@ export function attachDrag(opts: DragViewOpts): { cancel(): void; destroy(): voi
     let yarn: YarnTypeId | null = null;
     let origin: HTMLElement | null = null;
     let pressIndex: number | null = null;
+    let scrollAxis: 'x' | 'y' | null = null;
     const boxEl = target.closest<HTMLElement>('.creel-box');
     if (boxEl !== null && opts.panel.contains(boxEl) && boxEl.dataset.yarn !== undefined) {
       yarn = boxEl.dataset.yarn;
       source = { kind: 'box', yarn };
       origin = boxEl;
+      const axis = boxEl.parentElement?.dataset.scroll;
+      scrollAxis = axis === 'x' || axis === 'y' ? axis : null;
     } else if (target === opts.stage) {
       const l = logicalOf(e.clientX, e.clientY);
       const hit = l === null ? null : hitTest(l, opts.rows, opts.cols);
@@ -186,12 +190,8 @@ export function attachDrag(opts: DragViewOpts): { cancel(): void; destroy(): voi
     if (source === null) {
       return;
     }
-    try {
-      target.setPointerCapture(e.pointerId); // 指が盤面や操作欄から出ても、動きを受け取り続ける
-    } catch {
-      // 対応していない環境 (テスト等) では window の監視だけで動く
-    }
-    active = { pointerId: e.pointerId, drag: beginDrag(source, { x: e.clientX, y: e.clientY }), yarn, target, origin, pressIndex, layer: null };
+    // setPointerCapture は、引っぱりと決まってから (onMove) 行う。箱を横に送る動きをブラウザに任せるため
+    active = { pointerId: e.pointerId, drag: beginDrag(source, { x: e.clientX, y: e.clientY }), yarn, target, origin, scrollAxis, pressIndex, layer: null };
   }
 
   function onMove(e: PointerEvent): void {
@@ -199,11 +199,28 @@ export function attachDrag(opts: DragViewOpts): { cancel(): void; destroy(): voi
     if (a === null || e.pointerId !== a.pointerId) {
       return;
     }
+    const wasMoved = a.drag.moved;
     a.drag = moveDrag(a.drag, { x: e.clientX, y: e.clientY });
     if (!a.drag.moved || a.yarn === null) {
       return; // 動かすまで (8px 未満) と、空の軸を押しているだけのときは引っぱらない
     }
+    if (!wasMoved && a.scrollAxis !== null) {
+      // 最初の 8px の動きの向きで、箱の列を送る (スクロール) か、チーズを引っぱるかを決める
+      const dx = Math.abs(a.drag.current.x - a.drag.start.x);
+      const dy = Math.abs(a.drag.current.y - a.drag.start.y);
+      const scrolling = a.scrollAxis === 'x' ? dx >= dy : dy > dx;
+      if (scrolling) {
+        suppressClick = true; // 送ったあとの click (箱を選ぶ) は無視する
+        active = null; // この指はブラウザに任せる
+        return;
+      }
+    }
     if (a.layer === null) {
+      try {
+        a.target.setPointerCapture(a.pointerId); // 引っぱりと決まった: 指が盤面や操作欄から出ても、動きを受け取り続ける
+      } catch {
+        // 対応していない環境 (テスト等) では window の監視だけで動く
+      }
       a.layer = makeLayer(a.yarn, Math.max(48, opts.diameterPx()));
     }
     placeLayer(a.layer, e.clientX, e.clientY - LIFT_PX);

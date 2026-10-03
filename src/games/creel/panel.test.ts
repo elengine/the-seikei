@@ -399,3 +399,112 @@ describe('PU-06a: 依頼書の行と箱に紙の芯の色を出す', () => {
     panel.destroy();
   });
 });
+
+describe('PU-09b: 詰めた形の操作欄 (依頼書を見る・箱の横送り)', () => {
+  /** game-frame--compact の中に操作欄を作る (gameFrame が付けるクラスと data-layout を真似る) */
+  function compactPanel(layout: 'portrait' | 'landscape' = 'portrait', compact = true): {
+    frameEl: HTMLElement;
+    parent: HTMLElement;
+    panel: CreelPanel;
+  } {
+    const frameEl = document.createElement('div');
+    frameEl.className = compact ? 'game-frame game-frame--compact' : 'game-frame';
+    frameEl.dataset.layout = layout;
+    document.body.appendChild(frameEl);
+    const parent = document.createElement('div');
+    frameEl.appendChild(parent);
+    const panel = createCreelPanel(parent, { content, onAction: () => undefined });
+    panel.update(s2State());
+    return { frameEl, parent, panel };
+  }
+
+  const tick = async (): Promise<void> => {
+    await Promise.resolve();
+    await Promise.resolve();
+  };
+
+  it('詰めた形では「依頼書を見る」(secondary) が出て、依頼書の表は操作欄に出ない。詰めた形でなければ「依頼書を見る」は無く、表が操作欄にある', () => {
+    const c = compactPanel();
+    const btn = Array.from(c.parent.querySelectorAll('button')).find((b) => b.textContent === '依頼書を見る')!;
+    expect(btn).toBeDefined();
+    expect(btn.classList.contains('btn--secondary')).toBe(true);
+    expect(c.parent.querySelector('[data-testid="creel-order-row"]')).toBeNull();
+    c.panel.destroy();
+    const n = compactPanel('landscape', false);
+    expect(Array.from(n.parent.querySelectorAll('button')).some((b) => b.textContent === '依頼書を見る')).toBe(false);
+    expect(n.parent.querySelectorAll('[data-testid="creel-order-row"]').length).toBeGreaterThan(0);
+    n.panel.destroy();
+  });
+
+  it('「依頼書を見る」を押すと下から出る重ね表示が開き、依頼書の行がその中にある。× で閉じる。もう一度押しても閉じる', () => {
+    const c = compactPanel();
+    const btn = Array.from(c.parent.querySelectorAll('button')).find((b) => b.textContent === '依頼書を見る')!;
+    btn.click();
+    const sheet = c.frameEl.querySelector('.sheet')!;
+    expect(sheet).not.toBeNull();
+    expect(sheet.querySelector('.sheet__title')!.textContent).toBe('依頼書');
+    const rows = sheet.querySelectorAll('[data-testid="creel-order-row"]');
+    expect(rows).toHaveLength(2);
+    expect(rows[0]!.textContent).toContain('W-4812');
+    sheet.querySelector<HTMLButtonElement>('.sheet__close')!.click();
+    expect(c.frameEl.querySelector('.sheet')).toBeNull();
+    // もう一度開いて、「依頼書を見る」でも閉じる
+    btn.click();
+    expect(c.frameEl.querySelector('.sheet')).not.toBeNull();
+    btn.click();
+    expect(c.frameEl.querySelector('.sheet')).toBeNull();
+    c.panel.destroy();
+  });
+
+  it('重ね表示を開いたまま状態が変わると、依頼書の選択中の行も更新される。destroy で重ね表示も消える', () => {
+    const c = compactPanel();
+    Array.from(c.parent.querySelectorAll('button')).find((b) => b.textContent === '依頼書を見る')!.click();
+    let s = s2State();
+    s = reduce(s, { type: 'selectBox', yarn: 'shiro-a' });
+    c.panel.update(s);
+    const rows = Array.from(c.frameEl.querySelectorAll('.sheet [data-testid="creel-order-row"]'));
+    expect(rows[1]!.className).toContain('creel-order-row--selected');
+    c.panel.destroy();
+    expect(c.frameEl.querySelector('.sheet')).toBeNull();
+  });
+
+  it('詰めた形から今の形に戻ると (frame のクラスが外れると)、重ね表示は閉じ、依頼書の表は操作欄に戻り、「依頼書を見る」は消える', async () => {
+    const c = compactPanel();
+    Array.from(c.parent.querySelectorAll('button')).find((b) => b.textContent === '依頼書を見る')!.click();
+    c.frameEl.classList.remove('game-frame--compact');
+    await tick();
+    expect(c.frameEl.querySelector('.sheet')).toBeNull();
+    expect(Array.from(c.parent.querySelectorAll('button')).some((b) => b.textContent === '依頼書を見る')).toBe(false);
+    expect(c.parent.querySelectorAll('[data-testid="creel-order-row"]')).toHaveLength(2);
+    // 戻ったら、また「依頼書を見る」になる
+    c.frameEl.classList.add('game-frame--compact');
+    await tick();
+    expect(Array.from(c.parent.querySelectorAll('button')).some((b) => b.textContent === '依頼書を見る')).toBe(true);
+    c.panel.destroy();
+  });
+
+  it('箱の並びの向き (data-scroll): 詰めた縦は横に送る (x)、詰めた横は縦に送る (y)、今の形は送らない (空)。回転で変わる', async () => {
+    const c = compactPanel('portrait');
+    const boxes = c.parent.querySelector<HTMLElement>('.creel-boxes')!;
+    expect(boxes.dataset.scroll).toBe('x');
+    c.frameEl.dataset.layout = 'landscape';
+    await tick();
+    expect(boxes.dataset.scroll).toBe('y');
+    c.frameEl.classList.remove('game-frame--compact');
+    await tick();
+    expect(boxes.dataset.scroll).toBe('');
+    c.panel.destroy();
+  });
+
+  it('base.css: 詰めた縦の箱は横一列で横に送れて (overflow-x: auto・touch-action: pan-x)、詰めた横は縦に送れる (pan-y)', () => {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
+    const row = css.match(/\.game-frame--compact\[data-layout='portrait'\] \.creel-boxes\s*\{([^}]*)\}/);
+    expect(row![1]).toContain('flex-wrap: nowrap');
+    expect(row![1]).toContain('overflow-x: auto');
+    const box = css.match(/\.game-frame--compact\[data-layout='portrait'\] \.btn\.creel-box\s*\{([^}]*)\}/);
+    expect(box![1]).toContain('touch-action: pan-x');
+    expect(box![1]).toContain('width: 120px');
+    const col = css.match(/\.game-frame--compact\[data-layout='landscape'\] \.btn\.creel-box\s*\{([^}]*)\}/);
+    expect(col![1]).toContain('touch-action: pan-y');
+  });
+});
