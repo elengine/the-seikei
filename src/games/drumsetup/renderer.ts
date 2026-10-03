@@ -5,9 +5,10 @@ import { TRIAL_TURNS } from './params';
 import type { DrumSetupPuzzle } from './puzzles';
 import type { TrialOutcome } from './logic';
 import {
-  DRUM_RECT, SECTION_X, WING_BASE, WING_LEN_PX, WING_THICK_PX, TOP_TEXT, RESULT_TEXT,
-  wingDir, slopeXAt, layerTopY, toPx,
+  DRUM_RECT, SECTION_X, WING_BASE, WING_THICK_PX, TOP_TEXT, RESULT_TEXT, LAYER_H_PX,
+  wingDir, wingLen, slopeXAt, layerTopY, layerEdgeX, toPx,
 } from './geometry';
+import { correctFeed } from './logic';
 
 /**
  * ドラム設定の盤面の描画 (T2c-02)。横から見た断面。
@@ -43,10 +44,6 @@ export function mainHex(content: Content, patternId: string): string {
   return color?.hex ?? COLORS.sumiSub;
 }
 
-/** 潰れのとき、層が斜面から右へはみ出す量 (上の層ほど多い) */
-const CRUSH_OVERHANG_PX = 3;
-/** 崩れのとき、層の右端が斜面から内側へ下がる量 */
-const COLLAPSE_GAP_PX = 16;
 /** 使えない角度のとき、ずり落ちる層の数とずれ */
 const BAD_LAYERS = 6;
 const BAD_SLIP_PX = 12;
@@ -120,26 +117,28 @@ function drawWing(ctx: CanvasRenderingContext2D, angle: number | null): void {
     ctx.strokeStyle = COLORS.wood;
     ctx.lineWidth = 3;
     ctx.beginPath();
-    const dir = wingDir(9); // 未選択のときは中間の 9° の向きで点線を引く
+    const dir0 = wingDir(9); // 未選択のときは中間の 9° の向きで点線を引く
+    const len0 = wingLen(9);
     const dash = 14;
     const gap = 10;
-    for (let d = 0; d + dash <= WING_LEN_PX; d += dash + gap) {
-      ctx.moveTo(WING_BASE.x + dir.dx * d, WING_BASE.y + dir.dy * d);
-      ctx.lineTo(WING_BASE.x + dir.dx * (d + dash), WING_BASE.y + dir.dy * (d + dash));
+    for (let d = 0; d + dash <= len0; d += dash + gap) {
+      ctx.moveTo(WING_BASE.x + dir0.dx * d, WING_BASE.y + dir0.dy * d);
+      ctx.lineTo(WING_BASE.x + dir0.dx * (d + dash), WING_BASE.y + dir0.dy * (d + dash));
     }
     ctx.stroke();
     ctx.lineWidth = 1;
     return;
   }
   const dir = wingDir(angle);
+  const len = wingLen(angle); // 盤面からはみ出さない長さ (T2c-03-fix 3)
   // 板の厚みの方向 (斜面に垂直。下向き)
   const nx = -dir.dy;
   const ny = dir.dx;
   ctx.fillStyle = COLORS.wood;
   ctx.beginPath();
   ctx.moveTo(WING_BASE.x, WING_BASE.y);
-  ctx.lineTo(WING_BASE.x + dir.dx * WING_LEN_PX, WING_BASE.y + dir.dy * WING_LEN_PX);
-  ctx.lineTo(WING_BASE.x + dir.dx * WING_LEN_PX + nx * WING_THICK_PX, WING_BASE.y + dir.dy * WING_LEN_PX + ny * WING_THICK_PX);
+  ctx.lineTo(WING_BASE.x + dir.dx * len, WING_BASE.y + dir.dy * len);
+  ctx.lineTo(WING_BASE.x + dir.dx * len + nx * WING_THICK_PX, WING_BASE.y + dir.dy * len + ny * WING_THICK_PX);
   ctx.lineTo(WING_BASE.x + nx * WING_THICK_PX, WING_BASE.y + ny * WING_THICK_PX);
   ctx.closePath();
   ctx.fill();
@@ -148,10 +147,13 @@ function drawWing(ctx: CanvasRenderingContext2D, angle: number | null): void {
   ctx.lineWidth = 3;
   ctx.beginPath();
   ctx.moveTo(WING_BASE.x, WING_BASE.y);
-  ctx.lineTo(WING_BASE.x + dir.dx * WING_LEN_PX, WING_BASE.y + dir.dy * WING_LEN_PX);
+  ctx.lineTo(WING_BASE.x + dir.dx * len, WING_BASE.y + dir.dy * len);
   ctx.stroke();
   ctx.lineWidth = 1;
 }
+
+/** 層の1本ぶんの高さ (collapse は層のあいだに縦のすき間をあける。T2c-03-fix 4) */
+const LAYER_GAP_PX = 3;
 
 /** 層を積み上げて描く */
 function drawLayers(ctx: CanvasRenderingContext2D, p: DrumSetupPuzzle, view: DrumSetupView, hex: string): void {
@@ -160,29 +162,39 @@ function drawLayers(ctx: CanvasRenderingContext2D, p: DrumSetupPuzzle, view: Dru
   if (n === 0) return;
   const bad = view.outcome === 'badAngle';
   const count = bad ? Math.min(n, BAD_LAYERS) : n;
+  // 層の右の端は、羽の斜面と同じ見た目の決まりで決める (T2c-03-fix 4)
+  const correct = correctFeed(p, view.angle);
+  const ratio = correct > 0 ? view.feed / correct : 1;
   for (let j = 1; j <= count; j++) {
     const yTop = layerTopY(j);
     const heightPx = DRUM_RECT.y - yTop; // 表面からの高さ
     const slope = slopeXAt(heightPx, view.angle);
+    const collapse = view.outcome === 'collapse';
+    const height = collapse ? LAYER_H_PX - LAYER_GAP_PX : LAYER_H_PX - 1;
     let left = SECTION_X;
-    let right = slope;
+    let right = layerEdgeX(j, view.angle, ratio); // 送り量が正しければ斜面の上
     let overhang = 0;
     if (view.outcome === 'crush') {
-      right = slope + j * CRUSH_OVERHANG_PX;
-      overhang = j * CRUSH_OVERHANG_PX; // はみ出した部分 (濃く塗る)
-    } else if (view.outcome === 'collapse') {
-      right = slope - COLLAPSE_GAP_PX - ((count - j) % 2) * 10; // 段になる
+      // 少なすぎる:斜面より左に遅れ、ほぼ真上に積み重なる。上の層ほど左右にふくらむ (潰れて広がる)
+      const bulge = Math.min(j * 1.2, 40);
+      left = SECTION_X - bulge / 2;
+      right = right + bulge / 2;
+      overhang = bulge / 2; // ふくらんだ部分 (濃く塗る)
+    } else if (collapse) {
+      // 多すぎる:右の端は斜面を越えられないので、斜面の上で止める。層のあいだにすき間と段
+      right = Math.min(right, slope) - (4 + ((count - j) % 2) * 4);
     } else if (bad) {
       left = SECTION_X + j * BAD_SLIP_PX; // 斜めにずり落ちる
       right = slope + j * BAD_SLIP_PX;
     }
     ctx.fillStyle = hex;
-    ctx.fillRect(left, yTop, right - left, 8);
+    ctx.fillRect(left, yTop, right - left, height);
     if (overhang > 0) {
-      // はみ出した部分を少し濃く
+      // ふくらんだ (重なった) 部分を少し濃く
       ctx.fillStyle = COLORS.sumi;
       ctx.globalAlpha = 0.3;
-      ctx.fillRect(slope, yTop, overhang, 8);
+      ctx.fillRect(right - overhang, yTop, overhang, height);
+      ctx.fillRect(left, yTop, overhang, height);
       ctx.globalAlpha = 1;
     }
   }

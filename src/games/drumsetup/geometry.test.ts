@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   ANGLE_VIS_MUL, DRUM_RECT, WING_BASE, wingDir, wingVisRad, slopeXAt, layerTopY,
+  wingTopY, layerEdgeX, LAYER_H_PX,
 } from './geometry';
 
 describe('drumsetup geometry T2c-02 (羽の斜面と層の積み上げ)', () => {
@@ -30,5 +31,24 @@ describe('drumsetup geometry T2c-02 (羽の斜面と層の積み上げ)', () => 
     // いちばん上の層も盤面 (論理座標 1000×750) の中
     expect(layerTopY(30)).toBeGreaterThan(0);
     expect(layerTopY(1) + 9).toBeLessThanOrEqual(DRUM_RECT.y + 1); // 最初の層は表面の上に乗る
+  });
+
+  it('4. 断面の図の幅は盤面の幅の 70% 以上 (T2c-03-fix 3)', () => {
+    expect(DRUM_RECT.w).toBeGreaterThanOrEqual(700);
+  });
+
+  it('5. 羽の上の端は盤面の上から 15% 以内に来る (9°。T2c-03-fix 3)', () => {
+    expect(wingTopY(9)).toBeLessThanOrEqual(113); // 750 × 0.15 = 112.5
+  });
+
+  it('6. 層の右の端は、羽の斜面と同じ見た目の決まりで決まる (T2c-03-fix 4)', () => {
+    // 送り量が正しい値 (比 1) のとき、すべての層の右の端と斜面の x の差は 2px 以内
+    for (let k = 1; k <= 30; k++) {
+      expect(Math.abs(layerEdgeX(k, 9, 1) - slopeXAt(k * LAYER_H_PX, 9)), `k ${k}`).toBeLessThanOrEqual(2);
+    }
+    // 送り量が正しい値の半分のとき、層 30 の右の端は斜面より左 (遅れる)
+    expect(layerEdgeX(30, 9, 0.5)).toBeLessThan(slopeXAt(30 * LAYER_H_PX, 9));
+    // 幾何の値そのものは斜面を越えられる (越えないように描くのは renderer の仕事)
+    expect(layerEdgeX(30, 9, 2)).toBeGreaterThan(slopeXAt(30 * LAYER_H_PX, 9));
   });
 });
