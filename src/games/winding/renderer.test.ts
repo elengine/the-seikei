@@ -91,16 +91,12 @@ describe('winding renderer (T2-05)', () => {
     expect(rects.length).toBeGreaterThanOrEqual(3);
   });
 
-  it('文字は画面 px で 20 以上 (目盛り盤の帯の文字・停止・帯 3 / 5)', () => {
-    const { ctx, rec } = makeFakeCtx();
-    const s = brokenState();
-    drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
-    const fonts = rec.ops.filter((op) => op.k === 'font').map((op) => op.v as string);
-    expect(fonts.length).toBeGreaterThan(0);
-    for (const f of fonts) {
-      const m = f.match(/(\d+(?:\.\d+)?)px/);
-      expect(m, `font ${f}`).not.toBeNull();
-      expect(parseFloat(m![1] ?? ''), `font ${f}`).toBeGreaterThanOrEqual(20);
+  it('盤面の文字は無い (「帯 N / M」は T2-07 追加修正b で、「停止」は T2-13b でやめた。赤いランプで分かる)', () => {
+    for (const s of [windingState(), brokenState()]) {
+      const { ctx, rec } = makeFakeCtx();
+      drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
+      const texts = rec.ops.filter((op) => op.k === 'fillText');
+      expect(texts.length, `${s.phase} でも fillText は無い`).toBe(0);
     }
   });
 });
@@ -131,34 +127,15 @@ describe('winding renderer T2-05-fix (座標の変換と決まり)', () => {
     }
   });
 
-  it('2. 「停止」の fillText は restore のあとで、Canvas の画面上の幅の中にある (scale 0.39 と 0.7 の両方)。期待値変更: 「帯 N / M」を盤面に描かなくなり、盤面の文字は「停止」だけになった (T2-07 追加修正b)', () => {
+  it('2. restore のあとに fillText を描かない (盤面の文字は無い。T2-13b で「停止」もやめた)', () => {
     for (const f of [{ scale: 0.39, offsetX: 5, offsetY: 5 }, { scale: 0.7, offsetX: 2, offsetY: 2 }]) {
       const { ctx, rec } = makeFakeCtx();
       const s = brokenState();
       drawBoard(ctx, f, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
       const ks = rec.ops.map((op) => op.k);
       const restoreI = ks.lastIndexOf('restore');
-      const texts = rec.ops.filter((op) => op.k === 'fillText');
-      const stop = texts.find((op) => op.args?.[0] === '停止');
-      expect(stop, `scale ${f.scale}`).toBeDefined();
-      // restore の後に描かれる (fillText が restore より後に出てくる)
-      const lastTextI = ks.lastIndexOf('fillText');
-      expect(lastTextI).toBeGreaterThan(restoreI);
-      const x = Number(stop!.args?.[1]);
-      const canvasW = ctx.canvas.clientWidth;
-      expect(x, `scale ${f.scale} x=${x}`).toBeGreaterThanOrEqual(0);
-      expect(x, `scale ${f.scale} x=${x}`).toBeLessThan(canvasW);
-    }
-  });
-
-  it('3. ctx.font に FONT_FAMILY が含まれる (盤面の文字は「停止」のみになったので broken で確認)', () => {
-    const { ctx, rec } = makeFakeCtx();
-    const s = brokenState();
-    drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
-    const fonts = rec.ops.filter((op) => op.k === 'font').map((op) => op.v as string);
-    expect(fonts.length).toBeGreaterThan(0);
-    for (const f of fonts) {
-      expect(f).toContain('Hiragino Sans');
+      // restore の後に来る命令は無い (fillText・font も含めて盤面の文字は無い)
+      expect(ks.slice(restoreI + 1).length, `scale ${f.scale}`).toBe(0);
     }
   });
 
@@ -379,21 +356,13 @@ describe('winding renderer T2-07-fix b (盤面の文字の見せ方)', () => {
     }
   });
 
-  it("2. 'broken' のとき「停止」の y はランプの中心の y より下 (ランプに重ならない)", () => {
+  it("2. 'broken' でも「停止」の文字は描かない (赤いランプで分かる。T2-13b)", () => {
     const { ctx, rec } = makeFakeCtx();
     const s = brokenState();
     expect(s.phase).toBe('broken');
     drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
     const stop = rec.ops.find((op) => op.k === 'fillText' && op.args?.[0] === '停止');
-    expect(stop).toBeDefined();
-    const stopY = Number(stop!.args?.[2]);
-    // ランプの中心は論理 (620, 45)。toPx で画面の点 (scale 1, offset 0 なので同じ)
-    const lampY = 45;
-    expect(stopY).toBeGreaterThan(lampY);
-    // ランプの中心に x がそろっている (中心 = 文字の左端から文字幅の半分の位置)
-    const stopX = Number(stop!.args?.[1]);
-    const lampX = 620;
-    expect(Math.abs(stopX - lampX)).toBeLessThan(30); // 中心そろえ (ゆるい幅で確認)
+    expect(stop).toBeUndefined();
   });
 });
 
@@ -598,6 +567,75 @@ describe('winding renderer T2-10 追加修正 b (上下の端・結び目とピ�
         (op.args?.[1] as number) >= ky0 && (op.args?.[1] as number) < ky1,
     );
     expect(rings.length).toBe(0);
+  });
+});
+
+describe('winding renderer T2-13b (切れた糸の印と「停止」)', () => {
+  const fit = { scale: 1, offsetX: 0, offsetY: 0 };
+
+  /** 糸道の印 (テンションの皿) の位置 (論理座標)。drawCreel と同じ式 */
+  function markPos(t: number): { x: number; y: number } {
+    return { x: 124, y: threadY(t, 8) };
+  }
+
+  /** 指定の位置に描かれた arc の直前の fillStyle */
+  function markFill(rec: FakeRecorder, t: number): string | null {
+    const p = markPos(t);
+    let cur = '';
+    for (const op of rec.ops) {
+      if (op.k === 'style') cur = String(op.v);
+      if (op.k === 'arc' &&
+          Math.abs((op.args?.[0] as number) - p.x) < 1 &&
+          Math.abs((op.args?.[1] as number) - p.y) < 1 &&
+          Math.abs((op.args?.[2] as number) - 6) < 1) {
+        return cur;
+      }
+    }
+    return null;
+  }
+
+  it('1. broken で切れた糸の印が朱、切れていない糸の印は今の色のまま', () => {
+    const { ctx, rec } = makeFakeCtx();
+    const s = { ...brokenState(), brk: { kind: 'broken' as const, threads: [1, 4], tied: [], first: null } };
+    drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
+    expect(markFill(rec, 1)).toBe(COLORS.shu);
+    expect(markFill(rec, 4)).toBe(COLORS.shu);
+    expect(markFill(rec, 0)).toBe(COLORS.steel);
+    expect(markFill(rec, 7)).toBe(COLORS.steel);
+  });
+
+  it('2. winding では印はどれも朱にならない', () => {
+    const { ctx, rec } = makeFakeCtx();
+    drawBoard(ctx, fit, windingState(), content, { threadCount: 8, show: 'red', timeMs: 0 });
+    for (let t = 0; t < 8; t++) {
+      expect(markFill(rec, t), `t${t}`).not.toBe(COLORS.shu);
+    }
+  });
+
+  it('3. broken で切れた糸の印に白い×が重なる (色だけに頼らない)', () => {
+    const { ctx, rec } = makeFakeCtx();
+    const s = { ...brokenState(), brk: { kind: 'broken' as const, threads: [2], tied: [], first: null } };
+    drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
+    // 白い線 (×の2画) が描かれる。印の位置の付近の moveTo で見る
+    const p = markPos(2);
+    const cross = rec.ops.filter(
+      (op) => op.k === 'moveTo' &&
+        Math.abs((op.args?.[0] as number) - p.x) < 10 &&
+        Math.abs((op.args?.[1] as number) - p.y) < 10,
+    );
+    expect(cross.length).toBeGreaterThanOrEqual(2);
+    // ×を描くまえに白の strokeStyle が設定されている
+    const styles = rec.ops.filter((op) => op.k === 'style').map((op) => String(op.v));
+    expect(styles).toContain(COLORS.white);
+  });
+
+  it('4. broken でも「停止」の fillText を描かない (赤いランプで分かる。T2-13b)', () => {
+    const { ctx, rec } = makeFakeCtx();
+    const s = brokenState();
+    expect(s.phase).toBe('broken');
+    drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
+    const texts = rec.ops.filter((op) => op.k === 'fillText').map((op) => String(op.args?.[0]));
+    expect(texts).not.toContain('停止');
   });
 });
 

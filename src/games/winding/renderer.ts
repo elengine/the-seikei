@@ -1,11 +1,11 @@
 import type { WindingState } from './logic';
 import { qualities } from './logic';
 import type { Content } from '../../core/content/content';
-import { COLORS, FONT_FAMILY } from '../../core/ui/tokens';
+import { COLORS } from '../../core/ui/tokens';
 import { speedOf } from '../../core/mechanics/pedal';
 import { TENSION, SECTION_LENGTH } from './params';
 import type { StageFit } from '../../core/viewport/viewport';
-import { CREEL_AREA, TABLE_AREA, DRUM_AREA, TOP_AREA, REED_X, THREAD_SHEET_HALF, REED_RISE, DIAL_X, DIAL_Y, reedRect, reedThreadY, threadY, threadPath, drumSectionY, tableY, pointOnPath, toPx, fontPx } from './geometry';
+import { CREEL_AREA, TABLE_AREA, DRUM_AREA, TOP_AREA, REED_X, THREAD_SHEET_HALF, REED_RISE, DIAL_X, DIAL_Y, reedRect, reedThreadY, threadY, threadPath, drumSectionY, tableY, pointOnPath, fontPx } from './geometry';
 import { drawDrum, drawBrokenThread } from './renderer.parts';
 
 /**
@@ -71,16 +71,7 @@ export function drawBoard(
   // 変換を戻す
   ctx.restore();
 
-  // 文字は restore のあとに描く (論理座標の点を toPx で画面の点に直す。大きさは画面 px)。
-  // 「停止」は赤ランプの下に、ランプの中心にそろえて描く (T2-07 追加修正b)
-  if (s.phase === 'broken') {
-    const lampPx = toPx(fit, { x: LAMP_X, y: 0 });
-    ctx.font = `20px ${FONT_FAMILY}`;
-    const wPx = ctx.measureText('停止').width;
-    const p = toPx(fit, { x: LAMP_X, y: LAMP_Y + 44 });
-    ctx.fillStyle = COLORS.sumi;
-    ctx.fillText('停止', lampPx.x - wPx / 2, p.y);
-  }
+  // 「停止」の文字は描かない (赤いランプと切れた糸の朱の印で分かる。T2-13b)
 }
 
 /** 赤ランプの位置 (論理座標)。目盛り盤の DIAL_X・DIAL_Y は geometry (T2-13a) */
@@ -134,11 +125,23 @@ function drawCreel(
     ctx.beginPath();
     ctx.arc(coneX + coneW - coneH / 2, cy, coneH / 4, 0, Math.PI * 2);
     ctx.fill();
-    // テンションの皿 (鋼色の小さな円。コーンの右)
-    ctx.fillStyle = COLORS.steel;
+    // 糸道の印 (鋼色の小さな円。コーンの右)。切れた糸の印は朱に塗る (T2-13b)
+    ctx.fillStyle = s.brk.kind === 'broken' && s.brk.threads.includes(t) ? COLORS.shu : COLORS.steel;
     ctx.beginPath();
     ctx.arc(coneX + coneW + fontPx(fit, 14), cy, fontPx(fit, 6), 0, Math.PI * 2);
     ctx.fill();
+    // 切れた糸の印には白い×を重ねる (色だけに頼らない。T2-13b)
+    if (s.brk.kind === 'broken' && s.brk.threads.includes(t)) {
+      const mx = coneX + coneW + fontPx(fit, 14);
+      ctx.strokeStyle = COLORS.white;
+      ctx.lineWidth = fontPx(fit, 1.5);
+      ctx.beginPath();
+      ctx.moveTo(mx - fontPx(fit, 3), cy - fontPx(fit, 3));
+      ctx.lineTo(mx + fontPx(fit, 3), cy + fontPx(fit, 3));
+      ctx.moveTo(mx + fontPx(fit, 3), cy - fontPx(fit, 3));
+      ctx.lineTo(mx - fontPx(fit, 3), cy + fontPx(fit, 3));
+      ctx.stroke();
+    }
   }
 }
 
