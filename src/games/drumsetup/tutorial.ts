@@ -36,7 +36,7 @@ function drawPage1(ctx: CanvasRenderingContext2D, w: number, h: number): void {
   ctx.beginPath();
   ctx.arc(w * 0.58, h * 0.72, w * 0.12, Math.PI, Math.PI + Math.PI / 3.6);
   ctx.stroke();
-  drawText(ctx, '羽の角度', w * 0.3, h * 0.5);
+  drawText(ctx, '羽の角度', w * 0.62, h * 0.66);
   // 送り量 (表面の上の矢印。左向き)
   ctx.fillStyle = COLORS.ai;
   ctx.fillRect(w * 0.16, h * 0.62, w * 0.16, 6);
@@ -114,7 +114,7 @@ function drawPage4(ctx: CanvasRenderingContext2D, w: number, h: number): void {
   // 崩れ (すき間)
   ctx.fillRect(w * 0.38, h * 0.66, w * 0.1, 8);
   ctx.fillRect(w * 0.4, h * 0.56, w * 0.1, 8);
-  drawText(ctx, '崩れ', w * 0.34, h * 0.52);
+  drawText(ctx, '崩れ', w * 0.3, h * 0.5);
 }
 
 export const drumsetupTutorial: TutorialSpec = {
