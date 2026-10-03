@@ -28,6 +28,10 @@ export function createWindingController(parent: HTMLElement, deps: GameDeps, pro
   patternId: string;
   sections: number;
   resume?: unknown;
+  /** お題の情報 (T2-14a。あれば題名の下に「段階N 柄の名前」を出し、State の puzzleId に入れる) */
+  puzzleStage?: number;
+  puzzleName?: string;
+  puzzleId?: string;
   tutorial: TutorialSpec;
   onBack: () => void; // 「戻る」(確認は呼び出し側で行う)
 }): GameInstance {
@@ -36,7 +40,13 @@ export function createWindingController(parent: HTMLElement, deps: GameDeps, pro
   let s: WindingState =
     startState !== undefined
       ? reduce(startState, { type: 'pausePedal' }) // 再開のときはペダル 0
-      : init({ level: opts.level, patternId: opts.patternId, sections: opts.sections, seed: seedFromText(deps.clock.now()) });
+      : init({
+          level: opts.level,
+          patternId: opts.patternId,
+          sections: opts.sections,
+          seed: seedFromText(deps.clock.now()),
+          puzzleId: opts.puzzleId ?? '',
+        });
   let lastFit: StageFit = { scale: 1, offsetX: 0, offsetY: 0 };
   let disposed = false;
   let finished = false;
@@ -58,7 +68,11 @@ let pinTurnPrevEased = 0; // 前フレームの ease の値 (角速度を決め�
   // ---- 枠 ----
   const frame = createGameFrame(parent, {
     title: deps.terms.t('game.winding'),
-    subtitle: `${LEVEL_NAMES[opts.level]} 帯 ${opts.sections}本`, // 今のお題
+    // 今のお題。お題で開いたときは「段階N 柄の名前」、それ以外 (仕事モードなど) は難易度と帯の数 (T2-14a)
+    subtitle:
+      opts.puzzleStage !== undefined && opts.puzzleName !== undefined
+        ? `段階${opts.puzzleStage} ${opts.puzzleName}`
+        : `${LEVEL_NAMES[opts.level]} 帯 ${opts.sections}本`,
     onBack: opts.onBack,
     onHelp: () => {
       void showTutorial(frame.root, opts.tutorial, { renderText: (t) => deps.terms.render(t) }).then(() => undefined);

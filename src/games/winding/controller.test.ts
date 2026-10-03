@@ -5,6 +5,7 @@ import type { GameDeps, GameProps } from '../../core/game/types';
 import { createAppContext } from '../../app/context';
 import type { AppContext } from '../../app/context';
 import { createFixedClock } from '../../core/clock/clock';
+import { getContent } from '../../core/content/content';
 
 const drawBoardCalls: unknown[][] = [];
 vi.mock('./renderer', async (importOriginal) => {
@@ -101,16 +102,16 @@ describe('winding module (T2-07)', () => {
     const props = makeProps();
     const instance = module.mount(container, props);
     const btns = (): HTMLButtonElement[] =>
-      Array.from(container.querySelectorAll<HTMLButtonElement>('button[data-testid^="winding-level-"]'));
-    // 記録が無い → 初級だけ押せる
+      Array.from(container.querySelectorAll<HTMLButtonElement>('button[data-testid^="winding-puzzle-s"]'));
+    // 記録が無い → 15行あり、最初のお題だけ押せる
     const b0 = btns();
-    expect(b0).toHaveLength(3);
+    expect(b0).toHaveLength(15);
     expect(b0[0]!.disabled).toBe(false);
     expect(b0[1]!.classList.contains('list-row--locked')).toBe(true); // 未解放は disabled でなく、鍵の行 (押すと理由)
     expect(b0[2]!.classList.contains('list-row--locked')).toBe(true);
     expect(b0[1]!.dataset.reason).toBe('前のお題をクリアすると遊べます');
     // 初級をクリアした記録を入れる
-    await deps.records.add('winding', 3, { 'level:1': 3 });
+    await deps.records.add('winding', 3, { 'puzzle:s1': 3 });
     container.textContent = '';
     module.mount(container, makeProps());
     const b1 = btns();
@@ -129,7 +130,7 @@ describe('winding module (T2-07)', () => {
     const props = makeProps();
     const instance = module.mount(container, props);
     // 初級を選ぶ
-    const level1 = container.querySelector<HTMLButtonElement>('button[data-testid="winding-level-1"]')!;
+    const level1 = container.querySelector<HTMLButtonElement>('button[data-testid="winding-puzzle-s1"]')!;
     level1.click();
     // 「巻き始める」
     const start = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める');
@@ -203,7 +204,7 @@ describe('winding module (T2-07)', () => {
     const module = createWindingModule(deps);
     const props = makeProps();
     const instance = module.mount(container, props);
-    const level1 = container.querySelector<HTMLButtonElement>('button[data-testid="winding-level-1"]')!;
+    const level1 = container.querySelector<HTMLButtonElement>('button[data-testid="winding-puzzle-s1"]')!;
     level1.click();
     Array.from(container.querySelectorAll('button'))
       .find((b) => b.textContent === '巻き始める')!
@@ -235,7 +236,7 @@ describe('winding module (T2-07)', () => {
     const module = createWindingModule(deps);
     const props = makeProps();
     const instance = module.mount(container, props);
-    const level1 = container.querySelector<HTMLButtonElement>('button[data-testid="winding-level-1"]')!;
+    const level1 = container.querySelector<HTMLButtonElement>('button[data-testid="winding-puzzle-s1"]')!;
     level1.click();
     Array.from(container.querySelectorAll('button'))
       .find((b) => b.textContent === '巻き始める')!
@@ -367,7 +368,7 @@ describe('winding module (T2-07)', () => {
     });
     const instance = module.mount(container, props);
     // 初級 → 巻き始める → 少し巻く
-    (container.querySelector('button[data-testid="winding-level-1"]') as HTMLButtonElement).click();
+    (container.querySelector('button[data-testid="winding-puzzle-s1"]') as HTMLButtonElement).click();
     Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める')!.click();
     for (let i = 0; i < 4; i++) {
       Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '踏み込む')!.click();
@@ -388,7 +389,7 @@ describe('winding module (T2-07)', () => {
       .click();
     await wait(50);
     // 一覧に戻り、初級のボタンに「途中」が出る
-    const level1 = container.querySelector<HTMLButtonElement>('button[data-testid="winding-level-1"]')!;
+    const level1 = container.querySelector<HTMLButtonElement>('button[data-testid="winding-puzzle-s1"]')!;
     expect(level1).toBeDefined();
     expect(level1.textContent).toContain('途中');
     // 状態が保存されている (onStateChange が呼ばれ、帯の長さが進んだ状態が渡っている)
@@ -414,14 +415,14 @@ describe('winding module (T2-07)', () => {
     document.body.appendChild(container);
     const module = createWindingModule(deps);
     // 初級をクリアした記録を入れて中級も押せるようにする
-    await deps.records.add('winding', 3, { 'level:1': 3 });
+    await deps.records.add('winding', 3, { 'puzzle:s1': 3 });
     const stateChanges: unknown[] = [];
     const props = makeProps({
       onStateChange: (st: unknown) => stateChanges.push(st),
     });
     const instance = module.mount(container, props);
     // 初級で途中を作る
-    (container.querySelector('button[data-testid="winding-level-1"]') as HTMLButtonElement).click();
+    (container.querySelector('button[data-testid="winding-puzzle-s1"]') as HTMLButtonElement).click();
     Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める')!.click();
     for (let i = 0; i < 4; i++) {
       Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '踏み込む')!.click();
@@ -434,25 +435,28 @@ describe('winding module (T2-07)', () => {
     Array.from(container.querySelectorAll<HTMLButtonElement>('.dialog button'))
       .find((b) => b.textContent === '一覧に戻る')!.click();
     await wait(50);
-    // 中級 (別の難易度) を押す → 確認
-    (container.querySelector('button[data-testid="winding-level-2"]') as HTMLButtonElement).click();
+    // 次のお題 (別のお題) を押す → 確認
+    (container.querySelector('button[data-testid="winding-puzzle-s1-2"]') as HTMLButtonElement).click();
     await wait(50);
     const dialog = container.querySelector('.dialog');
-    expect(dialog?.textContent).toContain('途中の難易度があります');
+    expect(dialog?.textContent).toContain('途中のお題があります');
     // 「やめる」→ 一覧のまま (プレイ画面は開かない)
     Array.from(dialog!.querySelectorAll<HTMLButtonElement>('button'))
       .find((b) => b.textContent === 'やめる')!.click();
     await wait(50);
     expect(container.querySelector('.game-frame')).toBeNull();
-    expect(container.querySelector('button[data-testid="winding-level-2"]')).not.toBeNull();
-    // 今度は「始める」→ 中級のプレイ画面 (初級の resume ではない)
-    (container.querySelector('button[data-testid="winding-level-2"]') as HTMLButtonElement).click();
+    expect(container.querySelector('button[data-testid="winding-puzzle-s1-2"]')).not.toBeNull();
+    // 今度は「始める」→ 次のお題のプレイ画面 (途中の resume ではない)
+    (container.querySelector('button[data-testid="winding-puzzle-s1-2"]') as HTMLButtonElement).click();
     await wait(50);
     Array.from(container.querySelectorAll<HTMLButtonElement>('.dialog button'))
       .find((b) => b.textContent === '始める')!.click();
     await wait(50);
     expect(container.querySelector('.game-frame')).not.toBeNull();
-    expect(jsPanelText(container)).toContain('帯 1 / 5'); // 中級は5本
+    // s1-2 (段階1・黒の無地) のプレイ画面
+    expect(container.querySelector('.screen-header__subtitle')!.textContent).toContain(
+      getContent().patterns.get('p-muji-kuro')!.name,
+    );
     instance.unmount();
   });
 
@@ -612,7 +616,7 @@ describe('winding module T2-09 追加修正a (引っかかりのメッセージ�
   it('1. 引っかかったら、引っかかりのメッセージがすぐ出て、2秒ほど出続ける (張りの文には戻らない)', async () => {
     // 引っかかりは乱数で起きる。種を固定して、引っかかりが起きるまで tick を進める
     const { msg, btn } = await setup();
-    btn('初級帯 3本次はこれ'); // 一覧の行の文字 (名前・補足・状態)
+    btn('紺の無地帯 3本次はこれ'); // 一覧の行の文字 (名前・補足・状態)
     raf.advance(2);
     btn('巻き始める');
     raf.advance(2);
@@ -630,7 +634,7 @@ describe('winding module T2-09 追加修正a (引っかかりのメッセージ�
 
   it('2. 引っかかりが戻りきってから 500ms たつと、張りの文に戻る', async () => {
     const { btn, msg } = await setup();
-    btn('初級帯 3本次はこれ'); // 一覧の行の文字 (名前・補足・状態)
+    btn('紺の無地帯 3本次はこれ'); // 一覧の行の文字 (名前・補足・状態)
     raf.advance(2);
     btn('巻き始める');
     raf.advance(2);
@@ -654,7 +658,7 @@ describe('winding module T2-09 追加修正a (引っかかりのメッセージ�
     const plays2: string[] = [];
     const orig = deps.audio.play.bind(deps.audio);
     deps.audio.play = (n: Parameters<typeof deps.audio.play>[0]) => { plays2.push(n); return orig(n); };
-    btn('初級帯 3本次はこれ'); // 一覧の行の文字 (名前・補足・状態)
+    btn('紺の無地帯 3本次はこれ'); // 一覧の行の文字 (名前・補足・状態)
     raf.advance(2);
     btn('巻き始める');
     raf.advance(2);
@@ -707,7 +711,7 @@ describe('winding module T2-10 追加修正 a (ドラムの回る速さ・drumAn
 
   it('1. ペダル 50 で 1 秒進めると、drumAngle が 4.5〜5.5 増える (DRUM_TURN_PER_SPEED 0.25)', async () => {
     const container = await setup();
-    container.querySelector<HTMLButtonElement>('button[data-testid="winding-level-1"]')!.click();
+    container.querySelector<HTMLButtonElement>('button[data-testid="winding-puzzle-s1"]')!.click();
     await vi.waitFor(() => expect(btn(container, '巻き始める')).toBeDefined());
     btn(container, '巻き始める')!.click();
     // ペダル 50 (「踏み込む」×5)
@@ -727,7 +731,7 @@ describe('winding module T2-10 追加修正 a (ドラムの回る速さ・drumAn
 
   it('2. 糸が切れたあと・ペダル 0 のあいだは drumAngle が増えない', async () => {
     const container = await setup();
-    container.querySelector<HTMLButtonElement>('button[data-testid="winding-level-1"]')!.click();
+    container.querySelector<HTMLButtonElement>('button[data-testid="winding-puzzle-s1"]')!.click();
     await vi.waitFor(() => expect(btn(container, '巻き始める')).toBeDefined());
     btn(container, '巻き始める')!.click();
     // ペダルを踏まず (speed 0) のまま進める
@@ -770,7 +774,7 @@ describe('winding module T2-10 追加修正 b (なめらかな回り方・結ぶ
 
   async function startWinding(): Promise<HTMLElement> {
     const container = await setup();
-    container.querySelector<HTMLButtonElement>('button[data-testid="winding-level-1"]')!.click();
+    container.querySelector<HTMLButtonElement>('button[data-testid="winding-puzzle-s1"]')!.click();
     await vi.waitFor(() => expect(btn(container, '巻き始める')).toBeDefined());
     btn(container, '巻き始める')!.click();
     return container;
@@ -836,7 +840,7 @@ describe('winding module T2-11a (範囲が動くとメーターの帯も動く)'
     document.body.appendChild(container);
     const module = createWindingModule(deps);
     module.mount(container, makeProps());
-    container.querySelector<HTMLButtonElement>('button[data-testid="winding-level-1"]')!.click();
+    container.querySelector<HTMLButtonElement>('button[data-testid="winding-puzzle-s1"]')!.click();
     await vi.waitFor(() => {
       const b = Array.from(container.querySelectorAll('button')).find((x) => x.textContent === '巻き始める');
       expect(b).toBeDefined();
@@ -880,7 +884,7 @@ describe('PU-05c: ドラム巻きの結果のつなぎ', () => {
     again?: () => void;
     toList?: () => void;
   }> {
-    container.querySelector<HTMLButtonElement>('button[data-testid="winding-level-1"]')!.click();
+    container.querySelector<HTMLButtonElement>('button[data-testid="winding-puzzle-s1"]')!.click();
     const btn = (label: string): HTMLButtonElement | undefined =>
       Array.from(container.querySelectorAll('button')).find((b) => b.textContent === label);
     btn('巻き始める')!.click();
@@ -927,7 +931,7 @@ describe('PU-05c: ドラム巻きの結果のつなぎ', () => {
     return props.finished[0] as never;
   }
 
-  it('見出しの行の題名の下に今のお題「初級 …」が出る。終わると resultLines 4行・starHint・next「中級へ」・again・toList が渡る (T2-13c で4行に)', async () => {
+  it('見出しの行の題名の下に今のお題「段階1 …」が出る。終わると resultLines 4行・starHint・next「次のお題へ」・again・toList が渡る (T2-13c で4行に・T2-14a でお題)', async () => {
     const { deps } = await makeDeps();
     const container = document.createElement('div');
     document.body.appendChild(container);
@@ -935,11 +939,11 @@ describe('PU-05c: ドラム巻きの結果のつなぎ', () => {
     const props = makeProps();
     const instance = module.mount(container, props);
     const result = await finishLevel1(container, props);
-    expect(container.querySelector('.screen-header__subtitle')!.textContent).toContain('初級');
+    expect(container.querySelector('.screen-header__subtitle')!.textContent).toContain('段階1');
     expect(result.resultLines).toHaveLength(4);
     expect(result.resultLines?.some((l) => l.label.includes('違う端'))).toBe(false);
     expect(result.starHint).toBe('適正な張りが8割以上、目標の時間内で星3です');
-    expect(result.next?.label).toBe('中級へ');
+    expect(result.next?.label).toBe('次のお題へ');
     expect(typeof result.again).toBe('function');
     expect(typeof result.toList).toBe('function');
     instance.unmount();
@@ -954,12 +958,15 @@ describe('PU-05c: ドラム巻きの結果のつなぎ', () => {
     const instance = module.mount(container, props);
     const result = await finishLevel1(container, props);
     result.next!.start();
-    expect(container.querySelector('.screen-header__subtitle')!.textContent).toContain('中級');
+    // 次のお題は s1-2 (段階1・黒の無地)
+    expect(container.querySelector('.screen-header__subtitle')!.textContent).toContain('段階1');
+    expect(container.querySelector('.screen-header__subtitle')!.textContent).toContain(getContent().patterns.get('p-muji-kuro')!.name);
     result.again!();
-    expect(container.querySelector('.screen-header__subtitle')!.textContent).toContain('初級');
+    // やり直しは s1 (段階1・紺の無地)
+    expect(container.querySelector('.screen-header__subtitle')!.textContent).toContain(getContent().patterns.get('p-muji-kon')!.name);
     result.toList!();
     expect(container.querySelector('.game-frame')).toBeNull();
-    expect(container.querySelector('button[data-testid="winding-level-1"]')).not.toBeNull();
+    expect(container.querySelector('button[data-testid="winding-puzzle-s1"]')).not.toBeNull();
     instance.unmount();
   }, 60000);
 });

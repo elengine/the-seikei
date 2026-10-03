@@ -125,6 +125,15 @@ export const WING_OUT = 14;
 /** 羽の側面の幅の上限 (板の幅 × この割合。T2-13 追加修正: 端で側面が太すぎるのを直す) */
 export const WING_SIDE_MAX_RATIO = 0.4;
 
+/** 段階ごとの帯の数と難易度の数値 (T2-14a。クリール立てのお題15題をドラム巻きに割り当てる) */
+export const PUZZLE_STAGE: Record<number, { sections: number; level: Level }> = {
+  1: { sections: 3, level: 1 },
+  2: { sections: 4, level: 1 },
+  3: { sections: 5, level: 2 },
+  4: { sections: 6, level: 2 },
+  5: { sections: 7, level: 3 },
+};
+
 /** 帯の縞1本の高さ (論理座標。柄の並びを区画の中で繰り返す。T2-08 追加修正2) */
 export const STRIPE_H = 6;
 

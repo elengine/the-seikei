@@ -16,6 +16,8 @@ export type { Level } from './params';
 export interface WindingState {
   level: Level;
   patternId: string;
+  /** お題の id (T2-14a。クリール立てのお題と同じ。job モードなどお題でないときは空文字) */
+  puzzleId: string;
   sections: number; // 帯の数
   phase: 'ready' | 'winding' | 'broken' | 'cutting' | 'done';
   current: number; // 巻いている帯(0 始まり)
@@ -101,12 +103,13 @@ function rollRange(level: Level, rng: RngState): { range: { center: number; widt
 }
 
 /** 新しいゲームの状態。phase 'ready'、current 0、各配列は 0 で埋める */
-export function init(opts: { level: Level; patternId: string; sections: number; seed: number }): WindingState {
+export function init(opts: { level: Level; patternId: string; sections: number; seed: number; puzzleId?: string }): WindingState {
   const sections = opts.sections;
   const r = rollRange(opts.level, seedFrom(opts.seed));
   return {
     level: opts.level,
     patternId: opts.patternId,
+    puzzleId: opts.puzzleId ?? '',
     sections,
     phase: 'ready',
     current: 0,
@@ -300,7 +303,11 @@ export function isValidResume(x: unknown): x is WindingState {
   if (typeof r.center !== 'number' || typeof r.width !== 'number') return false;
   if (typeof r.min !== 'number' || typeof r.max !== 'number') return false;
   // rangeDir・rangeElapsedMs も必須 (無ければ古い形)
-    // T2-13c: 古い形 (brk.first がある) は再開しない
+    // T2-14a: puzzleId のキーが無い古い形の保存は再開しない (job モードなどの空文字は許す)
+  if (!('puzzleId' in o) || typeof o.puzzleId !== 'string') {
+    return false;
+  }
+  // T2-13c: 古い形 (brk.first がある) は再開しない
   if (o.brk && typeof o.brk === 'object' && 'first' in (o.brk as Record<string, unknown>)) {
     return false;
   }

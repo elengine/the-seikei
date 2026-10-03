@@ -6,10 +6,11 @@ import { isValidResume } from './logic';
 import type { Level } from './params';
 import { SECTIONS, STANDALONE_PATTERN } from './params';
 import type { WindingState } from './logic';
+import { windingPuzzles, puzzleById } from './puzzles';
+import type { WindingPuzzle } from './puzzles';
+import { getContent } from '../../core/content/content';
 import { confirmDialog } from '../../core/ui/widgets';
 import { showTutorial } from '../../core/ui/tutorialOverlay';
-
-const LEVEL_LABELS: Record<Level, string> = { 1: '初級', 2: '中級', 3: '上級' };
 
 /**
  * ドラム巻きのゲームモジュール (P2 T2-07・追加修正a)。
@@ -36,10 +37,10 @@ export function createWindingModule(deps: GameDeps): GameModule {
       /** 途中の状態 (最後に onStateChange で受け取った状態、または props.resume) */
       let savedState: unknown = props.resume;
 
-      /** 途中の状態の level (無ければ null) */
-      const savedLevel = (): Level | null =>
-        savedState !== null && savedState !== undefined && typeof savedState === 'object' && 'level' in savedState
-          ? ((savedState as { level: unknown }).level as Level)
+      /** 途中の状態のお題の id (無ければ null) */
+      const savedPuzzleId = (): string | null =>
+        savedState !== null && savedState !== undefined && typeof savedState === 'object' && 'puzzleId' in savedState
+          ? ((savedState as { puzzleId: unknown }).puzzleId as string)
           : null;
 
       /** プレイ画面を開く (resume は呼び出し側で明示する。props.resume を流用しない) */
@@ -48,6 +49,7 @@ export function createWindingModule(deps: GameDeps): GameModule {
         patternId: string,
         sections: number,
         resume: WindingState | undefined,
+        puzzle?: { id: string; stage: number; name: string },
         onBack: () => void = onBackFromPlay,
       ): void => {
         currentList?.destroy();
@@ -63,22 +65,36 @@ export function createWindingModule(deps: GameDeps): GameModule {
             ? {
                 ...props,
                 onFinish: (result) => {
-                  const nextLevel = level < 3 ? ((level + 1) as Level) : null;
+                  // 次のお題 (T2-14a)。今のお題をクリアしたので、次のお題は解放されている
+                  const puzzles = windingPuzzles(getContent());
+                  const idx = puzzle !== undefined ? puzzles.findIndex((p) => p.id === puzzle.id) : -1;
+                  const nextPuzzle = idx >= 0 && idx + 1 < puzzles.length ? puzzles[idx + 1]! : null;
+                  // 成績は best['puzzle:<id>'] (クリール立てと同じ形。level:N はもう読まない)
+                  const stats =
+                    puzzle !== undefined
+                      ? { ...result.stats, [`puzzle:${puzzle.id}`]: result.stars }
+                      : result.stats;
                   props.onFinish({
                     ...result,
+                    stats,
                     next:
-                      nextLevel !== null
+                      nextPuzzle !== null
                         ? {
-                            label: `${LEVEL_LABELS[nextLevel]}へ`,
+                            label: '次のお題へ',
                             start: () => {
                               leavePlay();
-                              startPlay(nextLevel, STANDALONE_PATTERN(nextLevel), SECTIONS(nextLevel), undefined);
+                              startPlay(nextPuzzle.level, nextPuzzle.patternId, nextPuzzle.sections, undefined, {
+                                id: nextPuzzle.id,
+                                stage: nextPuzzle.stage,
+                                name: nextPuzzle.name,
+                              });
                             },
                           }
                         : undefined,
                     again: () => {
                       leavePlay();
-                      startPlay(level, STANDALONE_PATTERN(level), SECTIONS(level), undefined);
+                      startPlay(level, STANDALONE_PATTERN(level), SECTIONS(level), undefined,
+                        puzzle !== undefined ? { id: puzzle.id, stage: puzzle.stage, name: puzzle.name } : undefined);
                     },
                     toList: () => {
                       leavePlay();
@@ -95,6 +111,9 @@ export function createWindingModule(deps: GameDeps): GameModule {
           resume,
           tutorial: windingTutorial,
           onBack,
+          puzzleStage: puzzle?.stage,
+          puzzleName: puzzle?.name,
+          puzzleId: puzzle?.id,
         });
       };
 
@@ -125,13 +144,13 @@ export function createWindingModule(deps: GameDeps): GameModule {
         })();
       };
 
-      /** 別の難易度を選んだときの確認 (途中の難易度があれば出す) */
-      async function selectLevel(level: Level): Promise<void> {
-        const resumeLevel = savedLevel();
-        if (resumeLevel !== null && resumeLevel !== level) {
+      /** 別のお題を選んだときの確認 (途中のお題があれば出す) */
+      async function selectPuzzle(puzzle: WindingPuzzle): Promise<void> {
+        const savedId = savedPuzzleId();
+        if (savedId !== null && savedId !== '' && savedId !== puzzle.id) {
           const start = await confirmDialog(container, {
             title: '新しく始めますか',
-            message: '途中の難易度があります。新しく始めると、途中の状態は消えます。始めますか?',
+            message: '途中のお題があります。新しく始めると、途中の状態は消えます。始めますか?',
             okLabel: '始める',
             cancelLabel: 'やめる',
           });
@@ -143,12 +162,16 @@ export function createWindingModule(deps: GameDeps): GameModule {
           }
           savedState = undefined; // 新しく始めるので途中は消す
         }
-        // 選んだ難易度が途中の難易度なら、その状態から再開する
+        // 選んだお題が途中のお題なら、その状態から再開する
         const resume =
-          resumeLevel === level && savedState !== undefined && isValidResume(savedState)
+          savedId === puzzle.id && savedState !== undefined && isValidResume(savedState)
             ? (savedState as WindingState)
             : undefined;
-        startPlay(level, STANDALONE_PATTERN(level), SECTIONS(level), resume);
+        startPlay(puzzle.level, puzzle.patternId, puzzle.sections, resume, {
+          id: puzzle.id,
+          stage: puzzle.stage,
+          name: puzzle.name,
+        });
       }
 
       /** 難易度の一覧を開く (途中の状態は消さない) */
@@ -157,12 +180,15 @@ export function createWindingModule(deps: GameDeps): GameModule {
         currentList = createListView(container, {
           records: deps.records,
           title: deps.terms.t('game.winding'),
-          savedLevel: savedLevel(),
+          savedPuzzleId: savedPuzzleId(),
           onTutorial: () => {
             void showTutorial(container, windingTutorial, { renderText: (s) => deps.terms.render(s) });
           },
-          onSelect: (level: Level) => {
-            void selectLevel(level);
+          onSelect: (puzzleId: string) => {
+            const puzzle = puzzleById(getContent(), puzzleId);
+            if (puzzle !== null) {
+              void selectPuzzle(puzzle);
+            }
           },
           onExit: () => props.onExit(),
         });
@@ -172,7 +198,7 @@ export function createWindingModule(deps: GameDeps): GameModule {
       // 「戻る」は props.onExit (追加修正a: 仕事モードは確認なしでホームへ)
       if (props.mode === 'job' && props.job !== undefined) {
         const job = props.job;
-        startPlay(job.difficulty, job.patternId, job.sections, undefined, () => props.onExit());
+        startPlay(job.difficulty, job.patternId, job.sections, undefined, undefined, () => props.onExit());
         return wrap();
       }
 
@@ -180,7 +206,15 @@ export function createWindingModule(deps: GameDeps): GameModule {
       // props.resume は最初の1回だけ使う (T1-15 追加修正の教訓)
       if (props.resume !== undefined && isValidResume(props.resume)) {
         const state = props.resume as WindingState;
-        startPlay(state.level, state.patternId, state.sections, state);
+        // 途中保存のお題の情報 (古い形で puzzleId が無い/空なら、お題でない扱いで開く)
+        const puzzle =
+          state.puzzleId !== ''
+            ? (() => {
+                const p = puzzleById(getContent(), state.puzzleId);
+                return p !== null ? { id: p.id, stage: p.stage, name: p.name } : undefined;
+              })()
+            : undefined;
+        startPlay(state.level, state.patternId, state.sections, state, puzzle);
         return wrap();
       }
 

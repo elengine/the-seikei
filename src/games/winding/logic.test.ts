@@ -469,3 +469,20 @@ describe('winding logic T2-11a (どの状態でも範囲に届く・範囲が動
     expect(trace).toEqual(run(3)); // 同じ種なら同じ動き
   });
 });
+
+describe('winding logic T2-14a (お題15題・puzzleId)', () => {
+  it('1. init に puzzleId を渡すと、State が puzzleId を持つ。帯の数はお題どおり', () => {
+    const s = init({ level: 2, patternId: 'p-chalk-char', sections: 5, seed: 7, puzzleId: 's3' });
+    expect(s.puzzleId).toBe('s3');
+    expect(s.sections).toBe(5);
+  });
+
+  it('2. 途中保存: puzzleId が無い古い形は再開しない。puzzleId があれば再開できる', () => {
+    const s = init({ level: 1, patternId: 'p-muji-kon', sections: 3, seed: 1, puzzleId: 's1' });
+    expect(isValidResume(s)).toBe(true);
+    // 古い形: puzzleId のキーそのものが無い
+    const old = JSON.parse(JSON.stringify(s)) as Record<string, unknown>;
+    delete old.puzzleId;
+    expect(isValidResume(old as never)).toBe(false);
+  });
+});
