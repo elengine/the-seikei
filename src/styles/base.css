@@ -1051,51 +1051,48 @@ button {
 .pedal-control {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-3);
-  align-items: flex-start;
+  gap: var(--sp-2);
+  align-items: stretch;
+  min-width: 0;
 }
 
+/* 戻す | 横長の溝 | 踏み込む。溝は操作欄いっぱいに広がる (PU-09c) */
 .pedal__row {
   display: flex;
-  gap: var(--gap);
+  gap: var(--sp-3);
   align-items: center;
-  /* 操作欄の幅に合わせて縮む (T2-08 追加修正b) */
   min-width: 0;
   max-width: 100%;
 }
 
 .pedal__groove {
   position: relative;
-  width: 180px;
+  flex: 1 1 0;
   min-width: 120px; /* 細い操作欄でも押せる (T2-08 追加修正b) */
-  flex: 0 1 auto;
-  height: 260px;
+  height: 64px;
   background: var(--c-kinari-deep);
   border: 2px solid var(--c-line);
   border-radius: var(--r-button);
+  box-sizing: border-box;
   touch-action: none;
 }
 
 .pedal__bar {
   position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 160px;
+  top: 3px;
+  left: 0;
+  width: 64px;
   max-width: calc(100% - 8px); /* 溝より広げない (T2-08 追加修正b) */
-  height: 64px;
+  height: calc(100% - 6px);
   background: var(--c-wood);
   border-radius: var(--r-small);
   touch-action: none;
 }
 
-.pedal__buttons {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-4);
-}
-
+/* 速さの表示は溝の右上に小さく (20px 以上) */
 .pedal__value {
-  font-size: var(--fs-number);
+  align-self: flex-end;
+  font-size: var(--fs-body);
   color: var(--c-sumi);
 }
 
@@ -1200,10 +1197,6 @@ button {
 
 /* 縦長ではペダルの溝を低くして、操作欄をスクロールなしで見えるようにする (T2-07 追加修正b) */
 @media (max-aspect-ratio: 4/5) {
-  .pedal__groove {
-    height: 160px;
-  }
-
   .winding-panel,
   .winding-panel__pedal,
   .pedal-control,
