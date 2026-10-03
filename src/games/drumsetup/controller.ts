@@ -74,6 +74,9 @@ export function createDrumSetupController(
     openCalculatorBody(sheet.body, {
       onUse: (v) => {
         applyAction({ type: 'setFeed', value: v });
+        // 入れたら電卓を閉じる (盤面と「試し巻き」を見られるように)
+        closeCalc?.();
+        closeCalc = null;
       },
     });
     closeCalc = sheet.close;
