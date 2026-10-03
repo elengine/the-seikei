@@ -35,6 +35,11 @@ export function createDrumSetupController(
   const p = opts.puzzle;
   /** 盤面の変換 (resize のあとに更新される) */
   let lastFit: StageFit | null = null;
+  /** 今出している絵の状態 (試し巻きの進行と結果の文字) */
+  let viewProgress = 0;
+  let viewShowResult = false;
+  /** 最後に描いたときの fit (リサイズされたら描き直す) */
+  let lastPaintedFit: StageFit | null = null;
   let s: DrumSetupState = props.resume !== undefined ? (props.resume as DrumSetupState) : init(p);
 
   const frame = createGameFrame(parent, {
@@ -83,14 +88,22 @@ export function createDrumSetupController(
     },
   });
 
-  /** 1回分の描画 (盤面 + メッセージ) */
+  /** 1回分の描画 (盤面 + メッセージ)。progress と結果の文字の状態を覚えておく */
   function render(progress: number, showResult: boolean): void {
+    viewProgress = progress;
+    viewShowResult = showResult;
+    paint();
+  }
+
+  /** 今の状態で盤面とメッセージを描く */
+  function paint(): void {
     panel.update(s);
     frame.message.textContent = messageFor(s, (t) => deps.terms.t(t));
     const fit = lastFit;
     if (fit === null) {
       return;
     }
+    lastPaintedFit = fit;
     const ctx = frame.stage.getContext('2d');
     if (ctx === null) {
       return;
@@ -99,8 +112,8 @@ export function createDrumSetupController(
       angle: s.angle,
       feed: s.feed,
       outcome: s.lastResult !== null ? s.lastResult.outcome : null,
-      progress,
-      showResult,
+      progress: viewProgress,
+      showResult: viewShowResult,
     }, content);
   }
 
@@ -128,7 +141,12 @@ export function createDrumSetupController(
       done = true;
       finish();
     }
-    render(a.type === 'trial' && s.phase === 'trial' ? 0 : 1, s.phase === 'done');
+    // 試し巻きのあいだは 0 から積み上げる。それ以外は、結果があれば絵と文字を残す
+    if (a.type === 'trial' && s.phase === 'trial') {
+      render(0, false);
+    } else {
+      render(s.lastResult !== null ? 1 : 0, s.lastResult !== null);
+    }
   }
 
   /** 結果の画面 (gameScreen) へ渡す */
@@ -158,6 +176,8 @@ export function createDrumSetupController(
   const loop = createGameLoop(frame, (dtMs) => {
     if (s.phase === 'trial') {
       stepTrial(dtMs);
+    } else if (lastFit !== null && lastFit !== lastPaintedFit) {
+      paint(); // リサイズで Canvas が作り直されたら描き直す
     }
   });
 
@@ -170,8 +190,8 @@ export function createDrumSetupController(
   }
   document.addEventListener('visibilitychange', onVisibility);
 
-  // 初回表示
-  render(1, false);
+  // 初回表示 (層はまだ積んでいない。試し巻きで積み上がる)
+  render(0, false);
   loop.start();
 
   return {
