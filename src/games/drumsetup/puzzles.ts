@@ -82,3 +82,8 @@ export function drumSetupPuzzles(content: Content): DrumSetupPuzzle[] {
   }
   return out;
 }
+
+/** id でお題を探す (無ければ null) */
+export function puzzleById(content: Content, id: string): DrumSetupPuzzle | null {
+  return drumSetupPuzzles(content).find((p) => p.id === id) ?? null;
+}

@@ -20,6 +20,8 @@
   "machine": { "value": "整経機", "description": "部分整経機" },
   "tension": { "value": "張り", "description": "糸の引っ張られる強さ" },
   "game.creel": { "value": "クリール立て", "description": "ゲームの名前" },
+  "game.drumsetup": { "value": "ドラム設定", "description": "ゲームの名前" },
+  "drumsetup.calculator": { "value": "電卓", "description": "ドラム設定の電卓の見出し" },
   "game.winding": { "value": "ドラム巻き", "description": "ゲームの名前" },
   "game.beaming": { "value": "ビーミング", "description": "ゲームの名前" },
   "game.shop": { "value": "整経屋の一日", "description": "ゲームの名前" },

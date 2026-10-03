@@ -26,7 +26,7 @@ export function createHomeScreen(ctx: AppContext): Screen {
   const timers = new Set<ReturnType<typeof setTimeout>>();
 
   function card(opts: {
-    kind: 'creel' | 'winding' | 'soon';
+    kind: 'creel' | 'drumsetup' | 'winding' | 'soon';
     name: string;
     summary: string;
     status: string;
@@ -90,7 +90,12 @@ export function createHomeScreen(ctx: AppContext): Screen {
       for (const m of listGames()) {
         games.appendChild(
           card({
-            kind: m.id === 'winding' ? 'winding' : 'creel',
+            kind:
+              m.id === 'winding'
+                ? 'winding'
+                : m.id === 'drumsetup'
+                  ? 'drumsetup'
+                  : 'creel',
             name: ctx.terms.t(m.titleTermKey),
             summary: m.summary ?? '',
             status: gameStatusText(m.id),

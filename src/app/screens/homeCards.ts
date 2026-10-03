@@ -14,7 +14,7 @@ function shape(parent: SVGElement, tag: 'rect' | 'circle' | 'line', attrs: Attrs
 }
 
 /** カードの小さな絵 (200x100 の四角と丸だけの簡単な絵) */
-export function createCardArt(kind: 'creel' | 'winding' | 'soon'): SVGElement {
+export function createCardArt(kind: 'creel' | 'drumsetup' | 'winding' | 'soon'): SVGElement {
   const svg = document.createElementNS(NS, 'svg');
   svg.setAttribute('viewBox', '0 0 200 100');
   svg.setAttribute('aria-hidden', 'true');
@@ -31,6 +31,14 @@ export function createCardArt(kind: 'creel' | 'winding' | 'soon'): SVGElement {
       shape(svg, 'circle', { cx, cy: 32, r: 6, fill: COLORS.white });
       shape(svg, 'circle', { cx, cy: 32, r: 2.5, fill: COLORS.sumi });
       shape(svg, 'circle', { cx, cy: 72, r: 12, fill: COLORS.woodLight });
+    });
+  } else if (kind === 'drumsetup') {
+    // ドラムの断面: 表面の板と、右上へ登る羽と、積み上がる層
+    shape(svg, 'rect', { x: 24, y: 78, width: 152, height: 12, fill: COLORS.wood });
+    shape(svg, 'line', { x1: 86, y1: 78, x2: 158, y2: 22, stroke: COLORS.wood, 'stroke-width': 7 });
+    const layers = [COLORS.ai, COLORS.ai, COLORS.ai, COLORS.ai];
+    layers.forEach((c, i) => {
+      shape(svg, 'rect', { x: 34, y: 68 - i * 10, width: 46 + i * 14, height: 8, fill: c });
     });
   } else if (kind === 'winding') {
     // ドラム: 上下の円盤と、糸の縞
@@ -71,6 +79,9 @@ export function createCardArt(kind: 'creel' | 'winding' | 'soon'): SVGElement {
 /** 登録済みのゲームの状態の文字 (内容のデータから数える) */
 export function gameStatusText(id: string): string {
   if (id === 'creel') {
+    return `お題 ${getContent().creelPuzzles.length}`;
+  }
+  if (id === 'drumsetup') {
     return `お題 ${getContent().creelPuzzles.length}`;
   }
   if (id === 'winding') {

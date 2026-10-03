@@ -12,6 +12,7 @@ import { createAdminScreen } from './app/screens/adminScreen';
 import { createGameScreen } from './app/screens/gameScreen';
 import { registerGame } from './core/game/registry';
 import { createCreelModule } from './games/creel';
+import { createDrumSetupModule } from './games/drumsetup';
 import { createWindingModule } from './games/winding';
 import { gameDepsFrom } from './app/context';
 import { getContent } from './core/content/content';
@@ -80,6 +81,7 @@ async function main(): Promise<void> {
 
   // ゲームの登録 (クリール立て・ドラム巻き)。内容データの問題があればログに残す
   registerGame(createCreelModule(gameDepsFrom(ctx)));
+  registerGame(createDrumSetupModule(gameDepsFrom(ctx)));
   registerGame(createWindingModule(gameDepsFrom(ctx)));
   const contentProblems = getContent().problems;
   if (contentProblems.length > 0) {
