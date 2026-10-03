@@ -1,8 +1,8 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-10-04T06:00:00+09:00",
+  "updated_at": "2026-10-04T08:30:00+09:00",
   "phase": "P0",
-  "current_task": "P2c (ドラム設定) 完了・受け入れ済み (T2c-01〜03 + 追加修正)。次はビーム巻きの仕様待ち。",
+  "current_task": "T2c-04a 完了 (報告済み)。T2c-04b (電卓を大きなポップアップに) 着手",
   "done": [
     "T0-00",
     "T0-01",
@@ -86,12 +86,14 @@
     "T2c-01",
     "T2c-02",
     "T2c-03a: ドラム設定の操作欄と電卓と進行",
-    "T2c-03b: ドラム設定の一覧と遊び方とモジュール (ホームのカード)"
+    "T2c-03b: ドラム設定の一覧と遊び方とモジュール (ホームのカード)",
+    "T2c-04a: 羽を左に開いて太く・ボタン1行4つ・巻く・遊び方の絵 (6ecddf9+6020341)"
   ],
   "checks": {
     "T2c-02": "10 passed (geometry 3 + renderer 7), 全体 714 passed/11 skipped, check 0, CI success (52eb34a)",
     "T2c-03": "check 0 / 738 passed + 11 skipped / build OK / CI success (fcdc826, a02ff1f, bac2aaa, fb4113d, 9351333) / ブラウザ確認済み (1180x820, 412x915, 915x412)",
-    "T2c-03-fix": "check 0 / 744 passed + 11 skipped / build OK / CI success (e15c4b0, 3903f8b) / ブラウザ確認済み (1180x820, 412x915)"
+    "T2c-03-fix": "check 0 / 744 passed + 11 skipped / build OK / CI success (e15c4b0, 3903f8b) / ブラウザ確認済み (1180x820, 412x915)",
+    "T2c-04a": "T2c-04a: 787 passed/check0/CI success/ブラウザ確認 (wide・412px ともはみ出し0)"
   },
   "notes": [
     "保存データをキャッシュして使う部品は、必ず repo.subscribe で外からの変更を見張り、読み直す (terms・settings は対応済み)。",

@@ -1393,3 +1393,10 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 ### T2c-03 追加修正の受け入れ (2026-10-04)
 
 - kokuten が a・b を確認し受け入れ。P2c (ドラム設定) はひと区切り。次はビーム巻き (仕様待ち)。
+
+## 2026-10-04 T2c-04a (ルビー)
+- 羽を左に開いて太く (WING_BASE を区画の左側へ、WING_THICK_PX=土台の2/3)。slopeXAt/層の端を左右入れ替え (layerLeftEdgeX)。
+- 角度・送り量のボタンを1行に4つ (grid 4列・nowrap・細い幅では20px)。412px で横スクロール0。
+- 「試し巻き」→「巻く」(ボタン・messages・押せない理由)。○は角度の下へ。
+- 遊び方の絵を本編と同じ左右に入れ替え、文字24px以上、文字と絵を重ねない。
+- controller.test.ts はボタン名の置換のみ (controller.ts 本体は不変)。787 passed・CI success。
