@@ -11,9 +11,25 @@ export interface Sheet {
   isOpen(): boolean;
 }
 
-export function openSheet(opts: { parent: HTMLElement; title: string; onClose?: () => void }): Sheet {
+/**
+ * size: 'half' (既定) は画面の下半分。'tall' は、親の中の見出しの行 (.screen-header) の下端から画面の下まで (PU-11b)。
+ * 画面の大きさが変わる (回す・広げる) と、見出しの行の下端を測り直す。
+ */
+export function openSheet(opts: { parent: HTMLElement; title: string; size?: 'half' | 'tall'; onClose?: () => void }): Sheet {
   const root = document.createElement('div');
   root.classList.add('sheet');
+  const tall = opts.size === 'tall';
+  if (tall) {
+    root.classList.add('sheet--tall');
+  }
+  /** tall の上端 (見出しの行の下端)。測れないとき (高さ 0) は CSS の既定 (画面の上から 25%) のまま */
+  function placeTop(): void {
+    const bar = opts.parent.querySelector<HTMLElement>('.screen-header');
+    const bottom = bar !== null ? bar.getBoundingClientRect().bottom : 0;
+    if (bottom > 0) {
+      root.style.setProperty('--sheet-top', `${Math.round(bottom)}px`);
+    }
+  }
   root.setAttribute('role', 'dialog');
   root.setAttribute('aria-label', opts.title);
 
@@ -52,6 +68,9 @@ export function openSheet(opts: { parent: HTMLElement; title: string; onClose?: 
   root.appendChild(body);
 
   let open = true;
+  if (tall) {
+    window.addEventListener('resize', placeTop);
+  }
   const api: Sheet = {
     root,
     body,
@@ -60,11 +79,15 @@ export function openSheet(opts: { parent: HTMLElement; title: string; onClose?: 
         return;
       }
       open = false;
+      window.removeEventListener('resize', placeTop);
       root.remove();
       opts.onClose?.();
     },
     isOpen: () => open,
   };
   opts.parent.appendChild(root);
+  if (tall) {
+    placeTop(); // 親に付けてから測る
+  }
   return api;
 }

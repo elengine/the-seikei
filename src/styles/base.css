@@ -711,6 +711,18 @@ body {
   font-weight: bold;
 }
 
+/* 色の記号と色名 (24px) */
+.creel-order-row__color {
+  font-size: var(--fs-label);
+}
+
+/* 個数「× N」(32px 以上の太字。PU-11b) */
+.creel-order-row__count {
+  font-size: var(--fs-number);
+  font-weight: bold;
+  white-space: nowrap;
+}
+
 /* 何本目から何本目か (段階1〜3) */
 .creel-order-row__sub {
   grid-column: 1 / -1; /* 幅が狭くても収まるよう、行の下の段に置く */
@@ -766,6 +778,7 @@ body {
 .creel-box {
   position: relative;
   box-sizing: border-box;
+  flex: 1 1 auto; /* 1 行に入るだけ並べて、幅を分け合う */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -807,9 +820,10 @@ body {
 }
 
 .creel-box__hinban {
-  font-size: var(--fs-number);
+  font-size: var(--fs-label); /* 24px (段階1)。操作欄の幅で 2 つ並べるため、依頼書の行 (32px) よりひと回り小さく */
   font-weight: bold;
   line-height: 1.2;
+  white-space: nowrap; /* 品番は折り返さない (箱の幅が品番に合わせて広がる) */
 }
 
 /* 箱の中のチーズの絵 (引っぱるチーズ .creel-drag と同じ描き方。--creel-drag-body / --creel-drag-core は panel が付ける) */
@@ -1913,7 +1927,9 @@ button {
 
 .game-frame--compact[data-layout='portrait'] .creel-box {
   flex: none;
-  width: 120px;
+  min-width: 120px; /* 品番が長いときは広がる (横に送る) */
+  padding-left: var(--sp-2);
+  padding-right: var(--sp-2);
   touch-action: pan-x;
 }
 
@@ -1924,6 +1940,7 @@ button {
 }
 
 .game-frame--compact[data-layout='landscape'] .creel-box {
+  flex: none;
   width: 100%;
   touch-action: pan-y;
 }
@@ -1950,6 +1967,12 @@ button {
   border: 1px solid var(--c-line);
   border-bottom: none;
   overflow: hidden;
+}
+
+/* 縦に長い形 (PU-11b): 見出しの行の下から画面の下まで。上端は sheet.ts が --sheet-top に入れる */
+.sheet--tall {
+  top: var(--sheet-top, 25%);
+  height: auto;
 }
 
 .sheet__header {

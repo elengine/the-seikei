@@ -69,9 +69,11 @@ export function createCreelPanel(parent: HTMLElement, opts: {
   boxes.dataset.testid = 'creel-boxes';
   boxesBox.appendChild(boxes);
 
-  // ---- 3. 一番下: ヒント (左) と 確認する (右・主) ----
+  // ---- 3. 一番下: ヒント (左) と 完了 (右・主) ----
   const actions = document.createElement('div');
   actions.classList.add('creel-actions');
+  // 最後に update で受けた状態 (ヒントを使ったあとのメッセージに、残りの ✕ の数を出すため)
+  let current: CreelState | null = null;
   const hintBtn = createButton({
     label: 'ヒント',
     variant: 'secondary',
@@ -80,10 +82,18 @@ export function createCreelPanel(parent: HTMLElement, opts: {
     onLocked: (reason) => {
       message.textContent = reason;
     },
-    onClick: () => opts.onAction({ type: 'hint' }),
+    onClick: () => {
+      const before = current;
+      opts.onAction({ type: 'hint' });
+      if (before !== null && before.marks !== null) {
+        // 使ったあとの残り (1 回で ✕ を 1 つ直す)。onAction の中でメッセージが書き換わるので、そのあとに書く
+        const rest = before.marks.wrong.length + before.marks.empty.length - 1;
+        message.textContent = rest > 0 ? `ヒントを使いました。あと ${rest} 回使えます` : 'ヒントを使いました';
+      }
+    },
   });
   const checkBtn = createButton({
-    label: '確認する',
+    label: '完了',
     variant: 'primary',
     testId: 'creel-check',
     onClick: () => opts.onAction({ type: 'check' }),
@@ -113,6 +123,7 @@ export function createCreelPanel(parent: HTMLElement, opts: {
     const opened = openSheet({
       parent: frameEl ?? parent,
       title: '依頼書',
+      size: 'tall',
       onClose: () => {
         sheet = null;
         orderTable.remove(); // 詰めた形では、閉じているあいだ表は操作欄に置かない
@@ -182,9 +193,9 @@ export function createCreelPanel(parent: HTMLElement, opts: {
   /** 状態に合わせて表示を更新する */
   function render(s: CreelState): void {
     // ヒント: 押せないときは点線の枠にして、押すと理由を出す
+    current = s;
     const reason = hintLockedReason(s);
     setLockedReason(hintBtn, reason);
-    hintBtn.textContent = s.checks < HINT_MIN_CHECKS ? `ヒント(あと ${HINT_MIN_CHECKS - s.checks} 回)` : 'ヒント';
 
     // 1. 依頼書。くりかえし (times>=2 かつ unit.length>=2) なら「1リピート分」の表にして、
     //    その下に「↻ 繰り返し × N」の1行を足す。段階1〜3 だけ、何本目かを書き添える

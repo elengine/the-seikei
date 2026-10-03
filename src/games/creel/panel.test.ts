@@ -190,13 +190,14 @@ describe('createCreelPanel', () => {
     expect(box).toContain('border-radius: 6px');
     expect(css.match(/\.creel-box::before\s*\{([^}]*)\}/)![1]).toContain('var(--c-cardboard-dark)');
     expect(css.match(/\.creel-box::after\s*\{([^}]*)\}/)![1]).toContain('var(--c-cardboard-tape)');
+    expect(css.match(/\n\.creel-box__hinban\s*\{([^}]*)\}/)![1]).toContain('white-space: nowrap'); // 品番は折り返さない
     const cheese = css.match(/\n\.creel-box__cheese\s*\{([^}]*)\}/)![1]!;
     expect(parseInt(cheese.match(/width: (\d+)px/)![1]!, 10)).toBeGreaterThanOrEqual(48);
     const compact = css.match(/\.game-frame--compact \.creel-box__cheese\s*\{([^}]*)\}/)![1]!;
     expect(parseInt(compact.match(/width: (\d+)px/)![1]!, 10)).toBeGreaterThanOrEqual(48);
   });
 
-  it('PU-05b: 「確認する」は primary で、操作欄の一番下の右。「ヒント」はその左 (secondary)', () => {
+  it('PU-05b: 「完了」は primary で、操作欄の一番下の右。「ヒント」はその左 (secondary)', () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);
     const panel = createCreelPanel(parent, { content, onAction: () => undefined });
@@ -372,29 +373,83 @@ describe('createCreelPanel', () => {
   });
 });
 
-describe('T1-20: ヒントボタンの文字に条件を出す', () => {
-  it('最初は「ヒント(あと 2 回)」で押せない。1回確認して ✕ があると「ヒント(あと 1 回)」。2回で「ヒント」になり押せる', () => {
+describe('PU-11b: ボタンは「ヒント」と「完了」(どちらも 1 行)。ヒントの残りはメッセージで伝える', () => {
+  function withMessage(): { parent: HTMLElement; msg: HTMLElement; panel: CreelPanel; onAction: ReturnType<typeof vi.fn> } {
     const parent = document.createElement('div');
     document.body.appendChild(parent);
+    const msg = document.createElement('div');
+    document.body.appendChild(msg);
     const onAction = vi.fn();
-    const panel = createCreelPanel(parent, { content, onAction });
+    const panel = createCreelPanel(parent, { content, onAction, message: msg });
+    return { parent, msg, panel, onAction };
+  }
+
+  it('ボタンの文字は常に「ヒント」と「完了」。ヒントの文字に回数は入らない (確認の前でも後でも)', () => {
+    const { parent, panel } = withMessage();
     let s = s2State();
-    // 最初 (checks 0)
     panel.update(s);
-    const hint0 = parent.querySelector<HTMLButtonElement>('[data-testid="creel-hint"]')!;
-    expect(hint0.textContent).toBe('ヒント(あと 2 回)');
-    expect(hint0.classList.contains('btn--locked')).toBe(true);
-    // 1回確認 (✕ が出る)
+    const hint = parent.querySelector<HTMLButtonElement>('[data-testid="creel-hint"]')!;
+    const check = parent.querySelector<HTMLButtonElement>('[data-testid="creel-check"]')!;
+    expect(hint.textContent).toBe('ヒント');
+    expect(check.textContent).toBe('完了');
     const wrong: CreelState = { ...s, placed: ['shiro-a', 'kon-a', null, null, null, null, null, null] };
     s = reduce(wrong, { type: 'check' });
     panel.update(s);
-    expect(hint0.textContent).toBe('ヒント(あと 1 回)');
-    expect(hint0.classList.contains('btn--locked')).toBe(true);
-    // 2回確認 → 使える
+    expect(hint.textContent).toBe('ヒント');
     s = reduce(s, { type: 'check' });
     panel.update(s);
-    expect(hint0.textContent).toBe('ヒント');
-    expect(hint0.classList.contains('btn--locked')).toBe(false);
+    expect(hint.textContent).toBe('ヒント');
+    expect(check.textContent).toBe('完了');
+    panel.destroy();
+  });
+
+  it('使えないあいだの見た目は点線の枠 (btn--locked)。押すと今までの理由がメッセージに出る。2回確認して ✕ があると押せる', () => {
+    const { parent, msg, panel, onAction } = withMessage();
+    let s = s2State();
+    panel.update(s);
+    const hint = parent.querySelector<HTMLButtonElement>('[data-testid="creel-hint"]')!;
+    expect(hint.classList.contains('btn--locked')).toBe(true);
+    hint.click();
+    expect(msg.textContent).toBe('2回確認すると使えます');
+    const wrong: CreelState = { ...s, placed: ['shiro-a', 'kon-a', null, null, null, null, null, null] };
+    s = reduce(wrong, { type: 'check' });
+    panel.update(s);
+    hint.click();
+    expect(msg.textContent).toBe('あと 1 回確認すると使えます');
+    expect(onAction).not.toHaveBeenCalled();
+    s = reduce(s, { type: 'check' });
+    panel.update(s);
+    expect(hint.classList.contains('btn--locked')).toBe(false);
+    panel.destroy();
+  });
+
+  it('使えるときに押すと onAction(hint) を呼び、メッセージに「ヒントを使いました。あと N 回使えます」(N = 残りの ✕ の数)', () => {
+    const { parent, msg, panel, onAction } = withMessage();
+    let s = s2State();
+    const wrong: CreelState = { ...s, placed: ['shiro-a', 'kon-a', null, null, null, null, null, null] };
+    s = reduce(wrong, { type: 'check' });
+    s = reduce(s, { type: 'check' });
+    const marks = s.marks!;
+    const total = marks.wrong.length + marks.empty.length;
+    expect(total).toBeGreaterThan(1);
+    panel.update(s);
+    parent.querySelector<HTMLButtonElement>('[data-testid="creel-hint"]')!.click();
+    expect(onAction).toHaveBeenCalledWith({ type: 'hint' });
+    expect(msg.textContent).toBe(`ヒントを使いました。あと ${total - 1} 回使えます`);
+    panel.destroy();
+  });
+
+  it('最後の 1 つを直したときは「あと 0 回」とは言わず、「ヒントを使いました」だけ', () => {
+    const { parent, msg, panel } = withMessage();
+    let s = s2State();
+    const almost: CreelState = { ...s, placed: [...s.answer] };
+    almost.placed[0] = 'shiro-a'; // 1 か所だけ違う
+    s = reduce(almost, { type: 'check' });
+    s = reduce(s, { type: 'check' });
+    expect(s.marks!.wrong.length + s.marks!.empty.length).toBe(1);
+    panel.update(s);
+    parent.querySelector<HTMLButtonElement>('[data-testid="creel-hint"]')!.click();
+    expect(msg.textContent).toBe('ヒントを使いました');
     panel.destroy();
   });
 });
@@ -462,6 +517,7 @@ describe('PU-09b: 詰めた形の操作欄 (依頼書を見る・箱の横送り
     btn.click();
     const sheet = c.frameEl.querySelector('.sheet')!;
     expect(sheet).not.toBeNull();
+    expect(sheet.classList.contains('sheet--tall')).toBe(true); // 見出しの行の下から画面の下まで (PU-11b)
     expect(sheet.querySelector('.sheet__title')!.textContent).toBe('依頼書');
     const rows = sheet.querySelectorAll('[data-testid="creel-order-row"]');
     expect(rows).toHaveLength(2);
@@ -520,8 +576,33 @@ describe('PU-09b: 詰めた形の操作欄 (依頼書を見る・箱の横送り
     expect(row![1]).toContain('overflow-x: auto');
     const box = css.match(/\.game-frame--compact\[data-layout='portrait'\] \.creel-box\s*\{([^}]*)\}/);
     expect(box![1]).toContain('touch-action: pan-x');
-    expect(box![1]).toContain('width: 120px');
+    expect(box![1]).toContain('min-width: 120px');
     const col = css.match(/\.game-frame--compact\[data-layout='landscape'\] \.creel-box\s*\{([^}]*)\}/);
     expect(col![1]).toContain('touch-action: pan-y');
+  });
+});
+
+describe('PU-11b: 依頼書の行の文字の大きさ', () => {
+  it('base.css: 品番は 32px (fs-number)・色の記号と色名は 24px (fs-label)・個数「× N」は 32px 以上 (fs-number) の太字', () => {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
+    const hinban = css.match(/\n\.creel-order-row__hinban\s*\{([^}]*)\}/)![1]!;
+    expect(hinban).toContain('font-size: var(--fs-number)');
+    const color = css.match(/\n\.creel-order-row__color\s*\{([^}]*)\}/)![1]!;
+    expect(color).toContain('font-size: var(--fs-label)');
+    const count = css.match(/\n\.creel-order-row__count\s*\{([^}]*)\}/)![1]!;
+    expect(count).toContain('font-size: var(--fs-number)');
+    expect(count).toContain('font-weight: bold');
+    // fs-number の既定 (段階1) は 32px
+    expect(css).toMatch(/--fs-number: 32px/);
+  });
+
+  it('個数の要素は「× N」で、クラス creel-order-row__count を持つ (繰り返しの行ではない)', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const panel = createCreelPanel(parent, { content, onAction: () => undefined });
+    panel.update(s2State());
+    const counts = Array.from(parent.querySelectorAll('.creel-order-row__count')).map((c) => c.textContent);
+    expect(counts).toEqual(['× 7', '× 1']);
+    panel.destroy();
   });
 });

@@ -57,3 +57,51 @@ describe('下から出る重ね表示 (sheet。PU-09b)', () => {
     expect(m![1]).toContain('var(--r-dialog) var(--r-dialog) 0 0');
   });
 });
+
+describe('PU-11b: 縦に長い重ね表示 (size: tall)', () => {
+  it('size を渡さないと今までどおり (sheet--tall は付かない)。tall を渡すと sheet--tall が付く', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const a = openSheet({ parent, title: 'a' });
+    expect(a.root.classList.contains('sheet--tall')).toBe(false);
+    a.close();
+    const b = openSheet({ parent, title: 'b', size: 'tall' });
+    expect(b.root.classList.contains('sheet--tall')).toBe(true);
+    b.close();
+  });
+
+  it('tall は、親の中の見出しの行 (.screen-header) の下端から下を使う: --sheet-top にその下端を入れ、画面の大きさが変わると入れ直す。閉じたら監視をやめる', () => {
+    const parent = document.createElement('div');
+    const header = document.createElement('div');
+    header.classList.add('screen-header');
+    let bottom = 96;
+    header.getBoundingClientRect = () => ({ top: 0, left: 0, right: 100, bottom, width: 100, height: bottom, x: 0, y: 0, toJSON: () => undefined }) as DOMRect;
+    parent.appendChild(header);
+    document.body.appendChild(parent);
+    const sheet = openSheet({ parent, title: '依頼書', size: 'tall' });
+    expect(sheet.root.style.getPropertyValue('--sheet-top')).toBe('96px');
+    bottom = 140;
+    window.dispatchEvent(new Event('resize'));
+    expect(sheet.root.style.getPropertyValue('--sheet-top')).toBe('140px');
+    sheet.close();
+    bottom = 200;
+    window.dispatchEvent(new Event('resize'));
+    expect(sheet.root.style.getPropertyValue('--sheet-top')).toBe('140px'); // 閉じたあとは触らない
+  });
+
+  it('見出しの行が測れないとき (高さ 0) は --sheet-top を入れず、CSS の既定 (画面の上から 25%) になる', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const sheet = openSheet({ parent, title: '依頼書', size: 'tall' });
+    expect(sheet.root.style.getPropertyValue('--sheet-top')).toBe('');
+    sheet.close();
+  });
+
+  it('base.css: sheet--tall は高さを自動 (top から bottom まで)・top は var(--sheet-top, 25%)', () => {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
+    const m = css.match(/\.sheet--tall\s*\{([^}]*)\}/);
+    expect(m).not.toBeNull();
+    expect(m![1]).toContain('height: auto');
+    expect(m![1]).toContain('top: var(--sheet-top, 25%)');
+  });
+});
