@@ -1,8 +1,8 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-10-05T22:30:00+09:00",
+  "updated_at": "2026-10-05T23:30:00+09:00",
   "phase": "P0",
-  "current_task": "T2-13a 完了 (T2-13b・c は次)",
+  "current_task": "T2-13b 完了 (T2-13c は次)",
   "done": [
     "T0-00",
     "T0-01",
@@ -74,10 +74,11 @@
     "T2-10 追加修正 (a: 桟の数・回る速さ・台が隠れる・controller のテスト / b: 上下の端・結び目とピンが回る・なめらかな回り方)",
     "T2-11 (a: どの状態でも範囲に届く・範囲が動く / b: 止まる音 0.5 秒)",
     "T2-12 (ドラム巻きの遊び方を5ページに)",
-    "T2-13a"
+    "T2-13a",
+    "T2-13b"
   ],
   "checks": [
-    "T2-13a: RED 14件→GREEN。npm test 626 passed/11 skipped。check・build 成功。CI success (a87ce27)。ブラウザ確認 1180×820・412×915"
+    "T2-13b: RED 3件→GREEN。npm test 671 passed/11 skipped。check・build 成功。CI success (07ef468)。ブラウザ確認: 朱の印+白い×3個・停止なし・赤ランプ"
   ],
   "notes": [
     "保存データをキャッシュして使う部品は、必ず repo.subscribe で外からの変更を見張り、読み直す (terms・settings は対応済み)。",
