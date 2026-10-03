@@ -1325,3 +1325,11 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - テスト: RED (puzzles 3・listView 1・logic 3・controller 1) → **690 passed / 11 skipped**、check 0
 - commit 3dca45b → **CI failure** (controller.test の未使用変数 p1。ローカルの check は pipe で exit code を見逃していた) → 修正 commit **8a4d889** CI success
 - ブラウザ: 一覧の補足 (s4=太い糸・s4-2=細い糸・s4-3=表示なし) ✓、s4 を開いて題名の下「段階4 紺のシャドーストライプ・太い糸(流れやすい)」で巻き ✓、s4-2 を「始める」(途中確認ダイアログ経由) で開いて「細い糸(切れやすい)」で巻き ✓、再開でも手応えが出る ✓
+
+## T2c-01 (ドラム設定:ルールとお題)
+- src/games/drumsetup/ を新設 (params・puzzles・logic + テスト)
+- params.ts: YARN_COEF・GRADE_LABEL・ANGLES・ALLOWED_ANGLES・STAGE_SECTION (段階1-5: 400/20〜720/18)・STAR3_ERR 0.05・STAR2_ERR 0.15・TRIAL_TURNS 30・FEED_STEP_SMALL/LARGE・FEED_MAX 9.99
+- puzzles.ts: drumSetupPuzzles(content) — クリール立て15題から。番手は主糸の spec から (2/60 含む→2/60、1/20・紡毛→1/20、他→2/48)。主糸の決め方はドラム巻き T2-14b と同じ (合計・同数は後出し)。s4=1/20・s4-2=2/60・他=2/48
+- logic.ts: density (本数÷幅)・thicknessPerTurn (×係数)・correctFeed (h÷tan、小数第2位)。judge (badAngle/good/crush/collapse・星1-3)。DrumSetupState {puzzleId, angle, feed, trials, phase, lastResult}。reduce: selectAngle/stepFeed/setFeed (0〜9.99・丸め)/trial (角度 null は無視)/trialEnd (星3→done、他→setting)/finish (星3でなくても done)/retry (init に戻す)。trialLayers (回転 k の層の {x: k×feed, y: k×h})
+- テスト: RED (puzzles 3・logic 11) → **14 passed**、全体 **704 passed / 11 skipped**、check 0、build 成功
+- commit 7d6d89a、CI 1回で success

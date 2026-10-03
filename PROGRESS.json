@@ -1,8 +1,8 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-10-03T23:10:00+09:00",
+  "updated_at": "2026-10-04T00:10:00+09:00",
   "phase": "P0",
-  "current_task": "T2-14 完了 (a/b)",
+  "current_task": "T2c-01 完了。T2c-02 未着手",
   "done": [
     "T0-00",
     "T0-01",
@@ -82,12 +82,11 @@
     "T2-13b 切れた糸の印を朱に・「停止」を消す (07ef468)",
     "T2-13c 切れたあたりを1回押してつなぐ (2c2f3d1+b37aee6)",
     "T2-14a",
-    "T2-14b"
+    "T2-14b",
+    "T2c-01"
   ],
   "checks": {
-    "T2-13 追加修正": "677 passed/11 skipped, CI success (b3ddba8・報告 c1e7cb7)",
-    "T2-14a": "682 passed/11 skipped, CI success (757811d・報告 72ce786)",
-    "T2-14b": "690 passed/11 skipped, CI success (8a4d889。3dca45b は eslint 1件で失敗→修正)"
+    "T2c-01": "14 passed (drumsetup), 全体 704 passed/11 skipped, check 0, CI success (7d6d89a)"
   },
   "notes": [
     "保存データをキャッシュして使う部品は、必ず repo.subscribe で外からの変更を見張り、読み直す (terms・settings は対応済み)。",
