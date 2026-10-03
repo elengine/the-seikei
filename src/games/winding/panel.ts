@@ -51,6 +51,7 @@ export function createWindingPanel(
   // 2. 張りのメーター (節の見出しは用語の呼び名)
   const meterBox = document.createElement('section');
   meterBox.className = 'winding-panel__block';
+  meterBox.setAttribute('aria-label', opts.terms.t('tension')); // 詰めた形で見出しを隠しても、読み上げで分かる
   meterBox.appendChild(createSectionHeading(opts.terms.t('tension')));
   const meterHost = document.createElement('div');
   meterHost.className = 'winding-panel__meter';
@@ -61,6 +62,7 @@ export function createWindingPanel(
   // 3. ペダル
   const pedalBox = document.createElement('section');
   pedalBox.className = 'winding-panel__block';
+  pedalBox.setAttribute('aria-label', opts.terms.t('pedal'));
   pedalBox.appendChild(createSectionHeading(opts.terms.t('pedal')));
   const pedalHost = document.createElement('div');
   pedalHost.className = 'winding-panel__pedal';

@@ -1111,8 +1111,9 @@ button {
 
 .tension-meter {
   display: flex;
-  flex-direction: column;
-  gap: var(--gap);
+  flex-direction: row; /* 帯 (横いっぱい) と状態の文字を 1 行に (PU-09d) */
+  align-items: center;
+  gap: var(--sp-3);
   /* 操作欄の幅を超えない (T2-08 追加修正b) */
   min-width: 0;
   max-width: 100%;
@@ -1120,7 +1121,8 @@ button {
 
 .meter__band {
   position: relative;
-  width: 320px;
+  flex: 1; /* 横いっぱい */
+  min-width: 0;
   max-width: 100%;
   height: 24px;
   background: var(--c-kinari-deep);
@@ -1210,20 +1212,6 @@ button {
     line-height: 1.3; /* 高さは本体の 2 行ぶん (min-height) を引き継ぐ。縦長も同じ */
   }
 
-  .tension-meter {
-    flex-direction: row;
-    align-items: center;
-  }
-
-  .tension-meter .meter__label,
-  .tension-meter .meter__state {
-    width: auto;
-    flex: none;
-  }
-
-  .tension-meter .meter__band {
-    flex: 1;
-  }
 }
 
 /* 画面の左右の余白 (:root の --page-pad を狭い画面で上書きする) */
@@ -1810,5 +1798,14 @@ button {
   min-height: 0;
   overflow-y: auto;
   padding: 0 var(--sp-4) calc(var(--sp-4) + env(safe-area-inset-bottom));
+}
+
+/* 詰めた形のドラム巻きの操作欄 (PU-09d): 節の見出しを隠して高さを使わない (節は aria-label で読み上げ) */
+.game-frame--compact .winding-panel__block .section-heading {
+  display: none;
+}
+
+.game-frame--compact .winding-panel {
+  gap: var(--sp-3);
 }
 

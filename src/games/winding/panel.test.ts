@@ -1,4 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createWindingPanel } from './panel';
 import type { WindingAction } from './logic';
 import { init, reduce } from './logic';
@@ -155,5 +158,51 @@ describe('PU-05c: ドラム巻きの操作欄の並び', () => {
     p.update(reduce(init({ level: 1, patternId: 'p-pin-kon', sections: 5, seed: 1 }), { type: 'start' }));
     expect(plus.classList.contains('btn--locked')).toBe(false);
     p.destroy();
+  });
+});
+
+describe('PU-09d: ドラム巻きの操作欄 (横向きのペダルと詰めた形)', () => {
+  function mount(): { host: HTMLElement; p: ReturnType<typeof createWindingPanel> } {
+    document.body.innerHTML = '';
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const p = createWindingPanel(host, { terms, onAction: () => undefined });
+    p.update(init({ level: 1, patternId: 'p-pin-kon', sections: 5, seed: 1 }));
+    return { host, p };
+  }
+
+  it('操作欄の並び: 1行の情報 → 張りのメーター → 横向きのペダル → 一番下に主な操作', () => {
+    const { host, p } = mount();
+    const kids = Array.from(host.querySelector('.winding-panel')!.children).map((c) => c.className.split(' ')[0]);
+    expect(kids).toEqual(['winding-panel__section', 'winding-panel__block', 'winding-panel__block', 'winding-panel__actions']);
+    expect(host.querySelector('.winding-panel__block .tension-meter')).not.toBeNull();
+    p.destroy();
+  });
+
+  it('ペダルは横向き: 溝の左に「戻す」、右に「踏み込む」。溝は横木が左右に動く', () => {
+    const { host, p } = mount();
+    const row = host.querySelector('.winding-panel__pedal .pedal__row')!;
+    const kids = Array.from(row.children) as HTMLElement[];
+    expect(kids.map((k) => k.textContent)).toEqual(['戻す', '', '踏み込む']);
+    expect(kids[1]!.classList.contains('pedal__groove')).toBe(true);
+    p.destroy();
+  });
+
+  it('節 (張り・ペダル) に aria-label (見出しを詰めた形で隠しても、読み上げで分かる)', () => {
+    const { host, p } = mount();
+    const blocks = Array.from(host.querySelectorAll('.winding-panel__block'));
+    expect(blocks.map((b) => b.getAttribute('aria-label'))).toEqual(['張り', 'ペダル']);
+    p.destroy();
+  });
+
+  it('base.css: メーターは横いっぱいの 1 行 (帯 + 状態の文字)。詰めた形では節の見出しを隠して高さを使わない', () => {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
+    const meter = css.match(/\.tension-meter\s*\{([^}]*)\}/)![1]!;
+    expect(meter).toContain('flex-direction: row');
+    const band = css.match(/\.meter__band\s*\{([^}]*)\}/)![1]!;
+    expect(band).toContain('flex: 1');
+    expect(band).not.toContain('width: 320px');
+    const head = css.match(/\.game-frame--compact \.winding-panel__block \.section-heading\s*\{([^}]*)\}/);
+    expect(head![1]).toContain('display: none');
   });
 });
