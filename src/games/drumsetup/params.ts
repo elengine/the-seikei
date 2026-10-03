@@ -34,3 +34,6 @@ export const FEED_STEP_LARGE = 0.1;
 
 /** 送り量の上限(mm) */
 export const FEED_MAX = 9.99;
+
+/** 試し巻きの積み上げの絵の長さ (ミリ秒。T2c-03a) */
+export const TRIAL_MS = 5000;

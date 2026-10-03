@@ -1211,6 +1211,117 @@ button {
   width: 100%;
 }
 
+/* ---- ドラム設定 (T2c-03a) ---- */
+.drumsetup-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.drumsetup-panel__block .section-heading {
+  margin-bottom: var(--sp-2);
+}
+
+.drumsetup-panel__order,
+.drumsetup-panel__memo {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--sp-4);
+  row-gap: var(--sp-1);
+  align-items: baseline;
+  font-size: var(--fs-body);
+  color: var(--c-sumi);
+}
+
+.drumsetup-panel__memo {
+  color: var(--c-sumi-sub);
+}
+
+.drumsetup-panel__feed {
+  font-size: 34px;
+  font-weight: 700;
+  color: var(--c-sumi);
+  background: var(--c-white);
+  border: 2px solid var(--c-sumi-sub);
+  border-radius: var(--r-small);
+  padding: var(--sp-1) var(--sp-3);
+  min-width: 200px;
+  min-height: 48px;
+  text-align: center;
+}
+
+.drumsetup-panel__steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+
+.drumsetup-panel__actions {
+  min-height: 72px;
+  /* 主ボタンは操作欄の下に固定する (ドラム巻きと同じ形) */
+  position: sticky;
+  bottom: 0;
+  background: var(--c-white);
+  padding-top: var(--sp-3);
+  padding-bottom: var(--sp-2);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.drumsetup-panel__main {
+  flex: 1;
+}
+
+/* 電卓 (openSheet の中身) */
+.drumsetup-calc {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.drumsetup-calc__tablebtns {
+  display: flex;
+  gap: var(--sp-2);
+}
+
+.drumsetup-calc__table {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--sp-4);
+  row-gap: var(--sp-1);
+  color: var(--c-sumi-sub);
+  font-size: var(--fs-body);
+  min-height: 1.4em;
+}
+
+.drumsetup-calc__display {
+  font-size: 40px;
+  font-weight: 700;
+  color: var(--c-sumi);
+  background: var(--c-kinari);
+  border-radius: var(--r-small);
+  padding: var(--sp-2) var(--sp-3);
+  text-align: right;
+}
+
+.drumsetup-calc__keys {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--sp-2);
+}
+
+.drumsetup-calc__key {
+  min-width: 64px;
+  min-height: 64px;
+  font-size: 24px;
+}
+
+.drumsetup-calc__use {
+  width: 100%;
+}
+
 /* 縦長ではペダルの溝を低くして、操作欄をスクロールなしで見えるようにする (T2-07 追加修正b) */
 @media (max-aspect-ratio: 4/5) {
   .winding-panel,
