@@ -65,7 +65,7 @@ export function showTutorial(
     const canvas = document.createElement('canvas');
     canvas.classList.add('tutorial__canvas');
     const canvasW = side
-      ? Math.floor(Math.min(560, window.innerWidth * 0.55 - 48, (window.innerHeight * 0.9 - 170) * 1.5))
+      ? Math.floor(Math.min(560, window.innerWidth * 0.55 - 48, ((window.innerHeight - 32) * 0.9 - 58 - 8 - 88) * 1.5))
       : Math.floor(Math.min(560, window.innerWidth * 0.9));
     const canvasH = Math.floor((canvasW * 2) / 3);
     let ctx: CanvasRenderingContext2D | null = null;

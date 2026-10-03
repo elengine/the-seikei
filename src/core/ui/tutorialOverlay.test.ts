@@ -114,7 +114,8 @@ describe('PU-10d: 遊び方の閉じるボタンと、画面の大きさへの�
     const canvas = host.querySelector<HTMLCanvasElement>('.tutorial__canvas')!;
     const h = parseFloat(canvas.style.height);
     expect(h).toBeGreaterThan(0);
-    expect(h).toBeLessThanOrEqual(412 * 0.9 - 170);
+    // 外側の余白 (16px ずつ) を引いた高さの 90% が箱の最大の高さ。そこから 上下の余白 58px・行の隙間 8px・下のボタン 88px を引く
+    expect(h).toBeLessThanOrEqual((412 - 32) * 0.9 - 58 - 8 - 88);
     expect(parseFloat(canvas.style.width) / h).toBeCloseTo(1.5, 1); // 縦横の比を保つ
   });
 

@@ -2042,11 +2042,12 @@ button {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   grid-template-areas:
-    'title title'
+    'canvas title'
     'canvas text'
     'canvas counter'
     'actions actions';
   column-gap: var(--sp-4);
+  row-gap: var(--sp-2);
   align-items: start;
   width: min(900px, calc(100vw - 2 * var(--sp-4)));
   max-height: 90%;
