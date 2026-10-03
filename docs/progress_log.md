@@ -1333,3 +1333,9 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - logic.ts: density (本数÷幅)・thicknessPerTurn (×係数)・correctFeed (h÷tan、小数第2位)。judge (badAngle/good/crush/collapse・星1-3)。DrumSetupState {puzzleId, angle, feed, trials, phase, lastResult}。reduce: selectAngle/stepFeed/setFeed (0〜9.99・丸め)/trial (角度 null は無視)/trialEnd (星3→done、他→setting)/finish (星3でなくても done)/retry (init に戻す)。trialLayers (回転 k の層の {x: k×feed, y: k×h})
 - テスト: RED (puzzles 3・logic 11) → **14 passed**、全体 **704 passed / 11 skipped**、check 0、build 成功
 - commit 7d6d89a、CI 1回で success
+
+## T2c-02 (ドラム設定:座標と盤面)
+- geometry.ts: 論理座標 1000×750。DRUM_RECT (表面の板 y616)・SECTION_X 170 (層の左端)・WING_BASE (310,616)・WING_LEN/THICK・TOP_TEXT・RESULT_TEXT。ANGLE_VIS_MUL=4 (見た目の角度)、LAYER_H_PX=9 (1回転の厚み 8px 以上)。wingVisRad/wingDir/slopeXAt (高さ→斜面の x)/layerTopY (下から積み上がる)/toPx
+- renderer.ts: drawBoard(ctx, fit, puzzle, view, content)。view = {angle, feed, outcome, progress, showResult}。背景 kinari → 表面 (wood+穴) → 羽 (null は点線=短い線の連続、選択で wood の平行四边形の板+明るい縁) → 層 (progress×30 層、mainHex 色。good=斜面に沿う/crush=斜面を越えてはみ出し(上ほど多く、はみ出しは sumi 30% で濃く)/collapse=斜面より内側で段/badAngle=6層が斜めにずり落ち) → 文字 (toPx で画面px。上の端「1回転 送り ○.○○mm／羽 ○°」20px、結果の印 24px: good=藍「きれいに登った」・crush/collapse=朱「潰れ」「崩れ」)
+- テスト: RED (geometry 3・renderer 7) → GREEN。全体 **714 passed / 11 skipped**、check 0、build 成功
+- commit 52eb34a、CI 1回で success。偽 Canvas は winding/renderer.test.helpers.ts を利用
