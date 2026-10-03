@@ -1998,6 +1998,10 @@ button {
 .game-frame--compact[data-layout='landscape'] .creel-box {
   flex: none;
   width: 100%;
+  flex-direction: row; /* 品番とチーズを横並びに (高さ 76px ほど) */
+  justify-content: center;
+  gap: var(--sp-3);
+  padding: 18px var(--sp-2) 6px;
   touch-action: pan-y;
 }
 

@@ -579,6 +579,13 @@ describe('PU-09b: 詰めた形の操作欄 (依頼書を見る・箱の横送り
     expect(box![1]).toContain('min-width: 120px');
     const col = css.match(/\.game-frame--compact\[data-layout='landscape'\] \.creel-box\s*\{([^}]*)\}/);
     expect(col![1]).toContain('touch-action: pan-y');
+    // 詰めた横 (高さ 560px 未満): 箱は品番とチーズを横並びにして、高さを 72px 程度に (PU-10 追記)
+    expect(col![1]!).toContain('flex-direction: row');
+    expect(col![1]!).toContain('justify-content: center');
+    const pad = col![1]!.match(/padding: (\d+)px var\(--sp-2\) (\d+)px/)!;
+    const cheese = parseInt(css.match(/\.game-frame--compact \.creel-box__cheese\s*\{[^}]*width: (\d+)px/)![1]!, 10);
+    expect(cheese).toBeGreaterThanOrEqual(48);
+    expect(parseInt(pad[1]!, 10) + cheese + parseInt(pad[2]!, 10) + 4).toBeLessThanOrEqual(84); // 縁 2px×2 を含めた高さ
   });
 });
 
