@@ -49,7 +49,6 @@ interface Active {
 
 export function attachDrag(opts: DragViewOpts): { cancel(): void; destroy(): void } {
   let active: Active | null = null;
-  let suppressClick = false;
   let destroyed = false;
   const layers = new Set<HTMLElement>();
   const timers = new Set<ReturnType<typeof setTimeout>>();
@@ -160,7 +159,6 @@ export function attachDrag(opts: DragViewOpts): { cancel(): void; destroy(): voi
     if (destroyed || active !== null || e.button !== 0) {
       return; // 2本目の指は無視する
     }
-    suppressClick = false;
     const target = e.target instanceof Element ? e.target : null;
     if (target === null) {
       return;
@@ -210,7 +208,6 @@ export function attachDrag(opts: DragViewOpts): { cancel(): void; destroy(): voi
       const dy = Math.abs(a.drag.current.y - a.drag.start.y);
       const scrolling = a.scrollAxis === 'x' ? dx >= dy : dy > dx;
       if (scrolling) {
-        suppressClick = true; // 送ったあとの click (箱を選ぶ) は無視する
         active = null; // この指はブラウザに任せる
         return;
       }
@@ -241,9 +238,6 @@ export function attachDrag(opts: DragViewOpts): { cancel(): void; destroy(): voi
       return;
     }
     const result = dropResult(a.drag, dropPoint(a.drag.current), opts.rows, opts.cols);
-    if (a.drag.source.kind === 'box' && a.drag.moved) {
-      suppressClick = true; // 引っぱったあとにブラウザが送る click (箱を選ぶ) は無視する
-    }
     if (result.kind === 'tap') {
       active = null;
       opts.onHover(null, null);
@@ -283,17 +277,8 @@ export function attachDrag(opts: DragViewOpts): { cancel(): void; destroy(): voi
     }
   }
 
-  function onClickCapture(e: Event): void {
-    if (suppressClick && e.target instanceof Element && e.target.closest('.creel-box') !== null) {
-      e.stopPropagation();
-      e.preventDefault();
-    }
-    suppressClick = false;
-  }
-
   opts.stage.addEventListener('pointerdown', onDown);
   opts.panel.addEventListener('pointerdown', onDown);
-  opts.panel.addEventListener('click', onClickCapture, true);
   window.addEventListener('pointermove', onMove);
   window.addEventListener('pointerup', onUp);
   window.addEventListener('pointercancel', onCancel);
@@ -305,7 +290,6 @@ export function attachDrag(opts: DragViewOpts): { cancel(): void; destroy(): voi
       destroyed = true;
       opts.stage.removeEventListener('pointerdown', onDown);
       opts.panel.removeEventListener('pointerdown', onDown);
-      opts.panel.removeEventListener('click', onClickCapture, true);
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onCancel);

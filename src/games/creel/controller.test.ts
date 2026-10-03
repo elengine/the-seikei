@@ -30,16 +30,22 @@ beforeEach(() => {
 });
 const content = getContent();
 
-/** s1 の 1 つ目の軸を押して糸を立てる (盤面は 600×400 に見せてある前提) */
-function tapPeg0(parent: HTMLElement): void {
+/** 箱から軸へ引っぱって置く (盤面は 600×400 に見せてある前提。チーズは指より 40px 上に出るので、指は軸より 40px 下で離す) */
+function dragToPeg(parent: HTMLElement, puzzleId: string, yarn: string, index: number): void {
   const stage = parent.querySelector('canvas')!;
   const rect = stage.getBoundingClientRect();
-  const puzzle = content.creelPuzzles.find((p) => p.id === 's1')!;
+  const puzzle = content.creelPuzzles.find((p) => p.id === puzzleId)!;
   const fit = fitStage(1000, 750, rect.width, rect.height);
-  const cell = cellRect(0, puzzle.rows, puzzle.cols);
+  const cell = cellRect(index, puzzle.rows, puzzle.cols);
   const px = toPx(fit, { x: cell.x + cell.w / 2, y: cell.y + cell.h / 2 });
-  stage.dispatchEvent(new PointerEvent('pointerdown', { clientX: rect.left + px.x, clientY: rect.top + px.y, bubbles: true }));
-  stage.dispatchEvent(new PointerEvent('pointerup', { clientX: rect.left + px.x, clientY: rect.top + px.y, bubbles: true }));
+  const b = parent.querySelector(`[data-testid="creel-box-${yarn}"]`)!;
+  const at = (type: string, x: number, y: number): void => {
+    b.dispatchEvent(new PointerEvent(type, { clientX: x, clientY: y, pointerId: 1, bubbles: true, button: 0 }));
+  };
+  at('pointerdown', 700, 300);
+  at('pointermove', 650, 300);
+  at('pointermove', rect.left + px.x, rect.top + px.y + 40);
+  at('pointerup', rect.left + px.x, rect.top + px.y + 40);
 }
 
 /** jsdom の getBoundingClientRect は 0x0 なので、canvas の rect を差し込む */
@@ -121,7 +127,7 @@ describe('createCreelModule', () => {
     instance.unmount();
   });
 
-  it('プレイ: s1 で全部の軸をタップして立て、確認するを押すと、1.5秒後に onFinish が1回呼ばれる (stars 3・unlockedPatternIds は p-muji-kon) (テスト名のみ変更: 管理者の指示で文言を変えたため)', () => {
+  it('プレイ: s1 で全部の軸に箱から引っぱって立て、確認するを押すと、1.5秒後に onFinish が1回呼ばれる (stars 3・unlockedPatternIds は p-muji-kon) (テスト名のみ変更: 管理者の指示で文言を変えたため)', () => {
     const deps = makeDeps();
     const module = createCreelModule(deps);
     const parent = document.createElement('div');
@@ -133,21 +139,16 @@ describe('createCreelModule', () => {
     s1!.click();
     // プレイ画面になる (盤面の canvas と操作欄)
     expect(parent.querySelector('canvas')).not.toBeNull();
-    // 全部の軸をタップする (pointerdown を盤面に送る)
+    // 全部の軸へ箱から引っぱる
     const stage = parent.querySelector('canvas')!;
     const stageBox = stage.parentElement!;
     stubClientSize(stageBox, 600, 400);
     stubRect(stage, 600, 400);
     window.dispatchEvent(new Event('resize')); // gameFrame に再配置させて fit を更新させる
     vi.advanceTimersByTime(20); // requestAnimationFrame を進める
-    const rect = stage.getBoundingClientRect();
     const s1Puzzle = content.creelPuzzles.find((p) => p.id === 's1')!;
-    const fit = fitStage(1000, 750, rect.width, rect.height);
     for (let i = 0; i < s1Puzzle.cols; i++) {
-      const cell = cellRect(i, s1Puzzle.rows, s1Puzzle.cols);
-      const px = toPx(fit, { x: cell.x + cell.w / 2, y: cell.y + cell.h / 2 });
-      stage.dispatchEvent(new PointerEvent('pointerdown', { clientX: rect.left + px.x, clientY: rect.top + px.y, bubbles: true }));
-      stage.dispatchEvent(new PointerEvent('pointerup', { clientX: rect.left + px.x, clientY: rect.top + px.y, bubbles: true }));
+      dragToPeg(parent, 's1', 'kon-a', i);
     }
     // 確認する
     const checkBtn = parent.querySelector<HTMLButtonElement>('[data-testid="creel-check"]');
@@ -180,9 +181,13 @@ describe('createCreelModule', () => {
     const s1 = parent.querySelector<HTMLButtonElement>('[data-testid="creel-puzzle-s1"]');
     s1!.click();
     onStateChange.mockClear();
-    // 箱の選択で onStateChange が呼ばれる
-    const box = parent.querySelector<HTMLButtonElement>('[data-testid^="creel-box-"]');
-    box!.click();
+    // 箱から軸へ引っぱって立てると onStateChange が呼ばれる
+    const stage0 = parent.querySelector('canvas')!;
+    stubClientSize(stage0.parentElement!, 600, 400);
+    stubRect(stage0, 600, 400);
+    window.dispatchEvent(new Event('resize'));
+    vi.advanceTimersByTime(20);
+    dragToPeg(parent, 's1', 'kon-a', 0);
     expect(onStateChange).toHaveBeenCalledTimes(1);
     // suspend は状態 (CreelState) を返す
     const state = instance.suspend() as { puzzleId?: string } | null;
@@ -223,14 +228,9 @@ describe('createCreelModule', () => {
     stubRect(stage, 600, 400);
     window.dispatchEvent(new Event('resize')); // gameFrame に再配置させて fit を更新させる
     vi.advanceTimersByTime(20); // requestAnimationFrame を進める
-    const rect = stage.getBoundingClientRect();
     const s1Puzzle = content.creelPuzzles.find((p) => p.id === 's1')!;
-    const fit = fitStage(1000, 750, rect.width, rect.height);
     for (let i = 0; i < s1Puzzle.cols; i++) {
-      const cell = cellRect(i, s1Puzzle.rows, s1Puzzle.cols);
-      const px = toPx(fit, { x: cell.x + cell.w / 2, y: cell.y + cell.h / 2 });
-      stage.dispatchEvent(new PointerEvent('pointerdown', { clientX: rect.left + px.x, clientY: rect.top + px.y, bubbles: true }));
-      stage.dispatchEvent(new PointerEvent('pointerup', { clientX: rect.left + px.x, clientY: rect.top + px.y, bubbles: true }));
+      dragToPeg(parent, 's1', 'kon-a', i);
     }
     const checkBtn = parent.querySelector<HTMLButtonElement>('[data-testid="creel-check"]');
     checkBtn!.click();
@@ -262,9 +262,8 @@ describe('T1-15: プレイ画面の「戻る」でお題の一覧に戻る', () 
       const onStateChange = vi.fn();
       module.mount(parent, { mode: 'standalone', onFinish: () => undefined, onExit, onStateChange });
       startS1(parent);
-      // 何か操作 (箱の選択)
-      const box = parent.querySelector<HTMLButtonElement>('[data-testid^="creel-box-"]')!;
-      box.click();
+      // 何か操作 (箱から軸へ引っぱって立てる)
+      dragToPeg(parent, 's1', 'kon-a', 0);
       // 戻る → 確認「一覧に戻る」
       confirmAnswers.push(true);
       const back = parent.querySelector<HTMLButtonElement>('.game-frame__bar-left')!;
@@ -286,8 +285,8 @@ describe('T1-15: プレイ画面の「戻る」でお題の一覧に戻る', () 
       const onStateChange = vi.fn();
       const instance = module.mount(parent, { mode: 'standalone', onFinish: () => undefined, onExit: () => undefined, onStateChange });
       startS1(parent);
-      // 最初の状態と違う操作: 軸を 1 つ押して糸を立てる (何もしないままでは再開しなくても通るため)
-      tapPeg0(parent);
+      // 最初の状態と違う操作: 軸を 1 つ引っぱって糸を立てる (何もしないままでは再開しなくても通るため)
+      dragToPeg(parent, 's1', 'kon-a', 0);
       confirmAnswers.push(true); // 「一覧に戻る」
       const back = parent.querySelector<HTMLButtonElement>('.game-frame__bar-left')!;
       back.click();
@@ -318,8 +317,7 @@ describe('T1-15: プレイ画面の「戻る」でお題の一覧に戻る', () 
       document.body.appendChild(parent);
       module.mount(parent, { mode: 'standalone', onFinish: () => undefined, onExit: () => undefined });
       startS1(parent);
-      const box = parent.querySelector<HTMLButtonElement>('[data-testid^="creel-box-"]')!;
-      box.click();
+      dragToPeg(parent, 's1', 'kon-a', 0);
       confirmAnswers.push(true); // 「一覧に戻る」
       parent.querySelector<HTMLButtonElement>('.game-frame__bar-left')!.click();
       await vi.waitFor(() => {
@@ -474,7 +472,7 @@ describe('T1-15 追加修正: 一覧から選んだお題が正しい状態で�
     const instance = module.mount(parent, { mode: 'standalone', onFinish: () => undefined, onExit: () => undefined });
     startS1Fix(parent);
     // 軸を 1 つ押して糸を立てる (最初の状態と違う操作)
-    tapPeg0(parent);
+    dragToPeg(parent, 's1', 'kon-a', 0);
     // 戻る → 一覧に戻る
     confirmAnswers.push(true);
     parent.querySelector<HTMLButtonElement>('.game-frame__bar-left')!.click();
@@ -571,17 +569,11 @@ describe('PU-05b: クリール立てのプレイ画面と結果のつなぎ', ()
     return parent;
   }
 
-  /** s1 の全部の軸をタップして立て、確認する (最初の確認で正解) */
+  /** s1 の全部の軸に引っぱって立て、確認する (最初の確認で正解) */
   function solveS1(parent: HTMLElement): void {
-    const stage = parent.querySelector('canvas')!;
-    const rect = stage.getBoundingClientRect();
     const puzzle = content.creelPuzzles.find((p) => p.id === 's1')!;
-    const fit = fitStage(1000, 750, rect.width, rect.height);
     for (let i = 0; i < puzzle.cols; i++) {
-      const cell = cellRect(i, puzzle.rows, puzzle.cols);
-      const px = toPx(fit, { x: cell.x + cell.w / 2, y: cell.y + cell.h / 2 });
-      stage.dispatchEvent(new PointerEvent('pointerdown', { clientX: rect.left + px.x, clientY: rect.top + px.y, bubbles: true }));
-      stage.dispatchEvent(new PointerEvent('pointerup', { clientX: rect.left + px.x, clientY: rect.top + px.y, bubbles: true }));
+      dragToPeg(parent, 's1', 'kon-a', i);
     }
     parent.querySelector<HTMLButtonElement>('[data-testid="creel-check"]')!.click();
     vi.advanceTimersByTime(1600);
@@ -638,7 +630,7 @@ describe('PU-05b: クリール立てのプレイ画面と結果のつなぎ', ()
     expect(parent.querySelector('[data-testid="creel-puzzle-s1"]')).not.toBeNull();
   });
 
-  it('ゲームの中の「ボタン」の音は部品が鳴らす: 箱を選んでも controller は tap を鳴らさない。盤面のタップは tap', () => {
+  it('ゲームの中の「ボタン」の音は部品が鳴らす: 箱を押しても controller は tap を鳴らさない', () => {
     const deps = makeDeps();
     const play = deps.audio.play as unknown as ReturnType<typeof vi.fn>;
     const module = createCreelModule(deps);
@@ -652,7 +644,7 @@ describe('PU-05b: クリール立てのプレイ画面と結果のつなぎ', ()
   });
 });
 
-describe('PU-07b: 引っぱって置く・外す・入れ替える・押すだけで置く', () => {
+describe('PU-07b: 引っぱって置く・外す・入れ替える (押して置く操作は PU-11a で無くした)', () => {
   function open(puzzleId: string): { parent: HTMLElement; instance: { suspend(): unknown; unmount(): void }; stage: HTMLCanvasElement } {
     // どのお題も遊べるように、全部クリア済みの記録にする
     const best: Record<string, number> = {};
@@ -690,7 +682,7 @@ describe('PU-07b: 引っぱって置く・外す・入れ替える・押すだ�
   }
 
   const placedOf = (inst: { suspend(): unknown }): (string | null)[] => (inst.suspend() as { placed: (string | null)[] }).placed;
-  const box = (parent: HTMLElement, yarn: string): HTMLButtonElement => parent.querySelector<HTMLButtonElement>(`[data-testid="creel-box-${yarn}"]`)!;
+  const box = (parent: HTMLElement, yarn: string): HTMLElement => parent.querySelector<HTMLElement>(`[data-testid="creel-box-${yarn}"]`)!;
 
   /** 箱から軸へ引っぱって離す (チーズは指より 40px 上に出るので、指は軸より 40px 下で離す) */
   function dragBoxToPeg(parent: HTMLElement, stage: HTMLCanvasElement, puzzleId: string, yarn: string, index: number): void {
@@ -796,25 +788,28 @@ describe('PU-07b: 引っぱって置く・外す・入れ替える・押すだ�
     expect(() => fire(window, 'pointermove', 1, 1)).not.toThrow();
   });
 
-  it('押すだけでも置ける: 箱を押して (動かさずに離して) 選び、空いた軸を押すと立つ。糸のある軸を押すと品番の吹き出し', () => {
+  it('PU-11a: 押して置く操作は無い。箱を押しても選ばず、空いた軸を押すと案内のメッセージが出て何も立たない。糸のある軸を押すと品番の吹き出し', () => {
     const { parent, instance, stage } = open('s2');
     const b = box(parent, 'shiro-a');
     fire(b, 'pointerdown', 700, 300);
     fire(b, 'pointerup', 700, 300);
     b.click(); // ブラウザは動かさずに離すと click も送る
     expect(document.querySelector('.creel-drag')).toBeNull();
+    expect(b.hasAttribute('aria-pressed')).toBe(false);
     const p = pegPx(stage, 's2', 4);
     fire(stage, 'pointerdown', p.x, p.y);
     fire(stage, 'pointerup', p.x, p.y);
-    expect(placedOf(instance)[4]).toBe('shiro-a');
-    // 糸のある軸を押す → 吹き出し (inspected)
+    expect(placedOf(instance)[4]).toBeNull(); // 何も立たない
+    expect(parent.querySelector('.game-frame__message')!.textContent).toBe('箱からコーンを引っぱって、軸の丸に嵌めてください');
+    // 引っぱって立てたあと、その軸を押すと品番の吹き出し (inspected)
+    dragBoxToPeg(parent, stage, 's2', 'shiro-a', 4);
     fire(stage, 'pointerdown', p.x, p.y);
     fire(stage, 'pointerup', p.x, p.y);
     expect((instance.suspend() as { inspected: number | null }).inspected).toBe(4);
     expect(placedOf(instance)[4]).toBe('shiro-a');
   });
 
-  it('引っぱった直後の click (箱を選ぶ) は無視される', () => {
+  it('引っぱった直後の click でも、状態は変わらない', () => {
     const { parent, instance, stage } = open('s2');
     const b = box(parent, 'shiro-a');
     const p = pegPx(stage, 's2', 1);

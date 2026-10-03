@@ -27,6 +27,9 @@ export const COLORS = {
   post: '#6E8A5E',
   postLight: '#86A276',
   postDark: '#4F6843',
+  cardboard: '#C9A272',
+  cardboardDark: '#A9814F',
+  cardboardTape: '#D9BE96',
 } as const;
 
 /** 余白の刻み (--sp-1〜--sp-8) */

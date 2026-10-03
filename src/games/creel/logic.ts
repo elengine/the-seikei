@@ -29,7 +29,7 @@ export type CreelAction =
   | { type: 'place'; index: number; yarn: YarnTypeId } // 引っぱって嵌める (入れ替えを含む)
   | { type: 'removePeg'; index: number } // 引っぱって外す
   | { type: 'movePeg'; from: number; to: number } // 軸から別の軸へ
-  | { type: 'pressPeg'; index: number } // 押すだけ: 空の軸なら選んでいる箱の糸を立てる、糸のある軸なら品番の吹き出し
+  | { type: 'pressPeg'; index: number } // 押すだけ: 糸のある軸なら品番の吹き出し (空の軸は何も起こらない。置くのは引っぱる操作だけ)
   | { type: 'check' }
   | { type: 'hint' }
   | { type: 'clearInspect' };
@@ -157,12 +157,7 @@ export function reduce(s: CreelState, a: CreelAction): CreelState {
       if (s.placed[a.index] !== null) {
         return { ...s, inspected: s.inspected === a.index ? null : a.index };
       }
-      if (s.tool.kind !== 'box') {
-        return s;
-      }
-      const placed = [...s.placed];
-      placed[a.index] = s.tool.yarn;
-      return { ...s, placed, marks: clearMark(s.marks, a.index), inspected: null };
+      return s;
     }
     case 'check': {
       const marks = compare(s.placed, s.answer);

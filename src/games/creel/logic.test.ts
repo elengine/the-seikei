@@ -225,11 +225,10 @@ describe('PU-07a: 引っぱる操作の reducer (place・removePeg・movePeg・p
     expect(reduce(s, { type: 'movePeg', from: 0, to: 0 })).toBe(s);
   });
 
-  it('pressPeg: 空の軸なら選んでいる箱の糸が立つ。糸のある軸なら吹き出し (inspected)。もう一度押すと消える', () => {
+  it('pressPeg (PU-11a): 空の軸を押しても何も立たない (状態はそのまま)。糸のある軸なら吹き出し (inspected)。もう一度押すと消える', () => {
     let s = s1State();
-    s = reduce(s, { type: 'pressPeg', index: 0 });
-    expect(s.placed[0]).toBe('kon-a');
-    expect(s.inspected).toBeNull();
+    expect(reduce(s, { type: 'pressPeg', index: 0 })).toBe(s);
+    s = reduce(s, { type: 'place', index: 0, yarn: 'kon-a' });
     s = reduce(s, { type: 'pressPeg', index: 0 });
     expect(s.inspected).toBe(0);
     expect(s.placed[0]).toBe('kon-a'); // 上書きや消去はしない

@@ -70,6 +70,9 @@ body {
   --c-post: #6e8a5e;
   --c-post-light: #86a276;
   --c-post-dark: #4f6843;
+  --c-cardboard: #c9a272;
+  --c-cardboard-dark: #a9814f;
+  --c-cardboard-tape: #d9be96;
   --c-message-bg: #f3f0e6;
   --c-creel-back: #e6decb;
 
@@ -703,10 +706,6 @@ body {
   line-height: 1.2;
 }
 
-.creel-order-row--selected {
-  border-color: var(--c-ai);
-}
-
 .creel-order-row__hinban {
   font-size: var(--fs-number);
   font-weight: bold;
@@ -746,10 +745,6 @@ body {
   box-sizing: border-box;
 }
 
-.btn.creel-box--selected .core-tag {
-  color: var(--c-white);
-}
-
 /* くりかえしの行 (「↻ 繰り返し × N」) */
 .creel-order-repeat {
   display: flex;
@@ -761,22 +756,54 @@ body {
   color: var(--c-sumi-sub);
 }
 
-/* 糸の箱: woodLight の枠の白いボタン。選んでいる箱は藍の塗り・白文字・✓ */
+/* 糸の箱 (PU-11a): 段ボール箱。品番とチーズの絵だけ。どこを押さえてもチーズを引っぱれる (押しても選ばない) */
 .creel-boxes {
   display: flex;
   flex-wrap: wrap;
   gap: var(--sp-2);
 }
 
-.btn.creel-box {
+.creel-box {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
   flex-direction: column;
+  align-items: center;
   gap: var(--sp-1);
   min-width: 120px;
-  padding: var(--sp-2) var(--sp-3);
-  border-color: var(--c-wood-light);
+  padding: 22px var(--sp-3) var(--sp-2); /* 上はふたの分 */
+  background: var(--c-cardboard);
+  border: 2px solid var(--c-cardboard-dark);
+  border-radius: 6px;
   color: var(--c-sumi);
-  font-weight: 400;
   touch-action: none; /* 引っぱっている間に画面をスクロール・拡大させない (PU-07) */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  cursor: grab;
+}
+
+/* ふたの線 */
+.creel-box::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 14px;
+  height: 2px;
+  background: var(--c-cardboard-dark);
+}
+
+/* 横のテープ (ふたの真ん中) */
+.creel-box::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 40%;
+  height: 14px;
+  transform: translateX(-50%);
+  background: var(--c-cardboard-tape);
 }
 
 .creel-box__hinban {
@@ -785,15 +812,12 @@ body {
   line-height: 1.2;
 }
 
-.creel-box__label {
-  font-size: var(--fs-body);
-}
-
-.btn.creel-box--selected {
-  background: var(--c-ai);
-  border-color: var(--c-ai);
-  color: var(--c-white);
-  box-shadow: 0 4px 0 var(--c-ai-shadow);
+/* 箱の中のチーズの絵 (引っぱるチーズ .creel-drag と同じ描き方。--creel-drag-body / --creel-drag-core は panel が付ける) */
+.creel-box__cheese {
+  position: relative;
+  flex: none;
+  width: 56px;
+  height: 56px;
 }
 
 /* 一番下: ヒント (左) と 確認する (右・主・広く)。操作欄 (.game-frame__panel) がスクロールしても常に下に見える */
@@ -1672,13 +1696,17 @@ button {
 }
 
 /* 引っぱっているチーズ (画面全体の上の重ね。dragView が作る)。糸の色の丸・紙の芯の輪・中央の穴 */
-.creel-drag {
-  position: fixed;
+.creel-drag,
+.creel-box__cheese {
   border-radius: 50%;
   background: var(--creel-drag-body);
   box-shadow:
     0 0 0 1.5px var(--c-sumi-sub) inset,
     4px 6px 0 rgb(43 42 36 / 0.25);
+}
+
+.creel-drag {
+  position: fixed;
   will-change: transform;
 }
 
@@ -1883,10 +1911,9 @@ button {
   padding-bottom: var(--sp-1);
 }
 
-.game-frame--compact[data-layout='portrait'] .btn.creel-box {
+.game-frame--compact[data-layout='portrait'] .creel-box {
   flex: none;
   width: 120px;
-  min-height: 72px;
   touch-action: pan-x;
 }
 
@@ -1896,10 +1923,15 @@ button {
   flex-wrap: nowrap;
 }
 
-.game-frame--compact[data-layout='landscape'] .btn.creel-box {
+.game-frame--compact[data-layout='landscape'] .creel-box {
   width: 100%;
-  min-height: 72px;
   touch-action: pan-y;
+}
+
+/* 詰めた形では、箱の中のチーズの絵を小さめに (48px。品番の下) */
+.game-frame--compact .creel-box__cheese {
+  width: 48px;
+  height: 48px;
 }
 
 /* 下から出る重ね表示 (sheet。PU-09b): 画面の下半分、白地、上の角 16、上端に縞。背景の覆いは無い */

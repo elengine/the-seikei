@@ -40,46 +40,74 @@ describe('createCreelPanel', () => {
     panel.destroy();
   });
 
-  it('箱のボタンを押すと onAction({ type: selectBox, yarn }) が呼ばれる。選んでいる箱だけに「✓」が付く', () => {
+  it('PU-11a: 箱は段ボール箱。中に品番 (大きく) とチーズの絵 (糸の色の丸+芯の色の輪+穴) だけがあり、色名・芯の文字・✓ は無い。読み上げ用の aria-label に品番・色名・芯', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const panel = createCreelPanel(parent, { content, onAction: () => undefined });
+    panel.update(s2State());
+    const boxes = Array.from(parent.querySelectorAll<HTMLElement>('[data-testid^="creel-box-"]'));
+    expect(boxes.length).toBe(2); // kon-a と shiro-a
+    const kon = content.yarns.get('kon-a')!;
+    const konColor = content.colors.get(kon.color)!;
+    const konCore = content.cores.get(kon.core)!;
+    const b = boxes[0]!;
+    expect(b.classList.contains('creel-box')).toBe(true);
+    expect(b.dataset.yarn).toBe('kon-a');
+    // 文字は品番だけ。色名・芯の文字・✓ を出さない
+    expect(b.textContent).toBe(kon.hinban);
+    expect(b.textContent).not.toContain(konColor.name);
+    expect(b.textContent).not.toContain('芯');
+    expect(b.textContent).not.toContain('✓');
+    expect(b.querySelector('.creel-box__hinban')!.textContent).toBe(kon.hinban);
+    // チーズの絵: 糸の色の丸 + 芯の色の輪 + 穴 (盤面のチーズと同じ描き方)
+    const cheese = b.querySelector<HTMLElement>('.creel-box__cheese')!;
+    expect(cheese).not.toBeNull();
+    expect(cheese.style.getPropertyValue('--creel-drag-body')).toBe(konColor.hex);
+    expect(cheese.style.getPropertyValue('--creel-drag-core')).toBe(konCore.hex);
+    expect(cheese.querySelector('.creel-drag__core')).not.toBeNull();
+    expect(cheese.querySelector('.creel-drag__hole')).not.toBeNull();
+    // 読み上げ用
+    expect(b.getAttribute('aria-label')).toBe(`${kon.hinban} ${konColor.name} 芯:${konCore.name}`);
+    panel.destroy();
+  });
+
+  it('PU-11a: 箱を押しても選ばない (onAction を呼ばない・aria-pressed を付けない・藍の塗りも無い)。どの箱も同じ見た目', () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);
     const onAction = vi.fn();
     const panel = createCreelPanel(parent, { content, onAction });
-    let s = s2State();
-    panel.update(s);
-    const boxes = Array.from(parent.querySelectorAll<HTMLButtonElement>('[data-testid^="creel-box-"]'));
-    expect(boxes.length).toBe(2); // kon-a と shiro-a
-    // kon-a が選ばれている (初期 tool)
-    expect(boxes[0]!.textContent).toContain('✓');
-    expect(boxes[1]!.textContent).not.toContain('✓');
-    // shiro-a を押す
+    panel.update(s2State());
+    const boxes = Array.from(parent.querySelectorAll<HTMLElement>('[data-testid^="creel-box-"]'));
     boxes[1]!.click();
-    expect(onAction).toHaveBeenCalledWith({ type: 'selectBox', yarn: 'shiro-a' });
-    // 状態を替えて update すると ✓ が移る
-    s = reduce(s, { type: 'selectBox', yarn: 'shiro-a' });
-    panel.update(s);
-    const boxes2 = Array.from(parent.querySelectorAll<HTMLButtonElement>('[data-testid^="creel-box-"]'));
-    expect(boxes2[0]!.textContent).not.toContain('✓');
-    expect(boxes2[1]!.textContent).toContain('✓');
+    boxes[0]!.click();
+    expect(onAction).not.toHaveBeenCalled();
+    for (const b of boxes) {
+      expect(b.hasAttribute('aria-pressed')).toBe(false);
+      expect(b.className).not.toContain('selected');
+    }
+    // 状態が変わって update しても、選んだ印は付かない
+    panel.update(reduce(s2State(), { type: 'selectBox', yarn: 'shiro-a' }));
+    for (const b of Array.from(parent.querySelectorAll<HTMLElement>('.creel-box'))) {
+      expect(b.hasAttribute('aria-pressed')).toBe(false);
+      expect(b.className).not.toContain('selected');
+    }
     panel.destroy();
   });
 
-  it('選んでいる箱と同じ品番の依頼書の行にだけ、選択中を表すクラスが付く', () => {
+  it('PU-11a: 依頼書の行にも選んだ印 (藍の枠) は付かない', () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);
     const panel = createCreelPanel(parent, { content, onAction: () => undefined });
     let s = s2State();
     panel.update(s);
-    const rows = Array.from(parent.querySelectorAll('[data-testid="creel-order-row"]'));
-    expect(rows[0]!.className).toContain('creel-order-row--selected');
-    expect(rows[1]!.className).not.toContain('creel-order-row--selected');
-    // tool を shiro-a に替える
+    expect(parent.querySelector('.creel-order-row--selected')).toBeNull();
     s = reduce(s, { type: 'selectBox', yarn: 'shiro-a' });
     panel.update(s);
-    const rows2 = Array.from(parent.querySelectorAll('[data-testid="creel-order-row"]'));
-    expect(rows2[0]!.className).not.toContain('creel-order-row--selected');
-    expect(rows2[1]!.className).toContain('creel-order-row--selected');
+    expect(parent.querySelector('.creel-order-row--selected')).toBeNull();
     panel.destroy();
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
+    expect(css).not.toContain('.creel-order-row--selected');
+    expect(css).not.toContain('.creel-box--selected');
   });
 
   it('canHint が false の状態ではヒントボタンが押せない形 (btn--locked。disabled は付けない)、true になると押せる', () => {
@@ -148,11 +176,24 @@ describe('createCreelPanel', () => {
     expect(boxes.map((b) => b.dataset.yarn)).toEqual(['kon-a', 'shiro-a']);
     panel.destroy();
     const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
-    const m = css.match(/\.btn\.creel-box\s*\{([^}]*)\}/);
+    const m = css.match(/\n\.creel-box\s*\{([^}]*)\}/);
     expect(m).not.toBeNull();
     expect(m![1]).toContain('touch-action: none');
     const stage = css.match(/\.game-frame__stage canvas\s*\{([^}]*)\}/);
     expect(stage![1]).toContain('touch-action: none');
+  });
+
+  it('PU-11a: base.css: 箱は段ボール色の地・角 6px・ふたの線 (cardboardDark)・横のテープ (cardboardTape)。チーズの絵は 48px 以上', () => {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
+    const box = css.match(/\n\.creel-box\s*\{([^}]*)\}/)![1]!;
+    expect(box).toContain('background: var(--c-cardboard)');
+    expect(box).toContain('border-radius: 6px');
+    expect(css.match(/\.creel-box::before\s*\{([^}]*)\}/)![1]).toContain('var(--c-cardboard-dark)');
+    expect(css.match(/\.creel-box::after\s*\{([^}]*)\}/)![1]).toContain('var(--c-cardboard-tape)');
+    const cheese = css.match(/\n\.creel-box__cheese\s*\{([^}]*)\}/)![1]!;
+    expect(parseInt(cheese.match(/width: (\d+)px/)![1]!, 10)).toBeGreaterThanOrEqual(48);
+    const compact = css.match(/\.game-frame--compact \.creel-box__cheese\s*\{([^}]*)\}/)![1]!;
+    expect(parseInt(compact.match(/width: (\d+)px/)![1]!, 10)).toBeGreaterThanOrEqual(48);
   });
 
   it('PU-05b: 「確認する」は primary で、操作欄の一番下の右。「ヒント」はその左 (secondary)', () => {
@@ -193,18 +234,7 @@ describe('createCreelPanel', () => {
     expect(heads).toEqual(['依頼書', '糸の箱']);
     expect(parent.querySelector('[data-testid="creel-band"]')).toBeNull();
     expect(parent.textContent).not.toContain('現在の帯の並び');
-    expect(parent.querySelector('.creel-box')!.classList.contains('btn')).toBe(true);
-    panel.destroy();
-  });
-
-  it('PU-05b: 選んでいる箱は aria-pressed=true', () => {
-    const parent = document.createElement('div');
-    document.body.appendChild(parent);
-    const panel = createCreelPanel(parent, { content, onAction: () => undefined });
-    panel.update(s2State());
-    const boxes = Array.from(parent.querySelectorAll<HTMLButtonElement>('.creel-box'));
-    expect(boxes[0]!.getAttribute('aria-pressed')).toBe('true');
-    expect(boxes[1]!.getAttribute('aria-pressed')).toBe('false');
+    expect(parent.querySelector('.creel-box')!.tagName).not.toBe('BUTTON'); // 押して選ぶ部品ではない (PU-11a)
     panel.destroy();
   });
 
@@ -302,18 +332,6 @@ describe('createCreelPanel', () => {
       panel.destroy();
     });
 
-    it('s5 で選んでいる箱と同じ品番の行が2つとも選択中になる', () => {
-      const parent = document.createElement('div');
-      document.body.appendChild(parent);
-      const panel = createCreelPanel(parent, { content, onAction: () => undefined });
-      panel.update(stateOf('s5'));
-      const rows = Array.from(parent.querySelectorAll('[data-testid="creel-order-row"]'));
-      // s5 の依頼書は unit (12本) のラン: kon-a ×5, kon-b ×1, kon-a ×5, mizu-a ×1
-      const selected = rows.filter((r) => r.className.includes('creel-order-row--selected'));
-      // 初期 tool は boxes[0]。s5 の箱は kon-a, kon-b, mizu-a (answer の糸 + 紛らわしい箱)。kon-a が選ばれているはず
-      expect(selected.length).toBe(2);
-      panel.destroy();
-    });
   });
 
   describe('追加修正4 B: メッセージ欄を1つにする・くりかえしの行を短くする', () => {
@@ -381,8 +399,8 @@ describe('T1-20: ヒントボタンの文字に条件を出す', () => {
   });
 });
 
-describe('PU-06a: 依頼書の行と箱に紙の芯の色を出す', () => {
-  it('依頼書の行と箱に「芯:赤」のような名前と、16px の丸が出る', () => {
+describe('PU-06a: 依頼書の行に紙の芯の色を出す (箱は PU-11a で絵と aria-label に)', () => {
+  it('依頼書の行に「芯:赤」のような名前と、16px の丸が出る。箱は絵の芯の輪と aria-label で伝える', () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);
     const panel = createCreelPanel(parent, { content, onAction: () => undefined });
@@ -393,9 +411,11 @@ describe('PU-06a: 依頼書の行と箱に紙の芯の色を出す', () => {
     expect(row.textContent).toContain(`芯:${coreName}`);
     expect(row.querySelector('.core-dot')).not.toBeNull();
     const box = parent.querySelector('.creel-box')!;
-    expect(box.textContent).toContain(`芯:${coreName}`);
-    const dot = box.querySelector<HTMLElement>('.core-dot')!;
-    expect(dot.style.background).not.toBe('');
+    expect(box.textContent).not.toContain('芯');
+    expect(box.getAttribute('aria-label')).toContain(`芯:${coreName}`);
+    expect(box.querySelector<HTMLElement>('.creel-box__cheese')!.style.getPropertyValue('--creel-drag-core')).toBe(
+      content.cores.get(kon.core)!.hex,
+    );
     panel.destroy();
   });
 });
@@ -456,14 +476,11 @@ describe('PU-09b: 詰めた形の操作欄 (依頼書を見る・箱の横送り
     c.panel.destroy();
   });
 
-  it('重ね表示を開いたまま状態が変わると、依頼書の選択中の行も更新される。destroy で重ね表示も消える', () => {
+  it('重ね表示を開いたまま状態が変わっても、依頼書の行はそのまま重ね表示の中にある。destroy で重ね表示も消える', () => {
     const c = compactPanel();
     Array.from(c.parent.querySelectorAll('button')).find((b) => b.textContent === '依頼書を見る')!.click();
-    let s = s2State();
-    s = reduce(s, { type: 'selectBox', yarn: 'shiro-a' });
-    c.panel.update(s);
-    const rows = Array.from(c.frameEl.querySelectorAll('.sheet [data-testid="creel-order-row"]'));
-    expect(rows[1]!.className).toContain('creel-order-row--selected');
+    c.panel.update(s2State());
+    expect(c.frameEl.querySelectorAll('.sheet [data-testid="creel-order-row"]')).toHaveLength(2);
     c.panel.destroy();
     expect(c.frameEl.querySelector('.sheet')).toBeNull();
   });
@@ -501,10 +518,10 @@ describe('PU-09b: 詰めた形の操作欄 (依頼書を見る・箱の横送り
     const row = css.match(/\.game-frame--compact\[data-layout='portrait'\] \.creel-boxes\s*\{([^}]*)\}/);
     expect(row![1]).toContain('flex-wrap: nowrap');
     expect(row![1]).toContain('overflow-x: auto');
-    const box = css.match(/\.game-frame--compact\[data-layout='portrait'\] \.btn\.creel-box\s*\{([^}]*)\}/);
+    const box = css.match(/\.game-frame--compact\[data-layout='portrait'\] \.creel-box\s*\{([^}]*)\}/);
     expect(box![1]).toContain('touch-action: pan-x');
     expect(box![1]).toContain('width: 120px');
-    const col = css.match(/\.game-frame--compact\[data-layout='landscape'\] \.btn\.creel-box\s*\{([^}]*)\}/);
+    const col = css.match(/\.game-frame--compact\[data-layout='landscape'\] \.creel-box\s*\{([^}]*)\}/);
     expect(col![1]).toContain('touch-action: pan-y');
   });
 });

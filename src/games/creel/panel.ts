@@ -14,14 +14,6 @@ export interface CreelPanel {
   destroy(): void;
 }
 
-/** 選んでいる箱の品番 (箱以外の道具のときは null) */
-function selectedHinban(s: CreelState, content: Content): string | null {
-  if (s.tool.kind !== 'box') {
-    return null;
-  }
-  return content.yarns.get(s.tool.yarn)?.hinban ?? null;
-}
-
 /** ヒントが使えないときの理由 (押したときに出す) */
 function hintLockedReason(s: CreelState): string | null {
   if (canHint(s)) {
@@ -34,7 +26,7 @@ function hintLockedReason(s: CreelState): string | null {
   return '確認して ✕ が出ると使えます';
 }
 
-/** 操作欄 (依頼書・糸の箱・ヒントと確認する) を作る。箱は引っぱってチーズを置く元 (引っぱる動きは dragView が受ける) */
+/** 操作欄 (依頼書・糸の箱・ヒントと確認する) を作る。箱は引っぱってチーズを置く元 (引っぱる動きは dragView が受ける。箱を押しても何も選ばない) */
 export function createCreelPanel(parent: HTMLElement, opts: {
   content: Content;
   onAction: (a: CreelAction) => void;
@@ -196,7 +188,6 @@ export function createCreelPanel(parent: HTMLElement, opts: {
 
     // 1. 依頼書。くりかえし (times>=2 かつ unit.length>=2) なら「1リピート分」の表にして、
     //    その下に「↻ 繰り返し × N」の1行を足す。段階1〜3 だけ、何本目かを書き添える
-    const selHinban = selectedHinban(s, content);
     const showRange = s.stage <= ORDER_RANGE_MAX_STAGE;
     orderTable.textContent = '';
     const { unit, times } = splitRepeat(s.answer);
@@ -209,9 +200,6 @@ export function createCreelPanel(parent: HTMLElement, opts: {
       const row = document.createElement('div');
       row.classList.add('creel-order-row');
       row.dataset.testid = 'creel-order-row';
-      if (yarn !== undefined && yarn.hinban === selHinban) {
-        row.classList.add('creel-order-row--selected');
-      }
       const hinban = document.createElement('span');
       hinban.classList.add('creel-order-row__hinban');
       hinban.textContent = yarn?.hinban ?? run.yarn;
@@ -257,38 +245,43 @@ export function createCreelPanel(parent: HTMLElement, opts: {
       orderTable.appendChild(rep);
     }
 
-    // 2. 糸の箱 (woodLight の枠の白いボタン。選んでいる箱は藍の地・白文字・✓)
+    // 2. 糸の箱 (段ボール箱。品番とチーズの絵だけ。どこを押さえてもチーズを引っぱれる。押しても選ばない)
     boxes.textContent = '';
     for (const yarnId of s.boxes) {
       const yarn = content.yarns.get(yarnId);
       const color = yarn !== undefined ? content.colors.get(yarn.color) : undefined;
-      const selected = s.tool.kind === 'box' && s.tool.yarn === yarnId;
-      const btn = createButton({
-        label: '',
-        variant: 'secondary',
-        testId: `creel-box-${yarnId}`,
-        onClick: () => opts.onAction({ type: 'selectBox', yarn: yarnId }),
-      });
-      btn.classList.add('creel-box');
-      btn.dataset.yarn = yarnId; // 引っぱるチーズの糸 (dragView が読む)
-      btn.setAttribute('aria-pressed', selected ? 'true' : 'false');
-      if (selected) {
-        btn.classList.add('creel-box--selected');
-      }
+      const core = yarn !== undefined ? content.cores.get(yarn.core) : undefined;
+      const box = document.createElement('div');
+      box.classList.add('creel-box');
+      box.dataset.testid = `creel-box-${yarnId}`;
+      box.dataset.yarn = yarnId; // 引っぱるチーズの糸 (dragView が読む)
+      box.setAttribute('role', 'img');
+      box.setAttribute(
+        'aria-label',
+        [yarn?.hinban ?? yarnId, color?.name, core !== undefined ? `芯:${core.name}` : undefined].filter((x) => x !== undefined).join(' '),
+      );
       const hinban = document.createElement('span');
       hinban.classList.add('creel-box__hinban');
       hinban.textContent = yarn?.hinban ?? yarnId;
-      const label = document.createElement('span');
-      label.classList.add('creel-box__label');
-      label.textContent = `${selected ? '✓ ' : ''}${color?.symbol ?? ''} ${color?.name ?? ''}`;
-      btn.appendChild(hinban);
-      btn.appendChild(label);
-      const tag = coreTag(yarn?.core);
-      if (tag !== null) {
-        tag.classList.add('creel-box__core');
-        btn.appendChild(tag);
+      // チーズの絵: 糸の色の丸・紙の芯の輪・中央の穴 (引っぱるチーズ creel-drag と同じ描き方)
+      const cheese = document.createElement('span');
+      cheese.classList.add('creel-box__cheese');
+      cheese.setAttribute('aria-hidden', 'true');
+      if (color !== undefined) {
+        cheese.style.setProperty('--creel-drag-body', color.hex);
       }
-      boxes.appendChild(btn);
+      if (core !== undefined) {
+        cheese.style.setProperty('--creel-drag-core', core.hex);
+      }
+      const coreRing = document.createElement('span');
+      coreRing.classList.add('creel-drag__core');
+      const hole = document.createElement('span');
+      hole.classList.add('creel-drag__hole');
+      coreRing.appendChild(hole);
+      cheese.appendChild(coreRing);
+      box.appendChild(hinban);
+      box.appendChild(cheese);
+      boxes.appendChild(box);
     }
   }
 

@@ -418,3 +418,11 @@ describe('PU-06a: メッセージ欄の地の色', () => {
     expect(cssVars(':root').get('--c-message-bg')).toBeDefined();
   });
 });
+
+describe('PU-11a: 段ボールの色', () => {
+  it('cardboard #C9A272・cardboardDark #A9814F・cardboardTape #D9BE96', () => {
+    expect(COLORS.cardboard).toBe('#C9A272');
+    expect(COLORS.cardboardDark).toBe('#A9814F');
+    expect(COLORS.cardboardTape).toBe('#D9BE96');
+  });
+});

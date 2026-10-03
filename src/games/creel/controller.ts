@@ -90,7 +90,17 @@ export function createController(parent: HTMLElement, deps: GameDeps, props: Gam
       };
     },
     diameterPx: () => pegRadius(puzzle.rows, puzzle.cols) * lastFit.scale * 2,
-    onPress: (index) => dispatch({ type: 'pressPeg', index }),
+    onPress: (index) => {
+      if (s.done || finished) {
+        return;
+      }
+      if (s.placed[index] === null) {
+        // 置くのは引っぱる操作だけ。空いた軸を押したら、やり方を案内する
+        panel.setMessage(deps.terms.render('箱から{{cone}}を引っぱって、{{spindle}}の丸に嵌めてください'));
+        return;
+      }
+      dispatch({ type: 'pressPeg', index });
+    },
     onDrop: (result, yarn) => {
       if (result.kind === 'place') {
         dispatch({ type: 'place', index: result.index, yarn });
