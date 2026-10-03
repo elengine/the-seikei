@@ -86,8 +86,18 @@ export function createPedalControl(
   /** 横木の幅 (測れない環境では 64px) */
   const barWidth = (): number => bar.clientWidth || BAR_W;
 
+  /** 操作欄が狭いとき (360px 未満) は、溝を上の段にして「戻す」「踏み込む」を下の段に並べる (CSS の pedal-control--stacked) */
+  function updateStacked(): void {
+    root.classList.toggle('pedal-control--stacked', root.clientWidth < STACK_BELOW_PX);
+  }
+  let sized = false; // 画面に出て、幅が測れるようになった最初の描画で 1 回判定する (ResizeObserver の最初の通知を待たない)
+
   /** 値 (0〜100) を、横木の見た目に映す */
   function render(): void {
+    if (!sized && root.isConnected && root.clientWidth > 0) {
+      sized = true;
+      updateStacked();
+    }
     // 横木の左端 = (溝の幅 − 横木の幅) × 値 / 100 (はみ出さない)。left を溝の value%、横木自身の幅の value% だけ戻す
     bar.style.left = `${value}%`;
     bar.style.transform = `translateX(-${value}%)`;
@@ -134,11 +144,11 @@ export function createPedalControl(
 
   render();
 
-  // 操作欄が狭いとき (360px 未満) は、溝を上の段にして、「戻す」「踏み込む」を下の段に並べる (CSS の pedal-control--stacked)
+  // 大きさが変わったとき (回転など) も判定し直す
   let ro: ResizeObserver | null = null;
   if (typeof ResizeObserver !== 'undefined') {
     ro = new ResizeObserver(() => {
-      root.classList.toggle('pedal-control--stacked', root.clientWidth < STACK_BELOW_PX);
+      updateStacked();
     });
     ro.observe(root);
   }
