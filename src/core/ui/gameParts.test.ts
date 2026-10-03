@@ -701,6 +701,25 @@ describe('PU-08a: ゲームの画面の「遊び方」は丸いボタン', () =>
   });
 });
 
+describe('PU-10c: メッセージ欄の高さを盤面の高さから引く', () => {
+  it('詰めた形の縦: メッセージ欄が 60px・列の隙間 8px と測れるなら、盤面のカードの高さは 盤面の列の高さ − 60 − 8', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    parent.getBoundingClientRect = () =>
+      ({ width: 412, height: 915, top: 0, left: 0, right: 412, bottom: 915, x: 0, y: 0, toJSON: () => undefined }) as DOMRect;
+    const frame = createGameFrame(parent, { title: 'テスト', onBack: () => undefined, onHelp: () => undefined, logicalW: 1000, logicalH: 750 });
+    frame.message.getBoundingClientRect = () =>
+      ({ width: 300, height: 60, top: 0, left: 0, right: 300, bottom: 60, x: 0, y: 0, toJSON: () => undefined }) as DOMRect;
+    const stageCol = frame.root.querySelector('.game-frame__stage-col') as HTMLElement;
+    stageCol.style.rowGap = '8px';
+    frame.resize();
+    const stageBox = frame.root.querySelector('.game-frame__stage') as HTMLElement;
+    const colH = parseFloat(stageCol.style.height);
+    expect(parseFloat(stageBox.style.height)).toBe(colH - 60 - 8);
+    frame.destroy();
+  });
+});
+
 describe('PU-09a: 詰めた形の枠', () => {
   function rectOf(w: number, h: number): () => DOMRect {
     return () => ({ width: w, height: h, top: 0, left: 0, right: w, bottom: h, x: 0, y: 0, toJSON: () => undefined }) as DOMRect;
@@ -733,9 +752,12 @@ describe('PU-09a: 詰めた形の枠', () => {
     expect(c.frame.root.dataset.layout).toBe('landscape');
   });
 
-  it('詰めた形では、メッセージ欄の親が盤面のカード。そうでないときは今までどおり操作欄の中', () => {
+  it('詰めた形では、メッセージ欄は盤面のカードの外 (すぐ前の兄弟。盤面に重ならない)。そうでないときは今までどおり操作欄の中', () => {
     const compact = make(412, 915);
-    expect(compact.frame.message.parentElement).toBe(compact.frame.root.querySelector('.game-frame__stage'));
+    const stageCard = compact.frame.root.querySelector('.game-frame__stage')!;
+    expect(compact.frame.message.nextElementSibling).toBe(stageCard);
+    expect(stageCard.contains(compact.frame.message)).toBe(false);
+    expect(compact.frame.message.parentElement).toBe(stageCard.parentElement);
     const normal = make(1180, 820);
     expect(normal.frame.message.parentElement).toBe(normal.frame.panel);
     expect(normal.frame.panel.firstElementChild).toBe(normal.frame.message);
@@ -747,7 +769,7 @@ describe('PU-09a: 詰めた形の枠', () => {
     parent.getBoundingClientRect = rectOf(915, 412); // 横向きの Fold のカバー画面
     frame.resize();
     expect(frame.root.classList.contains('game-frame--compact')).toBe(true);
-    expect(frame.message.parentElement!.classList.contains('game-frame__stage')).toBe(true);
+    expect(frame.message.nextElementSibling).toBe(frame.root.querySelector('.game-frame__stage'));
     parent.getBoundingClientRect = rectOf(1180, 820);
     frame.resize();
     expect(frame.root.classList.contains('game-frame--compact')).toBe(false);
@@ -792,14 +814,15 @@ describe('PU-09a: 詰めた形の枠', () => {
     expect(parseFloat((f2.root.querySelector('.game-frame__stage-col') as HTMLElement).style.width)).toBe(Math.floor(915 * 0.55));
   });
 
-  it('base.css: 詰めた形では題名の下のお題の名前を出さず、見出しの上下の余白は 8px、メッセージ欄は盤面の上に重なる (最大2行)', () => {
+  it('base.css: 詰めた形では題名の下のお題の名前を出さず、見出しの上下の余白は 8px、メッセージ欄は盤面の外の上で 2 行ぶんの高さを保つ (重ねない)', () => {
     const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
     const sub = css.match(/\.game-frame--compact \.screen-header__subtitle\s*\{([^}]*)\}/);
     expect(sub![1]).toContain('display: none');
     const bar = css.match(/\.game-frame--compact \.game-frame__bar\s*\{([^}]*)\}/);
     expect(bar![1]).toContain('var(--sp-2)');
     const msg = css.match(/\.game-frame--compact \.game-frame__message\s*\{([^}]*)\}/);
-    expect(msg![1]).toContain('position: absolute');
+    expect(msg![1]).not.toContain('position: absolute');
     expect(msg![1]).toContain('-webkit-line-clamp: 2');
+    expect(msg![1]).toContain('min-height: calc(2 * 1.3em');
   });
 });

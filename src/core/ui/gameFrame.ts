@@ -109,11 +109,11 @@ export function createGameFrame(
 
   let offViewport: (() => void) | null = null;
 
-  /** メッセージ欄の置き場: 詰めた形は盤面のカードの上 (盤面に重ねる)、今の形は操作欄の一番上 */
+  /** メッセージ欄の置き場: 詰めた形は盤面のカードのすぐ上 (カードの外。盤面に重ならない)、今の形は操作欄の一番上 */
   function placeMessage(compact: boolean): void {
     if (compact) {
-      if (message.parentElement !== stageBox) {
-        stageBox.appendChild(message);
+      if (message.parentElement !== stageCol || message.nextElementSibling !== stageBox) {
+        stageCol.insertBefore(message, stageBox);
       }
     } else if (message.parentElement !== panel) {
       panel.insertBefore(message, panel.firstChild);
@@ -145,6 +145,11 @@ export function createGameFrame(
       ? Math.max(0, body.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight))
       : innerW;
     const colGap = parseFloat(cs.columnGap) || 0;
+    // 詰めた形では、盤面のカードの上にメッセージ欄がある。その高さ (と隙間) を盤面のカードの高さから引く
+    const msgH =
+      compact && message.parentElement === stageCol
+        ? message.getBoundingClientRect().height + (parseFloat(getComputedStyle(stageCol).rowGap) || 0)
+        : 0;
     const { stageColW, panelW } = splitWidths(layout, bodyInnerW, colGap, compact ? (opts.compactStageWidthRatio ?? 0.6) : 0.65);
     if (layout === 'landscape') {
       // 左:盤面の列 (Canvas の上・footer の下)・右:panel
@@ -155,14 +160,14 @@ export function createGameFrame(
       stageCol.style.height = `${bodyInnerH}px`;
       if (footerEmpty) {
         stageBox.style.width = '100%';
-        stageBox.style.height = `${bodyInnerH}px`;
+        stageBox.style.height = `${Math.max(0, bodyInnerH - msgH)}px`;
         panel.style.width = `${panelW}px`;
         panel.style.height = `${bodyInnerH}px`;
       } else {
         // footer の高さは中身 (実際に測れるなら) から取る。列の gap (rowGap) も引く
         const footerH = footer.getBoundingClientRect().height;
         const rowGap = parseFloat(getComputedStyle(stageCol).rowGap) || 0;
-        const stageH = Math.max(0, bodyInnerH - footerH - rowGap);
+        const stageH = Math.max(0, bodyInnerH - footerH - rowGap - msgH);
         stageBox.style.width = '100%';
         stageBox.style.height = `${stageH}px`;
         panel.style.width = `${panelW}px`;
@@ -175,7 +180,7 @@ export function createGameFrame(
       const stageH = Math.floor(bodyInnerH * (compact ? 0.45 : (opts.portraitStageRatio ?? 0.6)));
       stageCol.style.height = `${stageH}px`; // 縦長では盤面の列は盤面だけ (footer は隠す)
       stageBox.style.width = '100%';
-      stageBox.style.height = `${stageH}px`;
+      stageBox.style.height = `${Math.max(0, stageH - msgH)}px`;
       panel.style.width = `${panelW}px`;
       panel.style.height = `${bodyInnerH - stageH}px`;
     }

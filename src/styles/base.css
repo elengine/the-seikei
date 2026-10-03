@@ -1841,29 +1841,20 @@ button {
   padding: var(--sp-2);
 }
 
-.game-frame--compact .game-frame__stage {
-  position: relative;
+.game-frame--compact .game-frame__stage-col {
+  gap: var(--sp-2);
 }
 
-/* メッセージ欄は、盤面のカードの上の端に重ねる (操作欄の高さを使わない)。最大 2 行 */
+/* メッセージ欄は、盤面のカードのすぐ上 (カードの外) に置く。盤面の絵に重ならない。いつも 2 行ぶんの高さ */
 .game-frame--compact .game-frame__message {
-  position: absolute;
-  top: var(--sp-2);
-  left: var(--sp-2);
-  right: var(--sp-2);
-  z-index: 3;
+  flex: none;
   margin: 0;
-  min-height: 0;
+  min-height: calc(2 * 1.3em + 2 * var(--sp-2));
   padding: var(--sp-2) var(--sp-3);
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   overflow: hidden;
-  pointer-events: none; /* 盤面の操作をじゃましない */
-}
-
-.game-frame--compact .game-frame__message:empty {
-  display: none;
 }
 
 /* 操作欄の中の余白も詰める */

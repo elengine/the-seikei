@@ -853,12 +853,12 @@ describe('PU-09b: 詰めた形で、箱の横送りと引っぱるを見分け�
     el.dispatchEvent(new PointerEvent(type, { clientX: x, clientY: y, pointerId: 1, bubbles: true, button: 0 }));
   };
 
-  it('縦の詰めた形: 操作欄に「依頼書を見る」があり、箱は横に送る (data-scroll=x)。メッセージ欄は盤面のカードの中', () => {
+  it('縦の詰めた形: 操作欄に「依頼書を見る」があり、箱は横に送る (data-scroll=x)。メッセージ欄は盤面のカードのすぐ上 (外)', () => {
     const { parent } = openCompact(412, 915);
     expect(parent.querySelector('.game-frame--compact')).not.toBeNull();
     expect(Array.from(parent.querySelectorAll('button')).some((b) => b.textContent === '依頼書を見る')).toBe(true);
     expect(parent.querySelector<HTMLElement>('.creel-boxes')!.dataset.scroll).toBe('x');
-    expect(parent.querySelector('.game-frame__stage .game-frame__message')).not.toBeNull();
+    expect(parent.querySelector('.game-frame__message + .game-frame__stage')).not.toBeNull(); // 盤面のカードの外のすぐ上
   });
 
   it('縦の詰めた形: 箱の上で横に 20px 動かしても引っぱりにならず (重ねが出ない)、上に 20px 動かすと引っぱりになる', () => {
