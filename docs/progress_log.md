@@ -1305,3 +1305,13 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - 変更: params.ts に WING_SIDE_MAX_RATIO = 0.4、renderer.parts.ts の側面の幅を 板の幅 × 0.4 × |sin θ| に (従来は WING_OUT=14 固定の最大値)、renderer.test.ts に「6角度で側面の幅 ≤ 板の幅の40%」のテストを追加 (RED 確認後 GREEN)
 - npm test 677 passed / 11 skipped・check エラー0・build 成功・CI 1回で success。変更ファイルは params.ts / renderer.parts.ts / renderer.test.ts のみ
 - stash 事象の調査: コンテナ内に他のエージェント・git プロセスなし。HEAD reflog・refs/stash に私以外の記録なし。結論: 並行作業者でなく、自分の execute_code によるファイル書き込みの一部が反映されなかった可能性が高い。以後 patch ツールで編集し書き込み直後に確認する
+
+## T2-14a (お題をクリール立てと同じ柄の15題に)
+- params.ts: PUZZLE_STAGE (段階1-5 → 帯3/4/5/6/7本、難易度 初/初/中/中/上)
+- puzzles.ts: windingPuzzles(content) — creelPuzzles 15題を WindingPuzzle {id, stage, patternId, name, sections, level} に
+- logic.ts: State.puzzleId (init opts は任意・既定 '')。isValidResume は puzzleId キーが無い旧形を拒否
+- listView.ts: 段階ごとの節、柄の見本・名前・「帯 N本」補足、星/次はこれ/鍵、途中表示 (savedPuzzleId)、data-testid=winding-puzzle-<id>
+- index.ts: selectPuzzle (別のお題のとき確認)、savedPuzzleId、next=「次のお題へ」(今のお題の次)、stats に puzzle:<id> を追加、job モードは従来どおり
+- controller.ts: 題名の下は「段階N 柄の名前」(お題以外は従来の「難易度 帯 N本」)
+- テスト: RED (puzzles 3・listView 3・logic 2・controller 調整) → **682 passed / 11 skipped**、check 0
+- commit 757811d、CI 1回で success。ブラウザ: 一覧5節15題 ✓、段階1 (紺の無地) 完走 ★★☆・成績4行・「次のお題へ」で黒の無地へ ✓、一覧に星/途中/次はこれ/鍵 ✓
