@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { windingTutorial, drawPage1 } from './tutorial';
 import { makeFakeCtx } from './renderer.test.helpers';
 import { showTutorial } from '../../core/ui/tutorialOverlay';
+import { COLORS } from '../../core/ui/tokens';
 
 describe('winding tutorial (T2-07)', () => {
   it('1. pages が5つあり、文に {{pedal}} の置き換え対象がある (T2-12 で5ページ)', () => {
@@ -133,5 +134,47 @@ describe('winding tutorial T2-12 (遊び方を5ページに)', () => {
         expect(m === null || Number(m[1]) >= 20, String(op.args?.[0])).toBe(true);
       }
     }
+  });
+});
+
+describe('PU-14d: ドラム巻きの遊び方を今の画面に合わせる', () => {
+  const all = windingTutorial.pages.map((p) => p.text).join('\n');
+
+  it('文に「ランプ」と「巻き量」があり、「踏み込む」「戻す」「速さ」「メッセージ」が無い', () => {
+    expect(all).toContain('ランプ');
+    expect(all).toContain('巻き量');
+    for (const w of ['踏み込む', '戻す', '速さ', 'メッセージ', '時間の制限はありません']) {
+      expect(all, w).not.toContain(w);
+    }
+  });
+
+  it('ランプの色と記号 (緑の○・橙の▲▼・赤の✕) を、3 ページ目の絵に描く (tokens の lampOk・lampWarn・lampBreak)', () => {
+    const { ctx, rec } = makeFakeCtx();
+    windingTutorial.pages[2]!.draw(ctx, 900, 600);
+    expect(rec.fillStyleLog).toContain(COLORS.lampOk);
+    expect(rec.fillStyleLog).toContain(COLORS.lampWarn);
+    expect(rec.fillStyleLog).toContain(COLORS.lampBreak);
+    const texts = rec.ops.filter((o) => o.k === 'fillText').map((o) => String(o.args?.[0]));
+    for (const t of ['○', '▲', '✕']) {
+      expect(texts.some((x) => x.includes(t)), t).toBe(true);
+    }
+  });
+
+  it('2 ページ目の絵のペダルは横向きの溝 (幅が高さより大きい fillRect があり、横木がその中にある)。ボタンの文字は描かない', () => {
+    const { ctx, rec } = makeFakeCtx();
+    windingTutorial.pages[1]!.draw(ctx, 900, 600);
+    const texts = rec.ops.filter((o) => o.k === 'fillText').map((o) => String(o.args?.[0]));
+    expect(texts.some((t) => t.includes('踏み込む') || t.includes('戻す'))).toBe(false);
+    const wide = rec.ops.filter((o) => o.k === 'fillRect' && (o.args?.[2] as number) > (o.args?.[3] as number) * 3);
+    expect(wide.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('5 ページ目の絵に、目標を超えた制限時間 (朱の「超過」) と「巻き量」がある', () => {
+    const { ctx, rec } = makeFakeCtx();
+    windingTutorial.pages[4]!.draw(ctx, 900, 600);
+    const texts = rec.ops.filter((o) => o.k === 'fillText').map((o) => String(o.args?.[0]));
+    expect(texts.some((t) => t.includes('超過'))).toBe(true);
+    expect(texts.some((t) => t.includes('巻き量'))).toBe(true);
+    expect(rec.fillStyleLog).toContain(COLORS.shu);
   });
 });

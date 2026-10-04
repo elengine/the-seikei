@@ -89,7 +89,7 @@ export function createCreelModule(deps: GameDeps): GameModule {
               next:
                 nextPuzzle !== undefined
                   ? {
-                      label: '次のお題へ',
+                      label: '次へ',
                       start: () => {
                         leavePlay();
                         startPlay(nextPuzzle.id, undefined);

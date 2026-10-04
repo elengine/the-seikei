@@ -605,7 +605,7 @@ describe('PU-05b: クリール立てのプレイ画面と結果のつなぎ', ()
       { label: 'ヒント', value: '0回' },
     ]);
     expect(r.starHint).toBe('1回目で合えば星3です');
-    expect(r.next?.label).toBe('次のお題へ');
+    expect(r.next?.label).toBe('次へ');
     expect(typeof r.again).toBe('function');
     expect(typeof r.toList).toBe('function');
   });

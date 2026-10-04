@@ -893,7 +893,7 @@ describe('PU-05c: ドラム巻きの結果のつなぎ', () => {
     expect(result.resultLines).toHaveLength(4);
     expect(result.resultLines?.some((l) => l.label.includes('違う端'))).toBe(false);
     expect(result.starHint).toBe('適正な張りが8割以上、目標の時間内で星3です');
-    expect(result.next?.label).toBe('次のお題へ');
+    expect(result.next?.label).toBe('次へ');
     expect(typeof result.again).toBe('function');
     expect(typeof result.toList).toBe('function');
     instance.unmount();

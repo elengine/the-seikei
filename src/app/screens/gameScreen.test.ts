@@ -468,7 +468,7 @@ describe('PU-05a: 結果の画面のつなぎ', () => {
 
   it("結果で 'next' を選ぶと next.start が呼ばれる (ホームへは移らない)", async () => {
     const start = vi.fn();
-    const { navigated } = await finishWith('next', { next: { label: '次のお題へ', start } });
+    const { navigated } = await finishWith('next', { next: { label: '次へ', start } });
     await vi.waitFor(() => {
       expect(start).toHaveBeenCalledTimes(1);
     });
@@ -494,14 +494,14 @@ describe('PU-05a: 結果の画面のつなぎ', () => {
 
   it('showResult に resultLines・starHint・next のラベルが渡る。summary だけなら summary が行になる', async () => {
     const lines = [{ label: '確認した回数', value: '1回' }];
-    const a = await finishWith('list', { resultLines: lines, starHint: '1回目で合えば星3です', next: { label: '次のお題へ', start: () => undefined } });
+    const a = await finishWith('list', { resultLines: lines, starHint: '1回目で合えば星3です', next: { label: '次へ', start: () => undefined } });
     await vi.waitFor(() => {
       expect(showResult).toHaveBeenCalled();
     });
     const opts = vi.mocked(showResult).mock.calls[0]![1];
     expect(opts.lines).toEqual(lines);
     expect(opts.hint).toBe('1回目で合えば星3です');
-    expect(opts.next).toEqual({ label: '次のお題へ' });
+    expect(opts.next).toEqual({ label: '次へ' });
     expect(a.navigated).toBeDefined();
     vi.mocked(showResult).mockClear();
     await finishWith('list', { summary: ['確認した回数 1回'] });

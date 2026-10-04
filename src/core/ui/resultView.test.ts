@@ -27,7 +27,7 @@ describe('showResult (PU-02b)', () => {
     expect(host.querySelector('.result__title')!.textContent).toBe('完了しました');
     expect(host.querySelector('.result__title')!.classList.contains('font-heading')).toBe(true);
     expect(host.textContent).toContain('お疲れ様でした');
-    button(host, '一覧へ').click();
+    button(host, '一覧').click();
     await done;
   });
 
@@ -46,17 +46,17 @@ describe('showResult (PU-02b)', () => {
     expect(li.querySelector('.result__value')!.textContent).toBe('12本');
     expect(host.querySelector('.result__hint')!.textContent).toBe('1回目で合えば星3です');
     expect(host.querySelector('[data-testid="pv"]')).toBe(preview);
-    button(host, '一覧へ').click();
+    button(host, '一覧').click();
     await done;
   });
 
   it('next があると右に primary。押すと next。左に「一覧へ」「もう一度」(secondary)', async () => {
-    const { host, done } = mountResult({ stars: 1, lines: [], newPatternNames: [], next: { label: '次のお題へ' } });
+    const { host, done } = mountResult({ stars: 1, lines: [], newPatternNames: [], next: { label: '次へ' } });
     const actions = host.querySelector('.dialog__actions')!;
     const last = actions.lastElementChild as HTMLButtonElement;
-    expect(last.textContent).toBe('次のお題へ');
+    expect(last.textContent).toBe('次へ');
     expect(last.classList.contains('btn--primary')).toBe(true);
-    expect(button(host, '一覧へ').classList.contains('btn--secondary')).toBe(true);
+    expect(button(host, '一覧').classList.contains('btn--secondary')).toBe(true);
     expect(button(host, 'もう一度').classList.contains('btn--secondary')).toBe(true);
     last.click();
     await expect(done).resolves.toBe('next');
@@ -65,8 +65,8 @@ describe('showResult (PU-02b)', () => {
 
   it('next が無いと「一覧へ」が primary で、押すと list。「もう一度」は again', async () => {
     const a = mountResult({ stars: 1, lines: [], newPatternNames: [] });
-    expect(button(a.host, '一覧へ').classList.contains('btn--primary')).toBe(true);
-    button(a.host, '一覧へ').click();
+    expect(button(a.host, '一覧').classList.contains('btn--primary')).toBe(true);
+    button(a.host, '一覧').click();
     await expect(a.done).resolves.toBe('list');
     const b = mountResult({ stars: 1, lines: [], newPatternNames: [] });
     button(b.host, 'もう一度').click();
@@ -82,7 +82,7 @@ describe('showResult (PU-02b)', () => {
     expect(pending()).toBe(1);
     vi.advanceTimersByTime(300);
     expect(pending()).toBe(0);
-    button(host, '一覧へ').click();
+    button(host, '一覧').click();
     await done;
     expect(vi.getTimerCount()).toBe(0);
   });
@@ -93,7 +93,7 @@ describe('showResult (PU-02b)', () => {
     try {
       const { host, done } = mountResult({ stars: 3, lines: [], newPatternNames: [] });
       expect(host.querySelectorAll('.stars__pending')).toHaveLength(0);
-      button(host, '一覧へ').click();
+      button(host, '一覧').click();
       await done;
     } finally {
       window.matchMedia = orig;
@@ -117,5 +117,15 @@ describe('showResult (PU-02b)', () => {
     const b = mountResult({ stars: 1, lines: [], newPatternNames: [], againLabel: 'x', homeLabel: 'ホームへ' });
     button(b.host, 'ホームへ').click();
     await expect(b.done).resolves.toBe('list');
+  });
+});
+
+describe('PU-14d: 結果のボタンの文字は短い (「一覧」「もう一度」「次へ」。3 つが 1 行に並ぶ)', () => {
+  it('既定は「一覧」「もう一度」。next があれば「次へ」。「一覧へ」「次のお題へ」は無い', () => {
+    const { host } = mountResult({ stars: 1, lines: [], newPatternNames: [], next: { label: '次へ' } });
+    const labels = Array.from(host.querySelectorAll('button')).map((b) => b.textContent);
+    expect(labels).toEqual(['一覧', 'もう一度', '次へ']);
+    expect(host.textContent).not.toContain('一覧へ');
+    expect(host.textContent).not.toContain('次のお題へ');
   });
 });

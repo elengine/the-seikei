@@ -59,33 +59,44 @@ export function drawPage1(ctx: CanvasRenderingContext2D, w: number, h: number): 
   ctx.fillRect(w * 0.58, h * 0.3 + 12, w * 0.34, 10);
 }
 
-/** 2ページ目: ペダルの横木と張りのメーターの略図 */
+/** 2ページ目: 横向きのペダルの溝 (横木を指で右へ動かす) と張りのメーターの略図 (PU-14d) */
 function drawPage2(ctx: CanvasRenderingContext2D, w: number, h: number): void {
-  // 溝と横木
-  const gX = w * 0.14;
-  const gW = w * 0.1;
+  // 溝 (横長) と横木。右へ動かすほど速い
+  const gX = w * 0.12;
+  const gW = w * 0.76;
+  const gY = h * 0.5;
+  const gH = h * 0.14;
   ctx.fillStyle = COLORS.white;
   ctx.strokeStyle = COLORS.steel;
   ctx.lineWidth = 2;
-  ctx.fillRect(gX, h * 0.2, gW, h * 0.6);
-  ctx.strokeRect(gX, h * 0.2, gW, h * 0.6);
+  ctx.fillRect(gX, gY, gW, gH);
+  ctx.strokeRect(gX, gY, gW, gH);
   ctx.fillStyle = COLORS.wood;
-  ctx.fillRect(gX + 4, h * 0.62, gW - 8, h * 0.12);
+  ctx.fillRect(gX + gW * 0.58, gY + 4, w * 0.1, gH - 8);
+  // 右へ動かす矢印
+  ctx.strokeStyle = COLORS.ai;
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(gX + gW * 0.72, gY + gH / 2);
+  ctx.lineTo(gX + gW * 0.92, gY + gH / 2);
+  ctx.lineTo(gX + gW * 0.88, gY + gH / 2 - 10);
+  ctx.moveTo(gX + gW * 0.92, gY + gH / 2);
+  ctx.lineTo(gX + gW * 0.88, gY + gH / 2 + 10);
+  ctx.stroke();
   // 張りのメーター (帯と針)
-  const mX = w * 0.32;
-  const mW = w * 0.5;
+  const mX = w * 0.12;
+  const mW = w * 0.76;
+  const mY = h * 0.2;
   ctx.fillStyle = COLORS.white;
-  ctx.fillRect(mX, h * 0.3, mW, h * 0.09);
-  ctx.strokeRect(mX, h * 0.3, mW, h * 0.09);
+  ctx.strokeStyle = COLORS.steel;
+  ctx.lineWidth = 2;
+  ctx.fillRect(mX, mY, mW, h * 0.09);
+  ctx.strokeRect(mX, mY, mW, h * 0.09);
   ctx.fillStyle = COLORS.machineLight;
-  ctx.fillRect(mX + mW * 0.3, h * 0.3, mW * 0.4, h * 0.09);
+  ctx.fillRect(mX + mW * 0.3, mY, mW * 0.4, h * 0.09);
   ctx.fillStyle = COLORS.sumi;
-  ctx.fillRect(mX + mW * 0.55, h * 0.27, 3, h * 0.15);
-  // 「強すぎ」の帯を上に塗る (示意)
-  ctx.fillStyle = COLORS.shu;
-  ctx.fillRect(mX + mW * 0.9, h * 0.3, mW * 0.1, h * 0.09);
-  // 説明の文字
-  drawText(ctx, 'ふかく踏むほど速い', mX + mW * 0.28, h * 0.62);
+  ctx.fillRect(mX + mW * 0.55, mY - h * 0.03, 3, h * 0.15);
+  drawText(ctx, '右へ動かすほど速い', gX, gY + gH + 34);
 }
 
 /** 3ページ目: 張りの流れと、適正の帯が動く略図 (T2-12) */
@@ -127,6 +138,31 @@ function drawPage3(ctx: CanvasRenderingContext2D, w: number, h: number): void {
   ctx.closePath();
   ctx.fill();
   drawText(ctx, '▲ ときどき引っかかる', mX + mW * 0.6, mY - h * 0.08);
+  // 張りのランプ (ドラムの上): 適正は緑の○、外れは橙の▲▼、切れたら赤の✕ (PU-14d)
+  const lamps: Array<{ color: string; mark: string; name: string }> = [
+    { color: COLORS.lampOk, mark: '○', name: '適正' },
+    { color: COLORS.lampWarn, mark: '▲', name: '強すぎ' },
+    { color: COLORS.lampWarn, mark: '▼', name: '弱すぎ' },
+    { color: COLORS.lampBreak, mark: '✕', name: '切れた' },
+  ];
+  lamps.forEach((l, i) => {
+    const lx = w * (0.16 + i * 0.22);
+    const ly = h * 0.76;
+    ctx.fillStyle = l.color;
+    ctx.beginPath();
+    ctx.arc(lx, ly, 24, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = COLORS.white;
+    ctx.font = 'bold 28px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(l.mark, lx, ly + 1);
+    ctx.fillStyle = COLORS.sumi;
+    ctx.font = '20px sans-serif';
+    ctx.fillText(l.name, lx, ly + 44);
+    ctx.textAlign = 'start';
+    ctx.textBaseline = 'alphabetic';
+  });
 }
 
 /** 4ページ目: 切れた糸が2本。同じ糸の両端に同じ印 (T2-12) */
@@ -160,21 +196,31 @@ function drawPage4(ctx: CanvasRenderingContext2D, w: number, h: number): void {
   drawText(ctx, '同じ印どうしをつなぐ', w * 0.3, h * 0.82);
 }
 
-/** 5ページ目: 経過時間と目標の時間の略図 (T2-12) */
+/** 5ページ目: 巻き量と、制限時間 (目標を超えると朱の「超過」) の略図 (T2-12・PU-14d) */
 function drawPage5(ctx: CanvasRenderingContext2D, w: number, h: number): void {
-  // 操作欄の時間の表示 (「0:42 / 1:30」)
-  const tX = w * 0.3;
-  const tY = h * 0.42;
+  const tX = w * 0.14;
+  // 巻き量
+  drawText(ctx, '巻き量 89%', tX, h * 0.2);
+  // 制限時間 (経過 / 目標)。大きな文字
   ctx.fillStyle = COLORS.white;
-  ctx.fillRect(tX, tY - 34, w * 0.4, 48);
+  ctx.fillRect(tX, h * 0.26, w * 0.72, 56);
   ctx.strokeStyle = COLORS.steel;
   ctx.lineWidth = 2;
-  ctx.strokeRect(tX, tY - 34, w * 0.4, 48);
-  drawText(ctx, '0:42 / 1:30', tX + 16, tY);
+  ctx.strokeRect(tX, h * 0.26, w * 0.72, 56);
+  ctx.fillStyle = COLORS.sumiSub;
+  ctx.font = 'bold 36px sans-serif';
+  ctx.fillText('0:42 / 1:30', tX + 16, h * 0.26 + 40);
+  // 目標を超えた例 (朱の文字に「超過」)
+  ctx.fillStyle = COLORS.white;
+  ctx.fillRect(tX, h * 0.46, w * 0.72, 56);
+  ctx.strokeRect(tX, h * 0.46, w * 0.72, 56);
+  ctx.fillStyle = COLORS.shu;
+  ctx.font = 'bold 36px sans-serif';
+  ctx.fillText('1:52 / 1:30 超過', tX + 16, h * 0.46 + 40);
   // 星3の説明の星 (3つ)
   ctx.fillStyle = COLORS.steel;
   for (let i = 0; i < 3; i++) {
-    drawStar(ctx, w * 0.42 + i * 60, h * 0.66, 22);
+    drawStar(ctx, w * 0.42 + i * 60, h * 0.78, 22);
   }
 }
 
@@ -198,19 +244,19 @@ export const windingTutorial: TutorialSpec = {
     { draw: (ctx, w, h) => drawPage1(ctx, w, h), text: 'クリールの糸を{{section}}にまとめて、{{drum}}に巻いていきます' },
     {
       draw: (ctx, w, h) => drawPage2(ctx, w, h),
-      text: '{{pedal}}を踏むと巻き始めます。深く踏むほど速く巻けますが、張りも強くなります',
+      text: '「巻き始める」を押したあと、{{pedal}}の帯を指で右へ動かすと巻けます。右へ動かすほど速く巻けますが、張りも強くなります',
     },
     {
       draw: (ctx, w, h) => drawPage3(ctx, w, h),
-      text: '張りは少しずつ流れ、ときどき糸が引っかかって急に強くなります。緑の適正な範囲も、少しずつ動きます。メーターを見ながら{{pedal}}を合わせ続けてください',
+      text: '張りはメーターと、{{drum}}の上のランプで分かります。緑の○は適正、橙の▲は強すぎ、▼は弱すぎです。張りは少しずつ流れ、ときどき糸が引っかかって急に強くなります。緑の適正な範囲も少しずつ動くので、動きに合わせて{{pedal}}を合わせ続けてください',
     },
     {
       draw: (ctx, w, h) => drawPage4(ctx, w, h),
-      text: '張りが強すぎると糸が切れて、機械が止まります。強すぎるほど、何本も切れます。切れた糸は、そのあたりを押すとつながります。何本も切れたら、1本ずつ押してください',
+      text: '張りが強すぎると糸が切れて、機械が止まり、ランプが赤い✕になります。強すぎるほど、何本も切れます。切れた糸は、そのあたりを押すとつながります。何本も切れたら、1本ずつ押してください',
     },
     {
       draw: (ctx, w, h) => drawPage5(ctx, w, h),
-      text: '星3は、適正な張りで巻いた割合が8割以上で、目標の時間内に巻き終えたときです。時間の制限はありません',
+      text: '「巻き量」は今の帯を巻いた割合です。星3は、適正な張りで巻いた割合が8割以上で、目標の時間内に巻き終えたときです。時間の表示が目標を超えると、朱の「超過」になります',
     },
   ],
 };

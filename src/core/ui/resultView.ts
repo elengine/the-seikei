@@ -16,7 +16,7 @@ function prefersReducedMotion(): boolean {
  * 押したボタンの値で解決する。表示後 1.5 秒の演出中もボタンは押せる。
  *
  * 今の呼び出し (praise・againLabel・homeLabel・lines が文字列) も型の上で通る (PU-05 まで)。
- * praise は使わない。lines が文字列なら値なしの行として出す。homeLabel は「一覧へ」の文字、
+ * praise は使わない。lines が文字列なら値なしの行として出す。homeLabel は「一覧」の文字、
  * againLabel は「もう一度」の文字として使い、'home' は 'list' として返る。
  */
 export function showResult(
@@ -27,12 +27,12 @@ export function showResult(
     lines: ResultLine[]; // 成績 (左に項目、右に値)
     hint?: string; // 星3の条件 (例「1回目で合えば星3です」)
     newPatternNames: string[]; // 新しく集めた柄 (空なら欄を出さない)
-    next?: { label: string }; // あれば右に primary。無ければ「一覧へ」が primary
+    next?: { label: string }; // あれば右に primary。無ければ「一覧」が primary
     /** @deprecated 使わない (大人向けの決まり。PU-05 で呼び出しから消す) */
     praise?: string;
     /** @deprecated 「もう一度」の文字。PU-05 で呼び出しから消す */
     againLabel?: string;
-    /** @deprecated 「一覧へ」の文字。PU-05 で呼び出しから消す */
+    /** @deprecated 「一覧」の文字。PU-05 で呼び出しから消す */
     homeLabel?: string;
   },
 ): Promise<'list' | 'again' | 'next'> {
@@ -123,7 +123,7 @@ export function showResult(
       box.appendChild(patterns);
     }
 
-    // ボタン: 左から「一覧へ」「もう一度」(secondary)、右に next (primary)。next が無ければ「一覧へ」が primary
+    // ボタン: 左から「一覧」「もう一度」(secondary)、右に next (primary)。next が無ければ「一覧」が primary
     function finish(value: 'list' | 'again' | 'next'): void {
       for (const t of timers) {
         clearTimeout(t);
@@ -131,7 +131,7 @@ export function showResult(
       backdrop.remove();
       resolve(value);
     }
-    const listLabel = opts.homeLabel ?? '一覧へ';
+    const listLabel = opts.homeLabel ?? '一覧';
     const againLabel = opts.againLabel ?? 'もう一度';
     const actions = document.createElement('div');
     actions.classList.add('dialog__actions', 'result__actions');

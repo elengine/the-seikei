@@ -81,7 +81,7 @@ export function createWindingModule(deps: GameDeps): GameModule {
                     next:
                       nextPuzzle !== null
                         ? {
-                            label: '次のお題へ',
+                            label: '次へ',
                             start: () => {
                               leavePlay();
                               startPlay(nextPuzzle.level, nextPuzzle.patternId, nextPuzzle.sections, undefined, {
