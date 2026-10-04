@@ -125,13 +125,12 @@ describe('ホーム画面 (PU-03a)', () => {
     expect(navigate).toHaveBeenCalledWith('/games/winding');
   });
 
-  it('準備中のカード (糸割り・ビーミング・柄の図鑑。題名と重なる「整経屋の一日」は無い) は「準備中」。押すと「準備中です」が2秒出て、移らない', () => {
+  it('準備中のカード (糸割り・柄の図鑑。ビーム巻きは登録済みになった。題名と重なる「整経屋の一日」は無い) は「準備中」。押すと「準備中です」が2秒出て、移らない', () => {
     vi.useFakeTimers();
     const { root, navigate } = mountHome();
     const soon = Array.from(root.querySelectorAll<HTMLButtonElement>('.game-card--soon'));
     expect(soon.map((c) => c.querySelector('.game-card__name')!.textContent)).toEqual([
       '糸割り',
-      'ビーミング',
       '柄の図鑑',
     ]);
     for (const c of soon) {

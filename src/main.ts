@@ -15,6 +15,7 @@ import { registerGame } from './core/game/registry';
 import { createCreelModule } from './games/creel';
 import { createDrumSetupModule } from './games/drumsetup';
 import { createWindingModule } from './games/winding';
+import { createBeamingModule } from './games/beaming';
 import { gameDepsFrom } from './app/context';
 import { getContent } from './core/content/content';
 
@@ -84,6 +85,7 @@ async function main(): Promise<void> {
   registerGame(createCreelModule(gameDepsFrom(ctx)));
   registerGame(createDrumSetupModule(gameDepsFrom(ctx)));
   registerGame(createWindingModule(gameDepsFrom(ctx)));
+  registerGame(createBeamingModule(gameDepsFrom(ctx)));
   const contentProblems = getContent().problems;
   if (contentProblems.length > 0) {
     for (const problem of contentProblems) {

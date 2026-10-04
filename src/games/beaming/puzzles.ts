@@ -37,3 +37,8 @@ export function beamingPuzzles(content: Content): BeamingPuzzle[] {
     };
   });
 }
+
+/** id でお題を探す (無ければ null) */
+export function puzzleById(content: Content, id: string): BeamingPuzzle | null {
+  return beamingPuzzles(content).find((p) => p.id === id) ?? null;
+}

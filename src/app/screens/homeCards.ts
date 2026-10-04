@@ -5,7 +5,7 @@ const NS = 'http://www.w3.org/2000/svg';
 
 type Attrs = Record<string, string | number>;
 
-function shape(parent: SVGElement, tag: 'rect' | 'circle' | 'line', attrs: Attrs): void {
+function shape(parent: SVGElement, tag: 'rect' | 'circle' | 'line' | 'polygon', attrs: Attrs): void {
   const e = document.createElementNS(NS, tag);
   for (const [k, v] of Object.entries(attrs)) {
     e.setAttribute(k, String(v));
@@ -14,7 +14,7 @@ function shape(parent: SVGElement, tag: 'rect' | 'circle' | 'line', attrs: Attrs
 }
 
 /** カードの小さな絵 (200x100 の四角と丸だけの簡単な絵) */
-export function createCardArt(kind: 'creel' | 'drumsetup' | 'winding' | 'soon'): SVGElement {
+export function createCardArt(kind: 'creel' | 'drumsetup' | 'winding' | 'beaming' | 'soon'): SVGElement {
   const svg = document.createElementNS(NS, 'svg');
   svg.setAttribute('viewBox', '0 0 200 100');
   svg.setAttribute('aria-hidden', 'true');
@@ -50,6 +50,14 @@ export function createCardArt(kind: 'creel' | 'drumsetup' | 'winding' | 'soon'):
     });
     shape(svg, 'line', { x1: 30, y1: 50, x2: 60, y2: 50, stroke: COLORS.steel, 'stroke-width': 4 });
     shape(svg, 'line', { x1: 140, y1: 50, x2: 170, y2: 50, stroke: COLORS.steel, 'stroke-width': 4 });
+  } else if (kind === 'beaming') {
+    // ビーム巻き: 奥のドラムと、斜めに降りる糸のシート、手前のビームと緑の円盤
+    shape(svg, 'rect', { x: 24, y: 10, width: 152, height: 18, fill: COLORS.wood });
+    shape(svg, 'polygon', { points: '60,28 140,28 128,64 72,64', fill: COLORS.ai });
+    shape(svg, 'rect', { x: 44, y: 64, width: 112, height: 10, fill: COLORS.machineLight });
+    shape(svg, 'rect', { x: 44, y: 74, width: 112, height: 8, fill: COLORS.steel });
+    shape(svg, 'rect', { x: 36, y: 58, width: 8, height: 28, fill: COLORS.machine });
+    shape(svg, 'rect', { x: 156, y: 58, width: 8, height: 28, fill: COLORS.machine });
   } else {
     // 準備中: 点線の四角と丸
     shape(svg, 'rect', {
@@ -86,6 +94,9 @@ export function gameStatusText(id: string): string {
   }
   if (id === 'winding') {
     return '初級・中級・上級';
+  }
+  if (id === 'beaming') {
+    return `お題 ${getContent().creelPuzzles.length}`;
   }
   return '';
 }
