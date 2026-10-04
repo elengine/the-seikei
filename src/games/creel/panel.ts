@@ -161,15 +161,25 @@ export function createCreelPanel(parent: HTMLElement, opts: {
       if (orderBtn === null) {
         orderBtn = createButton({ label: '依頼書を見る', variant: 'secondary', onClick: toggleSheet });
         orderBtn.classList.add('creel-order-open');
-        orderBox.appendChild(orderBtn);
         if (sheet === null) {
           orderTable.remove();
         }
       }
+      // 詰めた横 (低い画面) では、「依頼書を見る」を「ヒント」「完了」と同じ行の左端に置く (操作欄が縦に収まる)。縦は依頼書の節に置く
+      const landscape = frameEl?.dataset.layout === 'landscape';
+      if (landscape) {
+        if (orderBtn.parentElement !== actions) {
+          actions.insertBefore(orderBtn, hintBtn);
+        }
+      } else if (orderBtn.parentElement !== orderBox) {
+        orderBox.appendChild(orderBtn);
+      }
+      orderBox.hidden = landscape; // 空になる節を隠す (操作欄の隙間が余らない)
     } else {
       closeSheet();
       orderBtn?.remove();
       orderBtn = null;
+      orderBox.hidden = false;
       if (orderTable.parentElement !== orderBox) {
         orderBox.appendChild(orderTable);
       }

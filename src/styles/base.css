@@ -2315,3 +2315,27 @@ button {
   line-height: 1.4;
   z-index: 3;
 }
+
+/* 詰めた横 (低い画面。PU-12 追加修正): 「依頼書を見る」「ヒント」「完了」を 1 行に収め、依頼書の重ね表示は 2 列にして、スクロールを無くす */
+.game-frame--compact[data-layout='landscape'] .creel-actions .btn {
+  flex: 1 1 0;
+  min-width: 64px; /* 押せる部品は 64px 以上 */
+  padding: 0 var(--sp-2);
+  font-size: 20px;
+  white-space: nowrap;
+}
+
+.game-frame--compact[data-layout='landscape'] .creel-actions .creel-order-open {
+  flex: 2 1 0; /* 「依頼書を見る」は字が長いので、ほかの 2 倍の幅 */
+}
+
+.game-frame--compact[data-layout='landscape'] .sheet .creel-order {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: var(--sp-4);
+  row-gap: var(--sp-1);
+}
+
+.game-frame--compact[data-layout='landscape'] .sheet .creel-order-repeat {
+  grid-column: 1 / -1;
+}

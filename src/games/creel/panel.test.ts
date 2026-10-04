@@ -712,3 +712,57 @@ describe('PU-12d: 箱の並び (縦長は絵の下に型番、横長は 2 列で
     panel.destroy();
   });
 });
+
+describe('PU-12 追加修正: 詰めた横 (915×412) でスクロールを無くす', () => {
+  function compactPanel(layout: 'portrait' | 'landscape'): { frameEl: HTMLElement; parent: HTMLElement; panel: CreelPanel } {
+    const frameEl = document.createElement('div');
+    frameEl.className = 'game-frame game-frame--compact';
+    frameEl.dataset.layout = layout;
+    document.body.appendChild(frameEl);
+    const parent = document.createElement('div');
+    frameEl.appendChild(parent);
+    const panel = createCreelPanel(parent, { content, onAction: () => undefined });
+    panel.update(s2State());
+    return { frameEl, parent, panel };
+  }
+  const tick = async (): Promise<void> => {
+    await Promise.resolve();
+    await Promise.resolve();
+  };
+  const orderBtn = (root: HTMLElement): HTMLButtonElement =>
+    Array.from(root.querySelectorAll('button')).find((b) => b.textContent === '依頼書を見る')!;
+
+  it('詰めた横では「依頼書を見る」が「ヒント」「完了」と同じ行 (.creel-actions) の左端に並ぶ。縦では今までどおり依頼書の節に置く。回すと移る', async () => {
+    const c = compactPanel('landscape');
+    const actions = c.parent.querySelector('.creel-actions')!;
+    expect(orderBtn(c.parent).parentElement).toBe(actions);
+    expect(Array.from(actions.children).map((b) => b.textContent)).toEqual(['依頼書を見る', 'ヒント', '完了']);
+    c.frameEl.dataset.layout = 'portrait';
+    await tick();
+    expect(orderBtn(c.parent).parentElement).not.toBe(actions);
+    expect(Array.from(actions.children).map((b) => b.textContent)).toEqual(['ヒント', '完了']);
+    c.frameEl.dataset.layout = 'landscape';
+    await tick();
+    expect(orderBtn(c.parent).parentElement).toBe(actions);
+    // 行に移ったあとも押せて、重ね表示が開く
+    orderBtn(c.parent).click();
+    expect(c.frameEl.querySelector('.sheet')).not.toBeNull();
+    c.panel.destroy();
+    const p = compactPanel('portrait');
+    expect(orderBtn(p.parent).parentElement).not.toBe(p.parent.querySelector('.creel-actions'));
+    p.panel.destroy();
+  });
+
+  it('base.css: 詰めた横の 3 つのボタンは 1 行に収まる (最小幅 64px・字は 20px・折り返さない)。依頼書の重ね表示は 2 列の格子 (繰り返しの行は全幅)', () => {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
+    const btn = css.match(/\.game-frame--compact\[data-layout='landscape'\] \.creel-actions \.btn\s*\{([^}]*)\}/)![1]!;
+    expect(btn).toContain('min-width: 64px'); // 押せる部品は 64px 以上
+    expect(btn).toContain('font-size: 20px');
+    expect(btn).toContain('white-space: nowrap');
+    const grid = css.match(/\.game-frame--compact\[data-layout='landscape'\] \.sheet \.creel-order\s*\{([^}]*)\}/)![1]!;
+    expect(grid).toContain('display: grid');
+    expect(grid).toContain('grid-template-columns: repeat(2, minmax(0, 1fr))');
+    const rep = css.match(/\.game-frame--compact\[data-layout='landscape'\] \.sheet \.creel-order-repeat\s*\{([^}]*)\}/)![1]!;
+    expect(rep).toContain('grid-column: 1 / -1');
+  });
+});
