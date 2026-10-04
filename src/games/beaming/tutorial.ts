@@ -151,6 +151,7 @@ export function drawPage3(ctx: CanvasRenderingContext2D, w: number, h: number): 
   const cY = h * 0.9;
   ctx.fillStyle = COLORS.ai;
   ctx.fillRect(cX, cY - h * 0.035, w * 0.2, h * 0.07);
+  ctx.fillStyle = COLORS.white; // 紺のボタンの上の文字は白
   drawText(ctx, '確認', cX + w * 0.1, cY + h * 0.018);
 }
 
