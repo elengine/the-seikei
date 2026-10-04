@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { init, reduce, qualities, starsOf, isValidResume, lastTapResult } from './logic';
-import { resultOf, messageFor } from './messages';
+import { resultOf, guideFor } from './messages';
 import type { WindingState } from './logic';
 import { paramsOf, SECTION_LENGTH, MAX_SPEED, TENSION, DRIFT, NOISE_AMP, RANGE_CENTER, RANGE_WIDTH, RANGE_WIDTH_SWING, YARN_FEEL } from './params';
 import type { YarnFeel } from './params';
@@ -346,27 +346,14 @@ describe('T2-13c (1回押してつなぐ・文言)', () => {
     return { ...s, phase: 'broken', brk: { kind: 'broken', threads: [1, 4], tied: [] } };
   }
 
-  it('1. 1本つないで残りがあるとき、文は「1本つながりました。あと 1 本です」の形', () => {
-    const s = twoBroken();
-    const next = reduce(s, { type: 'tapThread', thread: 1 });
-    const text = messageFor(next, s, next, (x: string) => x);
-    expect(text).toContain('1本つながりました');
-    expect(text).toContain('あと 1 本');
-  });
-
-  it('2. 切れたときの文は「切れた糸のあたりを押して、つないでください」', () => {
-    const s = twoBroken();
-    const text = messageFor(s, undefined, undefined, (x: string) => x);
-    expect(text).toContain('切れた糸のあたりを押して');
-  });
-
-  it('2b. 1本つながった状態 (操作の直後でなくても) は「1本つながりました。あと 1 本です」を出し続ける', () => {
-    const s = twoBroken();
-    const tied1 = { ...s, brk: { kind: 'broken' as const, threads: [4], tied: [1] } };
-    // prev/next を渡さない再描画 (ループでの定期更新) でも同じ文を出す
-    const text = messageFor(tied1, undefined, undefined, (x: string) => x);
-    expect(text).toContain('1本つながりました');
-    expect(text).toContain('あと 1 本');
+  it('2. 切れたときの案内 (一度きりのお知らせ。PU-14a でメッセージ欄は無くなった) は「切れた糸のあたりを押して、つないでください」。ready は巻き始める案内。ほかの状態は無し', () => {
+    const g = guideFor('broken', (x: string) => x)!;
+    expect(g.key).toBe('broken');
+    expect(g.text).toContain('切れた糸のあたりを押して');
+    expect(guideFor('ready', (x: string) => x)!.text).toContain('巻き始める');
+    expect(guideFor('winding', (x: string) => x)).toBeNull();
+    expect(guideFor('cutting', (x: string) => x)).toBeNull();
+    expect(guideFor('done', (x: string) => x)).toBeNull();
   });
 
   it('3. 切れていない糸を押すと wrongTaps が1増える。mismatches は無くなった', () => {

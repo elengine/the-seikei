@@ -1225,8 +1225,16 @@ button {
 }
 
 .winding-panel__clock {
-  margin-left: auto;
+  flex: 1 1 100%; /* 制限時間は 1 行を使って大きく見せる (PU-14a) */
+  font-size: 40px;
+  font-weight: bold;
+  line-height: 1.2;
+  white-space: nowrap;
   color: var(--c-sumi-sub);
+}
+
+.winding-panel__clock--over {
+  color: var(--c-shu); /* 目標を超えたら朱。「超過」の文字も添える */
 }
 
 .winding-panel__block .section-heading {

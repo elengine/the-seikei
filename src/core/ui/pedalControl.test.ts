@@ -280,3 +280,49 @@ describe('PU-09c: 操作欄が狭いときは、溝を上の段にして「戻�
     expect(groove).toContain('flex: 1 0 100%');
   });
 });
+
+describe('PU-14a: ペダルのボタンと速さの表示を出さない指定・張りのメーターの状態の文', () => {
+  it('buttons: false・showValue: false なら、「戻す」「踏み込む」と「速さ」の表示が無く、溝だけ。指定が無ければ今までどおり (ビーム巻きなど)', () => {
+    document.body.innerHTML = '';
+    const a = createPedalControl(document.body, { label: '', onChange: () => undefined, buttons: false, showValue: false });
+    expect(a.root.querySelector('.pedal__btn')).toBeNull();
+    expect(a.root.querySelector('.pedal__value')).toBeNull();
+    expect(a.root.querySelector('.pedal__groove')).not.toBeNull();
+    expect(Array.from(a.root.querySelector('.pedal__row')!.children)).toHaveLength(1);
+    a.destroy();
+    const b = createPedalControl(document.body, { label: '', onChange: () => undefined });
+    expect(b.root.querySelectorAll('.pedal__btn')).toHaveLength(2);
+    expect(b.root.querySelector('.pedal__value')).not.toBeNull();
+    b.destroy();
+  });
+
+  it('押せないとき (setEnabled(false, 理由)) に溝を押すと、理由が onLocked に出る。押せるときは出ない', () => {
+    document.body.innerHTML = '';
+    const onLocked = vi.fn();
+    const onChange = vi.fn();
+    const p = createPedalControl(document.body, { label: '', onChange, onLocked, buttons: false, showValue: false });
+    const groove = p.root.querySelector<HTMLElement>('.pedal__groove')!;
+    fakeRect(groove, 0, 0, 264, 64);
+    p.setEnabled(false, '「巻き始める」を押すと使えます');
+    pointer(groove, 'pointerdown', 100, 30);
+    expect(onLocked).toHaveBeenCalledWith('「巻き始める」を押すと使えます');
+    expect(onChange).not.toHaveBeenCalled();
+    p.setEnabled(true);
+    pointer(groove, 'pointerdown', 100, 30);
+    expect(onLocked).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    p.destroy();
+  });
+
+  it('張りのメーター: showState: false なら状態の文 (meter__state) を作らない。指定が無ければ「▲ 強すぎ」などが出る', () => {
+    document.body.innerHTML = '';
+    const a = createTensionMeter(document.body, { label: '', showState: false });
+    a.update(80, { min: 30, max: 60 });
+    expect(a.root.querySelector('.meter__state')).toBeNull();
+    a.destroy();
+    const b = createTensionMeter(document.body, { label: '' });
+    b.update(80, { min: 30, max: 60 });
+    expect(b.root.querySelector('.meter__state')!.textContent).toBe('▲ 強すぎ');
+    b.destroy();
+  });
+});

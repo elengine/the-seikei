@@ -9,9 +9,9 @@ import { fromPx, hitBrokenThread } from './geometry';
 import { getContent, type Content } from '../../core/content/content';
 import { init, reduce, seedFromText } from './logic';
 import { speedOf } from '../../core/mechanics/pedal';
-import { messageFor, soundFor, resultOf } from './messages';
+import { guideFor, soundFor, resultOf } from './messages';
 import type { WindingState, WindingAction, Level } from './logic';
-import { MESSAGE_HOLD_MS, DRUM_TURN_PER_SPEED, DRUM_EASE_UP_MS, DRUM_EASE_DOWN_MS, DRUM_STOP_MS, TENSION } from './params';
+import { DRUM_TURN_PER_SPEED, DRUM_EASE_UP_MS, DRUM_EASE_DOWN_MS, DRUM_STOP_MS, TENSION } from './params';
 
 const LEVEL_NAMES: Record<Level, string> = { 1: '初級', 2: '中級', 3: '上級' };
 import { feelLabel } from './puzzles';
@@ -89,6 +89,7 @@ let pinTurnPrevEased = 0; // 前フレームの ease の値 (角速度を決め�
     logicalW: 1000,
     logicalH: 750,
     portraitStageRatio: 0.4, // 縦長では盤面を小さくして、ペダルをスクロールなしで見えるようにする
+    message: false, // メッセージ欄は無い (状況は盤面のランプで示し、一度きりの案内は notify)
     onStageResize: (fit) => {
       lastFit = fit;
       if (ready) {
@@ -105,46 +106,18 @@ let pinTurnPrevEased = 0; // 前フレームの ease の値 (角速度を決め�
       dispatch(a);
     },
     onNotice: (text: string) => {
-      frame.message.textContent = text; // 押せないボタンの理由 (次の更新までメッセージ欄に出る)
+      frame.notify(text); // 押せないペダルの理由
     },
   });
 
-  // ---- メッセージ (大人向けの文言。terms.render。文は messages.ts) ----
-  // 張りのメッセージ (適正・強すぎ・弱め) は、新しい状態が MESSAGE_HOLD_MS 続いてから切り替える
-  // (境目の近くで細かく動くと 1 行と 2 行が高速に入れ替わるため。T2-07 追加修正2)。
-  // 糸が切れた・帯を巻き終えたなど、張り以外のメッセージはすぐに切り替える。
-  let pendingMsg: { text: string; sinceMs: number } | null = null;
-  let shownMsg = '';
-  function setMessage(text: string, holdMs: boolean): void {
-    if (!holdMs) {
-      pendingMsg = null;
-      shownMsg = text;
-      frame.message.textContent = text;
-      return;
+  // ---- 一度きりの案内 (メッセージ欄の代わり。お題ごとに最初の 1 回だけ、盤面の中央のお知らせで出す) ----
+  const guided = new Set<string>();
+  function updateMessage(): void {
+    const g = guideFor(s.phase, (x) => deps.terms.render(x));
+    if (g !== null && !guided.has(g.key)) {
+      guided.add(g.key);
+      frame.notify(g.text);
     }
-    if (text === shownMsg) {
-      pendingMsg = null; // 表示中と同じ文に戻ったら、待っていた切替を取り消す
-      return;
-    }
-    if (pendingMsg !== null && pendingMsg.text !== text) {
-      pendingMsg = { text, sinceMs: nowMs }; // 待っているあいだに別の文になったら、そこから測り直す
-      return;
-    }
-    if (pendingMsg === null) {
-      pendingMsg = { text, sinceMs: nowMs };
-      return;
-    }
-    if (nowMs - pendingMsg.sinceMs >= MESSAGE_HOLD_MS) {
-      pendingMsg = null;
-      shownMsg = text;
-      frame.message.textContent = text;
-    }
-  }
-  function updateMessage(prev?: WindingState, next?: WindingState): void {
-    const text = messageFor(s, prev, next, (x) => deps.terms.render(x));
-    // 引っかかりの文は待たずにすぐ出す (糸が切れたときと同じ扱い)。待つのは張りの 3 文だけ
-    const urgent = s.phase !== 'winding' || s.pedal.snag > 0;
-    setMessage(text, !urgent);
   }
 
   // ---- 描画 ----
@@ -212,7 +185,7 @@ let pinTurnPrevEased = 0; // 前フレームの ease の値 (角速度を決め�
       deps.audio.play(sound);
     }
     saveState();
-    updateMessage(prev, s);
+    updateMessage();
     if (s.phase === 'done') {
       handleDone();
     } else {
@@ -317,7 +290,7 @@ let pinTurnPrevEased = 0; // 前フレームの ease の値 (角速度を決め�
           pinTurnMs = 0;
           pinTurnPrevEased = 0;
         }
-        updateMessage(prev, s);
+        updateMessage();
         refresh();
       } else if (tieRunning || s.phase === 'winding' || s.phase === 'broken') {
         // 状態が変わらなくても、揺らしや演出のために毎フレーム盤面だけ描き直す

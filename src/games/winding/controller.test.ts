@@ -82,6 +82,31 @@ async function wait(ms: number): Promise<void> {
   await new Promise((r) => setTimeout(r, ms));
 }
 
+/** jsdom に無い setPointerCapture を足す (ペダルの溝を指で動かす操作のため) */
+if (typeof Element !== 'undefined' && !Element.prototype.setPointerCapture) {
+  Element.prototype.setPointerCapture = function setPointerCapture(): void {};
+  Element.prototype.releasePointerCapture = function releasePointerCapture(): void {};
+}
+
+/** ペダルの溝を指で動かして、いまの値から delta だけ変える (PU-14a。「踏み込む」「戻す」のボタンは無くなった)。溝は幅 364px (横木 64px を除いた 300px が動く範囲) に見せる */
+function stepPedal(container: HTMLElement, delta: number): void {
+  const groove = container.querySelector<HTMLElement>('.pedal__groove')!;
+  const bar = container.querySelector<HTMLElement>('.pedal__bar')!;
+  Object.defineProperty(groove, 'getBoundingClientRect', {
+    configurable: true,
+    value: () => ({ left: 0, top: 0, width: 364, height: 64, right: 364, bottom: 64, x: 0, y: 0 }),
+  });
+  Object.defineProperty(bar, 'clientWidth', { configurable: true, value: 64 }); // 横木の幅
+  const cur = parseFloat(bar.style.left || '0');
+  const v = Math.max(0, Math.min(100, cur + delta));
+  groove.dispatchEvent(new PointerEvent('pointerdown', { clientX: 32 + v * 3, clientY: 32, pointerId: 1, bubbles: true }));
+}
+
+/** ペダルの横木の位置 (0〜100) */
+function pedalValue(container: HTMLElement): number {
+  return parseFloat(container.querySelector<HTMLElement>('.pedal__bar')!.style.left || '0');
+}
+
 describe('winding module (T2-07)', () => {
   let raf: ReturnType<typeof installFakeRaf>;
 
@@ -136,10 +161,9 @@ describe('winding module (T2-07)', () => {
     const start = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める');
     expect(start).toBeDefined();
     start!.click();
-    // ペダル 40 (「踏み込む」×4)
+    // ペダル 40 (溝を 10 ずつ 4 回動かす)
     for (let i = 0; i < 4; i++) {
-      const plus = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '踏み込む');
-      plus!.click();
+      stepPedal(container, 10);
     }
     // 帯1本: pedal 40 の速さ (16/秒) で 400 論理長 → 25秒。rAF 16ms ずつ → 約1563フレーム
     raf.advance(2000);
@@ -148,13 +172,11 @@ describe('winding module (T2-07)', () => {
       Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '帯の端を結ぶ');
     expect(cut()).toBeDefined();
     // 3回 (演出の1秒ずつ)。ボタンが見えている (display が空) ときだけ押す。
-    // cut のあとはペダルが 0 に戻るので、次の帯の前に「踏み込む」をもう4回押す
+    // cut のあとはペダルが 0 に戻るので、次の帯の前に溝をもう4回動かす
     for (let i = 0; i < 3; i++) {
       if (i > 0) {
         for (let k = 0; k < 4; k++) {
-          Array.from(container.querySelectorAll('button'))
-            .find((b) => b.textContent === '踏み込む')!
-            .click();
+          stepPedal(container, 10);
         }
       }
       await vi.waitFor(
@@ -177,7 +199,7 @@ describe('winding module (T2-07)', () => {
             expect(panel).toContain('100%'); // done の表示のまま (変化の確認は onFinish)
             expect(props.finished.length).toBe(1);
           } else {
-            expect(panel).not.toContain(`帯 ${i + 1} / 3巻いた長さ 100%`);
+            expect(panel).not.toContain(`帯 ${i + 1} / 3巻き量 100%`);
           }
         },
         { timeout: 30000, interval: 100 },
@@ -210,8 +232,7 @@ describe('winding module (T2-07)', () => {
       .find((b) => b.textContent === '巻き始める')!
       .click();
     // ペダルを踏む
-    const plus = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '踏み込む');
-    plus!.click();
+    stepPedal(container, 10);
     raf.advance(10);
     const framesBefore = raf.frames.length;
     // 裏に回る
@@ -220,9 +241,8 @@ describe('winding module (T2-07)', () => {
     // rAF が止まる (新しいフレームが積まれない)
     const framesAfter = raf.frames.length;
     expect(framesAfter).toBeLessThanOrEqual(framesBefore);
-    // ペダルの表示が 0 (「速さ 0」)
-    const value = container.querySelector('.pedal__value');
-    expect(value?.textContent).toContain('0');
+    // ペダルの横木が 0
+    expect(pedalValue(container)).toBe(0);
     // 戻す
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
     document.dispatchEvent(new Event('visibilitychange'));
@@ -265,9 +285,8 @@ describe('winding module (T2-07)', () => {
     state = reduce(state, { type: 'setPedal', value: 60 });
     const props = makeProps({ resume: state });
     const instance = module.mount(container, props);
-    // プレイ画面が開き、ペダルの表示が 0 (pausePedal)
-    const value = container.querySelector('.pedal__value');
-    expect(value?.textContent).toContain('0');
+    // プレイ画面が開き、ペダルの横木が 0 (pausePedal)
+    expect(pedalValue(container)).toBe(0);
     instance.unmount();
   });
 
@@ -318,8 +337,8 @@ describe('winding module (T2-07)', () => {
     try {
       const props = makeProps({ resume: state });
       const instance = module.mount(container, props);
-      const msg = jsMsg(container);
-      expect(msg).toContain('糸が切れました');
+      // メッセージ欄は無い (PU-14a)。切れたことは状態で確かめる
+      expect((instance.suspend() as { phase: string }).phase).toBe('broken');
       // 切れた糸 (thread 0) のあたりを1回押す (span の中 x=380、糸 0 の y=threadY(0,8)=300)
       const rect = stageRect(container);
       tapStage(container, rect, 380, threadY(0, 8));
@@ -330,10 +349,10 @@ describe('winding module (T2-07)', () => {
       expect(resumed.phase).toBe('winding');
       // ペダルを踏んで tick を進めると長さが増える
       for (let i = 0; i < 4; i++) {
-        Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '踏み込む')!.click();
+        stepPedal(container, 10);
       }
       raf.advance(100);
-      expect(jsPanelText(container)).not.toContain('巻いた長さ 0%'); // 巻き直せている
+      expect(jsPanelText(container)).not.toContain('巻き量 0%'); // 巻き直せている
       instance.unmount();
     } finally {
       if (descW !== undefined) Object.defineProperty(Element.prototype, 'clientWidth', descW);
@@ -355,13 +374,13 @@ describe('winding module (T2-07)', () => {
     state = { ...state, phase: 'cutting', current: 0 };
     const props = makeProps({ resume: state });
     const instance = module.mount(container, props);
-    expect(jsMsg(container)).toContain('帯を巻き終えました');
+    expect((instance.suspend() as { phase: string }).phase).toBe('cutting');
     // 「帯の端を結ぶ」を押す → 演出開始 (setInterval をやめて rAF の時刻で進む)
     Array.from(container.querySelectorAll('button'))
       .find((b) => b.textContent === '帯の端を結ぶ')!
       .click();
     // 演出中は次の帯に進んでいない
-    expect(jsMsg(container)).not.toContain('帯 2');
+    expect(jsPanelText(container)).not.toContain('帯 2');
     // rAF で 1000ms 以上進める (16ms × 70 = 1120ms)
     raf.advance(70);
     await wait(50);
@@ -387,7 +406,7 @@ describe('winding module (T2-07)', () => {
     (container.querySelector('button[data-testid="winding-puzzle-s1"]') as HTMLButtonElement).click();
     Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める')!.click();
     for (let i = 0; i < 4; i++) {
-      Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '踏み込む')!.click();
+      stepPedal(container, 10);
     }
     raf.advance(10);
     // 「戻る」→ 確認
@@ -415,13 +434,13 @@ describe('winding module (T2-07)', () => {
     // 「途中」の初級を押すと、その状態から再開する (pedal は 0 で始まる)
     level1.click();
     await wait(50);
-    expect(jsPanelText(container)).toContain('速さ 0');
-    // 再開した状態でペダルを踏むと、巻いた長さが保存した値から増える (0% で始まらない)
+    expect(pedalValue(container)).toBe(0);
+    // 再開した状態でペダルを踏むと、巻き量が保存した値から増える (0% で始まらない)
     for (let k = 0; k < 4; k++) {
-      Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '踏み込む')!.click();
+      stepPedal(container, 10);
     }
     raf.advance(80);
-    expect(jsPanelText(container)).not.toContain('巻いた長さ 0%');
+    expect(jsPanelText(container)).not.toContain('巻き量 0%');
     instance.unmount();
   });
 
@@ -441,7 +460,7 @@ describe('winding module (T2-07)', () => {
     (container.querySelector('button[data-testid="winding-puzzle-s1"]') as HTMLButtonElement).click();
     Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める')!.click();
     for (let i = 0; i < 4; i++) {
-      Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '踏み込む')!.click();
+      stepPedal(container, 10);
     }
     raf.advance(10);
     // 戻る → 一覧に戻る
@@ -511,50 +530,6 @@ describe('winding module (T2-07)', () => {
     instance.unmount();
   });
 
-  it('12. fix2-b: 張りが適正と強すぎを 100ms ごとに行き来しても、メッセージはすぐに変わらない (0.5秒続いてから変わる)', async () => {
-    const { deps } = await makeDeps();
-    const container = document.createElement('div');
-    document.body.appendChild(container);
-    const module = createWindingModule(deps);
-    const props = makeProps();
-    const instance = module.mount(container, props);
-    // 中級 (範囲 38〜62)。糸切れを避けるため、resume で「pedal 90 (張り 66 = 強すぎ)・
-    // 糸が切れていない状態」を渡す (rng は固定 clock の種なので、短時間では切れない)。
-    const { init, reduce } = await import('./logic');
-    const { paramsOf } = await import('./params');
-    const p2 = paramsOf(2);
-    let state = init({ level: 2, patternId: p2.patternId, sections: p2.sections, seed: 35 });
-    // お題の範囲は乱数なので、テストでは固定する (35〜53。pedal 90 の張り 66+ は強すぎ)。
-    // seed 35 は、pedal 90 を 6 秒保っても糸が切れないことを確認済み (T2-09a の範囲で再確認)
-    state = { ...state, range: { center: 44, width: 18, min: 35, max: 53 } };
-    state = reduce(state, { type: 'start' });
-    state = reduce(state, { type: 'setPedal', value: 90 });
-    const instance2 = module.mount(container, makeProps({ resume: state }));
-    instance.unmount();
-    await wait(50);
-    const msg = (): string => container.querySelector('.game-frame__message')?.textContent ?? '';
-    const plus = (): void => {
-      Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '踏み込む')!.click();
-    };
-    const minus = (): void => {
-      Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '戻す')!.click();
-    };
-    // resume 直後はペダル 0 (pausePedal) で「弱め」の表示。0.5 秒で出そろう
-    raf.advance(40);
-    expect(msg()).toContain('弱め');
-    // ペダルを 90 (張り 66 = 強すぎ) にして 100ms → まだ「弱め」のまま (0.5 秒続いていない)
-    for (let i = 0; i < 9; i++) plus();
-    raf.advance(6);
-    expect(msg()).toContain('弱め');
-    // 強すぎが 0.5 秒続くと「強すぎ」に変わる
-    raf.advance(30);
-    expect(msg()).toContain('強すぎ');
-    // すぐに 60 (適正) に戻して 100ms → まだ「強すぎ」のまま
-    minus(); minus(); minus();
-    raf.advance(6);
-    expect(msg()).toContain('強すぎ');
-    instance2.unmount();
-  });
 });
 
 /** 操作欄 (メッセージを含む) の文字 */
@@ -594,7 +569,7 @@ function tapStage(
   c.dispatchEvent(new PointerEvent('pointerdown', { clientX: x, clientY: y, bubbles: true }));
 }
 
-describe('winding module T2-09 追加修正a (引っかかりのメッセージ・+4・止まる音)', () => {
+describe('winding module T2-09 追加修正a (+4・止まる音。引っかかりのメッセージは PU-14a でメッセージ欄と一緒に無くした)', () => {
   let raf: ReturnType<typeof installFakeRaf>;
   let plays: string[];
 
@@ -629,46 +604,6 @@ describe('winding module T2-09 追加修正a (引っかかりのメッセージ�
     return { container, msg, btn, deps };
   }
 
-  it('1. 引っかかったら、引っかかりのメッセージがすぐ出て、2秒ほど出続ける (張りの文には戻らない)', async () => {
-    // 引っかかりは乱数で起きる。種を固定して、引っかかりが起きるまで tick を進める
-    const { msg, btn } = await setup();
-    btn('紺の無地帯 3本次はこれ'); // 一覧の行の文字 (名前・補足・状態)
-    raf.advance(2);
-    btn('巻き始める');
-    raf.advance(2);
-    // 引っかかりが起きるまで tick を進める (最長 30秒ぶん)
-    let found = false;
-    for (let i = 0; i < 1900 && !found; i++) {
-      raf.advance(2);
-      found = msg().includes('引っかかり');
-    }
-    expect(found).toBe(true);
-    // 1秒後も出続ける
-    for (let i = 0; i < 60; i++) raf.advance(2);
-    expect(msg()).toContain('引っかかり');
-  });
-
-  it('2. 引っかかりが戻りきってから 500ms たつと、張りの文に戻る', async () => {
-    const { btn, msg } = await setup();
-    btn('紺の無地帯 3本次はこれ'); // 一覧の行の文字 (名前・補足・状態)
-    raf.advance(2);
-    btn('巻き始める');
-    raf.advance(2);
-    let found = false;
-    for (let i = 0; i < 1900 && !found; i++) {
-      raf.advance(2);
-      found = msg().includes('引っかかり');
-    }
-    expect(found).toBe(true);
-    // 引っかかりが戻る (最大 2秒) まで進める
-    let gone = false;
-    for (let i = 0; i < 200 && !gone; i++) {
-      raf.advance(2);
-      gone = !msg().includes('引っかかり');
-    }
-    expect(gone).toBe(true);
-  });
-
   it('3. 糸が切れたとき、止まる音は1回だけ (2秒進めても1回)', async () => {
     const { btn, deps, container } = await setup();
     const plays2: string[] = [];
@@ -680,9 +615,8 @@ describe('winding module T2-09 追加修正a (引っかかりのメッセージ�
     raf.advance(2);
     // pedal 100 で切れるまで進める (切れない場合は中止)
     let broke = false;
-    const b = Array.from(container.querySelectorAll('button')).find((x) => x.textContent?.trim() === '踏み込む');
     for (let i = 0; i < 600 && !broke; i++) {
-      if (b) b.click();
+      stepPedal(container, 10);
       raf.advance(2);
       broke = plays2.includes('stop');
     }
@@ -730,9 +664,9 @@ describe('winding module T2-10 追加修正 a (ドラムの回る速さ・drumAn
     container.querySelector<HTMLButtonElement>('button[data-testid="winding-puzzle-s1"]')!.click();
     await vi.waitFor(() => expect(btn(container, '巻き始める')).toBeDefined());
     btn(container, '巻き始める')!.click();
-    // ペダル 50 (「踏み込む」×5)
+    // ペダル 50 (溝を 10 ずつ 5 回動かす)
     for (let i = 0; i < 5; i++) {
-      btn(container, '踏み込む')!.click();
+      stepPedal(container, 10);
     }
     await vi.waitFor(() => expect(lastDrawOpts()?.drumAngle).toBeDefined());
     raf.advance(1);
@@ -799,7 +733,7 @@ describe('winding module T2-10 追加修正 b (なめらかな回り方・結ぶ
   it('7. ペダル 100 直後の1フレームは角速度が目標の半分より小さい。0.6 秒で目標の 9 割以上', async () => {
     const container = await startWinding();
     for (let i = 0; i < 10; i++) {
-      btn(container, '踏み込む')!.click();
+      stepPedal(container, 10);
     }
     await vi.waitFor(() => expect(lastDrawOpts()?.drumAngle).toBeDefined());
     raf.advance(1); // lastFrameMs を埋める (dtMs 0 のフレーム)
@@ -820,14 +754,14 @@ describe('winding module T2-10 追加修正 b (なめらかな回り方・結ぶ
   it('7b. ペダルを 0 に戻すと 0.4 秒ほどで止まる (DRUM_EASE_MS 遅いとき 400)', async () => {
     const container = await startWinding();
     for (let i = 0; i < 10; i++) {
-      btn(container, '踏み込む')!.click();
+      stepPedal(container, 10);
     }
     await vi.waitFor(() => expect(lastDrawOpts()?.drumAngle).toBeDefined());
     raf.advance(1);
     raf.advance(40); // 十分回す
-    // ペダル 0 (「戻す」×10)
+    // ペダル 0 (溝を 10 ずつ 10 回戻す)
     for (let i = 0; i < 10; i++) {
-      btn(container, '戻す')!.click();
+      stepPedal(container, -10);
     }
     const a0 = lastDrawOpts()!.drumAngle!;
     raf.advance(40); // 0.64 秒
@@ -906,7 +840,7 @@ describe('PU-05c: ドラム巻きの結果のつなぎ', () => {
     btn('巻き始める')!.click();
     const pedalUp = (): void => {
       for (let k = 0; k < 4; k++) {
-        btn('踏み込む')!.click();
+        stepPedal(container, 10);
       }
     };
     pedalUp();
@@ -931,7 +865,7 @@ describe('PU-05c: ドラム巻きの結果のつなぎ', () => {
           if (i === 2) {
             expect(props.finished.length).toBe(1);
           } else {
-            expect(container.querySelector('.winding-panel')?.textContent ?? '').not.toContain(`帯 ${i + 1} / 3巻いた長さ 100%`);
+            expect(container.querySelector('.winding-panel')?.textContent ?? '').not.toContain(`帯 ${i + 1} / 3巻き量 100%`);
           }
         },
         { timeout: 30000, interval: 100 },
@@ -985,4 +919,42 @@ describe('PU-05c: ドラム巻きの結果のつなぎ', () => {
     expect(container.querySelector('button[data-testid="winding-puzzle-s1"]')).not.toBeNull();
     instance.unmount();
   }, 60000);
+});
+
+describe('PU-14a: メッセージ欄を無くし、一度きりの案内はお知らせで出す', () => {
+  let raf: ReturnType<typeof installFakeRaf>;
+  beforeEach(() => {
+    document.body.textContent = '';
+    raf = installFakeRaf();
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('メッセージ欄 (.game-frame__message) が無い。最初に「巻き始める」の案内が盤面のお知らせに 1 回出る', async () => {
+    const { deps } = await makeDeps();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const module = createWindingModule(deps);
+    module.mount(container, makeProps());
+    await vi.waitFor(() => expect(container.querySelector('[data-testid="winding-puzzle-s1"]')).not.toBeNull());
+    container.querySelector<HTMLButtonElement>('[data-testid="winding-puzzle-s1"]')!.click();
+    expect(container.querySelector('.game-frame__message')).toBeNull();
+    const notice = container.querySelector('.game-frame__notice')!;
+    expect(notice.textContent).toContain('巻き始める');
+    expect(container.querySelectorAll('.game-frame__notice')).toHaveLength(1);
+    raf.advance(10);
+  });
+
+  it('巻いていないときにペダルの溝を押すと、理由がお知らせに出る', async () => {
+    const { deps } = await makeDeps();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const module = createWindingModule(deps);
+    module.mount(container, makeProps());
+    await vi.waitFor(() => expect(container.querySelector('[data-testid="winding-puzzle-s1"]')).not.toBeNull());
+    container.querySelector<HTMLButtonElement>('[data-testid="winding-puzzle-s1"]')!.click();
+    stepPedal(container, 10);
+    expect(container.querySelector('.game-frame__notice')!.textContent).toContain('巻き始める');
+  });
 });

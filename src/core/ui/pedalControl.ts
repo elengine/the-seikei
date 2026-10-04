@@ -27,10 +27,21 @@ export interface PedalControl {
 
 export function createPedalControl(
   parent: HTMLElement,
-  opts: { label: string; onChange: (v: number) => void; onLocked?: (reason: string) => void },
+  opts: {
+    label: string;
+    onChange: (v: number) => void;
+    onLocked?: (reason: string) => void;
+    /** 偽なら「戻す」「踏み込む」のボタンを出さない (溝を指で動かす操作だけ。無ければ出す) */
+    buttons?: boolean;
+    /** 偽なら「速さ N」の表示を出さない (無ければ出す) */
+    showValue?: boolean;
+  },
 ): PedalControl {
+  const withButtons = opts.buttons !== false;
+  const withValue = opts.showValue !== false;
   let value = 0;
   let enabled = true;
+  let lockedReason = '今は使えません'; // 押せないときに溝を押した理由
   let captured = false;
 
   const root = document.createElement('div');
@@ -72,14 +83,20 @@ export function createPedalControl(
 
   const row = document.createElement('div');
   row.className = 'pedal__row';
-  row.appendChild(minus);
+  if (withButtons) {
+    row.appendChild(minus);
+  }
   row.appendChild(groove);
-  row.appendChild(plus);
+  if (withButtons) {
+    row.appendChild(plus);
+  }
 
   if (opts.label !== '') {
     root.appendChild(label);
   }
-  root.appendChild(valueLabel); // 速さの表示は溝の右上 (溝の上の行の右寄せ)
+  if (withValue) {
+    root.appendChild(valueLabel); // 速さの表示は溝の右上 (溝の上の行の右寄せ)
+  }
   root.appendChild(row);
   parent.appendChild(root);
 
@@ -122,7 +139,10 @@ export function createPedalControl(
   }
 
   function onDown(e: PointerEvent): void {
-    if (!enabled) return;
+    if (!enabled) {
+      opts.onLocked?.(lockedReason); // 押せないときは、理由を伝える (ボタンが無くても分かるように)
+      return;
+    }
     captured = true;
     groove.setPointerCapture(e.pointerId);
     apply(valueFromEvent(e));
@@ -161,6 +181,7 @@ export function createPedalControl(
     },
     setEnabled(on: boolean, reason = '今は使えません'): void {
       enabled = on;
+      lockedReason = reason;
       root.classList.toggle('disabled', !on);
       // 押せないときは disabled にせず、点線の枠にして、押すと理由を出す
       setLockedReason(plus, on ? null : reason);
@@ -187,7 +208,7 @@ export interface TensionMeter {
 }
 
 /** 張りのメーター。0〜100 の目盛りの帯に適正範囲と針を出す */
-export function createTensionMeter(parent: HTMLElement, opts: { label: string }): TensionMeter {
+export function createTensionMeter(parent: HTMLElement, opts: { label: string; showState?: boolean }): TensionMeter {
   const root = document.createElement('div');
   root.className = 'tension-meter';
 
@@ -211,7 +232,9 @@ export function createTensionMeter(parent: HTMLElement, opts: { label: string })
     root.appendChild(label); // 空なら出さない (操作欄の節の見出しが代わりになる)
   }
   root.appendChild(band);
-  root.appendChild(state);
+  if (opts.showState !== false) {
+    root.appendChild(state); // 状態の文 (「▲ 強すぎ」など)。偽なら出さない (別の表示で示す)
+  }
   parent.appendChild(root);
 
   return {

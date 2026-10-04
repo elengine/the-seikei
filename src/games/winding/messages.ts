@@ -1,7 +1,6 @@
 import type { GameResult, GameProps } from '../../core/game/types';
-import { starsOf, qualities, targetMsOf } from './logic';
+import { starsOf, qualities, targetMsOf, lastTapResult } from './logic';
 import type { WindingState, WindingAction } from './logic';
-import { lastTapResult } from './logic';
 
 /**
  * プレイ画面のメッセージと効果音 (T2-07 追加修正a で controller.ts から分離)。
@@ -19,45 +18,15 @@ export function msToText(ms: number): string {
   return `${min}分${sec}秒`;
 }
 
-/** 状態に応じたメッセージを返す */
-export function messageFor(s: WindingState, prev: WindingState | undefined, next: WindingState | undefined, render: Render): string {
-  if (s.phase === 'ready') {
-    return render('{{pedal}}を踏むと巻き始めます。「巻き始める」を押してください');
+/** 一度きりの案内の文 (PU-14a。メッセージ欄は無いので、盤面の中央のお知らせで出す。お題ごとに最初の 1 回)。無ければ null */
+export function guideFor(phase: WindingState['phase'], render: Render): { key: string; text: string } | null {
+  if (phase === 'ready') {
+    return { key: 'ready', text: render('「巻き始める」を押して、{{pedal}}を右へ動かすと巻き始めます') };
   }
-  if (s.phase === 'cutting') {
-    return render('帯を巻き終えました。「帯の端を結ぶ」を押してください');
+  if (phase === 'broken') {
+    return { key: 'broken', text: render('糸が切れました。切れた糸のあたりを押して、つないでください') };
   }
-  if (s.phase === 'broken') {
-    const tap = prev !== undefined && next !== undefined ? lastTapResult(prev, next) : null;
-    if (tap === 'wrongThread') {
-      return render('その糸は切れていません');
-    }
-    if (tap === 'tiedOne' && s.brk.kind === 'broken') {
-      const left = s.brk.threads.length;
-      return render(`1本つながりました。あと ${left} 本です`);
-    }
-    if (s.brk.kind === 'broken' && s.brk.tied.length > 0) {
-      // 操作の直後でない再描画でも、つながったあとの文を出し続ける (T2-13c)
-      const left = s.brk.threads.length;
-      return render(`1本つながりました。あと ${left} 本です`);
-    }
-    return render('糸が切れました。切れた糸のあたりを押して、つないでください');
-  }
-  if (s.phase === 'winding') {
-    // 引っかかりは、張りのメッセージより先に出す。引っかかりが戻りきるまで (最大2秒) 出し続ける
-    if (s.pedal.snag > 0) {
-      return render('糸が引っかかりました。張りに注意してください');
-    }
-    if (s.tension > s.range.max) {
-      return render('張りが強すぎます。{{pedal}}を戻してください');
-    }
-    if (s.tension < s.range.min) {
-      return render('張りが弱めです');
-    }
-    return render('適正な張りです');
-  }
-  // done
-  return render('完成しました');
+  return null;
 }
 
 /** 操作の効果音。音の名前を返す (音なしは null) */

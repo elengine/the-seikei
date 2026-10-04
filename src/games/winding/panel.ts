@@ -7,8 +7,8 @@ import { SECTION_LENGTH } from './params';
 
 /**
  * ドラム巻きの操作欄 (P2 T2-06・T2-09a、PU-05c で組み直し)。
- * 区画は上から: 帯の番号・巻いた長さ・経過時間 (1行)、張りのメーター、ペダル、主な操作。
- * メッセージは GameFrame の message 欄を使う (controller が書く)。この部品はメッセージ欄を作らない。
+ * 区画は上から: 帯の番号・巻き量・制限時間、張りのメーター、ペダル、主な操作。
+ * メッセージ欄は無い (PU-14a)。押せないペダルを押したときの理由は onNotice に出す。この部品はメッセージ欄を作らない。
  * メーターの範囲は State のもの (お題ごとに決まる)。
  */
 
@@ -57,7 +57,7 @@ export function createWindingPanel(
   meterHost.className = 'winding-panel__meter';
   meterBox.appendChild(meterHost);
   root.appendChild(meterBox);
-  const meter = createTensionMeter(meterHost, { label: '' });
+  const meter = createTensionMeter(meterHost, { label: '', showState: false }); // 状態の文は出さない (盤面のランプで示す)
 
   // 3. ペダル
   const pedalBox = document.createElement('section');
@@ -72,6 +72,8 @@ export function createWindingPanel(
     label: '',
     onChange: (v) => opts.onAction({ type: 'setPedal', value: v }),
     onLocked: (reason) => opts.onNotice?.(reason),
+    buttons: false, // 「戻す」「踏み込む」は無し (溝を指で動かす)
+    showValue: false, // 速さの表示は無し
   });
 
   // 4. 一番下の主な操作 ('ready' は「巻き始める」、'cutting' は「帯の端を結ぶ」。それ以外は空けておく)
@@ -121,9 +123,12 @@ export function createWindingPanel(
       const len = s.lengths[s.current] ?? 0;
       const pct = Math.floor((len / SECTION_LENGTH) * 100);
       section.appendChild(part(`帯 ${s.current + 1} / ${s.sections}`));
-      section.appendChild(part(`巻いた長さ ${pct}%`));
-      const time = part(`${clockText(s.elapsedMs)} / ${clockText(targetMsOf(s))}`);
-      time.className = 'winding-panel__clock';
+      section.appendChild(part(`巻き量 ${pct}%`));
+      const target = targetMsOf(s);
+      const over = s.elapsedMs > target;
+      // 制限時間は大きく見せる。目標を超えたら朱の文字にして「超過」を添える (色だけに頼らない)
+      const time = part(`${clockText(s.elapsedMs)} / ${clockText(target)}${over ? ' 超過' : ''}`);
+      time.className = over ? 'winding-panel__clock winding-panel__clock--over' : 'winding-panel__clock';
       section.appendChild(time);
       meter.update(s.tension, s.range);
       pedal.setEnabled(s.phase === 'winding', pedalReason(s.phase));
