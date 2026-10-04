@@ -30,6 +30,9 @@ export const COLORS = {
   cardboard: '#C9A272',
   cardboardDark: '#A9814F',
   cardboardTape: '#D9BE96',
+  winderGreen: '#708662',
+  winderSteel: '#A8AFB6',
+  threadYellow: '#D9A62E',
 } as const;
 
 /** 余白の刻み (--sp-1〜--sp-8) */

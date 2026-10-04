@@ -1,8 +1,8 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-10-05T08:30:00+09:00",
+  "updated_at": "2026-10-05T09:20:00+09:00",
   "phase": "P0",
-  "current_task": "P2b T2b-01(糸割りのルールとお題)完了。T2b-02 へ進む",
+  "current_task": "P2b T2b-02(糸割りの座標と盤面)完了。T2b-03 へ進む",
   "done": [
     "P3",
     "T0-00",
@@ -96,14 +96,16 @@
     "T3-03a",
     "T3-03a-fix",
     "T3-03b",
-    "P2b/T2b-01 (2026-10-05): 糸割り itowari のルール・お題15題・テスト23件"
+    "P2b/T2b-01 (2026-10-05): 糸割り itowari のルール・お題15題・テスト23件",
+    "P2b/T2b-02 (2026-10-05): 糸割りの盤面 (geometry+renderer+色3つ)・テスト13件"
   ],
   "checks": {
     "test": "868 passed / 11 skipped",
     "check": "error 0",
     "build": "ok",
     "version": "0.2.1",
-    "2026-10-05 T2b-01": "npm test 891 passed / 11 skipped、check エラー0、build 成功"
+    "2026-10-05 T2b-01": "npm test 891 passed / 11 skipped、check エラー0、build 成功",
+    "2026-10-05 T2b-02": "npm test 904 passed / 11 skipped、check エラー0、build 成功"
   },
   "notes": [
     "保存データをキャッシュして使う部品は、必ず repo.subscribe で外からの変更を見張り、読み直す (terms・settings は対応済み)。",
