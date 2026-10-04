@@ -248,12 +248,12 @@ describe('PU-10a: 設定の画面のアップデートの確認', () => {
   });
 
   it('新しい版があるとき、見出しの行の下に朱の「アップデートがあります。」と「アップデートする」(primary) が出る。押すと切り替える', async () => {
-    upd.check = async () => 'available';
     await mountSettings();
+    vi.useFakeTimers(); // 確認の最低の長さ (0.8 秒) を偽の時計で進める (本物の時計だと、負荷の高い全体の実行で waitFor の上限 1 秒を超えることがあった)
+    upd.check = async () => 'available';
     refreshBtn().click();
-    await vi.waitFor(() => {
-      expect(document.querySelector('.update-notice')!.textContent).toContain('アップデートがあります。');
-    });
+    await vi.advanceTimersByTimeAsync(900);
+    expect(document.querySelector('.update-notice')!.textContent).toContain('アップデートがあります。');
     const go = Array.from(document.querySelectorAll('button')).find((b) => b.textContent === 'アップデートする')!;
     expect(go.classList.contains('btn--primary')).toBe(true);
     expect(document.querySelector('.update-notice__text')!.classList.contains('update-notice__text--alert')).toBe(true);
