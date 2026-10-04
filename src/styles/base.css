@@ -713,18 +713,20 @@ body {
 }
 
 .creel-order-row__hinban {
-  font-size: var(--fs-number);
-  font-weight: bold;
+  font-size: 20px; /* 型番は雰囲気づくりなので控えめに */
+  font-weight: normal;
+  color: var(--c-sumi-sub);
   white-space: nowrap;
 }
 
-/* 色の記号と色名 (24px) */
-.creel-order-row__color {
-  flex: 1 1 auto;
-  font-size: var(--fs-label);
+/* 依頼書の行のコーンの絵 (箱の中と同じ部品。40px 以上) */
+.creel-order-row .cone-icon {
+  position: relative;
+  flex: none;
+  width: 40px;
+  height: 40px;
 }
 
-/* 個数「× N」(32px 以上の太字。PU-11b) */
 .creel-order-row__count {
   margin-left: auto; /* 右端 */
   font-size: var(--fs-number);
@@ -745,25 +747,6 @@ body {
 .creel-order-row__range {
   font-size: var(--fs-body);
   color: var(--c-muted);
-}
-
-/* 紙の芯の色 (16px の丸 + 「芯:赤」) */
-.core-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1);
-  font-size: var(--fs-body);
-  color: var(--c-sumi-sub);
-  font-weight: 400;
-}
-
-.core-dot {
-  flex: none;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  border: 1px solid var(--c-sumi-sub);
-  box-sizing: border-box;
 }
 
 /* くりかえしの行 (「↻ 繰り返し × N」) */
@@ -1767,7 +1750,7 @@ button {
 
 /* 引っぱっているチーズ (画面全体の上の重ね。dragView が作る)。糸の色の丸・紙の芯の輪・中央の穴 */
 .creel-drag,
-.creel-box__cheese {
+.cone-icon {
   border-radius: 50%;
   background: var(--creel-drag-body);
   box-shadow:

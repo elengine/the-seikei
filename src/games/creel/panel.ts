@@ -4,6 +4,7 @@ import { canHint } from './logic';
 import { HINT_MIN_CHECKS, ORDER_RANGE_MAX_STAGE } from './params';
 import { toRuns, splitRepeat } from '../../core/domain/stripe';
 import { createButton, setLockedReason } from '../../core/ui/widgets';
+import { createConeIcon } from './coneIcon';
 import { createSectionHeading } from '../../core/ui/layout';
 import { openSheet } from '../../core/ui/sheet';
 import type { Sheet } from '../../core/ui/sheet';
@@ -168,23 +169,6 @@ export function createCreelPanel(parent: HTMLElement, opts: {
     modeObserver?.observe(frameEl, { attributes: true, attributeFilter: ['class', 'data-layout'] });
   }
 
-  /** 紙の芯の色の表示 (16px の丸と「芯:赤」の文字。色だけに頼らない) */
-  function coreTag(coreId: string | undefined): HTMLElement | null {
-    const core = coreId !== undefined ? content.cores.get(coreId) : undefined;
-    if (core === undefined) {
-      return null;
-    }
-    const tag = document.createElement('span');
-    tag.classList.add('core-tag');
-    const dot = document.createElement('span');
-    dot.classList.add('core-dot');
-    dot.style.background = core.hex;
-    dot.setAttribute('aria-hidden', 'true');
-    tag.appendChild(dot);
-    tag.appendChild(document.createTextNode(`芯:${core.name}`));
-    return tag;
-  }
-
   /** 何本目から何本目か (例「(1〜4本目)」「(5本目)」) */
   function rangeText(start: number, count: number): string {
     return count === 1 ? `(${start}本目)` : `(${start}〜${start + count - 1}本目)`;
@@ -211,25 +195,26 @@ export function createCreelPanel(parent: HTMLElement, opts: {
       const row = document.createElement('div');
       row.classList.add('creel-order-row');
       row.dataset.testid = 'creel-order-row';
+      // 左から コーンの絵 → 型番 → 個数 (色名と芯の文字は出さない。色と芯は絵で分かる)
+      const core = yarn !== undefined ? content.cores.get(yarn.core) : undefined;
+      row.appendChild(
+        createConeIcon({
+          bodyHex: color?.hex,
+          coreHex: core?.hex,
+          label: [color?.name, core !== undefined ? `芯:${core.name}` : undefined].filter((x) => x !== undefined).join(' '),
+        }),
+      );
       const hinban = document.createElement('span');
       hinban.classList.add('creel-order-row__hinban');
       hinban.textContent = yarn?.hinban ?? run.yarn;
-      const colorLabel = document.createElement('span');
-      colorLabel.classList.add('creel-order-row__color');
-      colorLabel.textContent = `${color?.symbol ?? ''} ${color?.name ?? ''}`;
       const count = document.createElement('span');
       count.classList.add('creel-order-row__count');
       count.textContent = `× ${run.count}`;
       row.appendChild(hinban);
-      row.appendChild(colorLabel);
       row.appendChild(count);
-      // 下の段: 芯の色と、何本目か (段階1〜3)
+      // 下の段: 何本目か (段階1〜3)
       const sub = document.createElement('div');
       sub.classList.add('creel-order-row__sub');
-      const tag = coreTag(yarn?.core);
-      if (tag !== null) {
-        sub.appendChild(tag);
-      }
       if (showRange) {
         const range = document.createElement('span');
         range.classList.add('creel-order-row__range');
@@ -274,22 +259,8 @@ export function createCreelPanel(parent: HTMLElement, opts: {
       const hinban = document.createElement('span');
       hinban.classList.add('creel-box__hinban');
       hinban.textContent = yarn?.hinban ?? yarnId;
-      // チーズの絵: 糸の色の丸・紙の芯の輪・中央の穴 (引っぱるチーズ creel-drag と同じ描き方)
-      const cheese = document.createElement('span');
-      cheese.classList.add('creel-box__cheese');
-      cheese.setAttribute('aria-hidden', 'true');
-      if (color !== undefined) {
-        cheese.style.setProperty('--creel-drag-body', color.hex);
-      }
-      if (core !== undefined) {
-        cheese.style.setProperty('--creel-drag-core', core.hex);
-      }
-      const coreRing = document.createElement('span');
-      coreRing.classList.add('creel-drag__core');
-      const hole = document.createElement('span');
-      hole.classList.add('creel-drag__hole');
-      coreRing.appendChild(hole);
-      cheese.appendChild(coreRing);
+      // チーズの絵: 糸の色の丸・紙の芯の輪・中央の穴 (依頼書の行と同じ部品)
+      const cheese = createConeIcon({ bodyHex: color?.hex, coreHex: core?.hex, className: 'creel-box__cheese' });
       box.appendChild(hinban);
       box.appendChild(cheese);
       boxes.appendChild(box);

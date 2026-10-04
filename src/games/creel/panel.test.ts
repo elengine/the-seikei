@@ -454,23 +454,52 @@ describe('PU-11b: ボタンは「ヒント」と「完了」(どちらも 1 行)
   });
 });
 
-describe('PU-06a: 依頼書の行に紙の芯の色を出す (箱は PU-11a で絵と aria-label に)', () => {
-  it('依頼書の行に「芯:赤」のような名前と、16px の丸が出る。箱は絵の芯の輪と aria-label で伝える', () => {
+describe('PU-12c: 依頼書の行は「コーンの絵・型番・個数」。色名と芯の文字は出さない', () => {
+  function rowsOfS2(): { parent: HTMLElement; panel: CreelPanel } {
     const parent = document.createElement('div');
     document.body.appendChild(parent);
     const panel = createCreelPanel(parent, { content, onAction: () => undefined });
     panel.update(stateOf('s2'));
-    const kon = content.yarns.get('kon-a')!;
-    const coreName = content.cores.get(kon.core)!.name;
+    return { parent, panel };
+  }
+
+  it('行の子の並びが 絵 → 型番 → 個数。絵は糸の色の丸と芯の色の輪 (箱の絵と同じ構造・同じクラス cone-icon)、aria-label は「色名 芯:色名」', () => {
+    const { parent, panel } = rowsOfS2();
     const row = parent.querySelector('[data-testid="creel-order-row"]')!;
-    expect(row.textContent).toContain(`芯:${coreName}`);
-    expect(row.querySelector('.core-dot')).not.toBeNull();
-    const box = parent.querySelector('.creel-box')!;
-    expect(box.textContent).not.toContain('芯');
-    expect(box.getAttribute('aria-label')).toContain(`芯:${coreName}`);
-    expect(box.querySelector<HTMLElement>('.creel-box__cheese')!.style.getPropertyValue('--creel-drag-core')).toBe(
-      content.cores.get(kon.core)!.hex,
-    );
+    const kids = Array.from(row.children);
+    expect(kids[0]!.classList.contains('cone-icon')).toBe(true);
+    expect(kids[1]!.classList.contains('creel-order-row__hinban')).toBe(true);
+    expect(kids[2]!.classList.contains('creel-order-row__count')).toBe(true);
+    const kon = content.yarns.get('kon-a')!;
+    const color = content.colors.get(kon.color)!;
+    const core = content.cores.get(kon.core)!;
+    const cone = kids[0] as HTMLElement;
+    expect(cone.getAttribute('aria-label')).toBe(`${color.name} 芯:${core.name}`);
+    expect(cone.style.getPropertyValue('--creel-drag-body')).toBe(color.hex);
+    expect(cone.style.getPropertyValue('--creel-drag-core')).toBe(core.hex);
+    expect(cone.querySelector('.creel-drag__core .creel-drag__hole')).not.toBeNull();
+    // 箱の絵と依頼書の絵は同じ構造 (同じ部品 coneIcon から作る)
+    const boxCone = parent.querySelector('.creel-box .cone-icon')!;
+    expect(boxCone.innerHTML).toBe(cone.innerHTML);
+    expect(boxCone.className.split(' ')).toContain('cone-icon');
+    panel.destroy();
+  });
+
+  it('行の文字に色名と「芯:」が無い。色の丸 (core-dot) も、色名の要素 (creel-order-row__color) も無い。箱の文字も品番だけ', () => {
+    const { parent, panel } = rowsOfS2();
+    const kon = content.yarns.get('kon-a')!;
+    const row = parent.querySelector('[data-testid="creel-order-row"]')!;
+    expect(row.textContent).not.toContain(content.colors.get(kon.color)!.name);
+    expect(row.textContent).not.toContain('芯');
+    expect(row.querySelector('.core-dot')).toBeNull();
+    expect(row.querySelector('.creel-order-row__color')).toBeNull();
+    expect(parent.querySelector('.creel-box')!.textContent).toBe(kon.hinban);
+    panel.destroy();
+  });
+
+  it('レベル1〜3 の「(1〜7本目)」は残る (行の下の段)', () => {
+    const { parent, panel } = rowsOfS2();
+    expect(parent.querySelector('[data-testid="creel-order-row"]')!.textContent).toContain('(1〜7本目)');
     panel.destroy();
   });
 });
@@ -589,13 +618,15 @@ describe('PU-09b: 詰めた形の操作欄 (依頼書を見る・箱の横送り
   });
 });
 
-describe('PU-11b: 依頼書の行の文字の大きさ', () => {
-  it('base.css: 品番は 32px (fs-number)・色の記号と色名は 24px (fs-label)・個数「× N」は 32px 以上 (fs-number) の太字', () => {
+describe('PU-11b: 依頼書の行の文字の大きさ (PU-12c で型番を控えめに)', () => {
+  it('base.css: 絵は 40px 以上・型番は 20px のふつうの太さで薄め (sumi-sub)・個数「× N」は 32px 以上 (fs-number) の太字', () => {
     const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
     const hinban = css.match(/\n\.creel-order-row__hinban\s*\{([^}]*)\}/)![1]!;
-    expect(hinban).toContain('font-size: var(--fs-number)');
-    const color = css.match(/\n\.creel-order-row__color\s*\{([^}]*)\}/)![1]!;
-    expect(color).toContain('font-size: var(--fs-label)');
+    expect(hinban).toContain('font-size: 20px');
+    expect(hinban).toContain('font-weight: normal');
+    expect(hinban).toContain('color: var(--c-sumi-sub)');
+    const cone = css.match(/\n\.creel-order-row \.cone-icon\s*\{([^}]*)\}/)![1]!;
+    expect(parseInt(cone.match(/width: (\d+)px/)![1]!, 10)).toBeGreaterThanOrEqual(40);
     const count = css.match(/\n\.creel-order-row__count\s*\{([^}]*)\}/)![1]!;
     expect(count).toContain('font-size: var(--fs-number)');
     expect(count).toContain('font-weight: bold');
