@@ -402,19 +402,22 @@ describe('PU-08a: 丸いボタン (shape: circle)', () => {
   });
 });
 
-describe('PU-08b: 歯車のアイコン (settings)', () => {
-  it('外側の輪・中央の丸・歯 8 本の線 (計 10 本の線) で、今までの 3 本の横線の形ではない', () => {
-    const b = createButton({ label: '設定', icon: 'settings', onClick: () => {} });
+describe('PU-12a: 歯車のアイコン (settings)', () => {
+  it('8 枚の歯が外へ突き出した一続きの閉じた外形 (歯は台形の直線、歯の間は円弧) と、中央の穴の円の 2 本の線。円と放射状の線 (太陽の形) ではない', () => {
+    const b = createButton({ label: '設定', icon: 'settings', shape: 'circle', onClick: () => {} });
     const paths = Array.from(b.querySelectorAll('svg path')).map((p) => p.getAttribute('d') ?? '');
-    expect(paths).toHaveLength(10);
-    // 歯: 中心 (12, 12) から外へ向かう短い線が 8 本
-    const teeth = paths.filter((d) => /^M[\d.]+ [\d.]+ L[\d.]+ [\d.]+$/.test(d));
-    expect(teeth).toHaveLength(8);
-    // 輪と丸は円弧 (A) で描く
-    expect(paths.filter((d) => d.includes('A'))).toHaveLength(2);
-    // 今までの形 (横線 3 本のつまみ) が残っていない
-    expect(paths.some((d) => d.startsWith('M4 7 H20'))).toBe(false);
-    expect(b.textContent).toBe('設定'); // 文字も付いたまま
+    expect(paths).toHaveLength(2);
+    const outline = paths[0]!;
+    expect(outline.endsWith('Z')).toBe(true);
+    expect(outline.match(/Z/g)).toHaveLength(1); // 閉じた外形は 1 つ
+    expect(outline.match(/M/g)).toHaveLength(1); // 途切れない
+    expect(outline.match(/A/g)).toHaveLength(8); // 歯と歯の間の円弧
+    expect(outline.match(/L/g)).toHaveLength(24); // 歯 8 枚 × 台形の 3 辺
+    const hole = paths[1]!;
+    expect(hole.match(/A/g)).toHaveLength(2); // 中央の穴の円
+    expect(hole.includes('L')).toBe(false);
+    expect(b.textContent).toBe('');
+    expect(b.getAttribute('aria-label')).toBe('設定');
   });
 });
 
