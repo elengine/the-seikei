@@ -1,6 +1,21 @@
 import { describe, it, expect } from 'vitest';
-import { init, reduce, starsOf, widthOk, resultLines, isValidResume } from './logic';
+import { init, reduce, starsOf, widthOk, resultLines, isValidResume, overflowSides } from './logic';
 import type { BeamingState, BeamingAction } from './logic';
+import { OVERFLOW_CLEARANCE_CM, CENTER_OK_CM } from './params';
+import { drawBoard } from './renderer';
+import { messageFor } from './messages';
+import { getContent } from '../../core/content/content';
+import { COLORS } from '../../core/ui/tokens';
+import { makeFakeCtx } from '../winding/renderer.test.helpers';
+
+/** 直前の style をたどって fillRect の色を調べる (偽の Canvas は style を k:'style' で記録する) */
+function styleBefore(ops: Array<{ k: string; v?: unknown }>, i: number): string | null {
+  for (let j = i - 1; j >= 0; j--) {
+    const o = ops[j]!;
+    if (o.k === 'style') return String(o.v);
+  }
+  return null;
+}
 import type { Level } from './params';
 import { RANGE_WIDTH, BEAM_LENGTH, SHIFT_VEL } from './params';
 
@@ -90,13 +105,19 @@ describe('beaming logic T3-01 (ルール)', () => {
 
   it('5. シートの端が円盤を越えると overflowMs が増える。centeredMs は増えない', () => {
     const s = setupExact(make());
-    // 中央から大きく外れるまで nudげる (左へ)
-    let cur = act(s, [{ type: 'setPedal', value: 50 }]);
-    for (let i = 0; i < 20; i++) {
-      cur = act(cur, [{ type: 'nudge', dir: -1 }, { type: 'tick', dtMs: 100 }]);
-    }
-    expect(cur.overflowMs).toBeGreaterThan(0);
-    expect(cur.centeredMs).toBe(0);
+    // ずれ 1cm (nudge 1回) は「中央」のなか (乗り上げでない。T3-03a 追加修正)
+    let cur = act(s, [{ type: 'setPedal', value: 50 }, { type: 'nudge', dir: -1 }, { type: 'tick', dtMs: 100 }]);
+    expect(cur.centeredMs).toBe(100);
+    expect(cur.overflowMs).toBe(0);
+    // さらに外へ (ずれ 4cm) は乗り上げ。中央には数えられない
+    cur = act(cur, [
+      { type: 'nudge', dir: -1 },
+      { type: 'nudge', dir: -1 },
+      { type: 'nudge', dir: -1 },
+      { type: 'tick', dtMs: 100 },
+    ]);
+    expect(cur.overflowMs).toBe(100);
+    expect(cur.centeredMs).toBe(100); // 増えない
     // 糸切れは起きない (phase は beaming のまま)
     expect(cur.phase).toBe('beaming');
   });
@@ -223,5 +244,52 @@ describe('beaming logic T3-01 (ルール)', () => {
     expect(SHIFT_VEL(3)).toBe(0.8);
     const s = setupExact(make(3, 126, 5));
     expect(Math.abs(s.shiftVel)).toBe(0.8);
+  });
+});
+
+describe('T3-03a 追加修正 (乗り上げの判定を1か所に・遊びは中央の範囲と同じ)', () => {
+  it('15. 幅を巻き幅ぴったりに合わせて、ずれ 1.2cm のとき乗り上げでなく中央に数えられる', () => {
+    // ずれ 1.2cm は「中央」(±1.5cm) のなか。遊びも 1.5cm なので乗り上げにならない
+    let s = setupExact(make());
+    s = { ...s, shiftCm: 1.2 };
+    s = act(s, [{ type: 'setPedal', value: 50 }, { type: 'tick', dtMs: 100 }]);
+    expect(s.centeredMs).toBe(100);
+    expect(s.overflowMs).toBe(0);
+  });
+
+  it('16. ずれ 1.6cm のとき乗り上げ (中央には数えない)。左右どちらでも同じ', () => {
+    let s = setupExact(make());
+    s = { ...s, shiftCm: 1.6 };
+    s = act(s, [{ type: 'setPedal', value: 50 }, { type: 'tick', dtMs: 100 }]);
+    expect(s.overflowMs).toBe(100);
+    expect(s.centeredMs).toBe(0);
+    let s2 = setupExact(make());
+    s2 = { ...s2, shiftCm: -1.6 };
+    s2 = act(s2, [{ type: 'setPedal', value: 50 }, { type: 'tick', dtMs: 100 }]);
+    expect(s2.overflowMs).toBe(100);
+    expect(s2.centeredMs).toBe(0);
+  });
+
+  it('17. 遊びは「中央」の範囲と同じ値 (OVERFLOW_CLEARANCE_CM = CENTER_OK_CM)', () => {
+    expect(OVERFLOW_CLEARANCE_CM).toBe(CENTER_OK_CM);
+  });
+
+  it('18. renderer と messages が overflowSides と同じ結果になる (朱の縁・文が判定と一致)', () => {
+    const content = getContent();
+    const fit = { scale: 1, offsetX: 0, offsetY: 0 };
+    for (const shiftCm of [-2, -1.6, -1.2, 0, 1.2, 1.6, 2]) {
+      const s = { ...setupExact(make()), shiftCm };
+      const sides = overflowSides(s);
+      // renderer: 乗り上げの円盤の朱の縁と「乗り上げ」の文字は、判定が true のときだけ出る
+      const { ctx, rec } = makeFakeCtx();
+      drawBoard(ctx, fit, s, content, 0);
+      const shu = rec.ops.some((o) => o.k === 'fillRect' && styleBefore(rec.ops, rec.ops.indexOf(o)) === COLORS.shu);
+      const text = rec.ops.some((o) => o.k === 'fillText' && String(o.args?.[0]).includes('乗り上げ'));
+      expect(shu).toBe(sides.left || sides.right);
+      expect(text).toBe(sides.left || sides.right);
+      // messages: 乗り上げの文は、判定が true のときだけ出る
+      const msg = messageFor(s, (x) => x);
+      expect(msg.includes('乗り上げ')).toBe(sides.left || sides.right);
+    }
   });
 });

@@ -11,6 +11,18 @@ import type { Level } from './params';
 export type { Level } from './params';
 
 /**
+ * 乗り上げの判定 (T3-03a 追加修正)。シートの端 (中心 ± 巻き幅/2) が
+ * 円盤の内側 (遊び OVERFLOW_CLEARANCE_CM) を越えたら乗り上げ。
+ * renderer・messages はこの関数を使う (式を二重に持たない)。
+ */
+export function overflowSides(s: BeamingState): { left: boolean; right: boolean } {
+  return {
+    left: s.shiftCm - s.widthCm / 2 < s.leftCm - OVERFLOW_CLEARANCE_CM,
+    right: s.shiftCm + s.widthCm / 2 > s.rightCm + OVERFLOW_CLEARANCE_CM,
+  };
+};
+
+/**
  * ビーム巻きのルール (P3 T3-01)。糸切れは起きない (管理者の指示)。
  * 張りはドラム巻きと同じ計算 (core/mechanics/pedal.ts) を使い回す。
  * 仕様書の型に、level・widthCm・patternId・tension を追加している
@@ -159,11 +171,10 @@ function tick(s: BeamingState, dtMs: number): BeamingState {
   const windMs = s.windMs + dtMsC;
   const half = s.range.width / 2;
   const okMs = tension >= s.range.center - half && tension <= s.range.center + half ? s.okMs + dtMsC : s.okMs;
-  // シートの端 (中心 ± 巻き幅/2) が円盤の内側 (遊び 0.5cm) を越えると乗り上げ (朱。出来が下がるだけ)
-  const overLeft = shiftCm - s.widthCm / 2 < s.leftCm - OVERFLOW_CLEARANCE_CM;
-  const overRight = shiftCm + s.widthCm / 2 > s.rightCm + OVERFLOW_CLEARANCE_CM;
-  const overflowMs = overLeft || overRight ? s.overflowMs + dtMsC : s.overflowMs;
-  const centeredMs = !overLeft && !overRight && Math.abs(shiftCm) <= CENTER_OK_CM ? s.centeredMs + dtMsC : s.centeredMs;
+  // シートの端が円盤の内側を越えると乗り上げ (朱。出来が下がるだけ。判定は overflowSides)
+  const over = overflowSides({ ...s, shiftCm });
+  const overflowMs = over.left || over.right ? s.overflowMs + dtMsC : s.overflowMs;
+  const centeredMs = !over.left && !over.right && Math.abs(shiftCm) <= CENTER_OK_CM ? s.centeredMs + dtMsC : s.centeredMs;
   // 5. 巻き終わったら done (糸切れは無いので止まらない)
   if (progress >= 1) {
     return { ...cur, progress: 1, windMs, okMs, centeredMs, overflowMs, phase: 'done', pedal: setPedal(cur.pedal, 0) };

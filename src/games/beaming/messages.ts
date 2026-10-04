@@ -1,7 +1,6 @@
 import type { GameResult, GameProps } from '../../core/game/types';
-import { starsOf, resultLines } from './logic';
+import { starsOf, resultLines, overflowSides } from './logic';
 import type { BeamingState } from './logic';
-import { OVERFLOW_CLEARANCE_CM } from './params';
 
 /**
  * ビーム巻きのプレイ画面のメッセージと結果 (P3 T3-03a)。
@@ -26,11 +25,11 @@ export function messageFor(s: BeamingState, render: Render): string {
     return render('円盤を動かして、巻き幅に合わせてください');
   }
   if (s.phase === 'beaming') {
-    const half = s.widthCm / 2;
-    if (s.shiftCm - half < s.leftCm - OVERFLOW_CLEARANCE_CM) {
+    const over = overflowSides(s);
+    if (over.left) {
       return render('左の円盤に乗り上げています');
     }
-    if (s.shiftCm + half > s.rightCm + OVERFLOW_CLEARANCE_CM) {
+    if (over.right) {
       return render('右の円盤に乗り上げています');
     }
     if (s.shiftCm > 1.5) {
