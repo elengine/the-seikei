@@ -159,7 +159,7 @@ describe('winding module (T2-07)', () => {
       }
       await vi.waitFor(
         () => {
-          raf.advance(24); // 手動の rAF を少しずつ進める (帯が巻き終わるまで)
+          raf.advance(300); // まとめて進める (帯1本ぶん 約1563フレームを短い実時間で終わらせる。T2-15)
           const b = cut();
           expect(b).toBeDefined();
           expect(b!.style.display).not.toBe('none');
@@ -171,7 +171,7 @@ describe('winding module (T2-07)', () => {
       // 最後の帯のあとは done (完成しました) になる
       await vi.waitFor(
         () => {
-          raf.advance(8);
+          raf.advance(100); // 結びの演出は1秒 = 約62フレーム。1回で進める (T2-15)
           const panel = container.querySelector('.winding-panel')?.textContent ?? '';
           if (i === 2) {
             expect(panel).toContain('100%'); // done の表示のまま (変化の確認は onFinish)
