@@ -223,8 +223,8 @@ function mountGame(
         const goHome = await confirmDialog(parent, {
           title: 'ホームに戻りますか',
           message: 'ホームに戻りますか?(途中の状態は保存されます)',
-          okLabel: 'ホームに戻る',
-          cancelLabel: 'やめる',
+          okLabel: 'はい',
+          cancelLabel: 'いいえ',
         });
         if (isDisposed()) {
           return;

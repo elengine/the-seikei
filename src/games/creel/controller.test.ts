@@ -549,8 +549,8 @@ describe('T1-17: 確認の画面の取り消しボタンの文言', () => {
     await new Promise((r) => setTimeout(r, 20));
     expect(confirmCalls).toHaveLength(1);
     expect(confirmCalls[0]!.message).toContain('お題の一覧に戻りますか');
-    expect(confirmCalls[0]!.cancelLabel).toBe('やめる');
-    expect(confirmCalls[0]!.okLabel).toBe('一覧に戻る');
+    expect(confirmCalls[0]!.cancelLabel).toBe('いいえ'); // 問いかけなので「はい」「いいえ」 (PU-13a)
+    expect(confirmCalls[0]!.okLabel).toBe('はい');
   });
 });
 

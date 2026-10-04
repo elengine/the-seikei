@@ -401,7 +401,7 @@ describe('winding module (T2-07)', () => {
     expect(dialog?.textContent).toContain('途中の状態は保存されます');
     // 「一覧に戻る」
     Array.from(dialog!.querySelectorAll('button'))
-      .find((b) => b.textContent === '一覧に戻る')!
+      .find((b) => b.textContent === 'はい')!
       .click();
     await wait(50);
     // 一覧に戻り、初級のボタンに「途中」が出る
@@ -449,7 +449,7 @@ describe('winding module (T2-07)', () => {
       .find((b) => b.getAttribute('aria-label') === '戻る')!.click();
     await wait(50);
     Array.from(container.querySelectorAll<HTMLButtonElement>('.dialog button'))
-      .find((b) => b.textContent === '一覧に戻る')!.click();
+      .find((b) => b.textContent === 'はい')!.click();
     await wait(50);
     // 次のお題 (別のお題) を押す → 確認
     (container.querySelector('button[data-testid="winding-puzzle-s1-2"]') as HTMLButtonElement).click();

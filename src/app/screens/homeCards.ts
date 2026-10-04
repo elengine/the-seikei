@@ -33,12 +33,12 @@ export function createCardArt(kind: 'creel' | 'drumsetup' | 'winding' | 'beaming
       shape(svg, 'circle', { cx, cy: 72, r: 12, fill: COLORS.woodLight });
     });
   } else if (kind === 'drumsetup') {
-    // ドラムの断面: 表面の板と、右上へ登る羽と、積み上がる層
+    // ドラムの断面: 表面の板と、左上へ登る羽 (遊ぶ画面と同じ向き)と、右に寄って積み上がる層
     shape(svg, 'rect', { x: 24, y: 78, width: 152, height: 12, fill: COLORS.wood });
-    shape(svg, 'line', { x1: 86, y1: 78, x2: 158, y2: 22, stroke: COLORS.wood, 'stroke-width': 7 });
+    shape(svg, 'line', { x1: 114, y1: 78, x2: 42, y2: 22, stroke: COLORS.wood, 'stroke-width': 7 });
     const layers = [COLORS.ai, COLORS.ai, COLORS.ai, COLORS.ai];
     layers.forEach((c, i) => {
-      shape(svg, 'rect', { x: 34, y: 68 - i * 10, width: 46 + i * 14, height: 8, fill: c });
+      shape(svg, 'rect', { x: 120 - i * 14, y: 68 - i * 10, width: 46 + i * 14, height: 8, fill: c });
     });
   } else if (kind === 'winding') {
     // ドラム: 上下の円盤と、糸の縞

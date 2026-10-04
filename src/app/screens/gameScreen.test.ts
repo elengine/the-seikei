@@ -429,8 +429,8 @@ describe('T1-17: 確認の画面の取り消しボタンの文言', () => {
       expect(confirmCalls).toHaveLength(1);
     });
     expect(confirmCalls[0]!.message).toContain('ホームに戻りますか');
-    expect(confirmCalls[0]!.cancelLabel).toBe('やめる');
-    expect(confirmCalls[0]!.okLabel).toBe('ホームに戻る');
+    expect(confirmCalls[0]!.cancelLabel).toBe('いいえ'); // 問いかけなので「はい」「いいえ」 (PU-13a)
+    expect(confirmCalls[0]!.okLabel).toBe('はい');
     screen.unmount();
   });
 });

@@ -96,8 +96,8 @@ export function createDrumSetupModule(deps: GameDeps): GameModule {
           const back = await confirmDialog(container, {
             title: 'お題の一覧に戻りますか',
             message: 'お題の一覧に戻りますか?(途中の状態は保存されます)',
-            okLabel: '一覧に戻る',
-            cancelLabel: 'やめる',
+            okLabel: 'はい',
+            cancelLabel: 'いいえ',
           });
           if (disposed) {
             return;

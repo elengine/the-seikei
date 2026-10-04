@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHomeScreen } from './homeScreen';
+import { createCardArt } from './homeCards';
 import type { AppContext } from '../context';
 import type { GameModule } from '../../core/game/types';
 import { registerGame, clearGamesForTest } from '../../core/game/registry';
@@ -240,5 +241,19 @@ describe('PU-10f: 「設定」のバッジを目立たせる', () => {
     expect(m).toMatch(/animation: badge-pulse 2s/);
     expect(css).toMatch(/@keyframes badge-pulse/);
     expect(css).toMatch(/prefers-reduced-motion: reduce\)\s*\{[^@]*\.btn__badge\s*\{[^}]*animation: none/);
+  });
+});
+
+describe('PU-13a: ホームのドラム設定の絵 (羽の向き)', () => {
+  it('羽の線は、上の端が下の端より左 (左上へ登る。遊ぶ画面と同じ向き)。層は右に寄って積み上がる', () => {
+    const art = createCardArt('drumsetup');
+    const wing = art.querySelector('line')!;
+    expect(parseFloat(wing.getAttribute('x2')!)).toBeLessThan(parseFloat(wing.getAttribute('x1')!));
+    expect(parseFloat(wing.getAttribute('y2')!)).toBeLessThan(parseFloat(wing.getAttribute('y1')!));
+    // 層 (rect): 右の端がそろっている
+    const layers = Array.from(art.querySelectorAll('rect')).filter((r) => r.getAttribute('fill') !== null && parseFloat(r.getAttribute('height')!) === 8);
+    expect(layers.length).toBeGreaterThanOrEqual(3);
+    const rights = layers.map((r) => parseFloat(r.getAttribute('x')!) + parseFloat(r.getAttribute('width')!));
+    expect(new Set(rights).size).toBe(1);
   });
 });
