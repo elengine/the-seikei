@@ -1746,8 +1746,8 @@ button {
 
 .list-rows {
   display: grid;
-  /* 1列の幅が 560px 未満になるときは1列にする (狭い画面や文字を大きくしたとき、名前が縦1文字ずつに折れない) */
-  grid-template-columns: repeat(auto-fill, minmax(min(560px, 100%), 1fr));
+  /* 1列の幅が 520px 未満になるときは1列にする (狭い画面や文字を大きくしたとき、名前が縦1文字ずつに折れない) */
+  grid-template-columns: repeat(auto-fill, minmax(min(520px, 100%), 1fr));
   gap: var(--sp-3);
 }
 

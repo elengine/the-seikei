@@ -198,11 +198,11 @@ describe('PU-10b: 一覧の行の2段組み (名前の下に補足)', () => {
   });
 });
 
-describe('PU-10b 追記: 一覧の列の数 (1列の幅が 560px 未満なら1列)', () => {
-  it('base.css: .list-rows は repeat(auto-fill, minmax(min(560px, 100%), 1fr))。幅 900px 固定で2列にする指定は無い', () => {
+describe('PU-10b 追記: 一覧の列の数 (1列の幅が 520px 未満なら1列)', () => {
+  it('base.css: .list-rows は repeat(auto-fill, minmax(min(520px, 100%), 1fr))。幅 900px 固定で2列にする指定は無い', () => {
     const css = baseCss();
     const rows = css.match(/\n\.list-rows\s*\{([^}]*)\}/)![1]!;
-    expect(rows).toContain('repeat(auto-fill, minmax(min(560px, 100%), 1fr))');
+    expect(rows).toContain('repeat(auto-fill, minmax(min(520px, 100%), 1fr))');
     expect(css).not.toMatch(/@media \(min-width: 900px\)\s*\{\s*\.list-rows/);
   });
 });
