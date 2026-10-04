@@ -1443,3 +1443,11 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - テストを先に追加 (RED→GREEN): ずれ 1.2cm は中央に数えられる、1.6cm は乗り上げ、遊び=中央の範囲、renderer と messages が overflowSides と一致。
 - 既存のテスト5を新しい遊びに合わせて書き直し (ずれ 1cm は中央・4cm は乗り上げ)。
 - テスト 866 passed / 11 skipped・check・build エラー0。
+
+## 2026-10-04 22:40 ルビー T3-03b 完了(一覧・遊び方・組み立て・ホームに出す+version 0.2.0)
+- 先に「T3-03a 追加修正」を別コミットで実施(1a2b108): logic.ts に overflowSides(s) を新設し renderer/messages はそれを使う(式の二重持ち解消)。OVERFLOW_CLEARANCE_CM を CENTER_OK_CM と同じ(1.5cm)に。テスト4件追加+テスト5を新しい遊びに合わせて改訂。866 passed。CI success。
+- T3-03b(ca3991f): beaming の listView(一覧:レベル1〜3の節・15行・星/次はこれ/鍵・補足「巻き幅 60cm・帯 3本」)・tutorial(3ページ、文は大人向け、絵は盤面と同じ見た目)・index.ts(createBeamingModule:依頼書/遊び方/一覧/遊ぶ/次/もう一度/一覧へ・job モードは difficulty をレベルに)を作成。main.ts で登録、homeScreen は準備中から削除、homeCards にカードの絵と状態「お題 15」。terms.default.json に game.beaming 追加済み(確認役)。
+- テスト: listView 7件・tutorial 3件+homeScreen の準備中の期待値を修正。全体 868 passed / 11 skipped。check 0・build OK。CI success。
+- version: npm version minor --no-git-tag-version で 0.2.0(0.1.1 から)。ホームのタイトル直下に「バージョン 0.2.0 (2026-10-04)」表示を確認。
+- ブラウザ確認(headless・vite preview): ホームのカード並び(クリール立て→ドラム設定→ドラム巻き→ビーミング→準備中2)・一覧(レベル1〜3・15行・補足)・遊び方3ページ・幅合わせ(4ボタン同幅/点線+目盛り+印)・巻き(シート/巻き太り/乗り上げの朱縁+文字)・結果(星/4行/ヒント/一覧へ・もう一度・次のお題へ)を確認。5サイズ(412×915/915×412/880×700/700×880/1180×820)で横オーバーフローなし・4ボタン同幅。
+- 自動プレイは★2が2回(幅誤差0.6/張り100%/中央78% と 幅誤差1.1/張り100%/中央92%/乗り上げ0.4秒)。星3は自動操作が届かず(ヘッドレスのタブ落ちが多発し自動操作が不安定・実機とは無関係の環境問題)。スクショ /opt/data/tmp/t3/。
