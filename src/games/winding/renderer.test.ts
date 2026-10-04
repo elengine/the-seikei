@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { drawBoard } from './renderer';
+import { drawScissors } from './renderer.parts';
 import { endPoint, threadY, tableY, THREAD_MARK_X, CREEL_END_X, DRUM_END_X, drumSectionY, DRUM_AREA, REED_X, DIAL_X, DIAL_Y, DIAL_R, reedRect, setLogicalHeight, fontPx } from './geometry';
 import { COLORS } from '../../core/ui/tokens';
 import type { FakeRecorder } from './renderer.test.helpers';
@@ -1202,34 +1203,92 @@ describe('T2-16 前2 (3): 巻き量の目盛り盤 (白の内側・糸の束と�
   });
 });
 
-describe('T2-16c (ハサミのアイコン)', () => {
-  const draw = (s: WindingState, scissors?: { x: number; y: number; dir: 'down' | 'up' }): FakeRecorder => {
+describe('T2-16 その4b (ハサミの絵の作り直し)', () => {
+  const draw = (s: WindingState, scissors?: { x: number; y: number; cutReady: boolean; openK: number }): FakeRecorder => {
     const { ctx, rec } = makeFakeCtx();
     drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0, scissors });
     return rec;
   };
-  const hasBase = (rec: FakeRecorder, x: number, y: number): boolean =>
-    rec.ops.some((o) => {
+  const styleBefore = (rec: FakeRecorder, i: number): string => {
+    let style = '';
+    for (let k = 0; k < i; k++) {
+      const o = rec.ops[k];
+      if (o !== undefined && o.k === 'style') style = String(o.v);
+    }
+    return style;
+  };
+
+  it("1. 'cutting' で本物らしいハサミを描く: 白い円の土台は無く・銀色の刃 (steel の塗り) と・太い線の輪 (持つ手) が 2 つ", () => {
+    const s = { ...windingState(), phase: 'cutting' } as WindingState;
+    const rec = draw(s, { x: 570, y: 120, cutReady: false, openK: 1 });
+    // 白い円の土台はもう描かない
+    const whiteBase = rec.ops.some((o) => {
       if (o.k !== 'arc') return false;
       const a = o.args as number[];
-      return Math.abs((a[0] ?? 0) - x) < 1 && Math.abs((a[1] ?? 0) - y) < 1 && Math.abs((a[2] ?? 0) - 34) < 1;
-    });
-
-  it("1. 'cutting' でハサミのアイコン (半径 34 の白い円の土台) が指定した場所に描かれる", () => {
-    const s = { ...windingState(), phase: 'cutting' } as WindingState;
-    const rec = draw(s, { x: 570, y: 120, dir: 'down' });
-    expect(hasBase(rec, 570, 120), 'ハサミの土台の円').toBe(true);
-    // 刃の向き: 下向きのとき、ハサミの線 (blades) は円の中心より下にある
-    const lines = rec.ops.filter((o) => o.k === 'lineTo').map((o) => o.args as number[]);
-    expect(lines.length).toBeGreaterThan(0);
+      return Math.abs((a[0] ?? 0) - 570) < 1 && Math.abs((a[1] ?? 0) - 120) < 1 && (a[2] ?? 0) > 30;
+    }) && rec.ops.some((o) => o.k === 'fill' && styleBefore(rec, rec.ops.indexOf(o)) === COLORS.white);
+    expect(whiteBase, '白い円の土台').toBe(false);
+    // 銀色の刃 (steel の塗りがある)
+    expect(rec.ops.some((o) => o.k === 'fill' && styleBefore(rec, rec.ops.indexOf(o)) === COLORS.steel), '銀色の刃').toBe(true);
+    // 濃い色で線を引いた輪 (arc + stroke、lineWidth 8 以上) が 2 つ
+    let rings = 0;
+    for (let i = 0; i < rec.ops.length; i++) {
+      const o = rec.ops[i];
+      if (o === undefined || o.k !== 'arc') continue;
+      const a = o.args as number[];
+      if ((a[2] ?? 0) < 8 || (a[2] ?? 0) > 20) continue;
+      for (let j = i + 1; j < Math.min(i + 4, rec.ops.length); j++) {
+        const st = rec.ops[j];
+        if (st !== undefined && st.k === 'stroke' && [COLORS.sumi, COLORS.machineDark].includes(styleBefore(rec, j) as never)) {
+          rings += 1;
+          break;
+        }
+      }
+    }
+    expect(rings, '持つ手の輪').toBe(2);
   });
 
-  it("2. 'winding' ではハサミは描かない。scissors を渡さなければ描かない", () => {
-    const rec1 = draw(windingState(), { x: 570, y: 120, dir: 'down' });
-    expect(hasBase(rec1, 570, 120)).toBe(false);
+  it('2. 切る所 (cutReady) では刃が大きく開く (刃の銀色の塗りの範囲が広がる)', () => {
+    // drawScissors を直接描いて、刃の線 (lineTo) の x の広がりを比べる
+    const span = (cutReady: boolean): number => {
+      const { ctx, rec } = makeFakeCtx();
+      drawScissors(ctx, fit, { x: 570, y: 300 }, cutReady, 1);
+      const xs = rec.ops.filter((o) => o.k === 'lineTo').map((o) => (o.args as number[])[0] ?? 0);
+      return xs.length ? Math.max(...xs) - Math.min(...xs) : -1;
+    };
+    expect(span(false)).toBeGreaterThan(0);
+    expect(span(true)).toBeGreaterThan(span(false) * 1.3);
+  });
+
+  it('3. cutReady のとき、糸の束 (筬からドラムの糸) が藍色になる', () => {
+    const s = { ...windingState(), phase: 'cutting' } as WindingState;
+    const rec = draw(s, { x: 570, y: 300, cutReady: true, openK: 1 });
+    expect(rec.ops.some((o) => o.k === 'stroke' && styleBefore(rec, rec.ops.indexOf(o)) === COLORS.ai), '藍色の糸の束').toBe(true);
+    const rec2 = draw(s, { x: 570, y: 300, cutReady: false, openK: 1 });
+    expect(rec2.ops.some((o) => o.k === 'stroke' && styleBefore(rec2, rec2.ops.indexOf(o)) === COLORS.ai)).toBe(false);
+  });
+
+  it("4. 'winding' ではハサミは描かない。scissors を渡さなければ描かない", () => {
+    // ハサミの刃は、支点 (pos) のまわりに銀色の塗りがある形。その場所の近くに銀の塗りが無ければ描かれていない
+    const hasBladesNear = (rec: FakeRecorder, x: number, y: number): boolean =>
+      rec.ops.some((o, i) => {
+        if (o.k !== 'fill') return false;
+        if (styleBefore(rec, i) !== COLORS.steel) return false;
+        // 直前の刃の線 (lineTo) が pos の近くにある
+        for (let j = i - 1; j >= 0 && j >= i - 8; j--) {
+          const p = rec.ops[j];
+          if (p !== undefined && p.k === 'lineTo') {
+            const a = p.args as number[];
+            return Math.abs((a[0] ?? 0) - x) < 80 && Math.abs((a[1] ?? 0) - y) < 80;
+          }
+        }
+        return false;
+      });
+    const rec1 = draw(windingState(), { x: 570, y: 120, cutReady: false, openK: 1 });
+    expect(hasBladesNear(rec1, 570, 120), 'winding でハサミを描いていない').toBe(false);
     const s = { ...windingState(), phase: 'cutting' } as WindingState;
     const rec2 = draw(s);
-    expect(hasBase(rec2, 570, 120)).toBe(false);
+    expect(hasBladesNear(rec2, 570, 120)).toBe(false);
   });
 });
 

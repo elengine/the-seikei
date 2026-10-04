@@ -214,10 +214,10 @@ describe('winding module (T2-07)', () => {
           { timeout: 30000, interval: 100 },
         );
         // ハサミをつかんで糸の束の上で離す (糸が切れて結びの演出へ)
-        const sp = scissorsPos(i, 3);
+        const sp = scissorsPos();
         stagePointer(container, rect, 'pointerdown', sp.x, sp.y);
-        stagePointer(container, rect, 'pointermove', 570, tableY(i, 3));
-        stagePointer(container, rect, 'pointerup', 570, tableY(i, 3));
+        stagePointer(container, rect, 'pointermove', 570, tableY(i, 3) + 28);
+        stagePointer(container, rect, 'pointerup', 570, tableY(i, 3) + 28);
         // 結びの演出 (1秒) が終わって次の帯 (または結果) に進むまで rAF を進める
         await vi.waitFor(
           () => {
@@ -274,7 +274,7 @@ describe('winding module (T2-07)', () => {
       raf.advance(2000); // cutting になる
       expect((instance.suspend() as { phase: string }).phase).toBe('cutting');
       const rect = stageRect(container);
-      const sp = scissorsPos(0, 3);
+      const sp = scissorsPos();
       // ハサミをつかんで、糸の束から離れた所で離す
       stagePointer(container, rect, 'pointerdown', sp.x, sp.y);
       stagePointer(container, rect, 'pointermove', 200, 400);
@@ -456,14 +456,14 @@ describe('winding module (T2-07)', () => {
       // ハサミを糸の束まで引っぱって離す → 演出開始 (T2-16c。setInterval をやめて rAF の時刻で進む)
       const { scissorsPos, tableY } = await import('./geometry');
       const rect7 = stageRect(container);
-      const sp = scissorsPos(0, p1.sections);
+      const sp = scissorsPos();
       stagePointer(container, rect7, 'pointerdown', sp.x, sp.y);
-      stagePointer(container, rect7, 'pointermove', 570, tableY(0, p1.sections));
-      stagePointer(container, rect7, 'pointerup', 570, tableY(0, p1.sections));
+      stagePointer(container, rect7, 'pointermove', 570, tableY(0, p1.sections) + 28);
+      stagePointer(container, rect7, 'pointerup', 570, tableY(0, p1.sections) + 28);
       // 演出中は次の帯に進んでいない
       expect(jsPanelText(container)).not.toContain('帯 2');
-      // rAF で 1000ms 以上進める (16ms × 70 = 1120ms)
-      raf.advance(70);
+      // rAF で閉じる動き (0.3秒) + 結びの演出 (1秒) 以上進める (16ms × 100 = 1600ms)
+      raf.advance(100);
       await wait(50);
       // cut が送られ、次の帯 (帯 2/3) に進む
       const label = jsPanelText(container);
@@ -658,7 +658,7 @@ function tapStage(
 function stagePointer(
   container: HTMLElement,
   rect: { left: number; top: number; width: number; height: number },
-  type: 'pointerdown' | 'pointermove' | 'pointerup',
+  type: 'pointerdown' | 'pointermove' | 'pointerup' | 'pointercancel',
   lx: number,
   ly: number,
 ): void {
@@ -978,7 +978,7 @@ describe('PU-05c: ドラム巻きの結果のつなぎ', () => {
         { timeout: 30000, interval: 100 },
       );
       // ハサミを糸の束まで引っぱって離す
-      const sp = scissorsPos(i, 3);
+      const sp = scissorsPos();
       stagePointer(container, rectCut, 'pointerdown', sp.x, sp.y);
       stagePointer(container, rectCut, 'pointermove', 570, tableY(i, 3));
       stagePointer(container, rectCut, 'pointerup', 570, tableY(i, 3));
@@ -1191,4 +1191,117 @@ describe('winding module T2-17 (遊び方を開いているあいだの一時停
     raf.advance(30);
     expect(drawBoardCalls.length).toBe(draws);
   }, 30000);
+});
+
+describe('winding module T2-16 その4b (ハサミの持ち上げと閉じる動き)', () => {
+  let raf: ReturnType<typeof installFakeRaf>;
+  beforeEach(() => {
+    raf = installFakeRaf();
+    drawBoardCalls.length = 0;
+    // jsdom の canvas は getContext が null を返す。drawBoard が呼ばれるように偽の ctx を返す
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      canvas: document.createElement('canvas'),
+    } as unknown as CanvasRenderingContext2D);
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+  async function setupToCutting(): Promise<{ container: HTMLElement; instance: { suspend(): unknown; unmount(): void }; props: ReturnType<typeof makeProps>; restore: () => void }> {
+    const { deps } = await makeDeps();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const module = createWindingModule(deps);
+    const props = makeProps();
+    // jsdom では stage の clientWidth が 0 のため、盤面 1000×750 を返す
+    const descW = Object.getOwnPropertyDescriptor(Element.prototype, 'clientWidth');
+    const descH = Object.getOwnPropertyDescriptor(Element.prototype, 'clientHeight');
+    Object.defineProperty(Element.prototype, 'clientWidth', { configurable: true, get(): number { return 1000; } });
+    Object.defineProperty(Element.prototype, 'clientHeight', { configurable: true, get(): number { return 750; } });
+    const restore = (): void => {
+      if (descW !== undefined) Object.defineProperty(Element.prototype, 'clientWidth', descW);
+      if (descH !== undefined) Object.defineProperty(Element.prototype, 'clientHeight', descH);
+    };
+    const instance = module.mount(container, props);
+    container.querySelector<HTMLButtonElement>('button[data-testid="winding-puzzle-s1"]')!.click();
+    Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める')!.click();
+    for (let i = 0; i < 4; i++) stepPedal(container, 10);
+    raf.advance(2000); // cutting になる
+    expect((instance.suspend() as { phase: string }).phase).toBe('cutting');
+    return { container, instance, props, restore };
+  }
+
+  it('1. 引っぱっているあいだ、ハサミは指の位置より半分の大きさ + 24px 上に描かれる', async () => {
+    const { container, instance, restore } = await setupToCutting();
+    const rect = stageRect(container);
+    const { scissorsPos, SCISSORS_LIFT } = await import('./geometry');
+    const sp = scissorsPos();
+    stagePointer(container, rect, 'pointerdown', sp.x, sp.y);
+    stagePointer(container, rect, 'pointermove', 500, 400);
+    const opts = lastDrawOpts() as { scissors?: { x: number; y: number; cutReady: boolean; openK: number } };
+    expect(opts.scissors).toBeDefined();
+    expect(opts.scissors!.y).toBeCloseTo(400 - SCISSORS_LIFT, 0);
+    expect(opts.scissors!.x).toBe(500);
+    stagePointer(container, rect, 'pointerup', 500, 400);
+    instance.unmount();
+    restore();
+  });
+
+  it('2. 刃の先が糸の束に届くと cutReady になり、糸の束が藍色になる', async () => {
+    const { container, instance, restore } = await setupToCutting();
+    const rect = stageRect(container);
+    const { scissorsPos, tableY } = await import('./geometry');
+    // まず置き場所でつかむ
+    const sp = scissorsPos();
+    stagePointer(container, rect, 'pointerdown', sp.x, sp.y);
+    // 指 = 束より 28px 下 → 先端が束に届く
+    stagePointer(container, rect, 'pointermove', 570, tableY(0, 3) + 28);
+    stagePointer(container, rect, 'pointermove', 570, tableY(0, 3) + 28);
+    const opts = lastDrawOpts() as { scissors?: { cutReady: boolean } };
+    expect(opts.scissors!.cutReady).toBe(true);
+    stagePointer(container, rect, 'pointerup', 570, tableY(0, 3) + 28);
+    instance.unmount();
+    restore();
+  });
+
+  it('3. 糸の束の上で離すと、すぐには切れず閉じる動き (0.3秒) のあとで結ばれる', async () => {
+    const { container, instance, restore } = await setupToCutting();
+    const rect = stageRect(container);
+    const { scissorsPos, tableY } = await import('./geometry');
+    const sp = scissorsPos();
+    stagePointer(container, rect, 'pointerdown', sp.x, sp.y);
+    stagePointer(container, rect, 'pointermove', 570, tableY(0, 3) + 28);
+    stagePointer(container, rect, 'pointerup', 570, tableY(0, 3) + 28);
+    // すぐ後: まだ winding に戻っていない (閉じる動きのあいだ)
+    raf.advance(2);
+    expect((instance.suspend() as { phase: string }).phase).toBe('cutting');
+    // 閉じる動き + 結びの演出が終わると次の帯へ
+    await vi.waitFor(
+      () => {
+        raf.advance(60);
+        const panel = container.querySelector('.winding-panel')?.textContent ?? '';
+        expect(panel).toContain('帯 2/3');
+      },
+      { timeout: 30000, interval: 100 },
+    );
+    instance.unmount();
+    restore();
+  });
+
+  it('4. pointercancel では切らずにハサミが元の位置に戻る', async () => {
+    const { container, instance, restore } = await setupToCutting();
+    const rect = stageRect(container);
+    const { scissorsPos, tableY } = await import('./geometry');
+    const sp = scissorsPos();
+    stagePointer(container, rect, 'pointerdown', sp.x, sp.y);
+    stagePointer(container, rect, 'pointermove', 570, tableY(0, 3) + 28);
+    stagePointer(container, rect, 'pointercancel', 570, tableY(0, 3) + 28);
+    raf.advance(2);
+    expect((instance.suspend() as { phase: string }).phase).toBe('cutting');
+    const opts = lastDrawOpts() as { scissors?: { x: number; y: number } };
+    expect(opts.scissors!.x).toBe(sp.x);
+    expect(Math.abs(opts.scissors!.y - sp.y)).toBeLessThanOrEqual(5); // 置いてあるときは軽く揺らぐ
+    instance.unmount();
+    restore();
+  });
 });

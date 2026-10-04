@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { setLogicalHeight, logicalHeightFor, machineExtent, CREEL_AREA, CREEL_END_X, LOGICAL_W, LOGICAL_H, endPoint, hitEnd, toPx, fromPx, threadY, drumSectionY, tableY, TABLE_AREA, REED_X, DRUM_END_X, DRUM_AREA, pointOnPath, threadPath, PIN_RAIL_X, DIAL_X, DIAL_Y, DIAL_R, reedRect, reedThreadY, THREAD_SHEET_HALF, hitBrokenThread, THREAD_MARK_X, SCISSORS_SIZE, scissorsPos, scissorsHitsThread, REED_RISE } from './geometry';
+import { setLogicalHeight, logicalHeightFor, machineExtent, CREEL_AREA, CREEL_END_X, LOGICAL_W, LOGICAL_H, endPoint, hitEnd, toPx, fromPx, threadY, drumSectionY, tableY, TABLE_AREA, REED_X, DRUM_END_X, DRUM_AREA, pointOnPath, threadPath, PIN_RAIL_X, DIAL_X, DIAL_Y, DIAL_R, reedRect, reedThreadY, THREAD_SHEET_HALF, hitBrokenThread, THREAD_MARK_X, SCISSORS_SIZE, SCISSORS_LIFT, scissorsPos, scissorsHitsThread, REED_RISE } from './geometry';
 
 const fit = { scale: 1, offsetX: 0, offsetY: 0 };
 
@@ -396,22 +396,18 @@ describe('PU-14 追加修正: 盤面のカードの高さを使い切る (クリ
   });
 });
 
-describe('T2-16c (ハサミの位置と当たり判定)', () => {
-  it('1. ハサミの大きさは 64 以上。置く場所の x は筬とドラムのあいだ', () => {
+describe('T2-16 その4b (ハサミの置き場所と持ち上げ)', () => {
+  it('1. ハサミの大きさは 64 以上。置き場所は帯に関係なく同じ (クリールの右下・筬の左下・盤の下のほう)', () => {
     expect(SCISSORS_SIZE).toBeGreaterThanOrEqual(64);
-    const p = scissorsPos(0, 3);
-    expect(p.x).toBeGreaterThan(REED_X);
-    expect(p.x).toBeLessThan(DRUM_AREA.x);
+    expect(scissorsPos()).toEqual(scissorsPos());
+    const p = scissorsPos();
+    expect(p.x).toBeGreaterThan(CREEL_END_X); // クリールの右下
+    expect(p.x).toBeLessThan(REED_X); // 筬の左下
+    expect(p.y).toBeGreaterThan(LOGICAL_H * 0.75); // 盤の下のほう
   });
 
-  it('2. いま巻いている帯がドラムの上半分なら上の方・刃は下向き。下半分なら下の方・刃は上向き', () => {
-    const top = scissorsPos(0, 3);
-    expect(top.dir).toBe('down');
-    // 上なら糸の束の始まり (筬の糸道) より上
-    expect(top.y).toBeLessThan(tableY(0, 3) - REED_RISE);
-    const bottom = scissorsPos(2, 3);
-    expect(bottom.dir).toBe('up');
-    expect(bottom.y).toBeGreaterThan(tableY(2, 3));
+  it('2. 引っぱっているあいだ、ハサミは指の位置より半分の大きさ + 24px 上に出る', () => {
+    expect(SCISSORS_LIFT).toBe(SCISSORS_SIZE / 2 + 24);
   });
 
   it('3. 当たり判定: 糸の束の上 (または近く) で true・離れると false', () => {

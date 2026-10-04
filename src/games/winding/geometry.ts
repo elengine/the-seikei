@@ -55,18 +55,18 @@ export const DIAL_R = 28;
 /** ハサミのアイコンの大きさ (論理座標。64px 以上。T2-16c) */
 export const SCISSORS_SIZE = 68;
 
+/** 引っぱっているあいだ、ハサミは指の位置よりこれだけ上に出る (クリールの糸巻きと同じ。T2-16 その4b) */
+export const SCISSORS_LIFT = SCISSORS_SIZE / 2 + 24;
+
+/** ハサミの中心から刃の先までの距離 (当たり判定は刃の先で行う) */
+export const SCISSORS_TIP = SCISSORS_SIZE * 0.45;
+
 /**
- * ハサミを置く場所と刃の向き (T2-16c)。x は筬とドラムのあいだ。
- * いま巻いている帯がドラムの上半分なら上の方に刃を下向きで。下半分なら下の方に刃を上向きで出す。
+ * ハサミの置き場所 (T2-16 その4b)。いつもクリールの右下・筬の左下・盤の下のほう。
+ * 帯の位置に依存しない。
  */
-export function scissorsPos(current: number, sections: number): { x: number; y: number; dir: 'down' | 'up' } {
-  const ty = tableY(current, sections);
-  const x = (REED_X + DRUM_AREA.x) / 2;
-  const upper = ty < DRUM_AREA.y + DRUM_AREA.h / 2;
-  if (upper) {
-    return { x, y: Math.max(ty - 110, 60), dir: 'down' };
-  }
-  return { x, y: Math.min(ty + 110, LOGICAL_H - 40), dir: 'up' };
+export function scissorsPos(): { x: number; y: number } {
+  return { x: (CREEL_END_X + REED_X) / 2, y: LOGICAL_H - 70 };
 }
 
 /**

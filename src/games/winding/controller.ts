@@ -5,7 +5,7 @@ import { showTutorial } from '../../core/ui/tutorialOverlay';
 import { drawBoard } from './renderer';
 import { PIN_ANGLE0 } from './renderer.parts';
 import { createWindingPanel } from './panel';
-import { fromPx, hitBrokenThread, logicalHeightFor, setLogicalHeight, SCISSORS_SIZE, scissorsPos, scissorsHitsThread } from './geometry';
+import { fromPx, hitBrokenThread, logicalHeightFor, setLogicalHeight, SCISSORS_SIZE, SCISSORS_LIFT, SCISSORS_TIP, scissorsPos, scissorsHitsThread } from './geometry';
 import { getContent, type Content } from '../../core/content/content';
 import { init, reduce, seedFromText } from './logic';
 import { speedOf } from '../../core/mechanics/pedal';
@@ -129,13 +129,31 @@ let pinTurnPrevEased = 0; // 前フレームの ease の値 (角速度を決め�
   // ---- ハサミ (帯を巻き終えたらハサミで糸を切る。T2-16c) ----
   /** ハサミをつかんでいるときの指の位置 (論理座標)。null は置いてある状態 */
   let scissorsDragAt: { x: number; y: number } | null = null;
-  /** 今のハサミの位置と向き (置いてあるときは軽く上下に動く。押せることを示す) */
-  function scissorsNow(): { x: number; y: number; dir: 'down' | 'up' } {
-    const base = scissorsPos(s.current, s.sections);
-    if (scissorsDragAt === null) {
-      return { ...base, y: base.y + Math.sin(nowMs / 300) * 4 };
+  /** 離したあとの閉じる動きの残りミリ秒 (T2-16 その4b)。0 より大きいあいだ刃が閉じていく */
+  let scissorsCloseMs = 0;
+  /** 閉じる動きのあいだハサミが留まっている位置 (離した所) */
+  let scissorsCloseAt: { x: number; y: number } | null = null;
+  /** 閉じる動きの長さ (ミリ秒) */
+  const SCISSORS_CLOSE_MS = 300;
+
+  /** 今のハサミの位置と見た目 (引っぱっているときは指より上に浮く。置いてあるときは軽く上下に動く) */
+  function scissorsNow(): { x: number; y: number; cutReady: boolean; openK: number } {
+    if (scissorsDragAt !== null) {
+      const pos = { x: scissorsDragAt.x, y: scissorsDragAt.y - SCISSORS_LIFT };
+      // 切れるかどうかは、刃の先 (中心より下) が糸の束に届くかで決める
+      const tip = { x: pos.x, y: pos.y + SCISSORS_TIP };
+      return { ...pos, cutReady: scissorsHitsThread(tip, s.current, s.sections), openK: 1 };
     }
-    return { ...base, x: scissorsDragAt.x, y: scissorsDragAt.y };
+    if (scissorsCloseAt !== null) {
+      return {
+        x: scissorsCloseAt.x,
+        y: scissorsCloseAt.y,
+        cutReady: false,
+        openK: Math.max(0, scissorsCloseMs / SCISSORS_CLOSE_MS),
+      };
+    }
+    const base = scissorsPos();
+    return { ...base, y: base.y + Math.sin(nowMs / 300) * 4, cutReady: false, openK: 1 };
   }
 
   // ---- 描画 ----
@@ -271,6 +289,15 @@ let pinTurnPrevEased = 0; // 前フレームの ease の値 (角速度を決め�
       if (tieRunning) {
         stepTieAnimation(dtMs);
       }
+      if (scissorsCloseMs > 0) {
+        scissorsCloseMs -= dtMs;
+        if (scissorsCloseMs <= 0) {
+          // 閉じきったら切る (糸が切れて帯の端を結ぶ)
+          scissorsCloseMs = 0;
+          scissorsCloseAt = null;
+          dispatch({ type: 'cut' });
+        }
+      }
       // ドラムが回って見える角度。角速度は目標へなめらかに近づける (重いドラムの手応え。T2-10 追加修正 b)。
       // 糸が切れたときだけ急に止める (DRUM_STOP_MS)
       {
@@ -388,6 +415,9 @@ let pinTurnPrevEased = 0; // 前フレームの ease の値 (角速度を決め�
     }
     // 帯を巻き終えたら、ハサミをつかむ (T2-16c)
     if (s.phase === 'cutting') {
+      if (scissorsCloseMs > 0) {
+        return; // 閉じる動きのあいだはつかめない
+      }
       const p = logicalOf(e);
       const sc = scissorsNow();
       const half = SCISSORS_SIZE / 2 + 8;
@@ -425,7 +455,7 @@ let pinTurnPrevEased = 0; // 前フレームの ease の値 (角速度を決め�
     scissorsDragAt = logicalOf(e);
     render();
   }
-  /** ハサミを離す: 糸の束の上なら切る (結びの演出へ)。外れたら元の位置に戻る */
+  /** ハサミを離す: 刃の先が糸の束に届いていれば閉じる動きをして切る。外れたら元の位置に戻る */
   function onPointerUp(e: PointerEvent): void {
     if (scissorsDragAt === null || finished || disposed) {
       return;
@@ -433,15 +463,32 @@ let pinTurnPrevEased = 0; // 前フレームの ease の値 (角速度を決め�
     const p = logicalOf(e);
     scissorsDragAt = null;
     frame.stage.style.touchAction = '';
-    if (s.phase === 'cutting' && !tieRunning && scissorsHitsThread(p, s.current, s.sections)) {
-      dispatch({ type: 'cut' }); // 糸が切れて帯の端を結ぶ
+    if (s.phase === 'cutting' && !tieRunning) {
+      const pos = { x: p.x, y: p.y - SCISSORS_LIFT };
+      const tip = { x: pos.x, y: pos.y + SCISSORS_TIP };
+      if (scissorsHitsThread(tip, s.current, s.sections)) {
+        // すぐには切らず、閉じる動き (0.3秒) をしてから切る (T2-16 その4b)
+        scissorsCloseMs = SCISSORS_CLOSE_MS;
+        scissorsCloseAt = pos;
+        render();
+        return;
+      }
     }
+    render();
+  }
+  /** 引っぱっている最中に指が外れた (キャンセル): 切らずに元の位置に戻す */
+  function onPointerCancel(): void {
+    if (scissorsDragAt === null || disposed) {
+      return;
+    }
+    scissorsDragAt = null;
+    frame.stage.style.touchAction = '';
     render();
   }
   frame.stage.addEventListener('pointerdown', onPointerDown);
   frame.stage.addEventListener('pointermove', onPointerMove);
   frame.stage.addEventListener('pointerup', onPointerUp);
-  frame.stage.addEventListener('pointercancel', onPointerUp);
+  frame.stage.addEventListener('pointercancel', onPointerCancel);
 
   // ---- 初期表示 ----
   if (s.phase !== 'done') {

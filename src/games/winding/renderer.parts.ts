@@ -2,7 +2,7 @@ import type { WindingState } from './logic';
 import { COLORS, FONT_FAMILY } from '../../core/ui/tokens';
 import { SECTION_LENGTH, STRIPE_H, WING_OUT, WING_SIDE_MAX_RATIO, SLAT_OVER, SLAT_FLARE } from './params';
 import type { StageFit } from '../../core/viewport/viewport';
-import { DRUM_AREA, fontPx, drumSectionY, threadY, CREEL_END_X, DRUM_END_X, SCISSORS_SIZE } from './geometry';
+import { DRUM_AREA, fontPx, drumSectionY, threadY, CREEL_END_X, DRUM_END_X, SCISSORS_TIP } from './geometry';
 
 /**
  * ドラム巻きの盤面のうち、ドラム (円筒) と結び目を描く部品。
@@ -411,46 +411,59 @@ export function drawTensionLamp(ctx: CanvasRenderingContext2D, fit: StageFit, s:
 }
 
 /**
- * ハサミのアイコン (T2-16c)。白い円の土台の上にハサミ (交差する 2 枚の刃 + 2 つの輪) を描く。
- * dir 'down' は刃が下向き (帯がドラムの上半分)・'up' は刃が上向き (下半分)。
+ * 本物らしいハサミを描く (T2-16 その4b)。白い円の土台は無く、銀色の刃 2 枚と
+ * 濃い色の輪の持つ手 2 つ。cutReady (切れる所) では刃を大きく開き、openK (0〜1) で
+ * 閉じる動きを表す (0 で閉じた状態)。支点は pos、刃は下向き。
  */
 export function drawScissors(
   ctx: CanvasRenderingContext2D,
   fit: StageFit,
-  pos: { x: number; y: number; dir: 'down' | 'up' },
+  pos: { x: number; y: number },
+  cutReady: boolean,
+  openK: number,
 ): void {
-  const s = fontPx(fit, SCISSORS_SIZE) / SCISSORS_SIZE; // 論理 → 実寸
-  const r = (SCISSORS_SIZE / 2) * s;
-  ctx.save();
-  // 土台 (白い円 + 灰色のふち)
-  ctx.beginPath();
-  ctx.arc(pos.x, pos.y, r, 0, Math.PI * 2);
-  ctx.fillStyle = COLORS.white;
-  ctx.fill();
-  ctx.strokeStyle = COLORS.sumiSub;
-  ctx.lineWidth = fontPx(fit, 2);
-  ctx.stroke();
-  // ハサミ (中心を支点に刃は下、輪は上。dir 'up' は上下をひっくり返す)
-  ctx.translate(pos.x, pos.y);
-  if (pos.dir === 'up') {
-    ctx.scale(1, -1);
-  }
   const u = fontPx(fit, 1); // 論理 1px
-  ctx.strokeStyle = COLORS.sumi;
-  ctx.lineWidth = 4 * u;
-  ctx.lineCap = 'round';
-  // 刃 2 枚 (支点から下の外側へ交差して伸びる)
+  // 刃の開き角 (ラジアンの半分)。ふだんは少し開く・切れる所では大きく開く
+  const open = cutReady ? 0.38 : 0.14 * openK;
+  // 回転は rotate を使わず座標を回して計算する (テストの偽 ctx に rotate は無い)
+  const rot = (x: number, y: number, a: number): { x: number; y: number } => ({
+    x: x * Math.cos(a) - y * Math.sin(a),
+    y: x * Math.sin(a) + y * Math.cos(a),
+  });
+  ctx.save();
+  ctx.translate(pos.x, pos.y);
+  // 刃 2 枚 (支点から下外へ。銀色の細長い形)
+  for (const side of [-1, 1]) {
+    const a = side * open;
+    const p1 = rot(-3.5 * u, 0, a);
+    const p2 = rot(3.5 * u, 0, a);
+    const p3 = rot(0.8 * u, SCISSORS_TIP, a);
+    const p4 = rot(-0.8 * u, SCISSORS_TIP, a);
+    ctx.fillStyle = COLORS.steel;
+    ctx.strokeStyle = COLORS.sumiSub;
+    ctx.lineWidth = 1.5 * u;
+    ctx.beginPath();
+    ctx.moveTo(p1.x, p1.y);
+    ctx.lineTo(p2.x, p2.y);
+    ctx.lineTo(p3.x, p3.y);
+    ctx.lineTo(p4.x, p4.y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+  // 支点のねじ
   ctx.beginPath();
-  ctx.moveTo(-14 * u, 30 * u);
-  ctx.lineTo(10 * u, -2 * u);
-  ctx.moveTo(14 * u, 30 * u);
-  ctx.lineTo(-10 * u, -2 * u);
-  ctx.stroke();
-  // 輪 2 つ (支点の上)
-  ctx.beginPath();
-  ctx.arc(-10 * u, -16 * u, 9 * u, 0, Math.PI * 2);
-  ctx.moveTo(19 * u, -16 * u);
-  ctx.arc(10 * u, -16 * u, 9 * u, 0, Math.PI * 2);
-  ctx.stroke();
+  ctx.arc(0, 0, 3.5 * u, 0, Math.PI * 2);
+  ctx.fillStyle = COLORS.sumiSub;
+  ctx.fill();
+  // 持つ手の輪 2 つ (支点の上・左右に開く)
+  for (const side of [-1, 1]) {
+    const c = rot(side * 9 * u, -26 * u, side * open * 0.8);
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, 9 * u, 0, Math.PI * 2);
+    ctx.strokeStyle = COLORS.sumi;
+    ctx.lineWidth = 5 * u;
+    ctx.stroke();
+  }
   ctx.restore();
 }

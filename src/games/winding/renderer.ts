@@ -44,7 +44,7 @@ export function drawBoard(
   fit: { scale: number; offsetX: number; offsetY: number },
   s: WindingState,
   content: Content,
-  opts: { threadCount: number; show: 'red' | 'droop' | 'small'; timeMs: number; tieProgress?: number; drumAngle?: number; scissors?: { x: number; y: number; dir: 'down' | 'up' } },
+  opts: { threadCount: number; show: 'red' | 'droop' | 'small'; timeMs: number; tieProgress?: number; drumAngle?: number; scissors?: { x: number; y: number; cutReady: boolean; openK: number } },
 ): void {
   const hexes = patternHexes(content, s.patternId);
   const base = baseHex(content, s.patternId);
@@ -67,7 +67,7 @@ export function drawBoard(
   drawBrokenThread(ctx, fit, s, opts, base);
   // ハサミのアイコン (帯を巻き終えた 'cutting' のときだけ。いちばん上に重ねる。T2-16c)
   if (s.phase === 'cutting' && opts.scissors !== undefined) {
-    drawScissors(ctx, fit, opts.scissors);
+    drawScissors(ctx, fit, opts.scissors, opts.scissors.cutReady, opts.scissors.openK);
   }
 
   // 変換を戻す
@@ -148,7 +148,7 @@ function drawThreads(
   ctx: CanvasRenderingContext2D,
   fit: StageFit,
   s: WindingState,
-  opts: { threadCount: number; timeMs: number },
+  opts: { threadCount: number; timeMs: number; scissors?: { x: number; y: number; cutReady: boolean; openK: number } },
   base: string,
 ): void {
   ctx.strokeStyle = base;
@@ -169,9 +169,13 @@ function drawThreads(
     }
   }
   ctx.stroke();
-  // 筬から先は帯の幅にまとまって、今の帯の区画へ (横向き)
+  // 筬から先は帯の幅にまとまって、今の帯の区画へ (横向き)。
+  // ハサミの刃が届く (cutReady) ときは藍色に光る (T2-16 その4b)
   const ty = tableY(s.current, s.sections);
   ctx.lineWidth = fontPx(fit, 2);
+  if (opts.scissors?.cutReady === true) {
+    ctx.strokeStyle = COLORS.ai;
+  }
   ctx.beginPath();
   for (const dy of [-THREAD_SHEET_HALF, 0, THREAD_SHEET_HALF]) {
     ctx.moveTo(REED_X, ty - REED_RISE + dy);
