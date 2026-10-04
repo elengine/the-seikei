@@ -1,6 +1,8 @@
 import type { GameDeps, GameInstance, GameProps, TutorialSpec } from '../../core/game/types';
 import type { StageFit } from '../../core/viewport/viewport';
 import { createGameFrame } from '../../core/ui/gameFrame';
+import { setBoardHeight } from './geometry';
+import { logicalHeightFor } from '../winding/geometry';
 import { showTutorial } from '../../core/ui/tutorialOverlay';
 import { drawBoard } from './renderer';
 import { createBeamingPanel } from './panel';
@@ -73,6 +75,12 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
     },
     logicalW: 1000,
     logicalH: 750,
+    // 盤面のカードの縦横の割合に論理の高さを合わせ、機械をカードの高さいっぱいに描く (PU-15a。ドラム巻きと同じ考え)
+    logicalHFor: (w, h) => {
+      const H = logicalHeightFor(w, h);
+      setBoardHeight(H);
+      return H;
+    },
     portraitStageRatio: 0.4,
     onStageResize: (fit) => {
       lastFit = fit;

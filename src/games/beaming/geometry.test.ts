@@ -1,5 +1,8 @@
-import { describe, it, expect } from 'vitest';
-import { pxPerCm, cmToX, xToCm, BEAM_W_PX, BOARD_W, BEAM_CENTER_X, woundTopY, BEAM_WOUND_MAX_H } from './geometry';
+import { describe, it, expect, afterEach } from 'vitest';
+import {
+  pxPerCm, cmToX, xToCm, BEAM_W_PX, BOARD_W, BEAM_CENTER_X, woundRadius, setBoardHeight, BOARD, drawnExtent, FLANGE_RX, CORE_R,
+} from './geometry';
+import { logicalHeightFor } from '../winding/geometry';
 
 describe('beaming geometry T3-02 (座標)', () => {
   it('1. cm → 論理座標 → cm の往復が一致する', () => {
@@ -30,10 +33,54 @@ describe('beaming geometry T3-02 (座標)', () => {
     expect(cmToX(w, w / 2)).toBeGreaterThan(BEAM_CENTER_X);
     expect(cmToX(w, -w / 2)).toBe(BEAM_CENTER_X - BEAM_W_PX / 2);
   });
+});
 
-  it('4. 巻き太り: progress が大きいほど巻き太りの上端が上 (高さは progress × 最大)', () => {
-    expect(woundTopY(0)).toBeGreaterThan(woundTopY(0.5));
-    expect(woundTopY(0.5)).toBeGreaterThan(woundTopY(1));
-    expect(woundTopY(0) - woundTopY(1)).toBe(BEAM_WOUND_MAX_H);
+describe('PU-15a: ビームの巻き太りと盤面の高さ', () => {
+  afterEach(() => {
+    setBoardHeight(750);
+  });
+
+  it('巻き太りは軸を中心に上下に同じだけ太る円筒の半径 (woundRadius)。progress 0 で芯の半径、1 で円盤の半径の 8 割。progress に比例して増える', () => {
+    expect(woundRadius(0)).toBe(CORE_R);
+    expect(woundRadius(1)).toBeCloseTo(BOARD.flangeR * 0.8, 6);
+    const a = woundRadius(0.25);
+    const b = woundRadius(0.5);
+    expect(b - woundRadius(0)).toBeCloseTo(2 * (a - woundRadius(0)), 6);
+    expect(woundRadius(2)).toBe(woundRadius(1)); // 1 を超えない
+  });
+
+  it('setBoardHeight: 高さに比例して、ドラム・ガイドの棒・軸・円盤の半径・目標の点線の位置が決まる (上から ドラム < ガイド < 軸 < 目標の点線)', () => {
+    for (const H of [750, 1000, 1400]) {
+      setBoardHeight(H);
+      expect(BOARD.drumY).toBeGreaterThan(0);
+      expect(BOARD.drumY + BOARD.drumH).toBeLessThan(BOARD.guideY);
+      expect(BOARD.guideY).toBeLessThan(BOARD.axisY - BOARD.flangeR);
+      expect(BOARD.axisY + BOARD.flangeR).toBeLessThan(BOARD.targetY);
+      expect(BOARD.targetY).toBeLessThan(H);
+    }
+  });
+
+  it('描いた範囲 (ドラムの上から、目標の点線の目盛りの下まで) の高さが、論理の高さの 85% 以上 (750〜1400 のどれでも)', () => {
+    for (const H of [750, 900, 1000, 1250, 1400]) {
+      setBoardHeight(H);
+      const e = drawnExtent();
+      expect((e.bottom - e.top) / H, `H=${H}`).toBeGreaterThanOrEqual(0.85);
+      expect(e.bottom).toBeLessThanOrEqual(H);
+    }
+  });
+
+  it('5 つの大きさの盤面のカード (534×305・396×363・512×517・636×278・689×637) で、描いた範囲の高さがカードの高さの 85% 以上', () => {
+    for (const [w, h] of [[534, 305], [396, 363], [512, 517], [636, 278], [689, 637]] as Array<[number, number]>) {
+      const H = logicalHeightFor(w, h);
+      setBoardHeight(H);
+      const scale = Math.min(w / BOARD_W, h / H);
+      const e = drawnExtent();
+      expect(((e.bottom - e.top) * scale) / h, `${w}×${h}`).toBeGreaterThanOrEqual(0.85);
+    }
+  });
+
+  it('円盤の楕円の横の半径 (FLANGE_RX) は、画面上の当たりを 64px 幅にできる大きさ (縮尺 0.4 でも 64/0.4 = 160 以内で当たりを広げられる)', () => {
+    expect(FLANGE_RX).toBeGreaterThan(10);
+    expect(FLANGE_RX).toBeLessThan(80);
   });
 });

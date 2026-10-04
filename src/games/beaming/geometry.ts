@@ -1,13 +1,15 @@
 /**
- * ビーム巻きの盤面の座標 (P3 T3-02)。論理座標 1000×750。
- * 奥 (上) に巻き終えたドラム (ビームより幅が広い)、手前 (下) にビームと緑の円盤。
- * 糸のシートはドラムから斜めに降りてビームに巻かれる。
+ * ビーム巻きの盤面の座標 (P3 T3-02。PU-15a で実物の写真に寄せて組み直した)。論理座標は幅 1000・高さ BOARD.H。
+ * 奥 (上) に横に寝かせたドラム (糸の筋は縦)、そこから糸のシートが手前へ降りて、茶色のガイドの棒をくぐり、
+ * 手前 (下) のビーム (銀色の軸・左右の大きな円盤・軸のまわりに太る巻き) に巻かれる。少し上から見下ろした斜めの構図。
  * cm → 論理座標の変換はこのファイルだけで行う。
- * 巻き幅が盤面の幅の 60〜80% になる倍率 (巻き幅に関係なく 700px = 70%)。
+ * 縦の位置は、論理の高さ H (盤面のカードの縦横の割合に合わせて setBoardHeight で決める) の割合で決まり、
+ * 描いた範囲がカードの高さの 85% 以上になる。
  */
 
-/** 盤面の論理座標 */
+/** 盤面の論理座標の幅 */
 export const BOARD_W = 1000;
+/** 論理の高さの標準 (カードの割合に合わせて setBoardHeight で変わる) */
 export const BOARD_H = 750;
 
 /** 巻き幅を描く幅 (px。盤面の幅の 70%) */
@@ -31,37 +33,68 @@ export function xToCm(widthCm: number, x: number): number {
   return (x - BEAM_CENTER_X) / pxPerCm(widthCm);
 }
 
-/** 奥のドラム (巻き終えたドラム。ビームより幅が広い) */
-export const DRUM_RECT = { x: 60, y: 120, w: 880, h: 140 };
+/** 奥のドラム (横に寝た円筒) の x と幅 */
+export const DRUM_X = 90;
+export const DRUM_W = 820;
 
-/** ビームの芯の中心の y (手前) */
-export const BEAM_AXIS_Y = 580;
+/** ビームの芯 (銀色の軸) の太さの半分 (px) */
+export const CORE_R = 11;
+/** 軸が円盤の外へ飛び出す長さ (px) */
+export const ROD_OUT = 70;
+/** 円盤 (斜めから見て楕円) の横の半径 (px) */
+export const FLANGE_RX = 30;
 
-/** 銀色の芯の太さ (px) */
-export const BEAM_CORE_H = 22;
+/** 縦の位置 (論理の高さ H の割合。setBoardHeight で決まる) */
+export interface BoardLayout {
+  H: number;
+  drumY: number; // ドラムの上端
+  drumH: number; // ドラムの高さ (巻き取られて細る前)
+  guideY: number; // ガイドの棒の中心
+  axisY: number; // ビームの軸の中心
+  flangeR: number; // 円盤の半径 (縦)
+  targetY: number; // 目標の点線
+}
+export const BOARD: BoardLayout = { H: BOARD_H, drumY: 0, drumH: 0, guideY: 0, axisY: 0, flangeR: 0, targetY: 0 };
 
-/** 巻き太りの最大 (px。progress 1 でビームの上端がここまで上がる) */
-export const BEAM_WOUND_MAX_H = 110;
+/** 論理の高さ H に合わせて、縦の位置を決める (同じ値なら何も変わらない) */
+export function setBoardHeight(height: number): void {
+  const H = Math.max(BOARD_H, height);
+  BOARD.H = H;
+  BOARD.drumY = H * 0.06;
+  BOARD.drumH = H * 0.2;
+  BOARD.guideY = H * 0.5;
+  BOARD.axisY = H * 0.75;
+  BOARD.flangeR = H * 0.16;
+  BOARD.targetY = H * 0.93;
+}
+setBoardHeight(BOARD_H);
 
-/** 巻き太りの上端の y (progress 0 では芯の上端) */
+/** 巻いた糸の円筒の半径 (軸を中心に上下に同じだけ太る。progress 0 で芯、1 で円盤の半径の 8 割) */
+export function woundRadius(progress: number): number {
+  const p = Math.min(1, Math.max(0, progress));
+  return CORE_R + p * (BOARD.flangeR * 0.8 - CORE_R);
+}
+
+/** 巻いた糸の円筒の上端の y (糸のシートの下の端) */
 export function woundTopY(progress: number): number {
-  return BEAM_AXIS_Y - BEAM_CORE_H / 2 - Math.min(1, Math.max(0, progress)) * BEAM_WOUND_MAX_H;
+  return BOARD.axisY - woundRadius(progress);
 }
 
-/** 円盤 (側面から見た厚み) の幅と直径 (px) */
-export const FLANGE_W = 26;
-export const FLANGE_H = 170;
-
-/** 円盤の上端の y (ビームの芯の中心を挟む) */
+/** 円盤の上端の y */
 export function flangeTopY(): number {
-  return BEAM_AXIS_Y - FLANGE_H / 2;
+  return BOARD.axisY - BOARD.flangeR;
 }
 
-/** 幅合わせの目標の点線の y (ビームの下) */
-export const TARGET_LINE_Y = 690;
+/** 糸のシートの上端の y (ドラムの下端。ドラムは巻き取られて細るので、描くときに progress で変える) */
+export function sheetTopY(progress: number): number {
+  const half = (BOARD.drumH / 2) * (1 - 0.3 * Math.min(1, Math.max(0, progress)));
+  return BOARD.drumY + BOARD.drumH / 2 + half;
+}
 
-/** 糸のシートの上端の y (ドラムの下端) */
-export const SHEET_TOP_Y = DRUM_RECT.y + DRUM_RECT.h;
+/** 描いた範囲 (ドラムの上から、目標の点線の目盛りと円盤の内側の印の下まで) の上と下 (論理座標) */
+export function drawnExtent(): { top: number; bottom: number } {
+  return { top: BOARD.drumY, bottom: BOARD.targetY + 28 };
+}
 
 /** 上の設定表示の位置 (画面 px で描く) */
 export const TOP_TEXT = { x: 40, y: 60 };

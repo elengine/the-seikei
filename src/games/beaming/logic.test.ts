@@ -283,7 +283,7 @@ describe('T3-03a 追加修正 (乗り上げの判定を1か所に・遊びは中
       // renderer: 乗り上げの円盤の朱の縁と「乗り上げ」の文字は、判定が true のときだけ出る
       const { ctx, rec } = makeFakeCtx();
       drawBoard(ctx, fit, s, content, 0);
-      const shu = rec.ops.some((o) => o.k === 'fillRect' && styleBefore(rec.ops, rec.ops.indexOf(o)) === COLORS.shu);
+      const shu = rec.ops.some((o) => o.k === 'ellipse' && styleBefore(rec.ops, rec.ops.indexOf(o)) === COLORS.shu);
       const text = rec.ops.some((o) => o.k === 'fillText' && String(o.args?.[0]).includes('乗り上げ'));
       expect(shu).toBe(sides.left || sides.right);
       expect(text).toBe(sides.left || sides.right);

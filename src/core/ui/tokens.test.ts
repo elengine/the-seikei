@@ -434,3 +434,10 @@ describe('PU-14b: ランプの色', () => {
     expect(COLORS.lampBreak).toBe('#C62828');
   });
 });
+
+describe('PU-15a: ビームの円盤の色', () => {
+  it('flange (暗い金属)・flangeHole (穴)', () => {
+    expect(COLORS.flange).toBe('#3F444A');
+    expect(COLORS.flangeHole).toBe('#1C1F23');
+  });
+});

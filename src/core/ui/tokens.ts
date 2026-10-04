@@ -33,6 +33,8 @@ export const COLORS = {
   lampOk: '#2F8F4E',
   lampWarn: '#E8871E',
   lampBreak: '#C62828',
+  flange: '#3F444A',
+  flangeHole: '#1C1F23',
   winderGreen: '#708662',
   winderSteel: '#A8AFB6',
   threadYellow: '#D9A62E',
