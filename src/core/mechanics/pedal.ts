@@ -26,7 +26,15 @@ export interface DriftParams {
   turnRate: number; // 1秒あたり、向きが変わる確率
   max: number; // 流れの大きさの上限 (±)
   snagRate: number; // 1秒あたり、引っかかりが起きる確率
-  snagSize: number; // 引っかかりで上がる量
+  snagSize: number; // 引っかかりで上がる量 (snagSizeMin/Max を渡さないときの従来の値)
+  /** 引っかかりで上がる量の範囲 (T2-16a)。省略すると snagSize で固定 (ビーム巻きは従来どおり) */
+  snagSizeMin?: number;
+  snagSizeMax?: number;
+  /** 上がるまでの時間 (ms)。省略すると即上がる (従来どおり) */
+  snagRiseMs?: number;
+  /** 戻る時間の範囲 (ms)。省略すると SNAG_RECOVER_MS の一定 (従来どおり) */
+  snagRecoverMinMs?: number;
+  snagRecoverMaxMs?: number;
 }
 
 export interface PedalState {
@@ -34,6 +42,11 @@ export interface PedalState {
   noise: number; // -noiseAmp〜+noiseAmp
   drift: number; // 流れ (-max〜+max。T2-09a)
   snag: number; // 引っかかりで今上がっている量 (0〜snagSize。T2-09a)
+  /** 引っかかりの進行 (T2-16a)。上がりきる量・上がる時間・戻る時間・経過時間。省略時は従来形 */
+  snagTarget?: number;
+  snagRiseMs?: number;
+  snagRecoverMs?: number;
+  snagElapsedMs?: number;
   rng: RngState;
 }
 
@@ -102,9 +115,11 @@ export function stepDrift(s: PedalState, p: DriftParams, dtMs: number): PedalSta
 }
 
 /**
- * 引っかかりを 1フレーム進める (T2-09a)。
- * snagRate × dtSec の確率で、張りが snagSize 上がる (上がった瞬間の量は raised で返す)。
- * 上がった量は 2秒 (SNAG_RECOVER_MS) かけて 0 に戻る。
+ * 引っかかりを 1フレーム進める (T2-09a・T2-16a)。
+ * snagRate × dtSec の確率で引っかかる。上がる量は snagSizeMin〜snagSizeMax (省略時は snagSize)、
+ * snagRiseMs かけて上がり (省略時は即)、snagRecoverMin〜Max ms かけて徐々に 0 に戻る (省略時は 2 秒)。
+ * 上がり始めの量は raised で返す。乱数は State の種から (同じ種と同じ操作なら同じ)。
+ * オプションを渡さないときは従来どおり (snagSize で即上がり・2 秒で戻る。ビーム巻きは変わらない)。
  */
 export const SNAG_RECOVER_MS = 2000;
 
@@ -118,12 +133,38 @@ export function stepSnag(
   let raised = 0;
   const [raw, next] = nextFloat(cur.rng);
   cur = { ...cur, rng: next };
-  if (raw < p.snagRate * dtSec && cur.snag <= 0) {
-    cur = { ...cur, snag: p.snagSize };
-    raised = p.snagSize;
+  if (raw < p.snagRate * dtSec && cur.snag <= 0 && (cur.snagTarget ?? 0) <= 0) {
+    const sizeMin = p.snagSizeMin ?? p.snagSize;
+    const sizeMax = p.snagSizeMax ?? p.snagSize;
+    const recoverMin = p.snagRecoverMinMs ?? SNAG_RECOVER_MS;
+    const recoverMax = p.snagRecoverMaxMs ?? SNAG_RECOVER_MS;
+    const [rSize, r1] = nextFloat(cur.rng);
+    const [rRec, r2] = nextFloat(r1);
+    cur = {
+      ...cur,
+      rng: r2,
+      snagTarget: sizeMin + (sizeMax - sizeMin) * rSize,
+      snagRiseMs: p.snagRiseMs ?? 0,
+      snagRecoverMs: recoverMin + (recoverMax - recoverMin) * rRec,
+      snagElapsedMs: 0,
+      snag: 0,
+    };
+    raised = cur.snagTarget!;
   }
-  // 戻る (2秒かけて 0 へ)
-  if (cur.snag > 0) {
+  if ((cur.snagTarget ?? 0) > 0) {
+    // 上がる (snagRiseMs) → 戻る (snagRecoverMs) を 1 本の進行で進める
+    const elapsed = (cur.snagElapsedMs ?? 0) + Math.max(0, dtMs);
+    const target = cur.snagTarget!;
+    const rise = cur.snagRiseMs ?? 0;
+    const recover = Math.max(1, cur.snagRecoverMs ?? SNAG_RECOVER_MS);
+    const snag = elapsed < rise ? target * (elapsed / rise) : target * Math.max(0, 1 - (elapsed - rise) / recover);
+    cur = { ...cur, snag, snagElapsedMs: elapsed };
+    if (elapsed >= rise + recover) {
+      // 戻りきったら次の引っかかりを受け付けられる
+      cur = { ...cur, snag: 0, snagTarget: 0, snagElapsedMs: 0 };
+    }
+  } else if (cur.snag > 0) {
+    // 古い形の途中保存 (snagTarget が無い) は従来どおり 2 秒で戻す
     const down = (p.snagSize / SNAG_RECOVER_MS) * Math.max(0, dtMs);
     cur = { ...cur, snag: Math.max(0, cur.snag - down) };
   }

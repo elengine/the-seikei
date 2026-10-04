@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { init, reduce, qualities, starsOf, isValidResume, lastTapResult } from './logic';
 import { resultOf, guideFor } from './messages';
 import type { WindingState } from './logic';
-import { paramsOf, SECTION_LENGTH, MAX_SPEED, TENSION, DRIFT, NOISE_AMP, RANGE_CENTER, RANGE_WIDTH, RANGE_WIDTH_SWING, YARN_FEEL } from './params';
+import { paramsOf, SECTION_LENGTH, MAX_SPEED, TENSION, DRIFT, NOISE_AMP, RANGE_CENTER, RANGE_WIDTH, YARN_FEEL } from './params';
 import type { YarnFeel } from './params';
 import { tensionOf } from '../../core/mechanics/pedal';
 import { seedFrom } from '../../core/clock/clock';
@@ -228,51 +228,48 @@ describe('winding logic (T2-04)', () => {
   });
 });
 
-describe('winding logic T2-09a A (範囲がお題ごとに決まる・流れ・引っかかり)', () => {
-  it('11. State の範囲 (range) は、難易度の幅と中心の範囲の中にある。中心はお題 (種) ごとに決まる', () => {
+describe('winding logic T2-09a A (範囲・流れ・引っかかり) T2-16a 改訂', () => {
+  it('11. 最初の帯の範囲: 中心はメーターの中央 (50)、幅はレベルごとに固定 (RANGE_WIDTH)', () => {
     const widths = { 1: 30, 2: 18, 3: 10 } as const;
-    const centers = { 1: [45, 55], 2: [40, 60], 3: [35, 65] } as const;
     for (const level of [1, 2, 3] as const) {
       for (let seed = 1; seed <= 12; seed++) {
         const s = init({ level, patternId: 'x', sections: 3, seed });
-        expect(s.range.max - s.range.min).toBe(widths[level]);
-        const w = widths[level];
-        expect(s.range.min).toBeGreaterThanOrEqual(centers[level][0] - w / 2 - 1e-9);
-        expect(s.range.max).toBeLessThanOrEqual(centers[level][1] + w / 2 + 1e-9);
-        // min と max の中心は範囲の中
-        const c = (s.range.min + s.range.max) / 2;
-        expect(c).toBeGreaterThanOrEqual(centers[level][0] - 1e-9);
-        expect(c).toBeLessThanOrEqual(centers[level][1] + 1e-9);
+        expect(s.range.center, `level ${level} seed ${seed}`).toBe(50);
+        expect(s.range.width).toBe(widths[level]);
+        expect(s.range.min).toBe(50 - widths[level] / 2);
+        expect(s.range.max).toBe(50 + widths[level] / 2);
       }
     }
   });
 
-  it('12. 同じ種なら同じ範囲、違う種なら違うことがある', () => {
-    const a = init({ level: 3, patternId: 'x', sections: 3, seed: 5 }).range;
-    const b = init({ level: 3, patternId: 'x', sections: 3, seed: 5 }).range;
-    expect(b).toEqual(a);
-    // 12種のうち、少なくとも2つの違う中心が出る
-    const centers = new Set<number>();
+  it('12. 範囲は同じ種なら同じ (初期化は種によらないので、どの種も同じ範囲)', () => {
     for (let seed = 1; seed <= 12; seed++) {
-      const s = init({ level: 3, patternId: 'x', sections: 3, seed });
-      centers.add(s.range.min + s.range.max);
+      const a = init({ level: 3, patternId: 'x', sections: 3, seed }).range;
+      const b = init({ level: 3, patternId: 'x', sections: 3, seed: 7 }).range;
+      expect(b).toEqual(a);
     }
-    expect(centers.size).toBeGreaterThanOrEqual(2);
   });
 
   it('13. 引っかかりのメッセージ用に、引っかかりの発生を State から分かる (snagged フラグは tick ごとに消える)', () => {
-    let s = init({ level: 2, patternId: 'x', sections: 3, seed: 11 });
-    s = reduce(s, { type: 'start' });
-    s = reduce(s, { type: 'setPedal', value: 50 });
     let sawSnag = false;
-    for (let i = 0; i < 3000; i++) {
-      s = reduce(s, { type: 'tick', dtMs: 100 });
-      if (s.snagRaised) sawSnag = true;
-      // snagRaised は tick のあいだだけ立つ (前の tick の結果を消す)
-      const next = reduce(s, { type: 'tick', dtMs: 100 });
-      if (s.snagRaised && !next.snagRaised) break;
+    let flagged: { now: boolean; next: boolean } | null = null;
+    for (let seed = 1; seed <= 20 && !sawSnag; seed++) {
+      let s = init({ level: 1, patternId: 'x', sections: 3, seed });
+      s = reduce(s, { type: 'start' });
+      s = reduce(s, { type: 'setPedal', value: 33 }); // 範囲の中央 (流れでも切れない)
+      for (let i = 0; i < 3000 && !sawSnag; i++) {
+        s = reduce(s, { type: 'tick', dtMs: 100 });
+        if (s.snagRaised) sawSnag = true;
+      }
+      if (sawSnag) {
+        // snagRaised は tick のあいだだけ立つ (前の tick の結果を消す)
+        const next = reduce(s, { type: 'tick', dtMs: 100 });
+        flagged = { now: s.snagRaised, next: next.snagRaised };
+      }
     }
     expect(sawSnag).toBe(true);
+    expect(flagged!.now).toBe(true);
+    expect(flagged!.next).toBe(false);
   });
 });
 
@@ -286,7 +283,7 @@ describe('winding logic T2-09a B (目標の時間と星)', () => {
     expect(windingMs).toBe(200);
     // 巻き切って cutting → 結ぶ → broken にする時間も数える
     let cur = s;
-    cur = reduce(cur, { type: 'setPedal', value: 50 });
+    cur = reduce(cur, { type: 'setPedal', value: 40 }); // 範囲の上から十分中 (流れが強くても切れない)
     for (let i = 0; i < 300 && cur.phase === 'winding'; i++) {
       cur = reduce(cur, { type: 'tick', dtMs: 100 });
     }
@@ -406,7 +403,7 @@ describe('winding logic T2-11a (どの状態でも範囲に届く・範囲が動
     }
   });
 
-  it('2. winding で 10 秒進めると、範囲の中心か幅が変わる。broken のあいだは変わらない', () => {
+  it('2. winding で 10 秒進めても、範囲の中心も幅も変わらない (T2-16a: 巻いているあいだは動かない)。broken のあいだも変わらない', () => {
     for (const level of [1, 3] as const) {
       let s = init({ level, patternId: 'x', sections: 3, seed: 3 });
       s = reduce(s, { type: 'start' });
@@ -416,10 +413,9 @@ describe('winding logic T2-11a (どの状態でも範囲に届く・範囲が動
         s = reduce(s, { type: 'tick', dtMs: 100 });
         if (s.phase === 'broken') break;
       }
-      const moved = s.range.center !== before.center || s.range.width !== before.width;
-      expect(moved, `level ${level}`).toBe(true);
+      expect(s.range, `level ${level}`).toEqual(before);
     }
-    // broken のあいだは変わらない
+    // broken のあいだも変わらない
     let s = init({ level: 3, patternId: 'x', sections: 3, seed: 3 });
     s = reduce(s, { type: 'start' });
     s = { ...s, phase: 'broken' as const };
@@ -430,7 +426,7 @@ describe('winding logic T2-11a (どの状態でも範囲に届く・範囲が動
     expect(s.range).toEqual(before);
   });
 
-  it('3. 中心は RANGE_CENTER の中・幅は RANGE_WIDTH ± RANGE_WIDTH_SWING から外れない。同じ種と操作なら同じ動き', () => {
+  it('3. 巻いているあいだ、範囲の中心はメーターの中央 (50)・幅は RANGE_WIDTH のまま。同じ種と操作なら同じ', () => {
     const run = (seed: number): Array<{ center: number; width: number }> => {
       // 初級 (糸切れが起きにくく、10 秒以上巻ける) で確かめる
       let s = init({ level: 1, patternId: 'x', sections: 3, seed });
@@ -443,18 +439,14 @@ describe('winding logic T2-11a (どの状態でも範囲に届く・範囲が動
       }
       return out;
     };
-    const c = RANGE_CENTER(1);
     const w0 = RANGE_WIDTH(1);
-    const sw = RANGE_WIDTH_SWING(1);
     const trace = run(3);
     expect(trace.length).toBeGreaterThan(100);
     for (const { center, width } of trace) {
-      expect(center).toBeGreaterThanOrEqual(c.min - 1e-9);
-      expect(center).toBeLessThanOrEqual(c.max + 1e-9);
-      expect(width).toBeGreaterThanOrEqual(w0 - sw - 1e-9);
-      expect(width).toBeLessThanOrEqual(w0 + sw + 1e-9);
+      expect(center).toBe(50);
+      expect(width).toBe(w0);
     }
-    expect(trace).toEqual(run(3)); // 同じ種なら同じ動き
+    expect(trace).toEqual(run(3)); // 同じ種なら同じ
   });
 });
 
@@ -477,8 +469,8 @@ describe('winding logic T2-14a (お題15題・puzzleId)', () => {
 
 describe('winding logic T2-14b (糸の手応え)', () => {
   it('1. 細い糸のお題は、同じ種・同じ外れ方で標準より早く切れる', () => {
-    const run = (feel: YarnFeel): number => {
-      let s = init({ level: 1, patternId: 'x', sections: 3, seed: 7, feel });
+    const run = (feel: YarnFeel, seed: number): number => {
+      let s = init({ level: 1, patternId: 'x', sections: 3, seed, feel });
       s = reduce(s, { type: 'start' });
       s = reduce(s, { type: 'setPedal', value: 100 }); // 範囲の上を外れ続ける
       for (let i = 0; i < 2000; i++) {
@@ -487,9 +479,15 @@ describe('winding logic T2-14b (糸の手応え)', () => {
       }
       return 2000;
     };
-    const fine = run('fine');
-    const std = run('standard');
-    expect(fine, `fine ${fine} / standard ${std}`).toBeLessThan(std);
+    // どの種でも、細い糸が標準より遅く切れることはない。種によっては早く切れる
+    let strictlyEarlier = 0;
+    for (let seed = 1; seed <= 12; seed++) {
+      const fine = run('fine', seed);
+      const std = run('standard', seed);
+      expect(fine, `seed ${seed}: fine ${fine} / standard ${std}`).toBeLessThanOrEqual(std);
+      if (fine < std) strictlyEarlier++;
+    }
+    expect(strictlyEarlier).toBeGreaterThanOrEqual(1);
   });
 
   it('2. 太い糸のお題は、同じ種で流れの動きが大きい (1フレームの流れの量を比べる)', () => {
@@ -523,5 +521,105 @@ describe('winding logic T2-14b (糸の手応え)', () => {
         }
       }
     }
+  });
+});
+
+describe('winding logic T2-16a (張りと適正の範囲)', () => {
+  /** 'cutting' に進めて cut (帯の端を結ぶ) を送る */
+  function cutBand(s: WindingState): WindingState {
+    const cutting = { ...s, phase: 'cutting' as const };
+    return reduce(cutting, { type: 'cut' });
+  }
+
+  it('1. 帯が変わるときだけ範囲の位置が変わることがある (レベル2 ±10・レベル3 ±15。レベル1 は変わらない)。乱数は State の種から', () => {
+    // レベル1: どの種でも中心は 50 のまま
+    for (let seed = 1; seed <= 10; seed++) {
+      let s = init({ level: 1, patternId: 'x', sections: 3, seed });
+      s = cutBand(s);
+      expect(s.range.center, `L1 seed ${seed}`).toBe(50);
+      expect(s.range.width).toBe(RANGE_WIDTH(1));
+    }
+    // レベル2: 中心は 50±10 (届く範囲に丸める)。変わることがある
+    const l2 = new Set<number>();
+    for (let seed = 1; seed <= 20; seed++) {
+      let s = init({ level: 2, patternId: 'x', sections: 3, seed });
+      s = cutBand(s);
+      expect(s.range.center).toBeGreaterThanOrEqual(40 - 1e-9);
+      expect(s.range.center).toBeLessThanOrEqual(60 + 1e-9);
+      expect(Math.abs(s.range.center - 50)).toBeLessThanOrEqual(10 + 1e-9);
+      expect(s.range.width).toBe(RANGE_WIDTH(2));
+      l2.add(Math.round(s.range.center * 100));
+    }
+    expect(l2.size).toBeGreaterThan(1); // 位置が変わることがある
+    // レベル3: 中心は 36〜65 (ペダルで必ず届く範囲に丸める)・50±15
+    const l3 = new Set<number>();
+    for (let seed = 1; seed <= 20; seed++) {
+      let s = init({ level: 3, patternId: 'x', sections: 3, seed });
+      s = cutBand(s);
+      expect(s.range.center).toBeGreaterThanOrEqual(36 - 1e-9);
+      expect(s.range.center).toBeLessThanOrEqual(65 + 1e-9);
+      expect(Math.abs(s.range.center - 50)).toBeLessThanOrEqual(15 + 1e-9);
+      l3.add(Math.round(s.range.center * 100));
+    }
+    expect(l3.size).toBeGreaterThan(1);
+  });
+
+  it('2. 帯が変わったあとの範囲も、同じ種なら同じ', () => {
+    const run = (seed: number): number => {
+      let s = init({ level: 2, patternId: 'x', sections: 3, seed });
+      s = { ...s, phase: 'winding' as const, lengths: [SECTION_LENGTH, 0, 0] };
+      s = cutBand(s);
+      return s.range.center;
+    };
+    expect(run(5)).toBe(run(5));
+    expect(run(6)).toBe(run(6));
+  });
+
+  it('3. どのレベル・どの位置でも、ペダル 10〜100 で範囲の中心に届く', () => {
+    for (const level of [1, 2, 3] as const) {
+      for (let seed = 1; seed <= 30; seed++) {
+        let s = init({ level, patternId: 'x', sections: 3, seed });
+        s = cutBand(s);
+        const c = s.range.center;
+        const pedalFor = (c - TENSION.base) / TENSION.perPedal;
+        expect(pedalFor, `level ${level} seed ${seed} center ${c}`).toBeGreaterThanOrEqual(10 - 1e-9);
+        expect(pedalFor).toBeLessThanOrEqual(100 + 1e-9);
+      }
+    }
+  });
+
+  it('4. 引っかかり: 巻いているあいだに張りが急に上がり (+15〜25・0.2秒)、1〜2秒かけて戻る', () => {
+    // 引っかかりが起きて、戻りきるまで巻ける種を探す
+    let found: { seed: number; maxSnag: number; riseMs: number; recoverMs: number } | null = null;
+    for (let seed = 1; seed <= 40 && found === null; seed++) {
+      let s = init({ level: 3, patternId: 'x', sections: 3, seed });
+      s = reduce(s, { type: 'start' });
+      s = reduce(s, { type: 'setPedal', value: 33 }); // 範囲の中央付近 (引っかかり以外の張りは安定)
+      let maxSnag = 0;
+      let eventMs = -1;
+      let fullMs = -1;
+      let zeroMs = -1;
+      let t = 0;
+      for (let i = 0; i < 300 && s.phase === 'winding' && zeroMs < 0; i++) {
+        s = reduce(s, { type: 'tick', dtMs: 100 });
+        t += 100;
+        if (s.snagRaised) eventMs = t; // 引っかかった tick (上がり途中・snag は半分)
+        if (eventMs > 0) {
+          if (s.pedal.snag > maxSnag) {
+            maxSnag = s.pedal.snag;
+            fullMs = t;
+          }
+          if (maxSnag > 0 && s.pedal.snag === 0) zeroMs = t;
+        }
+      }
+      if (eventMs > 0 && maxSnag >= 15 && fullMs > eventMs && zeroMs > fullMs) {
+        found = { seed, maxSnag, riseMs: fullMs - eventMs, recoverMs: zeroMs - fullMs };
+      }
+    }
+    expect(found, '引っかかりが起きて、戻りきるまで巻ける種').not.toBeNull();
+    expect(found!.maxSnag, `上がり幅 ${found!.maxSnag}`).toBeLessThanOrEqual(25 + 1e-6);
+    expect(found!.riseMs, '0.2秒ほどで上がる').toBeLessThanOrEqual(200 + 1e-6);
+    expect(found!.recoverMs, '1〜2秒かけて徐々に戻る').toBeGreaterThanOrEqual(1000 - 1e-6);
+    expect(found!.recoverMs).toBeLessThanOrEqual(2000 + 1e-6);
   });
 });

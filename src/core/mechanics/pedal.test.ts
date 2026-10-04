@@ -210,3 +210,76 @@ describe('pedal T2-09a A (張りが自然に動く)', () => {
     expect(anyAbove).toBe(true);
   });
 });
+
+describe('pedal T2-16a (引っかかり: 急に上がって徐々に戻る)', () => {
+  /** 上がる量と戻り方を変えたパラメータ (ドラム巻き T2-16a) */
+  function snagParams(overrides?: Partial<DriftParams>): DriftParams {
+    return {
+      perSec: 0.6, turnRate: 0.15, max: 8, snagRate: 1, snagSize: 6,
+      ...overrides,
+    };
+  }
+
+  it('1. 引っかかりは 0.2 秒ほどかけて上がる (snagRiseMs)。上がりきってから 1〜2 秒かけて戻る', () => {
+    const p = snagParams({ snagSizeMin: 20, snagSizeMax: 20, snagRiseMs: 200, snagRecoverMinMs: 2000, snagRecoverMaxMs: 2000 });
+    let s = initPedal(seedFrom(3));
+    let raised = 0;
+    for (let i = 0; i < 10 && raised === 0; i++) {
+      const r = stepSnag(s, p, 100);
+      s = r.state;
+      if (r.raised > 0) raised = r.raised;
+    }
+    expect(raised).toBe(20);
+    // 上がり途中: 100ms ちょうどなので半分 (10)。さらに 100ms で上がりきる
+    expect(s.snag).toBeCloseTo(10, 9);
+    const r2 = stepSnag(s, p, 100);
+    s = r2.state;
+    expect(r2.raised).toBe(0); // 引っかかりの最中に重ねて起きない
+    expect(s.snag).toBeCloseTo(20, 9);
+    // 戻り: 1 秒で半分、2 秒で 0
+    const r3 = stepSnag(s, p, 1000);
+    s = r3.state;
+    expect(s.snag).toBeCloseTo(10, 9);
+    const r4 = stepSnag(s, p, 1000);
+    s = r4.state;
+    expect(s.snag).toBe(0);
+  });
+
+  it('2. 上がる量は snagSizeMin〜snagSizeMax の間 (種で決まる)。同じ種なら同じ', () => {
+    const p = snagParams({ snagRate: 1000, snagSizeMin: 15, snagSizeMax: 25, snagRiseMs: 200, snagRecoverMinMs: 1000, snagRecoverMaxMs: 2000 });
+    const raisedOf = (seed: number): number => {
+      let s = initPedal(seedFrom(seed));
+      for (let i = 0; i < 10; i++) {
+        const r = stepSnag(s, p, 100);
+        s = r.state;
+        if (r.raised > 0) return r.raised;
+      }
+      return 0;
+    };
+    const values = [1, 2, 3, 4, 5, 6, 7, 8].map(raisedOf);
+    for (const v of values) {
+      expect(v).toBeGreaterThanOrEqual(15);
+      expect(v).toBeLessThanOrEqual(25);
+    }
+    expect(new Set(values).size).toBeGreaterThan(1); // 幅の中で変わることがある
+    expect(raisedOf(3)).toBe(values[2]); // 同じ種なら同じ
+  });
+
+  it('3. 上がる量と戻り方を渡さないときは今までどおり (snagSize で即上がり・2秒で戻る。ビーム巻きは変わらない)', () => {
+    const p = snagParams({ snagRate: 1000 }); // snagSize 6・オプション無し・必ず発火
+    let s = initPedal(seedFrom(3));
+    let raised = 0;
+    for (let i = 0; i < 10 && raised === 0; i++) {
+      const r = stepSnag(s, p, 10);
+      s = r.state;
+      if (r.raised > 0) raised = r.raised;
+    }
+    expect(raised).toBe(6);
+    // 即上がり (10ms 後でもほぼ snagSize)
+    expect(s.snag).toBeCloseTo(6 * (1 - 10 / 2000), 9);
+    // 2 秒で 0 に戻る
+    const r2 = stepSnag(s, p, 1990);
+    s = r2.state;
+    expect(s.snag).toBeCloseTo(0, 9);
+  });
+});

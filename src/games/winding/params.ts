@@ -23,36 +23,29 @@ export function RANGE_WIDTH(level: Level): number {
   return level === 1 ? 30 : level === 2 ? 18 : 10;
 }
 
-/** 適正範囲の中心の範囲 (お題ごとの乱数で決め、遊んでいるあいだはこの中を動く。T2-09a・T2-11a) */
+/** 適正範囲の中心の範囲 (帯が変わるときの位置の移動を丸める範囲。T2-16a) */
 export function RANGE_CENTER(level: Level): { min: number; max: number } {
   if (level === 2) return { min: 40, max: 60 };
   if (level === 3) return { min: 35, max: 65 };
   return { min: 45, max: 55 };
 }
 
-/** 適正範囲の中心が動く速さ (1秒あたりの張りの量。T2-11a) */
-export function RANGE_MOVE_PER_SEC(level: Level): number {
-  return level === 1 ? 0.4 : level === 2 ? 0.8 : 1.2;
+/** 帯が変わるときの適正範囲の位置の動き (±。レベル1 は変えない。T2-16a) */
+export function RANGE_SHIFT_ON_SECTION(level: Level): number {
+  return level === 1 ? 0 : level === 2 ? 10 : 15;
 }
 
-/** 適正範囲の幅の伸び縮み (±。周期 RANGE_BREATHE_SEC の正弦。T2-11a) */
-export function RANGE_WIDTH_SWING(level: Level): number {
-  return level === 1 ? 2 : level === 2 ? 3 : 2;
+/** ペダル 10〜100 で範囲の中心に届く中心の範囲 (T2-11・T2-16a。base 30・perPedal 0.6 から) */
+export function RANGE_REACHABLE(): { min: number; max: number } {
+  return { min: 36, max: 90 };
 }
 
-/** 幅の伸び縮みの周期 (秒。T2-11a) */
-export function RANGE_BREATHE_SEC(level: Level): number {
-  return level === 1 ? 12 : level === 2 ? 10 : 8;
-}
-
-/** 中心の向きが変わる確率 (1秒あたり。T2-11a) */
-export const RANGE_TURN_RATE = 0.2;
-
-/** 張りの流れ・引っかかりのパラメータ (T2-09a) */
+/** 張りの流れ・引っかかりのパラメータ (T2-09a・T2-16a)。引っかかりは +15〜25・0.2秒で上がり 1〜2秒で戻る (起きやすさはレベルで変わる) */
 export function DRIFT(level: Level): DriftParams {
-  if (level === 2) return { perSec: 1.0, turnRate: 0.15, max: 12, snagRate: 0.04, snagSize: 9 };
-  if (level === 3) return { perSec: 1.6, turnRate: 0.15, max: 12, snagRate: 0.06, snagSize: 12 }; // max 16 → 12 (T2-11a。どの状態でもペダルで範囲に届くように)
-  return { perSec: 0.6, turnRate: 0.15, max: 8, snagRate: 0.02, snagSize: 6 };
+  const common = { snagSizeMin: 15, snagSizeMax: 25, snagRiseMs: 200, snagRecoverMinMs: 1000, snagRecoverMaxMs: 2000 };
+  if (level === 2) return { perSec: 1.0, turnRate: 0.15, max: 12, snagRate: 0.04, snagSize: 9, ...common };
+  if (level === 3) return { perSec: 1.6, turnRate: 0.15, max: 12, snagRate: 0.06, snagSize: 12, ...common }; // max 16 → 12 (T2-11a。どの状態でもペダルで範囲に届くように)
+  return { perSec: 0.6, turnRate: 0.15, max: 8, snagRate: 0.02, snagSize: 6, ...common };
 }
 
 /** ぶれの大きさ (T2-09a。初級 ±1・中級 ±1.5・上級 ±2) */

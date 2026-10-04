@@ -1503,3 +1503,12 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - テスト: renderer.test.ts に4件追加 (上の縁は塗らない・帯と板は縁まで・全区画に胴の塗りと kinari の塗り無し・strokeRect 無し) + 既存2件 (T2-10 追加修正 b #5・T2-13a #4) を新しい決まりに合わせて改訂 + 縞の高さのテストは胴の塗りを除外
 - 実機確認: 上の縁に板のはみ出しと縁の線だけ・20% 巻いた帯が上の縁まで届く
 - テスト 1010 passed / 11 skipped・check 0・build 0・CI success (1dc5e69)・version 0.3.2 (patch)
+
+## 2026-10-05T15:40+09:00 T2-16a (張りと適正の範囲)
+- 適正の範囲: 幅はレベルごとに固定 (RANGE_WIDTH 30/18/10。呼吸の動きをやめた)。最初の帯の中心はメーターの中央 (50)。位置が動くのは帯が変わるとき (cut) だけ (RANGE_SHIFT_ON_SECTION: レベル1 変えない・2 ±10・3 ±15。乱数は State の種から)。位置は RANGE_CENTER の中と「ペダル 10〜100 で届く範囲 (RANGE_REACHABLE 36〜90)」に丸める (T2-11 の決まりを守る)
+- State から rangeDir・rangeElapsedMs を削除 (isValidResume も)。moveRange・rollRange を削除
+- 引っかかり (pedal.ts・T2-16a の戻り方のみ): 上がる量 snagSizeMin〜Max (ドラム巻きは 15〜25)・snagRiseMs (200ms) かけて上がり・snagRecoverMin〜Max ms (1000〜2000) かけて徐々に戻る。オプションを渡さないと従来どおり (snagSize で即上がり・2秒で戻る) なのでビーム巻きの動きは変わらない
+- 糸切れの判定は引っかかりの尖り (pedal.snag) を除いた張りで行う (引っかかりは見た目の張りの感じ。尖りのあいだに切れない)
+- テスト: pedal.test +3 (0.2秒で上がる・量の範囲と種の決まり・従来形は今までどおり)。logic.test: 既存の「範囲が動く」系 (T2-09a 11/12・T2-11a 2/3) を新しい決まりに改訂 + 新しい describe 4件 (帯が変わるときだけ動く・同じ種なら同じ・ペダルで届く・引っかかりの上がりと戻り)。controller.test: メーターの帯は巻いているあいだ動かない
+- 実機確認は T2-16b と一緒にやる (動きの確認)
+- テスト 1019 passed / 11 skipped・check 0・build 0

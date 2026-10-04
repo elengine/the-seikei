@@ -5,8 +5,8 @@ import type { PedalState } from '../../core/mechanics/pedal';
 import { initBreak, stepBreak, tapThread } from '../../core/mechanics/breakage';
 import type { BreakState, TapResult } from '../../core/mechanics/breakage';
 import {
-  SECTION_LENGTH, RANGE_WIDTH, RANGE_CENTER, RANGE_MOVE_PER_SEC, RANGE_WIDTH_SWING, RANGE_BREATHE_SEC,
-  RANGE_TURN_RATE, DRIFT, NOISE_AMP, BREAK_RATE, TENSION, BREAK,
+  SECTION_LENGTH, RANGE_WIDTH, RANGE_CENTER, RANGE_SHIFT_ON_SECTION, RANGE_REACHABLE,
+  DRIFT, NOISE_AMP, BREAK_RATE, TENSION, BREAK,
   MAX_TICK_MS, STARS3, STARS2, TARGET_SEC_PER_SECTION, BREAK_EXTRA_STEP, BREAK_MAX_THREADS,
   YARN_FEEL,
 } from './params';
@@ -29,9 +29,7 @@ export interface WindingState {
   okMs: number[]; // 帯ごとの、適正範囲に入っていた時間
   pedal: PedalState;
   tension: number; // 最後に計算した張り(描画用)
-  range: { center: number; width: number; min: number; max: number }; // 適正範囲。winding 中はゆっくり動く (T2-11a)
-  rangeDir: 1 | -1; // 範囲の中心が動いている向き (T2-11a)
-  rangeElapsedMs: number; // 幅の伸び縮み (正弦) の位相用の経過時間 (T2-11a)
+  range: { center: number; width: number; min: number; max: number }; // 適正範囲。幅はレベルごとに固定・位置は帯が変わるときだけ動く (T2-16a)
   snagRaised: boolean; // 直前の tick で引っかかった (メッセージ用。T2-09a)
   elapsedMs: number; // 巻いていた時間と止まっていた時間の合計 (目標の時間の比較用。T2-09a)
   brk: BreakState;
@@ -64,52 +62,16 @@ function breakParams(level: Level, feel: YarnFeel = 'standard'): typeof BREAK {
   };
 }
 
-/** お題の適正範囲を乱数で決める (中心は RANGE_CENTER の中、幅は RANGE_WIDTH) */
-/**
- * 適正範囲を 1フレーム動かす (T2-11a)。
- * 中心: ゆっくり一方向に動き、ときどき向きが変わる (乱数)。端に着いたら向きを変える。
- * 幅: RANGE_WIDTH を中心に、周期 RANGE_BREATHE_SEC で ±RANGE_WIDTH_SWING の正弦。
- * 乱数は State.rng (同じ種と同じ操作なら同じ動き)。
- */
-function moveRange(s: WindingState, dtMs: number): { range: { center: number; width: number; min: number; max: number }; dir: 1 | -1; elapsedMs: number; rng: RngState } {
-  const dt = dtMs / 1000;
-  const bounds = RANGE_CENTER(s.level);
-  const move = RANGE_MOVE_PER_SEC(s.level);
-  const sw = RANGE_WIDTH_SWING(s.level);
-  const breatheSec = RANGE_BREATHE_SEC(s.level);
-  const [raw, next] = nextFloat(s.rng);
-  const dir: 1 | -1 = raw < RANGE_TURN_RATE * dt ? (s.rangeDir * -1) as 1 | -1 : s.rangeDir;
-  let center = s.range.center + dir * move * dt;
-  let d: 1 | -1 = dir;
-  if (center <= bounds.min) {
-    center = bounds.min;
-    d = 1;
-  } else if (center >= bounds.max) {
-    center = bounds.max;
-    d = -1;
-  }
-  const elapsedMs = s.rangeElapsedMs + dtMs;
-  const width = RANGE_WIDTH(s.level) + sw * Math.sin((elapsedMs / 1000) * (Math.PI * 2) / breatheSec);
-  return { range: makeRange(center, width), dir: d, elapsedMs, rng: next };
-}
-
-/** 適正範囲を作る (中心は乱数、幅は RANGE_WIDTH)。T2-11a */
+/** 適正範囲を作る (中心と幅は RANGE_WIDTH。位置は最初メーターの中央 50。T2-16a) */
 export function makeRange(center: number, width: number): { center: number; width: number; min: number; max: number } {
   return { center, width, min: center - width / 2, max: center + width / 2 };
-}
-
-function rollRange(level: Level, rng: RngState): { range: { center: number; width: number; min: number; max: number }; rng: RngState } {
-  const c0 = RANGE_CENTER(level);
-  const width = RANGE_WIDTH(level);
-  const [raw, next] = nextFloat(rng);
-  const c = c0.min + (c0.max - c0.min) * raw;
-  return { range: makeRange(c, width), rng: next };
 }
 
 /** 新しいゲームの状態。phase 'ready'、current 0、各配列は 0 で埋める */
 export function init(opts: { level: Level; patternId: string; sections: number; seed: number; puzzleId?: string; feel?: YarnFeel }): WindingState {
   const sections = opts.sections;
-  const r = rollRange(opts.level, seedFrom(opts.seed));
+  // 範囲は乱数で決めない (T2-16a): 最初の帯の中心はメーターの中央 (50)・幅はレベルごとに固定
+  const range = makeRange(50, RANGE_WIDTH(opts.level));
   return {
     level: opts.level,
     patternId: opts.patternId,
@@ -121,17 +83,15 @@ export function init(opts: { level: Level; patternId: string; sections: number; 
     lengths: new Array<number>(sections).fill(0),
     windMs: new Array<number>(sections).fill(0),
     okMs: new Array<number>(sections).fill(0),
-    pedal: initPedal(r.rng),
+    pedal: initPedal(seedFrom(opts.seed)),
     tension: TENSION.base,
-    range: r.range,
-    rangeDir: 1,
-    rangeElapsedMs: 0,
+    range,
     snagRaised: false,
     elapsedMs: 0,
     brk: initBreak(),
     breaks: 0,
     wrongTaps: 0,
-    rng: r.rng,
+    rng: seedFrom(opts.seed),
   };
 }
 
@@ -176,8 +136,17 @@ export function reduce(s: WindingState, a: WindingAction): WindingState {
       if (s.current >= s.sections - 1) {
         return { ...s, phase: 'done' };
       }
-      // 次の帯へ。ペダルは 0 のまま
-      return { ...s, current: s.current + 1, phase: 'winding' };
+      // 次の帯へ。ペダルは 0 のまま。帯が変わるときだけ、範囲の位置が変わることがある (T2-16a)
+      const shift = RANGE_SHIFT_ON_SECTION(s.level);
+      if (shift <= 0) {
+        return { ...s, current: s.current + 1, phase: 'winding' };
+      }
+      const [raw, r1] = nextFloat(s.rng);
+      // 位置は RANGE_CENTER の中・ペダル 10〜100 で届く範囲 (RANGE_REACHABLE) に丸める
+      const lo = Math.max(RANGE_CENTER(s.level).min, RANGE_REACHABLE().min);
+      const hi = Math.min(RANGE_CENTER(s.level).max, RANGE_REACHABLE().max);
+      const center = Math.min(hi, Math.max(lo, s.range.center + (raw * 2 - 1) * shift));
+      return { ...s, current: s.current + 1, phase: 'winding', range: makeRange(center, RANGE_WIDTH(s.level)), rng: r1 };
     }
   }
 }
@@ -199,9 +168,8 @@ function tick(s: WindingState, dtMs: number): WindingState {
     return { ...s, pedal: drifted, elapsedMs, snagRaised: false };
   }
 
-  // 範囲を動かす ('winding' のあいだだけ。'broken'・'cutting' は止める。T2-11a)
-  const moved = s.phase === 'winding' ? moveRange(s, dtClamped) : null;
-  const range = moved !== null ? moved.range : s.range;
+  // 範囲は巻いているあいだも動かない (T2-16a。帯が変わるときだけ cut で動かす)
+  const range = s.range;
   const tp = tensionParams(s.level, range);
   const bp = breakParams(s.level, s.feel);
 
@@ -214,12 +182,9 @@ function tick(s: WindingState, dtMs: number): WindingState {
   const curLen = s.lengths[s.current] ?? 0;
   const progress = (s.current + curLen / SECTION_LENGTH) / s.sections;
   const tension = tensionOf(pedal, tp, progress);
-  let cur: WindingState = { ...s, pedal, tension, elapsedMs, snagRaised: snag.raised > 0, range };
-  if (moved !== null) {
-    cur = { ...cur, range: moved.range, rangeDir: moved.dir, rangeElapsedMs: moved.elapsedMs, rng: moved.rng };
-  }
-
-  // 3. speed > 0 なら長さを進め、糸切れの判定をする
+  const cur: WindingState = { ...s, pedal, tension, elapsedMs, snagRaised: snag.raised > 0, range };
+  // 3. speed > 0 なら長さを進め、糸切れの判定をする (あとで cur に重ねるので let)
+  let state = cur;
   const speed = speedOf(pedal, tp);
   if (speed > 0) {
     const lengths = [...cur.lengths];
@@ -230,23 +195,25 @@ function tick(s: WindingState, dtMs: number): WindingState {
     if (tension >= tp.range.min && tension <= tp.range.max) {
       okMs[cur.current] = (okMs[cur.current] ?? 0) + dtClamped;
     }
-    cur = { ...cur, lengths, windMs, okMs };
+    state = { ...state, lengths, windMs, okMs };
 
-    const br = stepBreak(cur.brk, bp, dtClamped, tension, tp.range.max, cur.rng);
+    // 糸切れの判定は、引っかかりの尖り (pedal.snag) を除いた張りで行う (T2-16a:
+    // 引っかかりは見た目の張りの感じで、0.2秒で上がって徐々に戻る。尖りのあいだに切れないようにする)
+    const br = stepBreak(state.brk, bp, dtClamped, tension - pedal.snag, tp.range.max, state.rng);
     if (br.broke) {
       // 4. 切れたら phase 'broken'、breaks + 1、ペダルを 0 にする (実物どおり)
-      return { ...cur, brk: br.state, breaks: cur.breaks + 1, phase: 'broken', pedal: setPedal(cur.pedal, 0), rng: br.rng };
+      return { ...state, brk: br.state, breaks: state.breaks + 1, phase: 'broken', pedal: setPedal(state.pedal, 0), rng: br.rng };
     }
-    cur = { ...cur, brk: br.state, rng: br.rng };
+    state = { ...state, brk: br.state, rng: br.rng };
 
     // 5. 帯が巻き終わったら SECTION_LENGTH に揃え、phase 'cutting'、ペダルを 0 にする
-    if ((cur.lengths[cur.current] ?? 0) >= SECTION_LENGTH) {
-      const lengths2 = [...cur.lengths];
-      lengths2[cur.current] = SECTION_LENGTH;
-      return { ...cur, lengths: lengths2, phase: 'cutting', pedal: setPedal(cur.pedal, 0) };
+    if ((state.lengths[state.current] ?? 0) >= SECTION_LENGTH) {
+      const lengths2 = [...state.lengths];
+      lengths2[state.current] = SECTION_LENGTH;
+      return { ...state, lengths: lengths2, phase: 'cutting', pedal: setPedal(state.pedal, 0) };
     }
   }
-  return cur;
+  return state;
 }
 
 /** 帯ごとの出来: okMs / windMs (windMs 0 なら 0) */
@@ -306,11 +273,10 @@ export function isValidResume(x: unknown): x is WindingState {
   if (typeof o.snagRaised !== 'boolean') return false;
   if (typeof o.range !== 'object' || o.range === null) return false;
   const r = o.range as Record<string, unknown>;
-  // 新形 (T2-11a): center・width も必須。古い形 (min・max だけ) の保存は再開しない
+  // 範囲の形 (T2-16a): center・width も必須。古い形 (min・max だけ) の保存は再開しない
   if (typeof r.center !== 'number' || typeof r.width !== 'number') return false;
   if (typeof r.min !== 'number' || typeof r.max !== 'number') return false;
-  // rangeDir・rangeElapsedMs も必須 (無ければ古い形)
-    // T2-14a: puzzleId のキーが無い古い形の保存は再開しない (job モードなどの空文字は許す)
+  // T2-14a: puzzleId のキーが無い古い形の保存は再開しない (job モードなどの空文字は許す)
   if (!('puzzleId' in o) || typeof o.puzzleId !== 'string') {
     return false;
   }
@@ -318,8 +284,6 @@ export function isValidResume(x: unknown): x is WindingState {
   if (o.brk && typeof o.brk === 'object' && 'first' in (o.brk as Record<string, unknown>)) {
     return false;
   }
-if (o.rangeDir !== 1 && o.rangeDir !== -1) return false;
-  if (typeof o.rangeElapsedMs !== 'number' || !Number.isFinite(o.rangeElapsedMs)) return false;
   return true;
 }
 

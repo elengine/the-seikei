@@ -771,7 +771,7 @@ describe('winding module T2-10 追加修正 b (なめらかな回り方・結ぶ
   });
 });
 
-describe('winding module T2-11a (範囲が動くとメーターの帯も動く)', () => {
+describe('winding module T2-11a → T2-16a (メーターの適正の帯)', () => {
   let raf: ReturnType<typeof installFakeRaf>;
 
   beforeEach(() => {
@@ -799,7 +799,7 @@ describe('winding module T2-11a (範囲が動くとメーターの帯も動く)'
     return container;
   }
 
-  it('メーターの適正の帯 (zone) の位置が、巻いているあいだに変わる', async () => {
+  it('メーターの適正の帯 (zone) の位置は、巻いているあいだ変わらない (T2-16a)', async () => {
     const container = await startWinding();
     const zoneLeft = (): string => {
       const z = container.querySelector<HTMLElement>('.meter__zone');
@@ -807,10 +807,10 @@ describe('winding module T2-11a (範囲が動くとメーターの帯も動く)'
       return z!.style.left;
     };
     const before = zoneLeft();
-    // 10 秒進める (メーターの帯が動く)
+    // 10 秒進めても動かない
     raf.advance(620);
     const after = zoneLeft();
-    expect(after).not.toBe(before);
+    expect(after).toBe(before);
   });
 });
 
