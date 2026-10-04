@@ -1,13 +1,14 @@
 import type { GameDeps, GameInstance, GameProps, TutorialSpec } from '../../core/game/types';
 import type { StageFit } from '../../core/viewport/viewport';
 import { createGameFrame } from '../../core/ui/gameFrame';
+import { createButton, createDialogShell } from '../../core/ui/widgets';
 import { setBoardHeight, flangeHit, dragCm, hitLever, nearestNotch } from './geometry';
 import { logicalHeightFor } from '../winding/geometry';
 import { showTutorial } from '../../core/ui/tutorialOverlay';
 import { drawBoard } from './renderer';
 import { createBeamingPanel } from './panel';
 import { getContent } from '../../core/content/content';
-import { init, reduce } from './logic';
+import { init, reduce, resultLines } from './logic';
 import { seedFromText } from '../winding/logic';
 import { resultOf } from './messages';
 import type { BeamingState, BeamingAction, Level } from './logic';
@@ -230,8 +231,62 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
       if (disposed) {
         return;
       }
+      if (s.broken) {
+        showBrokenDialog(); // 失敗は星を記録しない。専用の画面を出す (T3-04c)
+        return;
+      }
       props.onFinish(resultOf(s, props.mode, deps.clock.now()));
     }, DONE_WAIT_MS);
+  }
+
+  /** 糸切れの結果の画面 (題名「糸が切れました」・星の欄は無い・もう一度/一覧。T3-04c) */
+  function showBrokenDialog(): void {
+    const { backdrop, dialog: box } = createDialogShell(undefined, 'result');
+    const title = document.createElement('h2');
+    title.className = 'result__title font-heading';
+    title.textContent = '糸が切れました';
+    box.appendChild(title);
+    const line = document.createElement('p');
+    line.className = 'result__hint';
+    line.textContent = resultLines(s)[0]?.value ?? '巻き量が 100% を超えました';
+    box.appendChild(line);
+    const actions = document.createElement('div');
+    actions.className = 'dialog__actions result__actions';
+    const again = createButton({
+      label: 'もう一度',
+      variant: 'secondary',
+      onClick: () => {
+        backdrop.remove();
+        restart();
+      },
+    });
+    const list = createButton({
+      label: '一覧',
+      variant: 'primary',
+      onClick: () => {
+        backdrop.remove();
+        opts.onBack();
+      },
+    });
+    actions.appendChild(again);
+    actions.appendChild(list);
+    box.appendChild(actions);
+    frame.root.appendChild(backdrop);
+  }
+
+  /** 同じお題をやり直す (幅合わせから) */
+  function restart(): void {
+    s = init({
+      level: opts.level,
+      widthCm: opts.widthCm,
+      seed: seedFromText(deps.clock.now()),
+      puzzleId: opts.puzzleId ?? '',
+      patternId: opts.patternId,
+    });
+    finished = false;
+    drumAngle = 0;
+    startLoop();
+    refresh();
   }
 
   // ---- 操作の入口 ----

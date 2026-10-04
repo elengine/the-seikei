@@ -9,6 +9,7 @@ import type { AppContext } from '../../app/context';
 import { createFixedClock } from '../../core/clock/clock';
 import { cmToX, pxPerCm, BOARD, BEAM_CENTER_X } from './geometry';
 import { logicalHeightFor } from '../winding/geometry';
+import { leverNotchX, leverY } from './geometry';
 import { fitStage } from '../../core/viewport/viewport';
 import type { StageFit } from '../../core/viewport/viewport';
 
@@ -95,11 +96,24 @@ if (typeof Element !== 'undefined' && !Element.prototype.setPointerCapture) {
   Element.prototype.releasePointerCapture = function releasePointerCapture(): void {};
 }
 
-/** 速さのボタンを押す (T3-04a。レバーは T3-04b) */
-function pressSpeed(container: HTMLElement, speed: 0 | 50 | 100): void {
-  const label = speed === 0 ? '停止' : speed === 50 ? '50%' : '100%';
-  const btn = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === label);
-  btn?.click();
+/** 盤面のカードを 600×400 に見せてレバーを押す (T3-04a/b。canvas の fit が必要) */
+function pressLeverOn(container: HTMLElement, raf: { advance(n: number): void }, sp: 0 | 50 | 100): void {
+  const stage = container.querySelector('canvas');
+  if (stage) {
+    Object.defineProperty(stage.parentElement!, 'clientWidth', { configurable: true, value: 600 });
+    Object.defineProperty(stage.parentElement!, 'clientHeight', { configurable: true, value: 400 });
+    Object.defineProperty(stage, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({ x: 0, y: 0, left: 0, top: 0, right: 600, bottom: 400, width: 600, height: 400 }),
+    });
+    window.dispatchEvent(new Event('resize'));
+    raf.advance(3);
+    const fit = fitStage(1000, logicalHeightFor(600, 400), 600, 400);
+    const toScreen = (x: number, y: number): { x: number; y: number } => ({ x: x * fit.scale + fit.offsetX, y: y * fit.scale + fit.offsetY });
+    const at = toScreen(leverNotchX(sp), leverY());
+    stage.dispatchEvent(new PointerEvent('pointerdown', { clientX: at.x, clientY: at.y, bubbles: true, pointerId: 31, button: 0 }));
+    stage.dispatchEvent(new PointerEvent('pointerup', { clientX: at.x, clientY: at.y, bubbles: true, pointerId: 31, button: 0 }));
+  }
 }
 
 describe('beaming controller T3-03a (プレイ画面)', () => {
@@ -145,7 +159,7 @@ describe('beaming controller T3-03a (プレイ画面)', () => {
     const start = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める');
     expect(start).toBeDefined();
     start!.click();
-    pressSpeed(container, 100); // 全速
+    pressLeverOn(container, raf, 100 as 0 | 50 | 100); // 全速
     // 寄せながら 95% まで巻く (速さ 100 は 25〜75% だけ適正。結果の星は問わない)
     const nudge = (dir: number): void => {
       const btn = Array.from(container.querySelectorAll('button')).find(
@@ -166,7 +180,7 @@ describe('beaming controller T3-03a (プレイ画面)', () => {
       { timeout: 60000, interval: 100 },
     );
     // 95% を超えたら停止して「確認」→ 結果 (T3-04a。確認の正式な出し方は T3-04c)
-    pressSpeed(container, 0);
+    pressLeverOn(container, raf, 0 as 0 | 50 | 100);
     const confirm = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '確認');
     expect(confirm, '確認のボタン (仮)').toBeDefined();
     confirm!.click();
@@ -182,7 +196,7 @@ describe('beaming controller T3-03a (プレイ画面)', () => {
   it('2. 寄せるボタンで偏りが戻る (偏りが出たら反対へ寄せて、偏りが小さくなる)', async () => {
     const { instance } = await startAligned(setupAligned());
     Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める')!.click();
-    pressSpeed(container, 100);
+    pressLeverOn(container, raf, 100 as 0 | 50 | 100);
     const shift = (): number => (instance.suspend() as BeamingState).shiftCm;
     // 偏るまで進める
     await vi.waitFor(
@@ -204,7 +218,7 @@ describe('beaming controller T3-03a (プレイ画面)', () => {
   it('3. unmount で rAF が止まり、盤面の描画も止まる', async () => {
     const { instance, finished } = await startAligned(setupAligned());
     Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める')!.click();
-    pressSpeed(container, 100);
+    pressLeverOn(container, raf, 100 as 0 | 50 | 100);
     raf.advance(50);
     const draws = drawBoardCalls.length;
     instance.unmount();
@@ -216,7 +230,7 @@ describe('beaming controller T3-03a (プレイ画面)', () => {
   it('4. 巻いているあいだ、ドラムが回る角度 (drumAngle) が renderer に渡る', async () => {
     const { instance } = await startAligned(setupAligned());
     Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める')!.click();
-    pressSpeed(container, 100);
+    pressLeverOn(container, raf, 100 as 0 | 50 | 100);
     raf.advance(30);
     const a1 = lastDrumAngle();
     expect(typeof a1).toBe('number');
@@ -341,7 +355,7 @@ describe('PU-15c: メッセージ欄を無くす', () => {
       resume: setupAligned(),
     });
     expect(c.querySelector('.game-frame__message')).toBeNull();
-    pressSpeed(c, 100); // 巻く前に押しても無効 (幅合わせの段階。ボタンが押せないので何も起きない)
+    pressLeverOn(c, raf2, 100); // 巻く前にレバーを押しても無効 (幅合わせの段階では動かない。T3-04b)
     expect((instance.suspend() as { progress: number }).progress).toBe(0);
     raf2.advance(2);
     instance.unmount();
@@ -521,4 +535,124 @@ describe('T3-04b 不具合修正 (レバーの固まり)', () => {
     expect(speed()).toBe(100);
     instance.unmount();
   });
+});
+
+describe('T3-04c (糸切れの結果の画面)', () => {
+  let raf: ReturnType<typeof installFakeRaf>;
+  let container: HTMLElement;
+
+  /** 盤面のカードを 600×400 に見せる (fitStage が 0 にならないように) */
+  function showBoard(): { fit: StageFit; toScreen: (x: number, y: number) => { x: number; y: number } } {
+    const stage = container.querySelector('canvas')!;
+    Object.defineProperty(stage.parentElement!, 'clientWidth', { configurable: true, value: 600 });
+    Object.defineProperty(stage.parentElement!, 'clientHeight', { configurable: true, value: 400 });
+    Object.defineProperty(stage, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({ x: 0, y: 0, left: 0, top: 0, right: 600, bottom: 400, width: 600, height: 400 }),
+    });
+    window.dispatchEvent(new Event('resize'));
+    raf.advance(3);
+    const fit = fitStage(1000, logicalHeightFor(600, 400), 600, 400);
+    return { fit, toScreen: (x: number, y: number) => ({ x: x * fit.scale + fit.offsetX, y: y * fit.scale + fit.offsetY }) };
+  }
+
+  /** 幅を合わせた状態でマウントする (onBack を渡せる) */
+  async function mountAligned(onBack: () => void): Promise<{ instance: { unmount(): void; suspend(): unknown }; finished: unknown[] }> {
+    const { deps } = await makeDeps();
+    const props = makeProps();
+    const instance = createBeamingController(container, deps, props, {
+      level: 1,
+      widthCm: 60,
+      puzzleId: 's1',
+      patternId: 'p-muji-kon',
+      puzzleName: '無地紺',
+      bands: 3,
+      resume: setupAligned(),
+      tutorial,
+      onBack,
+    });
+    return { instance, finished: (props as GameProps & { finished: unknown[] }).finished };
+  }
+
+  beforeEach(() => {
+    document.body.textContent = '';
+    raf = installFakeRaf();
+    drawBoardCalls.length = 0;
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      canvas: document.createElement('canvas'),
+    } as unknown as CanvasRenderingContext2D);
+    container = document.createElement('div');
+    document.body.appendChild(container);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  /** 盤面のレバーを押す (down と up で同じ pointerId) */
+  function pressLever(toScreen: (x: number, y: number) => { x: number; y: number }, sp: 0 | 50 | 100): void {
+    const at = toScreen(leverNotchX(sp), leverY());
+    const stage = container.querySelector('canvas')!;
+    stage.dispatchEvent(new PointerEvent('pointerdown', { clientX: at.x, clientY: at.y, bubbles: true, pointerId: 21, button: 0 }));
+    stage.dispatchEvent(new PointerEvent('pointerup', { clientX: at.x, clientY: at.y, bubbles: true, pointerId: 21, button: 0 }));
+  }
+
+  it('1. 止めずに 100% を超えると「糸が切れました」の画面 (星は無い・もう一度と一覧)。結果のコールバックは呼ばない', async () => {
+    const onBack = vi.fn();
+    const { instance, finished } = await mountAligned(() => onBack());
+    Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める')!.click();
+    const { toScreen } = showBoard();
+    pressLever(toScreen, 100);
+    // 30 秒以上巻いて 100% を超える (16ms × 2000 フレーム = 32 秒)
+    await vi.waitFor(
+      () => {
+        raf.advance(200);
+        expect(instance.suspend()).toBeNull(); // finished で suspend が null になる
+      },
+      { timeout: 30000, interval: 50 },
+    );
+    // 1.5 秒の見せる時間のあと糸切れの画面
+    await vi.waitFor(
+      () => {
+        const dlg = container.querySelector('.dialog-backdrop');
+        expect(dlg).not.toBeNull();
+        expect(dlg!.textContent).toContain('糸が切れました');
+        expect(dlg!.textContent).toContain('巻き量が 100% を超えました');
+      },
+      { timeout: 5000, interval: 100 },
+    );
+    expect(finished.length).toBe(0); // 失敗は結果のコールバックを呼ばない (星を記録しない)
+    const dlg = container.querySelector('.dialog-backdrop')!;
+    expect(dlg.querySelector('.stars')).toBeNull(); // 星の欄は無い
+    const labels = Array.from(dlg.querySelectorAll('button')).map((b) => b.textContent?.trim());
+    expect(labels).toContain('もう一度');
+    expect(labels).toContain('一覧');
+    expect(labels).not.toContain('次へ');
+    instance.unmount();
+  }, 60000);
+
+  it('2. 糸切れの画面の「もう一度」で同じお題をやり直す (幅合わせから)。「一覧」で戻る', async () => {
+    const onBack = vi.fn();
+    const { instance } = await mountAligned(() => onBack());
+    Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める')!.click();
+    const { toScreen } = showBoard();
+    pressLever(toScreen, 100);
+    await vi.waitFor(
+      () => {
+        raf.advance(200);
+        expect(instance.suspend()).toBeNull();
+      },
+      { timeout: 30000, interval: 50 },
+    );
+    await vi.waitFor(() => expect(container.querySelector('.dialog-backdrop')).not.toBeNull(), { timeout: 5000, interval: 100 });
+    const dlg = container.querySelector('.dialog-backdrop')!;
+    const again = Array.from(dlg.querySelectorAll('button')).find((b) => b.textContent?.trim() === 'もう一度')!;
+    again.click();
+    // 幅合わせの段階に戻る (巻き量 0%・巻き始めるのボタン)
+    const st = instance.suspend() as BeamingState;
+    expect(st.phase).toBe('setup');
+    expect(st.progress).toBe(0);
+    expect(Array.from(container.querySelectorAll('button')).some((b) => b.textContent === '巻き始める')).toBe(true);
+    instance.unmount();
+  }, 60000);
 });

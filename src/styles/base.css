@@ -2130,6 +2130,10 @@ button {
 }
 
 /* 巻き量: 操作欄の一番上に 1 か所だけ。大きな太字 (PU-15c) */
+.beaming-panel__main--locked {
+  opacity: 0.55;
+}
+
 .beaming-panel__amount {
   font-size: 32px;
   font-weight: bold;

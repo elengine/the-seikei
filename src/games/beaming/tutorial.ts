@@ -86,22 +86,52 @@ export function drawPage1(ctx: CanvasRenderingContext2D, w: number, h: number): 
   drawText(ctx, '円盤を引っぱる', w * 0.38, h * 0.96);
 }
 
-/** 2ページ目: ペダルと張りのメーター */
+/** 2ページ目: 速さのレバー (3つの止まり) と巻き量の帯・ランプ */
 export function drawPage2(ctx: CanvasRenderingContext2D, w: number, h: number): void {
   drawBoardSketch(ctx, w, h, 0, false);
-  // 張りのメーター (適正の緑の帯と針)
-  const mX = w * 0.2;
-  const mW = w * 0.6;
-  ctx.fillStyle = COLORS.white;
-  ctx.fillRect(mX, h * 0.84, mW, h * 0.07);
-  ctx.strokeStyle = COLORS.steel;
+  // 速さのレバー: 横の帯と3つの止まり (停止・50%・100%)
+  const bandY = h * 0.62;
+  const bX = w * 0.24;
+  const bW = w * 0.52;
+  ctx.fillStyle = COLORS.aiTint;
+  ctx.fillRect(bX, bandY - h * 0.035, bW, h * 0.07);
+  ctx.strokeStyle = COLORS.ai;
   ctx.lineWidth = 2;
-  ctx.strokeRect(mX, h * 0.84, mW, h * 0.07);
-  ctx.fillStyle = COLORS.machineLight;
-  ctx.fillRect(mX + mW * 0.3, h * 0.84, mW * 0.4, h * 0.07);
-  ctx.fillStyle = COLORS.sumi;
-  ctx.fillRect(mX + mW * 0.55, h * 0.81, 3, h * 0.13);
-  drawText(ctx, '張りのメーター', mX + mW * 0.28, h * 0.98);
+  ctx.strokeRect(bX, bandY - h * 0.035, bW, h * 0.07);
+  const knobs: Array<[string, number, boolean]> = [
+    ['停止', 0, false],
+    ['50%', 0.5, true],
+    ['100%', 1, false],
+  ];
+  for (const [label, ratio, selected] of knobs) {
+    const kx = bX + bW * ratio;
+    ctx.beginPath();
+    ctx.arc(kx, bandY, h * 0.043, 0, Math.PI * 2);
+    ctx.fillStyle = selected ? COLORS.ai : COLORS.white;
+    ctx.fill();
+    ctx.strokeStyle = COLORS.ai;
+    ctx.stroke();
+    drawText(ctx, label, kx, bandY + h * 0.018);
+  }
+  drawText(ctx, 'レバー', bX - w * 0.06, bandY + h * 0.018);
+  // 巻き量の帯 (適正な速さの区間)
+  const gX = w * 0.24;
+  const gW = w * 0.52;
+  const gY = h * 0.8;
+  ctx.fillStyle = COLORS.kinariDeep;
+  ctx.fillRect(gX, gY, gW, h * 0.05);
+  ctx.fillStyle = COLORS.machineLight; // 適正の区間 (0〜30% と 25〜75% の重なりを 1 本で示す)
+  ctx.fillRect(gX, gY, gW * 0.5, h * 0.05);
+  ctx.fillStyle = COLORS.shu;
+  ctx.fillRect(gX + gW - 3, gY, 3, h * 0.05); // 100% の線 (ここを超えると切れる)
+  ctx.strokeStyle = COLORS.steel;
+  ctx.strokeRect(gX, gY, gW, h * 0.05);
+  drawText(ctx, '巻き量の帯', gX + gW * 0.28, gY + h * 0.038);
+  // ランプ (緑の丸)
+  ctx.beginPath();
+  ctx.arc(w * 0.12, gY + h * 0.025, h * 0.028, 0, Math.PI * 2);
+  ctx.fillStyle = COLORS.machine;
+  ctx.fill();
 }
 
 /** 3ページ目: 偏りと乗り上げ (シートが右に寄って円盤に乗り上げている) */
@@ -116,6 +146,12 @@ export function drawPage3(ctx: CanvasRenderingContext2D, w: number, h: number): 
   ctx.stroke();
   drawText(ctx, '乗り上げ', w * 0.62, h * 0.48);
   drawText(ctx, '寄せる', w * 0.12, h * 0.96);
+  // 確認のボタン (95% を超えたら止めて確認する)
+  const cX = w * 0.62;
+  const cY = h * 0.9;
+  ctx.fillStyle = COLORS.ai;
+  ctx.fillRect(cX, cY - h * 0.035, w * 0.2, h * 0.07);
+  drawText(ctx, '確認', cX + w * 0.1, cY + h * 0.018);
 }
 
 export const beamingTutorial: TutorialSpec = {
@@ -126,11 +162,11 @@ export const beamingTutorial: TutorialSpec = {
     },
     {
       draw: (ctx, w, h) => drawPage2(ctx, w, h),
-      text: '{{pedal}}の溝を指でなぞって上げ下げし、巻き進めます。張りが均一になるよう、メーターを見ながら合わせます。巻き量は操作欄の上に出ます',
+      text: 'ビームの上のレバーで速さを3段階で変えます (停止・50%・100%)。巻き量ごとに適正な速さが違い、レバーの枠と緑のランプで分かります。速く巻くほど糸が左右に寄ります。止めずに巻き量が 100% を超えると糸が切れます',
     },
     {
       draw: (ctx, w, h) => drawPage3(ctx, w, h),
-      text: 'ドラムのほうが幅が広いので、糸が左右に寄っていきます。寄せるボタンで中央に保ちます。円盤に乗り上げると出来が下がります',
+      text: 'ドラムのほうが幅が広いので、糸が左右に寄っていきます。寄せるボタンで中央に保ちます。円盤に乗り上げると出来が下がります。巻き量が 95% を超えたらレバーを停止にして、操作欄の「確認」を押します',
     },
   ],
 };

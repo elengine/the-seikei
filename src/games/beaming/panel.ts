@@ -1,7 +1,7 @@
 import { createButton } from '../../core/ui/widgets';
 import { createSectionHeading } from '../../core/ui/layout';
-import type { BeamingState, BeamingAction, BeamingSpeed } from './logic';
-import { GOOD_SPEED_ZONES } from './params';
+import type { BeamingState, BeamingAction } from './logic';
+import { GOOD_SPEED_ZONES, CONFIRM_MIN } from './params';
 
 /**
  * ビーム巻きの操作欄 (P3 T3-03a)。
@@ -88,19 +88,7 @@ export function createBeamingPanel(
   beamBlock.appendChild(createSectionHeading(opts.terms.t('speed')));
   const meterHost = document.createElement('div');
   meterHost.className = 'beaming-panel__meter';
-  // 速さの3段階 (停止・50%・100%)。T3-04b で盤面のレバーに置き換えるまでの仮のボタン (T3-04a)
-  const speedHost = document.createElement('div');
-  speedHost.className = 'beaming-panel__speed';
-  beamBlock.appendChild(speedHost);
-  const speedBtns: Record<BeamingSpeed, HTMLButtonElement> = {
-    0: createButton({ label: '停止', onClick: () => opts.onAction({ type: 'setSpeed', speed: 0 }) }),
-    50: createButton({ label: '50%', onClick: () => opts.onAction({ type: 'setSpeed', speed: 50 }) }),
-    100: createButton({ label: '100%', onClick: () => opts.onAction({ type: 'setSpeed', speed: 100 }) }),
-  };
-  for (const k of [0, 50, 100] as const) {
-    speedBtns[k].classList.add('beaming-panel__speed-btn');
-    speedHost.appendChild(speedBtns[k]);
-  }
+  // 速さは盤面のレバーで変える (T3-04b)。操作欄のボタンは無い
   const shift = document.createElement('div');
   shift.className = 'beaming-panel__shift';
   const mkNudgeBtn = (label: string, dir: -1 | 1): HTMLButtonElement =>
@@ -120,14 +108,22 @@ export function createBeamingPanel(
   });
   startBtn.classList.add('beaming-panel__main');
   buttonRow.appendChild(startBtn);
-  // 確認 (仮。T3-04c で巻き量 95% 以上で出す形にする)
+  // 確認 (巻き量 95% 以上で出す。止めていないときは押せない形で理由をお知らせする。T3-04c)
   const confirmBtn = createButton({
     label: '確認',
     variant: 'primary',
-    onClick: () => opts.onAction({ type: 'confirm' }),
+    onClick: () => {
+      if (!confirmStopped) {
+        opts.onNotice?.('レバーを停止にしてから確認します');
+        return;
+      }
+      opts.onAction({ type: 'confirm' });
+    },
   });
   confirmBtn.classList.add('beaming-panel__main');
   buttonRow.appendChild(confirmBtn);
+  /** 確認を押してよい (95% 以上で止まっている)。update のたびに変わる */
+  let confirmStopped = false;
   root.appendChild(buttonRow);
 
   parent.appendChild(root);
@@ -147,19 +143,18 @@ export function createBeamingPanel(
       setupBlock.style.display = isSetup ? '' : 'none';
       beamBlock.style.display = s.phase === 'beaming' ? '' : 'none';
       startBtn.style.display = isSetup ? '' : 'none';
-      confirmBtn.style.display = isSetup ? 'none' : '';
+      // 確認: 巻き量 95% 以上で出す (T3-04c)。止めていないときは押せない形
+      const canConfirm = s.phase === 'beaming' && s.progress >= CONFIRM_MIN;
+      confirmStopped = canConfirm && s.speed === 0;
+      confirmBtn.style.display = canConfirm ? '' : 'none';
+      confirmBtn.setAttribute('aria-disabled', String(!confirmStopped));
+      confirmBtn.classList.toggle('beaming-panel__main--locked', !confirmStopped);
       amount.textContent = `巻き量 ${Math.round(s.progress * 100)}%`;
       bandMark.style.left = `${Math.min(100, Math.max(0, s.progress * 100))}%`;
       // 巻き返しの段階の下の行は空 (ボタンが無いので行を低くする)
       buttonRow.style.minHeight = isSetup ? '' : '0';
       // 幅合わせ: 今の幅と目標の幅
       widthText.textContent = `今 ${Math.round(s.rightCm - s.leftCm)}cm/目標 ${s.widthCm}cm`;
-      // 速さ: 今のレバーの位置を太字と aria-pressed で示す。巻き返しの段階では押せない
-      const enabled = s.phase === 'beaming';
-      for (const k of [0, 50, 100] as const) {
-        speedBtns[k].disabled = !enabled;
-        speedBtns[k].setAttribute('aria-pressed', String(s.speed === k));
-      }
     },
     destroy(): void {
       root.remove();

@@ -124,13 +124,13 @@ describe('PU-15c: 操作欄の整理 (戻す・踏み込む・速さ・経過時
     document.body.appendChild(host);
   });
 
-  it('速さの3段階のボタン (停止・50%・100%) がある。「戻す」「踏み込む」・経過時間は無い (T3-04a。レバーは T3-04b)', () => {
+  it('速さのボタンは無い (盤面のレバーで変える。T3-04b)。「戻す」「踏み込む」・経過時間は無い', () => {
     const p = createBeamingPanel(host, { terms, onAction: () => undefined });
     p.update(beaming());
     const labels = Array.from(host.querySelectorAll('button')).map((b) => b.textContent);
-    expect(labels).toContain('停止');
-    expect(labels).toContain('50%');
-    expect(labels).toContain('100%');
+    expect(labels).not.toContain('停止');
+    expect(labels).not.toContain('50%');
+    expect(labels).not.toContain('100%');
     expect(host.querySelector('.pedal__btn')).toBeNull();
     expect(host.querySelector('.pedal__groove')).toBeNull();
     expect(host.querySelector('.beaming-panel__clock')).toBeNull();
@@ -140,23 +140,18 @@ describe('PU-15c: 操作欄の整理 (戻す・踏み込む・速さ・経過時
     p.destroy();
   });
 
-  it('巻き返しの段階では速さのボタンは押せない。押すと setSpeed が送られる', () => {
+  it('巻き返しの段階でも「◀ 寄せる」「寄せる ▶」はある (レバーで速さを変えるので速さのボタンは無い。T3-04b)', () => {
     const actions: unknown[] = [];
     const p = createBeamingPanel(host, { terms, onAction: (a) => actions.push(a) });
-    p.update(make()); // setup
-    for (const b of Array.from(host.querySelectorAll('.beaming-panel__speed button')) as HTMLButtonElement[]) {
-      expect(b.disabled, `setup で押せない (${b.textContent})`).toBe(true);
-    }
-    p.update(beaming()); // beaming
-    for (const b of Array.from(host.querySelectorAll('.beaming-panel__speed button')) as HTMLButtonElement[]) {
-      expect(b.disabled, `beaming で押せる (${b.textContent})`).toBe(false);
-    }
-    const b50 = Array.from(host.querySelectorAll('button')).find((b) => b.textContent === '50%') as HTMLButtonElement;
-    b50.click();
-    expect(actions[actions.length - 1]).toEqual({ type: 'setSpeed', speed: 50 });
+    p.update(beaming());
+    const shift = host.querySelector('.beaming-panel__shift') as HTMLElement;
+    expect(shift).not.toBeNull();
+    const btns = Array.from(shift.querySelectorAll('button')) as HTMLButtonElement[];
+    expect(btns.map((b) => b.textContent)).toEqual(['◀ 寄せる', '寄せる ▶']);
+    btns[1]!.click();
+    expect(actions[actions.length - 1]).toEqual({ type: 'nudge', dir: 1 });
     p.destroy();
   });
-
   it('巻き量は 32px 以上の太字 (base.css)', () => {
     const css = readFileSync('src/styles/base.css', 'utf8');
     const m = css.match(/\n\.beaming-panel__amount\s*\{([^}]*)\}/)![1]!;
@@ -209,6 +204,56 @@ describe('T3-04b (巻き量の帯)', () => {
     expect(marks[0]!.style.left).toBe('95%');
     expect(marks[1]!.style.left).toBe('100%');
     expect(marks[1]!.style.background).toBe('var(--c-shu)'); // 朱 = COLORS.shu (base.css の変数)
+    p.destroy();
+  });
+});
+
+describe('T3-04c (確認のボタン)', () => {
+  let host: HTMLElement;
+  beforeEach(() => {
+    document.body.textContent = '';
+    host = document.createElement('div');
+    document.body.appendChild(host);
+  });
+
+  it("1. 巻き量 95% 未満では「確認」のボタンは無い。速さの3つのボタンも無い (レバーに置き換わった)", () => {
+    const actions: unknown[] = [];
+    const p = createBeamingPanel(host, { terms, onAction: (a) => actions.push(a) });
+    p.update(beaming());
+    // 見えているボタンだけ (確認は 95% 以上で出る。隠れているボタンは数えない)
+    const labels = Array.from(host.querySelectorAll('button'))
+      .filter((b) => (b as HTMLElement).style.display !== 'none')
+      .map((b) => b.textContent?.trim());
+    expect(labels).not.toContain('確認');
+    expect(labels).not.toContain('停止');
+    expect(labels).not.toContain('50%');
+    expect(labels).not.toContain('100%');
+    p.destroy();
+  });
+
+  it("2. 巻き量 95% 以上で止めていれば「確認」が押せる (confirm を送る)", () => {
+    const actions: unknown[] = [];
+    const p = createBeamingPanel(host, { terms, onAction: (a) => actions.push(a) });
+    p.update({ ...beaming(), progress: 0.96, speed: 0 });
+    const btn = Array.from(host.querySelectorAll('button')).find((b) => b.textContent?.trim() === '確認');
+    expect(btn).not.toBeNull();
+    expect(btn!.getAttribute('aria-disabled')).toBe('false');
+    btn!.click();
+    expect(actions).toContainEqual({ type: 'confirm' });
+    p.destroy();
+  });
+
+  it("3. 95% 以上でも止めていないときは押せない形 (aria-disabled)。押すと理由のお知らせ", () => {
+    const actions: unknown[] = [];
+    const notices: string[] = [];
+    const p = createBeamingPanel(host, { terms, onAction: (a) => actions.push(a), onNotice: (t) => notices.push(t) });
+    p.update({ ...beaming(), progress: 0.96, speed: 50 });
+    const btn = Array.from(host.querySelectorAll('button')).find((b) => b.textContent?.trim() === '確認');
+    expect(btn).not.toBeNull();
+    expect(btn!.getAttribute('aria-disabled')).toBe('true');
+    btn!.click();
+    expect(actions).not.toContainEqual({ type: 'confirm' });
+    expect(notices).toContain('レバーを停止にしてから確認します');
     p.destroy();
   });
 });
