@@ -2,7 +2,7 @@ import type { WindingState } from './logic';
 import { COLORS, FONT_FAMILY } from '../../core/ui/tokens';
 import { SECTION_LENGTH, STRIPE_H, WING_OUT, WING_SIDE_MAX_RATIO, SLAT_OVER, SLAT_FLARE } from './params';
 import type { StageFit } from '../../core/viewport/viewport';
-import { DRUM_AREA, fontPx, drumSectionY, threadY, CREEL_END_X, DRUM_END_X } from './geometry';
+import { DRUM_AREA, fontPx, drumSectionY, threadY, CREEL_END_X, DRUM_END_X, SCISSORS_SIZE } from './geometry';
 
 /**
  * ドラム巻きの盤面のうち、ドラム (円筒) と結び目を描く部品。
@@ -383,4 +383,49 @@ export function drawTensionLamp(ctx: CanvasRenderingContext2D, fit: StageFit, s:
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(symbol, x, y + r * 0.05);
+}
+
+/**
+ * ハサミのアイコン (T2-16c)。白い円の土台の上にハサミ (交差する 2 枚の刃 + 2 つの輪) を描く。
+ * dir 'down' は刃が下向き (帯がドラムの上半分)・'up' は刃が上向き (下半分)。
+ */
+export function drawScissors(
+  ctx: CanvasRenderingContext2D,
+  fit: StageFit,
+  pos: { x: number; y: number; dir: 'down' | 'up' },
+): void {
+  const s = fontPx(fit, SCISSORS_SIZE) / SCISSORS_SIZE; // 論理 → 実寸
+  const r = (SCISSORS_SIZE / 2) * s;
+  ctx.save();
+  // 土台 (白い円 + 灰色のふち)
+  ctx.beginPath();
+  ctx.arc(pos.x, pos.y, r, 0, Math.PI * 2);
+  ctx.fillStyle = COLORS.white;
+  ctx.fill();
+  ctx.strokeStyle = COLORS.sumiSub;
+  ctx.lineWidth = fontPx(fit, 2);
+  ctx.stroke();
+  // ハサミ (中心を支点に刃は下、輪は上。dir 'up' は上下をひっくり返す)
+  ctx.translate(pos.x, pos.y);
+  if (pos.dir === 'up') {
+    ctx.scale(1, -1);
+  }
+  const u = fontPx(fit, 1); // 論理 1px
+  ctx.strokeStyle = COLORS.sumi;
+  ctx.lineWidth = 4 * u;
+  ctx.lineCap = 'round';
+  // 刃 2 枚 (支点から下の外側へ交差して伸びる)
+  ctx.beginPath();
+  ctx.moveTo(-14 * u, 30 * u);
+  ctx.lineTo(10 * u, -2 * u);
+  ctx.moveTo(14 * u, 30 * u);
+  ctx.lineTo(-10 * u, -2 * u);
+  ctx.stroke();
+  // 輪 2 つ (支点の上)
+  ctx.beginPath();
+  ctx.arc(-10 * u, -16 * u, 9 * u, 0, Math.PI * 2);
+  ctx.moveTo(19 * u, -16 * u);
+  ctx.arc(10 * u, -16 * u, 9 * u, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
 }

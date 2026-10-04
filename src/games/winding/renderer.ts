@@ -6,7 +6,7 @@ import { speedOf } from '../../core/mechanics/pedal';
 import { TENSION, SECTION_LENGTH } from './params';
 import type { StageFit } from '../../core/viewport/viewport';
 import { CREEL_AREA, TABLE_AREA, DRUM_AREA, REED_X, THREAD_SHEET_HALF, REED_RISE, DIAL_X, DIAL_Y, DIAL_R, reedRect, reedThreadY, threadY, threadPath, drumSectionY, tableY, pointOnPath, fontPx } from './geometry';
-import { drawDrum, drawBrokenThread, drawTensionLamp } from './renderer.parts';
+import { drawDrum, drawBrokenThread, drawTensionLamp , drawScissors } from './renderer.parts';
 
 /**
  * ドラム巻きの盤面の描画 (P2 T2-05・T2-08・T2-08 追加修正a)。
@@ -45,7 +45,7 @@ export function drawBoard(
   fit: { scale: number; offsetX: number; offsetY: number },
   s: WindingState,
   content: Content,
-  opts: { threadCount: number; show: 'red' | 'droop' | 'small'; timeMs: number; tieProgress?: number; drumAngle?: number },
+  opts: { threadCount: number; show: 'red' | 'droop' | 'small'; timeMs: number; tieProgress?: number; drumAngle?: number; scissors?: { x: number; y: number; dir: 'down' | 'up' } },
 ): void {
   const hexes = patternHexes(content, s.patternId);
   const base = baseHex(content, s.patternId);
@@ -67,6 +67,10 @@ export function drawBoard(
   drawTensionLamp(ctx, fit, s);
   drawBrokenThread(ctx, fit, s, opts, base);
   drawDoneSurface(ctx, fit, s);
+  // ハサミのアイコン (帯を巻き終えた 'cutting' のときだけ。いちばん上に重ねる。T2-16c)
+  if (s.phase === 'cutting' && opts.scissors !== undefined) {
+    drawScissors(ctx, fit, opts.scissors);
+  }
 
   // 変換を戻す
   ctx.restore();

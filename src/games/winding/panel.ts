@@ -25,7 +25,7 @@ function pedalReason(phase: WindingState['phase']): string {
     case 'broken':
       return '糸をつなぐと使えます';
     case 'cutting':
-      return '「帯の端を結ぶ」を押すと使えます';
+      return 'ハサミで糸を切ると使えます';
     default:
       return '今は使えません';
   }
@@ -76,7 +76,7 @@ export function createWindingPanel(
     showValue: false, // 速さの表示は無し
   });
 
-  // 4. 一番下の主な操作 ('ready' は「巻き始める」、'cutting' は「帯の端を結ぶ」。それ以外は空けておく)
+  // 4. 一番下の主な操作 ('ready' は「巻き始める」。'cutting' はハサミが盤面に出るのでボタンは無し。T2-16c)
   const buttonRow = document.createElement('div');
   buttonRow.className = 'winding-panel__actions';
   const startBtn = createButton({
@@ -85,14 +85,7 @@ export function createWindingPanel(
     onClick: () => opts.onAction({ type: 'start' }),
   });
   startBtn.classList.add('winding-panel__main');
-  const cutBtn = createButton({
-    label: '帯の端を結ぶ',
-    variant: 'primary',
-    onClick: () => opts.onAction({ type: 'cut' }),
-  });
-  cutBtn.classList.add('winding-panel__main');
   buttonRow.appendChild(startBtn);
-  buttonRow.appendChild(cutBtn);
   root.appendChild(buttonRow);
 
   parent.appendChild(root);
@@ -108,7 +101,6 @@ export function createWindingPanel(
   /** ボタンの表示を phase で切り替える (場所は空けたまま) */
   function showButton(s: WindingState): void {
     startBtn.style.display = s.phase === 'ready' ? '' : 'none';
-    cutBtn.style.display = s.phase === 'cutting' ? '' : 'none';
   }
 
   function part(text: string): HTMLSpanElement {

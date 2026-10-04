@@ -52,6 +52,40 @@ export const DIAL_X = 568;
 export let DIAL_Y = 690;
 export const DIAL_R = 28;
 
+/** ハサミのアイコンの大きさ (論理座標。64px 以上。T2-16c) */
+export const SCISSORS_SIZE = 68;
+
+/**
+ * ハサミを置く場所と刃の向き (T2-16c)。x は筬とドラムのあいだ。
+ * いま巻いている帯がドラムの上半分なら上の方に刃を下向きで。下半分なら下の方に刃を上向きで出す。
+ */
+export function scissorsPos(current: number, sections: number): { x: number; y: number; dir: 'down' | 'up' } {
+  const ty = tableY(current, sections);
+  const x = (REED_X + DRUM_AREA.x) / 2;
+  const upper = ty < DRUM_AREA.y + DRUM_AREA.h / 2;
+  if (upper) {
+    return { x, y: Math.max(ty - 110, 60), dir: 'down' };
+  }
+  return { x, y: Math.min(ty + 110, LOGICAL_H - 40), dir: 'up' };
+}
+
+/**
+ * 糸の束 (筬からドラムへ向かう糸) の当たり判定 (T2-16c)。束の中心線から THREAD_SHEET_HALF + 10 以内なら true。
+ */
+export function scissorsHitsThread(p: { x: number; y: number }, current: number, sections: number): boolean {
+  const ty = tableY(current, sections);
+  const fx = REED_X;
+  const fy = ty - REED_RISE;
+  const tx2 = DRUM_AREA.x;
+  const ty2 = ty;
+  const dx = tx2 - fx;
+  const dy = ty2 - fy;
+  const len2 = dx * dx + dy * dy;
+  const k = Math.max(0, Math.min(1, ((p.x - fx) * dx + (p.y - fy) * dy) / len2));
+  const dist = Math.hypot(p.x - (fx + k * dx), p.y - (fy + k * dy));
+  return dist <= THREAD_SHEET_HALF + 10;
+}
+
 /**
  * 筬の四角 (論理座標。T2-13a)。縦に立った枠: 幅は狭く、高さは糸の束 (THREAD_SHEET_HALF の
  * 2倍) より少し大きい。中心 x は REED_X、中心 y は今の帯の高さ (tableY) − REED_RISE。

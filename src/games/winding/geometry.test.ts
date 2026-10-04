@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { setLogicalHeight, logicalHeightFor, machineExtent, CREEL_AREA, CREEL_END_X, LOGICAL_W, LOGICAL_H, endPoint, hitEnd, toPx, fromPx, threadY, drumSectionY, tableY, TABLE_AREA, REED_X, DRUM_END_X, DRUM_AREA, pointOnPath, threadPath, PIN_RAIL_X, DIAL_X, DIAL_Y, DIAL_R, reedRect, reedThreadY, THREAD_SHEET_HALF, hitBrokenThread, THREAD_MARK_X } from './geometry';
+import { setLogicalHeight, logicalHeightFor, machineExtent, CREEL_AREA, CREEL_END_X, LOGICAL_W, LOGICAL_H, endPoint, hitEnd, toPx, fromPx, threadY, drumSectionY, tableY, TABLE_AREA, REED_X, DRUM_END_X, DRUM_AREA, pointOnPath, threadPath, PIN_RAIL_X, DIAL_X, DIAL_Y, DIAL_R, reedRect, reedThreadY, THREAD_SHEET_HALF, hitBrokenThread, THREAD_MARK_X, SCISSORS_SIZE, scissorsPos, scissorsHitsThread, REED_RISE } from './geometry';
 
 const fit = { scale: 1, offsetX: 0, offsetY: 0 };
 
@@ -393,5 +393,33 @@ describe('PU-14 追加修正: 盤面のカードの高さを使い切る (クリ
     expect(ys[0]!).toBeGreaterThan(CREEL_AREA.y);
     expect(ys[7]!).toBeLessThan(CREEL_AREA.y + CREEL_AREA.h);
     expect(tableY(0, 3)).toBeCloseTo((drumSectionY(0, 3) + drumSectionY(1, 3)) / 2, 9);
+  });
+});
+
+describe('T2-16c (ハサミの位置と当たり判定)', () => {
+  it('1. ハサミの大きさは 64 以上。置く場所の x は筬とドラムのあいだ', () => {
+    expect(SCISSORS_SIZE).toBeGreaterThanOrEqual(64);
+    const p = scissorsPos(0, 3);
+    expect(p.x).toBeGreaterThan(REED_X);
+    expect(p.x).toBeLessThan(DRUM_AREA.x);
+  });
+
+  it('2. いま巻いている帯がドラムの上半分なら上の方・刃は下向き。下半分なら下の方・刃は上向き', () => {
+    const top = scissorsPos(0, 3);
+    expect(top.dir).toBe('down');
+    // 上なら糸の束の始まり (筬の糸道) より上
+    expect(top.y).toBeLessThan(tableY(0, 3) - REED_RISE);
+    const bottom = scissorsPos(2, 3);
+    expect(bottom.dir).toBe('up');
+    expect(bottom.y).toBeGreaterThan(tableY(2, 3));
+  });
+
+  it('3. 当たり判定: 糸の束の上 (または近く) で true・離れると false', () => {
+    const mid = (REED_X + DRUM_AREA.x) / 2;
+    expect(scissorsHitsThread({ x: mid, y: tableY(0, 3) }, 0, 3)).toBe(true);
+    expect(scissorsHitsThread({ x: mid, y: tableY(0, 3) - REED_RISE }, 0, 3)).toBe(true);
+    expect(scissorsHitsThread({ x: REED_X, y: tableY(0, 3) - REED_RISE }, 0, 3)).toBe(true);
+    expect(scissorsHitsThread({ x: mid, y: tableY(0, 3) - 150 }, 0, 3)).toBe(false);
+    expect(scissorsHitsThread({ x: 100, y: tableY(0, 3) }, 0, 3)).toBe(false);
   });
 });

@@ -147,13 +147,13 @@ describe('winding module (T2-07)', () => {
     instance.unmount();
   });
 
-  it("2. プレイ: 初級で「巻き始める」→ ペダル 40 → 帯を巻き終え、「帯の端を結ぶ」を3回 → onFinish が1回、stars 2 (固定ペダルの運転は目標時間を超えるので星2。星3は範囲の上を追いかける運転 = logic.test の T2-09a 4)。切れたら糸を押してつなぐ", async () => {
+  it("2. プレイ: 初級で「巻き始める」→ ペダル 40 → 帯を巻き終えたら「帯の端を結ぶ」のボタンは無く、ハサミを糸の束まで引っぱって離すと結ばれる → 3帯で onFinish、stars 2 (固定ペダルは目標時間を超えるので星2)。切れたら糸を押してつなぐ", async () => {
     const { deps } = await makeDeps();
     const container = document.createElement('div');
     document.body.appendChild(container);
     const module = createWindingModule(deps);
     const props = makeProps();
-    // jsdom では stage の clientWidth が 0 のため、盤面 1000×750 を返す (切れた糸を押すときに使う)
+    // jsdom では stage の clientWidth が 0 のため、盤面 1000×750 を返す (切れた糸・ハサミを押すときに使う)
     const descW = Object.getOwnPropertyDescriptor(Element.prototype, 'clientWidth');
     const descH = Object.getOwnPropertyDescriptor(Element.prototype, 'clientHeight');
     Object.defineProperty(Element.prototype, 'clientWidth', { configurable: true, get(): number { return 1000; } });
@@ -167,7 +167,7 @@ describe('winding module (T2-07)', () => {
       const start = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める');
       expect(start).toBeDefined();
       start!.click();
-      const { threadY } = await import('./geometry');
+      const { threadY, tableY, scissorsPos } = await import('./geometry');
       // ペダル 40 (溝を 10 ずつ 4 回)。張り 40 で範囲 (35〜65) の中ほど → 切れずに品質 0.8 以上。
       // 速さは目標に届かない (固定ペダルでは範囲の上を追いかけられない) ので星2 (T2-16b)
       const setP = (): void => {
@@ -178,10 +178,10 @@ describe('winding module (T2-07)', () => {
       setP();
       // 帯1本: pedal 40 の速さ (16/秒) で 400 論理長 → 25秒。rAF 16ms ずつ
       raf.advance(2000);
-      // 「帯の端を結ぶ」が押せる (cutting)
-      const cut = (): HTMLButtonElement | undefined =>
-        Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '帯の端を結ぶ');
-      expect(cut()).toBeDefined();
+      // 「帯の端を結ぶ」のボタンは無い (T2-16c)
+      expect(Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '帯の端を結ぶ')).toBeUndefined();
+      // 最初のお題では、ハサミの案内のお知らせが 1 回出る
+      expect(container.querySelector('.game-frame__notice')?.textContent ?? '').toContain('ハサミを糸の所まで引っぱって切ります');
       // 切れたら糸を押してつなぎ、ペダルを踏み直す
       const recover = (): void => {
         const st = instance.suspend() as { phase: string; brk: { kind: string; threads: number[] } };
@@ -192,53 +192,97 @@ describe('winding module (T2-07)', () => {
         }
         setP(); // 切れるとペダルが 0 に戻るので踏み直す
       };
-      // 3回 (演出の1秒ずつ)。ボタンが見えている (display が空) ときだけ押す。
+      const rect = stageRect(container);
+      // 3回、ハサミを糸の束まで引っぱって離す
       for (let i = 0; i < 3; i++) {
         if (i > 0) setP();
+        // 'cutting' になるまで (i=0 は上で巻き終わっている)
         await vi.waitFor(
           () => {
-            raf.advance(300); // まとめて進める (帯1本ぶんを短い実時間で終わらせる。T2-15)
+            raf.advance(300);
             recover();
-            const b = cut();
-            expect(b).toBeDefined();
-            expect(b!.style.display).not.toBe('none');
+            const st = instance.suspend() as { phase: string };
+            expect(st.phase).toBe('cutting');
           },
           { timeout: 30000, interval: 100 },
         );
-        cut()!.click();
-      // 結びの演出 (1秒) が終わって次の帯 (または結果) に進むまで rAF を進める。
-      // 最後の帯のあとは done (完成しました) になる
+        // ハサミをつかんで糸の束の上で離す (糸が切れて結びの演出へ)
+        const sp = scissorsPos(i, 3);
+        stagePointer(container, rect, 'pointerdown', sp.x, sp.y);
+        stagePointer(container, rect, 'pointermove', 570, tableY(i, 3));
+        stagePointer(container, rect, 'pointerup', 570, tableY(i, 3));
+        // 結びの演出 (1秒) が終わって次の帯 (または結果) に進むまで rAF を進める
+        await vi.waitFor(
+          () => {
+            raf.advance(100);
+            const panel = container.querySelector('.winding-panel')?.textContent ?? '';
+            if (i === 2) {
+              expect(panel).toContain('100%'); // done の表示のまま (変化の確認は onFinish)
+              expect(props.finished.length).toBe(1);
+            } else {
+              expect(panel).toContain(`帯 ${i + 2}/3`); // 次の帯へ
+            }
+          },
+          { timeout: 30000, interval: 100 },
+        );
+      }
+      // 最後の帯が巻き終わる (rAF を進めつつ待つ。演出の1.5秒のあと onFinish)
       await vi.waitFor(
         () => {
-          raf.advance(100); // 結びの演出は1秒 = 約62フレーム。1回で進める (T2-15)
-          const panel = container.querySelector('.winding-panel')?.textContent ?? '';
-          if (i === 2) {
-            expect(panel).toContain('100%'); // done の表示のまま (変化の確認は onFinish)
-            expect(props.finished.length).toBe(1);
-          } else {
-            expect(panel).not.toContain(`帯 ${i + 1}/3巻き量 100%`);
-          }
+          raf.advance(24);
+          expect(props.finished).toHaveLength(1);
         },
         { timeout: 30000, interval: 100 },
       );
-    }
-    // 最後の帯が巻き終わる (rAF を進めつつ待つ。演出の1.5秒のあと onFinish)
-    await vi.waitFor(
-      () => {
-        raf.advance(24);
-        expect(props.finished).toHaveLength(1);
-      },
-      { timeout: 30000, interval: 100 },
-    );
-    const result = props.finished[0] as { gameId: string; stars: number };
-    expect(result.gameId).toBe('winding');
-    expect(result.stars).toBe(2); // 品質は足りるが時間が目標を超える (T2-16b)
-    instance.unmount();
+      const result = props.finished[0] as { gameId: string; stars: number };
+      expect(result.gameId).toBe('winding');
+      expect(result.stars).toBe(2); // 品質は足りるが時間が目標を超える (T2-16b)
+      instance.unmount();
     } finally {
       if (descW !== undefined) Object.defineProperty(Element.prototype, 'clientWidth', descW);
       if (descH !== undefined) Object.defineProperty(Element.prototype, 'clientHeight', descH);
     }
   }, 60000);
+
+  it("2b. ハサミを糸の束から離した所で離すと、結ばれず 'cutting' のまま (ハサミは元の位置に戻る)", async () => {
+    const { deps } = await makeDeps();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const module = createWindingModule(deps);
+    const props = makeProps();
+    const descW = Object.getOwnPropertyDescriptor(Element.prototype, 'clientWidth');
+    const descH = Object.getOwnPropertyDescriptor(Element.prototype, 'clientHeight');
+    Object.defineProperty(Element.prototype, 'clientWidth', { configurable: true, get(): number { return 1000; } });
+    Object.defineProperty(Element.prototype, 'clientHeight', { configurable: true, get(): number { return 750; } });
+    try {
+      const instance = module.mount(container, props);
+      const level1 = container.querySelector<HTMLButtonElement>('button[data-testid="winding-puzzle-s1"]')!;
+      level1.click();
+      const start = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める');
+      start!.click();
+      const { scissorsPos } = await import('./geometry');
+      for (let i = 0; i < 4; i++) {
+        stepPedal(container, 10);
+      }
+      raf.advance(2000); // cutting になる
+      expect((instance.suspend() as { phase: string }).phase).toBe('cutting');
+      const rect = stageRect(container);
+      const sp = scissorsPos(0, 3);
+      // ハサミをつかんで、糸の束から離れた所で離す
+      stagePointer(container, rect, 'pointerdown', sp.x, sp.y);
+      stagePointer(container, rect, 'pointermove', 200, 400);
+      stagePointer(container, rect, 'pointerup', 200, 400);
+      raf.advance(300);
+      // 結ばれない (cutting のまま・帯は進まない)
+      expect((instance.suspend() as { phase: string }).phase).toBe('cutting');
+      const panel = container.querySelector('.winding-panel')?.textContent ?? '';
+      expect(panel).toContain('帯 1/3');
+      instance.unmount();
+    } finally {
+      if (descW !== undefined) Object.defineProperty(Element.prototype, 'clientWidth', descW);
+      if (descH !== undefined) Object.defineProperty(Element.prototype, 'clientHeight', descH);
+    }
+  }, 30000);
 
   it('3. visibilitychange の hidden で、状態のペダルが 0 になり、rAF が止まる', async () => {
     const { deps } = await makeDeps();
@@ -394,23 +438,36 @@ describe('winding module (T2-07)', () => {
     state = reduce(state, { type: 'start' });
     state = { ...state, phase: 'cutting', current: 0 };
     const props = makeProps({ resume: state });
-    const instance = module.mount(container, props);
-    expect((instance.suspend() as { phase: string }).phase).toBe('cutting');
-    // 「帯の端を結ぶ」を押す → 演出開始 (setInterval をやめて rAF の時刻で進む)
-    Array.from(container.querySelectorAll('button'))
-      .find((b) => b.textContent === '帯の端を結ぶ')!
-      .click();
-    // 演出中は次の帯に進んでいない
-    expect(jsPanelText(container)).not.toContain('帯 2');
-    // rAF で 1000ms 以上進める (16ms × 70 = 1120ms)
-    raf.advance(70);
-    await wait(50);
-    // cut が送られ、次の帯 (帯 2/3) に進む
-    const label = jsPanelText(container);
-    expect(label).toContain('帯 2/3');
-    // unmount のあとに進めても何も起きない (エラーが出ない)
-    instance.unmount();
-    raf.advance(10);
+    // 盤面の大きさ (jsdom は clientWidth が 0。ハサミの当たり判定に使う)
+    const descW7 = Object.getOwnPropertyDescriptor(Element.prototype, 'clientWidth');
+    const descH7 = Object.getOwnPropertyDescriptor(Element.prototype, 'clientHeight');
+    Object.defineProperty(Element.prototype, 'clientWidth', { configurable: true, get(): number { return 1000; } });
+    Object.defineProperty(Element.prototype, 'clientHeight', { configurable: true, get(): number { return 750; } });
+    try {
+      const instance = module.mount(container, props);
+      expect((instance.suspend() as { phase: string }).phase).toBe('cutting');
+      // ハサミを糸の束まで引っぱって離す → 演出開始 (T2-16c。setInterval をやめて rAF の時刻で進む)
+      const { scissorsPos, tableY } = await import('./geometry');
+      const rect7 = stageRect(container);
+      const sp = scissorsPos(0, p1.sections);
+      stagePointer(container, rect7, 'pointerdown', sp.x, sp.y);
+      stagePointer(container, rect7, 'pointermove', 570, tableY(0, p1.sections));
+      stagePointer(container, rect7, 'pointerup', 570, tableY(0, p1.sections));
+      // 演出中は次の帯に進んでいない
+      expect(jsPanelText(container)).not.toContain('帯 2');
+      // rAF で 1000ms 以上進める (16ms × 70 = 1120ms)
+      raf.advance(70);
+      await wait(50);
+      // cut が送られ、次の帯 (帯 2/3) に進む
+      const label = jsPanelText(container);
+      expect(label).toContain('帯 2/3');
+      // unmount のあとに進めても何も起きない (エラーが出ない)
+      instance.unmount();
+      raf.advance(10);
+    } finally {
+      if (descW7 !== undefined) Object.defineProperty(Element.prototype, 'clientWidth', descW7);
+      if (descH7 !== undefined) Object.defineProperty(Element.prototype, 'clientHeight', descH7);
+    }
   });
 
   it('8. fix-a2: プレイ画面の「戻る」で確認が出て、「一覧に戻る」で難易度の一覧に戻る (途中は保存)', async () => {
@@ -588,6 +645,23 @@ function tapStage(
   const x = rect.left + offsetX + lx * scale;
   const y = rect.top + offsetY + ly * scale;
   c.dispatchEvent(new PointerEvent('pointerdown', { clientX: x, clientY: y, bubbles: true }));
+}
+
+/** 盤面にポインタ操作 (down/move/up) を送る (ハサミの引っぱり。T2-16c) */
+function stagePointer(
+  container: HTMLElement,
+  rect: { left: number; top: number; width: number; height: number },
+  type: 'pointerdown' | 'pointermove' | 'pointerup',
+  lx: number,
+  ly: number,
+): void {
+  const c = container.querySelector('canvas')!;
+  const scale = rect.width > 0 ? Math.min(rect.width / 1000, rect.height / 750) : 1;
+  const offsetX = rect.width > 0 ? (rect.width - 1000 * scale) / 2 : 0;
+  const offsetY = rect.height > 0 ? (rect.height - 750 * scale) / 2 : 0;
+  const x = rect.left + offsetX + lx * scale;
+  const y = rect.top + offsetY + ly * scale;
+  c.dispatchEvent(new PointerEvent(type, { clientX: x, clientY: y, bubbles: true }));
 }
 
 describe('winding module T2-09 追加修正a (+4・止まる音。引っかかりのメッセージは PU-14a でメッセージ欄と一緒に無くした)', () => {
@@ -848,7 +922,11 @@ describe('PU-05c: ドラム巻きの結果のつなぎ', () => {
   });
 
   /** 初級を最後まで遊び、結果 (onFinish に渡ったもの) を返す */
-  async function finishLevel1(container: HTMLElement, props: ReturnType<typeof makeProps>): Promise<{
+  async function finishLevel1(
+    container: HTMLElement,
+    props: ReturnType<typeof makeProps>,
+    instance: { suspend(): unknown },
+  ): Promise<{
     resultLines: { label: string; value: string }[];
     starHint: string;
     next?: { label: string; start: () => void };
@@ -866,20 +944,37 @@ describe('PU-05c: ドラム巻きの結果のつなぎ', () => {
     };
     pedalUp();
     raf.advance(2000);
-    for (let i = 0; i < 3; i++) {
-      if (i > 0) {
-        pedalUp();
+    const { threadY, scissorsPos, tableY } = await import('./geometry');
+    const rectCut = stageRect(container);
+    // 切れた糸をつなぐ (破断のあとは押してつないでからペダルを踏み直す)
+    const recover = (): void => {
+      const st = instance.suspend() as { phase: string; brk: { kind: string; threads: number[] } };
+      if (st.phase !== 'broken') {
+        return;
       }
+      const rect = stageRect(container);
+      for (const th of st.brk.threads) {
+        tapStage(container, rect, 380, threadY(th, 8));
+      }
+    };
+    for (let i = 0; i < 3; i++) {
+      // cutting になるまで (ハサミのボタンは無い。T2-16c)。切れるとペダルが 0 に戻るので毎回踏み直す
       await vi.waitFor(
         () => {
           raf.advance(24);
-          const b = btn('帯の端を結ぶ');
-          expect(b).toBeDefined();
-          expect(b!.style.display).not.toBe('none');
+          recover();
+          pedalUp();
+          const st = instance.suspend() as { phase: string };
+          expect(st.phase, 'cutting になるまで').toBe('cutting');
+          expect(btn('帯の端を結ぶ')).toBeUndefined();
         },
         { timeout: 30000, interval: 100 },
       );
-      btn('帯の端を結ぶ')!.click();
+      // ハサミを糸の束まで引っぱって離す
+      const sp = scissorsPos(i, 3);
+      stagePointer(container, rectCut, 'pointerdown', sp.x, sp.y);
+      stagePointer(container, rectCut, 'pointermove', 570, tableY(i, 3));
+      stagePointer(container, rectCut, 'pointerup', 570, tableY(i, 3));
       await vi.waitFor(
         () => {
           raf.advance(8);
@@ -908,16 +1003,26 @@ describe('PU-05c: ドラム巻きの結果のつなぎ', () => {
     document.body.appendChild(container);
     const module = createWindingModule(deps);
     const props = makeProps();
-    const instance = module.mount(container, props);
-    const result = await finishLevel1(container, props);
+    // 盤面の大きさ (jsdom は clientWidth が 0。ハサミの当たり判定に使う)
+    const descW = Object.getOwnPropertyDescriptor(Element.prototype, 'clientWidth');
+    const descH = Object.getOwnPropertyDescriptor(Element.prototype, 'clientHeight');
+    Object.defineProperty(Element.prototype, 'clientWidth', { configurable: true, get(): number { return 1000; } });
+    Object.defineProperty(Element.prototype, 'clientHeight', { configurable: true, get(): number { return 750; } });
+    try {
+      const instance = module.mount(container, props);
+      const result = await finishLevel1(container, props, instance);
     expect(container.querySelector('.screen-header__subtitle')!.textContent).toContain('レベル1');
     expect(result.resultLines).toHaveLength(4);
     expect(result.resultLines?.some((l) => l.label.includes('違う端'))).toBe(false);
     expect(result.starHint).toBe('適正な張りが8割以上、目標の時間内で星3です');
     expect(result.next?.label).toBe('次へ');
-    expect(typeof result.again).toBe('function');
-    expect(typeof result.toList).toBe('function');
-    instance.unmount();
+      expect(typeof result.again).toBe('function');
+      expect(typeof result.toList).toBe('function');
+      instance.unmount();
+    } finally {
+      if (descW !== undefined) Object.defineProperty(Element.prototype, 'clientWidth', descW);
+      if (descH !== undefined) Object.defineProperty(Element.prototype, 'clientHeight', descH);
+    }
   }, 60000);
 
   it('next.start() で中級のプレイ画面、again() で初級をやり直し、toList() で難易度の一覧になる', async () => {
@@ -926,8 +1031,14 @@ describe('PU-05c: ドラム巻きの結果のつなぎ', () => {
     document.body.appendChild(container);
     const module = createWindingModule(deps);
     const props = makeProps();
-    const instance = module.mount(container, props);
-    const result = await finishLevel1(container, props);
+    // 盤面の大きさ (jsdom は clientWidth が 0。ハサミの当たり判定に使う)
+    const descW = Object.getOwnPropertyDescriptor(Element.prototype, 'clientWidth');
+    const descH = Object.getOwnPropertyDescriptor(Element.prototype, 'clientHeight');
+    Object.defineProperty(Element.prototype, 'clientWidth', { configurable: true, get(): number { return 1000; } });
+    Object.defineProperty(Element.prototype, 'clientHeight', { configurable: true, get(): number { return 750; } });
+    try {
+      const instance = module.mount(container, props);
+      const result = await finishLevel1(container, props, instance);
     result.next!.start();
     // 次のお題は s1-2 (段階1・黒の無地)
     expect(container.querySelector('.screen-header__subtitle')!.textContent).toContain('レベル1');
@@ -937,8 +1048,12 @@ describe('PU-05c: ドラム巻きの結果のつなぎ', () => {
     expect(container.querySelector('.screen-header__subtitle')!.textContent).toContain(getContent().patterns.get('p-muji-kon')!.name);
     result.toList!();
     expect(container.querySelector('.game-frame')).toBeNull();
-    expect(container.querySelector('button[data-testid="winding-puzzle-s1"]')).not.toBeNull();
-    instance.unmount();
+      expect(container.querySelector('button[data-testid="winding-puzzle-s1"]')).not.toBeNull();
+      instance.unmount();
+    } finally {
+      if (descW !== undefined) Object.defineProperty(Element.prototype, 'clientWidth', descW);
+      if (descH !== undefined) Object.defineProperty(Element.prototype, 'clientHeight', descH);
+    }
   }, 60000);
 });
 

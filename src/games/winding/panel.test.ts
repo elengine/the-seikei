@@ -5,7 +5,6 @@ import { fileURLToPath } from 'node:url';
 import { createWindingPanel } from './panel';
 import type { WindingAction } from './logic';
 import { init, reduce } from './logic';
-import type { WindingState } from './logic';
 
 /** jsdom に無い setPointerCapture を足す */
 if (typeof Element !== 'undefined' && !Element.prototype.setPointerCapture) {
@@ -14,17 +13,6 @@ if (typeof Element !== 'undefined' && !Element.prototype.setPointerCapture) {
 }
 
 const terms = { t: (k: string) => (k === 'pedal' ? 'ペダル' : k === 'tension' ? '張り' : k) };
-
-/** 'cutting' まで進めた状態 */
-function cuttingState(): WindingState {
-  let s = init({ level: 1, patternId: 'p-pin-kon', sections: 5, seed: 1 });
-  s = reduce(s, { type: 'start' });
-  s = reduce(s, { type: 'setPedal', value: 50 });
-  for (let i = 0; i < 300 && s.phase === 'winding'; i++) {
-    s = reduce(s, { type: 'tick', dtMs: 100 });
-  }
-  return s;
-}
 
 describe('winding panel (T2-06)', () => {
   let onAction: ReturnType<typeof vi.fn<(a: WindingAction) => void>>;
@@ -49,12 +37,11 @@ describe('winding panel (T2-06)', () => {
     expect(onAction).toHaveBeenLastCalledWith({ type: 'start' });
   });
 
-  it("2. 'cutting' で「帯の端を結ぶ」があり、押すと cut", () => {
-    panel.update(cuttingState());
+  it("2. 'cutting' では「帯の端を結ぶ」のボタンは無い (ハサミは盤面に出る。T2-16c)", () => {
+    const s = { ...init({ level: 1, patternId: 'p-pin-kon', sections: 5, seed: 1 }), phase: 'cutting' as const };
+    panel.update(s);
     const btn = Array.from(document.body.querySelectorAll('button')).find((b) => b.textContent === '帯の端を結ぶ');
-    expect(btn).toBeDefined();
-    btn!.click();
-    expect(onAction).toHaveBeenLastCalledWith({ type: 'cut' });
+    expect(btn, '帯の端を結ぶのボタンは廃止').toBeUndefined();
   });
 
   it("3. 'winding' 以外では、ペダルが押せない (setEnabled(false))", () => {

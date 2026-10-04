@@ -26,6 +26,9 @@ export function guideFor(phase: WindingState['phase'], render: Render): { key: s
   if (phase === 'broken') {
     return { key: 'broken', text: render('糸が切れました。切れた糸のあたりを押して、つないでください') };
   }
+  if (phase === 'cutting') {
+    return { key: 'cutting', text: render('ハサミを糸の所まで引っぱって切ります') };
+  }
   return null;
 }
 

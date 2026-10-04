@@ -5,7 +5,7 @@ import { showTutorial } from '../../core/ui/tutorialOverlay';
 import { drawBoard } from './renderer';
 import { PIN_ANGLE0 } from './renderer.parts';
 import { createWindingPanel } from './panel';
-import { fromPx, hitBrokenThread, logicalHeightFor, setLogicalHeight } from './geometry';
+import { fromPx, hitBrokenThread, logicalHeightFor, setLogicalHeight, SCISSORS_SIZE, scissorsPos, scissorsHitsThread } from './geometry';
 import { getContent, type Content } from '../../core/content/content';
 import { init, reduce, seedFromText } from './logic';
 import { speedOf } from '../../core/mechanics/pedal';
@@ -126,13 +126,32 @@ let pinTurnPrevEased = 0; // 前フレームの ease の値 (角速度を決め�
     }
   }
 
+  // ---- ハサミ (帯を巻き終えたらハサミで糸を切る。T2-16c) ----
+  /** ハサミをつかんでいるときの指の位置 (論理座標)。null は置いてある状態 */
+  let scissorsDragAt: { x: number; y: number } | null = null;
+  /** 今のハサミの位置と向き (置いてあるときは軽く上下に動く。押せることを示す) */
+  function scissorsNow(): { x: number; y: number; dir: 'down' | 'up' } {
+    const base = scissorsPos(s.current, s.sections);
+    if (scissorsDragAt === null) {
+      return { ...base, y: base.y + Math.sin(nowMs / 300) * 4 };
+    }
+    return { ...base, x: scissorsDragAt.x, y: scissorsDragAt.y };
+  }
+
   // ---- 描画 ----
   function render(): void {
     const ctx = frame.stage.getContext('2d');
     if (ctx === null) {
       return; // Canvas が使えない環境 (テスト等)
     }
-    drawBoard(ctx, lastFit, s, content, { threadCount: 8, show: showOf(s.level), timeMs: nowMs, tieProgress, drumAngle });
+    drawBoard(ctx, lastFit, s, content, {
+      threadCount: 8,
+      show: showOf(s.level),
+      timeMs: nowMs,
+      tieProgress,
+      drumAngle,
+      scissors: s.phase === 'cutting' && !tieRunning ? scissorsNow() : undefined,
+    });
   }
 
   /** 糸切れの見せ方 (難易度) */
@@ -337,12 +356,37 @@ let pinTurnPrevEased = 0; // 前フレームの ease の値 (角速度を決め�
   document.addEventListener('visibilitychange', onVisibilityChange);
 
   // ---- 盤面のタップ (切れた糸のあたりを押してつなぐ。T2-13c: 1回押し) ----
+  function logicalOf(e: PointerEvent): { x: number; y: number } {
+    const rect = frame.stage.getBoundingClientRect();
+    return fromPx(lastFit, { x: e.clientX - rect.left, y: e.clientY - rect.top });
+  }
   function onPointerDown(e: PointerEvent): void {
-    if (s.phase !== 'broken' || finished || disposed || tieRunning) {
+    if (finished || disposed || tieRunning) {
+      return;
+    }
+    // 帯を巻き終えたら、ハサミをつかむ (T2-16c)
+    if (s.phase === 'cutting') {
+      const p = logicalOf(e);
+      const sc = scissorsNow();
+      const half = SCISSORS_SIZE / 2 + 8;
+      if (Math.abs(p.x - sc.x) <= half && Math.abs(p.y - sc.y) <= half) {
+        scissorsDragAt = { x: p.x, y: p.y };
+        // 引っぱるあいだは画面がスクロール・拡大しない
+        frame.stage.style.touchAction = 'none';
+        try {
+          frame.stage.setPointerCapture(e.pointerId);
+        } catch {
+          // ポインタキャプチャが使えない環境ではそのまま (move/up は stage で受ける)
+        }
+        render();
+        return;
+      }
+      return; // 'cutting' のときはハサミ以外を押しても何もしない
+    }
+    if (s.phase !== 'broken') {
       return; // 'broken' 以外のときは何もしない
     }
-    const rect = frame.stage.getBoundingClientRect();
-    const logical = fromPx(lastFit, { x: e.clientX - rect.left, y: e.clientY - rect.top });
+    const logical = logicalOf(e);
     // クリールの糸道の印から筬までの区間で、押した点にいちばん近い糸
     const broken = s.brk.kind === 'broken' ? s.brk.threads : [];
     const thread = hitBrokenThread(logical, broken, 8, lastFit.scale, s.current, s.sections);
@@ -351,7 +395,31 @@ let pinTurnPrevEased = 0; // 前フレームの ease の値 (角速度を決め�
       dispatch({ type: 'tapThread', thread });
     }
   }
+  /** ハサミをつかんで動かしている (T2-16c) */
+  function onPointerMove(e: PointerEvent): void {
+    if (scissorsDragAt === null || finished || disposed) {
+      return;
+    }
+    scissorsDragAt = logicalOf(e);
+    render();
+  }
+  /** ハサミを離す: 糸の束の上なら切る (結びの演出へ)。外れたら元の位置に戻る */
+  function onPointerUp(e: PointerEvent): void {
+    if (scissorsDragAt === null || finished || disposed) {
+      return;
+    }
+    const p = logicalOf(e);
+    scissorsDragAt = null;
+    frame.stage.style.touchAction = '';
+    if (s.phase === 'cutting' && !tieRunning && scissorsHitsThread(p, s.current, s.sections)) {
+      dispatch({ type: 'cut' }); // 糸が切れて帯の端を結ぶ
+    }
+    render();
+  }
   frame.stage.addEventListener('pointerdown', onPointerDown);
+  frame.stage.addEventListener('pointermove', onPointerMove);
+  frame.stage.addEventListener('pointerup', onPointerUp);
+  frame.stage.addEventListener('pointercancel', onPointerUp);
 
   // ---- 初期表示 ----
   if (s.phase !== 'done') {
@@ -383,6 +451,9 @@ let pinTurnPrevEased = 0; // 前フレームの ease の値 (角速度を決め�
       }
       document.removeEventListener('visibilitychange', onVisibilityChange);
       frame.stage.removeEventListener('pointerdown', onPointerDown);
+      frame.stage.removeEventListener('pointermove', onPointerMove);
+      frame.stage.removeEventListener('pointerup', onPointerUp);
+      frame.stage.removeEventListener('pointercancel', onPointerUp);
       panel.destroy();
       frame.destroy();
     },

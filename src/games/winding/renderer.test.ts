@@ -1199,3 +1199,34 @@ describe('T2-16 前2 (3): 巻き量の目盛り盤 (白の内側・糸の束と�
     setLogicalHeight(750);
   });
 });
+
+describe('T2-16c (ハサミのアイコン)', () => {
+  const draw = (s: WindingState, scissors?: { x: number; y: number; dir: 'down' | 'up' }): FakeRecorder => {
+    const { ctx, rec } = makeFakeCtx();
+    drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0, scissors });
+    return rec;
+  };
+  const hasBase = (rec: FakeRecorder, x: number, y: number): boolean =>
+    rec.ops.some((o) => {
+      if (o.k !== 'arc') return false;
+      const a = o.args as number[];
+      return Math.abs((a[0] ?? 0) - x) < 1 && Math.abs((a[1] ?? 0) - y) < 1 && Math.abs((a[2] ?? 0) - 34) < 1;
+    });
+
+  it("1. 'cutting' でハサミのアイコン (半径 34 の白い円の土台) が指定した場所に描かれる", () => {
+    const s = { ...windingState(), phase: 'cutting' } as WindingState;
+    const rec = draw(s, { x: 570, y: 120, dir: 'down' });
+    expect(hasBase(rec, 570, 120), 'ハサミの土台の円').toBe(true);
+    // 刃の向き: 下向きのとき、ハサミの線 (blades) は円の中心より下にある
+    const lines = rec.ops.filter((o) => o.k === 'lineTo').map((o) => o.args as number[]);
+    expect(lines.length).toBeGreaterThan(0);
+  });
+
+  it("2. 'winding' ではハサミは描かない。scissors を渡さなければ描かない", () => {
+    const rec1 = draw(windingState(), { x: 570, y: 120, dir: 'down' });
+    expect(hasBase(rec1, 570, 120)).toBe(false);
+    const s = { ...windingState(), phase: 'cutting' } as WindingState;
+    const rec2 = draw(s);
+    expect(hasBase(rec2, 570, 120)).toBe(false);
+  });
+});

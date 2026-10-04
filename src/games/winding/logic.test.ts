@@ -352,13 +352,13 @@ describe('T2-13c (1回押してつなぐ・文言)', () => {
     return { ...s, phase: 'broken', brk: { kind: 'broken', threads: [1, 4], tied: [] } };
   }
 
-  it('2. 切れたときの案内 (一度きりのお知らせ。PU-14a でメッセージ欄は無くなった) は「切れた糸のあたりを押して、つないでください」。ready は巻き始める案内。ほかの状態は無し', () => {
+  it('2. 切れたときの案内 (一度きりのお知らせ。PU-14a でメッセージ欄は無くなった) は「切れた糸のあたりを押して、つないでください」。ready は巻き始める案内。cutting はハサミの案内 (T2-16c)。それ以外は無し', () => {
     const g = guideFor('broken', (x: string) => x)!;
     expect(g.key).toBe('broken');
     expect(g.text).toContain('切れた糸のあたりを押して');
     expect(guideFor('ready', (x: string) => x)!.text).toContain('巻き始める');
     expect(guideFor('winding', (x: string) => x)).toBeNull();
-    expect(guideFor('cutting', (x: string) => x)).toBeNull();
+    expect(guideFor('cutting', (x: string) => x)!.text).toContain('ハサミを糸の所まで引っぱって切ります'); // T2-16c
     expect(guideFor('done', (x: string) => x)).toBeNull();
   });
 
