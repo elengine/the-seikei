@@ -906,3 +906,32 @@ describe('PU-12d: createGameFrame の alwaysCompact・message・notify', () => {
     expect(css.match(/\n\.game-frame__stage\s*\{([^}]*)\}/)![1]).toContain('position: relative');
   });
 });
+
+describe('PU-14 追加修正: createGameFrame の logicalHFor (盤面のカードの縦横の割合に論理の高さを合わせる)', () => {
+  it('logicalHFor が盤面の大きさ (w, h) を受け取り、返した高さで onStageResize の fit を決める (scale = min(w/幅, h/高さ))', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    parent.getBoundingClientRect = () =>
+      ({ width: 700, height: 880, top: 0, left: 0, right: 700, bottom: 880, x: 0, y: 0, toJSON: () => undefined }) as DOMRect;
+    const seen: Array<[number, number]> = [];
+    const fits: Array<{ scale: number }> = [];
+    const frame = createGameFrame(parent, {
+      title: 'テスト',
+      onBack: () => undefined,
+      onHelp: () => undefined,
+      logicalW: 1000,
+      logicalH: 750,
+      logicalHFor: (w, h) => {
+        seen.push([w, h]);
+        return 1000;
+      },
+      onStageResize: (fit) => {
+        fits.push(fit);
+      },
+    });
+    expect(seen.length).toBeGreaterThan(0);
+    const [w, h] = seen[seen.length - 1]!;
+    expect(fits[fits.length - 1]!.scale).toBeCloseTo(Math.min(w / 1000, h / 1000), 9);
+    frame.destroy();
+  });
+});

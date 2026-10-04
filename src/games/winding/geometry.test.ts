@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { CREEL_AREA, CREEL_END_X, LOGICAL_W, LOGICAL_H, endPoint, hitEnd, toPx, fromPx, threadY, drumSectionY, tableY, TABLE_AREA, REED_X, DRUM_END_X, DRUM_AREA, pointOnPath, threadPath, PIN_RAIL_X, DIAL_X, DIAL_Y, DIAL_R, reedRect, reedThreadY, THREAD_SHEET_HALF, hitBrokenThread, THREAD_MARK_X } from './geometry';
+import { describe, it, expect, afterEach } from 'vitest';
+import { setLogicalHeight, logicalHeightFor, machineExtent, CREEL_AREA, CREEL_END_X, LOGICAL_W, LOGICAL_H, endPoint, hitEnd, toPx, fromPx, threadY, drumSectionY, tableY, TABLE_AREA, REED_X, DRUM_END_X, DRUM_AREA, pointOnPath, threadPath, PIN_RAIL_X, DIAL_X, DIAL_Y, DIAL_R, reedRect, reedThreadY, THREAD_SHEET_HALF, hitBrokenThread, THREAD_MARK_X } from './geometry';
 
 const fit = { scale: 1, offsetX: 0, offsetY: 0 };
 
@@ -59,8 +59,8 @@ describe('winding geometry (T2-05)', () => {
   it('隣り合う糸の間を押すと、近いほうを返す', () => {
     const a = endPoint(0, 'creel', 8);
     const b = endPoint(1, 'creel', 8);
-    // 間の少し a 寄りの点
-    const mid = { x: (a.x + b.x) / 2, y: (a.y * 0.6 + b.y * 0.4) };
+    // 間の少し a 寄りの点 (糸の間隔が広がったので、a から 20% の所。PU-14 追加修正)
+    const mid = { x: (a.x + b.x) / 2, y: (a.y * 0.8 + b.y * 0.2) };
     const hit = hitEnd(mid, 8, fit.scale);
     expect(hit).not.toBeNull();
     // y が近いほうの糸
@@ -334,5 +334,64 @@ describe('PU-14c: 盤面の配置 (クリールは左端・ドラムは右端、
 
   it('切れた糸を押せる区間 (クリールの糸道の印から筬まで) の幅は、盤面の幅の 35% 以上', () => {
     expect((REED_X - THREAD_MARK_X) / LOGICAL_W).toBeGreaterThanOrEqual(0.35);
+  });
+});
+
+describe('PU-14 追加修正: 盤面のカードの高さを使い切る (クリールとドラムの描いた範囲が 85% 以上)', () => {
+  afterEach(() => {
+    setLogicalHeight(750);
+  });
+
+  it('logicalHeightFor: カードの縦横の割合から論理の高さを決める。横長 (割合 < 3/4) や測れない (0) は 750。縦に近い・正方形に近いカードは 1000 × 高さ / 幅 (上限 1400)', () => {
+    expect(logicalHeightFor(0, 0)).toBe(750);
+    expect(logicalHeightFor(636, 278)).toBe(750);
+    expect(logicalHeightFor(534, 305)).toBe(750);
+    expect(logicalHeightFor(512, 517)).toBeCloseTo((1000 * 517) / 512, 6);
+    expect(logicalHeightFor(100, 1000)).toBe(1400);
+  });
+
+  it('setLogicalHeight: クリール・台・ドラムの縦の位置と高さが論理の高さに合わせて伸びる (上の余白 100・クリールの上下の余白 50 は変わらない)', () => {
+    setLogicalHeight(1000);
+    expect(DRUM_AREA.y).toBe(100);
+    expect(DRUM_AREA.h).toBe(850);
+    expect(TABLE_AREA.h).toBe(850);
+    expect(CREEL_AREA.y).toBe(50);
+    expect(CREEL_AREA.h).toBe(900);
+    setLogicalHeight(750);
+    expect(DRUM_AREA.h).toBe(600);
+    expect(CREEL_AREA.h).toBe(650);
+  });
+
+  it('描いた範囲 (クリールの柱・桟のはみ出し・竿を含むドラムの上から下まで) の高さが、論理の高さの 85% 以上 (750〜1400 のどれでも)', () => {
+    for (const H of [750, 900, 1000, 1250, 1400]) {
+      setLogicalHeight(H);
+      const e = machineExtent();
+      expect((e.bottom - e.top) / H, `H=${H}`).toBeGreaterThanOrEqual(0.85);
+      expect(e.top).toBeGreaterThanOrEqual(0);
+      expect(e.bottom).toBeLessThanOrEqual(H);
+    }
+  });
+
+  it('5 つの大きさの盤面のカード (534×305・396×363・512×517・636×278・689×637) で、描いた範囲の高さがカードの高さの 85% 以上', () => {
+    const cards: Array<[number, number]> = [[534, 305], [396, 363], [512, 517], [636, 278], [689, 637]];
+    for (const [w, h] of cards) {
+      const H = logicalHeightFor(w, h);
+      setLogicalHeight(H);
+      const scale = Math.min(w / LOGICAL_W, h / H);
+      const e = machineExtent();
+      expect(((e.bottom - e.top) * scale) / h, `${w}×${h}`).toBeGreaterThanOrEqual(0.85);
+    }
+  });
+
+  it('論理の高さを変えても、糸の縦の間隔は等しく、クリールの高さの中に収まる。台の位置は今の帯の区画の中心', () => {
+    setLogicalHeight(1000);
+    const ys = Array.from({ length: 8 }, (_, t) => threadY(t, 8));
+    const step = ys[1]! - ys[0]!;
+    for (let t = 1; t < 8; t++) {
+      expect(ys[t]! - ys[t - 1]!).toBeCloseTo(step, 9);
+    }
+    expect(ys[0]!).toBeGreaterThan(CREEL_AREA.y);
+    expect(ys[7]!).toBeLessThan(CREEL_AREA.y + CREEL_AREA.h);
+    expect(tableY(0, 3)).toBeCloseTo((drumSectionY(0, 3) + drumSectionY(1, 3)) / 2, 9);
   });
 });

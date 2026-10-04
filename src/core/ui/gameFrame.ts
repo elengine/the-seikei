@@ -55,6 +55,8 @@ export function createGameFrame(
     compactStageWidthRatio?: number; // 詰めた形の横長で盤面が使う幅の割合 (無ければ 0.6)
     alwaysCompact?: boolean; // 真なら画面の大きさに依らず詰めた形 (縦長・横長の判定は今のまま)
     message?: boolean; // 偽ならメッセージ欄を置かない (無ければ置く)。空いた分は盤面に使う
+    /** 盤面のカードの大きさ (w, h) から論理の高さを決める (ドラム巻き: カードの縦横の割合に合わせて機械を大きく描く)。無ければ logicalH */
+    logicalHFor?: (stageW: number, stageH: number) => number;
     onStageResize?: (fit: StageFit) => void;
   },
 ): GameFrame {
@@ -206,7 +208,8 @@ export function createGameFrame(
       stage.style.width = `${w}px`;
       stage.style.height = `${h}px`;
     }
-    opts.onStageResize?.(fitStage(opts.logicalW, opts.logicalH, w, h));
+    const logicalH = opts.logicalHFor !== undefined ? opts.logicalHFor(w, h) : opts.logicalH;
+    opts.onStageResize?.(fitStage(opts.logicalW, logicalH, w, h));
   }
 
   function resize(): void {

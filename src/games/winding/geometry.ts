@@ -1,4 +1,5 @@
 import type { StageFit } from '../../core/viewport/viewport';
+import { SLAT_OVER } from './params';
 
 /**
  * ドラム巻きの盤面の座標 (P2 T2-05)。
@@ -11,21 +12,29 @@ export const LOGICAL_W = 1000;
 export const LOGICAL_H = 750;
 
 /** 区画: 左端にクリール、右端にドラム、あいだを広く (糸が切れる場所。PU-14c)。台と筬はあいだのドラム寄り */
-export const CREEL_AREA = { x: 10, y: 90, w: 200, h: 600 } as const;
-export const TABLE_AREA = { x: 460, y: 90, w: 120, h: 600 } as const;
+/**
+ * 縦の位置と高さは、論理の高さ H (750 以上。盤面のカードの縦横の割合に合わせて setLogicalHeight で決める。PU-14 追加修正)
+ * に合わせて伸びる: クリールは y=50・高さ H−100、台とドラムは y=100・高さ H−150 (上の 100 はランプ・目盛り盤・桟のはみ出し)。
+ * 画面の大きさが変わるたびに gameFrame の logicalHFor 経由で呼ばれる (同じ値を入れ直す)。
+ */
+export interface Area {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+export const CREEL_AREA: Area = { x: 10, y: 50, w: 200, h: 650 };
+export const TABLE_AREA: Area = { x: 460, y: 100, w: 120, h: 600 };
 /** ドラムの左の縦木 (ピンの横木) の左の端の x (T2-10 追加修正。台と重ならないようにする) */
 export const PIN_RAIL_X = 600;
-export const DRUM_AREA = { x: 620, y: 90, w: 370, h: 600 } as const;
+export const DRUM_AREA: Area = { x: 620, y: 100, w: 370, h: 600 };
 /** 上の余白 (目盛り盤と赤ランプ) */
-export const TOP_AREA = { y: 0, h: 90 } as const;
+export const TOP_AREA = { y: 0, h: 100 } as const;
 
 /** クリール側の切れ端の x (まっすぐ横に進む区間の上。T2-10a) */
 export const CREEL_END_X = 270;
 /** ドラム側の切れ端の x (まっすぐ横に進む区間の上。クリール側との差は 60 以上。T2-10a) */
 export const DRUM_END_X = 390;
-/** 切れ端の縦の範囲 (台の中)。糸の縦の位置はこの範囲で threadY が決める */
-const END_Y_TOP = 125; // クリールの高さ (90〜690) いっぱいに等間隔に広げる (PU-14c)
-const END_Y_BOTTOM = 655;
 
 /** 筬 (くし状の金具) の x (台の中央。T2-10a で 520 へ) */
 export const REED_X = 520;
@@ -143,8 +152,9 @@ export function pointOnPath(
  */
 export function threadY(thread: number, threadCount: number): number {
   const n = Math.max(1, threadCount);
-  const top = END_Y_TOP;
-  const bottom = END_Y_BOTTOM;
+  // クリールの高さいっぱい (上下の 6% を除く) に等間隔に広げる (PU-14c)
+  const top = CREEL_AREA.y + CREEL_AREA.h * 0.06;
+  const bottom = CREEL_AREA.y + CREEL_AREA.h * 0.94;
   return top + ((bottom - top) * thread) / (n - 1 || 1);
 }
 
@@ -266,4 +276,36 @@ export function hitBrokenThread(
 /** 画面上で screenPx になる論理サイズ (文字などを画面 px で出すための逆数) */
 export function fontPx(fit: StageFit, screenPx: number): number {
   return screenPx / fit.scale;
+}
+
+
+/** 論理の高さの下限 (幅 1000 に対する標準の 4:3) と上限 */
+const LOGICAL_H_MIN = 750;
+const LOGICAL_H_MAX = 1400;
+
+/** 盤面のカードの大きさ (画面 px) から、論理の高さを決める。横長のカードは 750、縦に近い・正方形に近いカードは 1000 × 高さ / 幅 (幅いっぱいに使うと高さも使い切れる)。測れないとき (0) は 750 */
+export function logicalHeightFor(cardW: number, cardH: number): number {
+  if (!(cardW > 0) || !(cardH > 0)) {
+    return LOGICAL_H_MIN;
+  }
+  return Math.min(LOGICAL_H_MAX, Math.max(LOGICAL_H_MIN, (LOGICAL_W * cardH) / cardW));
+}
+
+/** 論理の高さ H に合わせて、クリール・台・ドラムの縦の位置と高さを決める (同じ値なら何も変わらない) */
+export function setLogicalHeight(height: number): void {
+  const H = Math.min(LOGICAL_H_MAX, Math.max(LOGICAL_H_MIN, height));
+  CREEL_AREA.y = 50;
+  CREEL_AREA.h = H - 100;
+  TABLE_AREA.y = 100;
+  TABLE_AREA.h = H - 150;
+  DRUM_AREA.y = 100;
+  DRUM_AREA.h = H - 150;
+}
+
+/** 桟のはみ出し (SLAT_OVER)・竿のはみ出し (16) を含む、描く範囲の上と下 (論理座標) */
+export function machineExtent(): { top: number; bottom: number } {
+  return {
+    top: Math.min(CREEL_AREA.y, DRUM_AREA.y - SLAT_OVER),
+    bottom: Math.max(CREEL_AREA.y + CREEL_AREA.h, DRUM_AREA.y + DRUM_AREA.h + 16),
+  };
 }

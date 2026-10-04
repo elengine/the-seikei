@@ -909,7 +909,7 @@ describe('PU-14c: 盤面の絵 (切れた糸・緑の竿・桟・糸の弓なり
   it('帯を止める緑の竿は、ドラムの上と下に同じ長さだけはみ出す', () => {
     const rec = drawS(windingState());
     const rects = rec.ops.filter((o) => o.k === 'fillRect').map((o) => o.args as number[]);
-    const poles = rects.filter((r) => r[3]! > DRUM_AREA.h + 1 && r[2]! <= 12);
+    const poles = rects.filter((r) => r[3]! > DRUM_AREA.h + 1 && r[2]! <= 12 && r[0]! >= DRUM_AREA.x - 20);
     expect(poles.length).toBeGreaterThan(0);
     for (const p of poles) {
       const top = DRUM_AREA.y - p[1]!;

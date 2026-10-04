@@ -5,7 +5,7 @@ import { showTutorial } from '../../core/ui/tutorialOverlay';
 import { drawBoard } from './renderer';
 import { PIN_ANGLE0 } from './renderer.parts';
 import { createWindingPanel } from './panel';
-import { fromPx, hitBrokenThread } from './geometry';
+import { fromPx, hitBrokenThread, logicalHeightFor, setLogicalHeight } from './geometry';
 import { getContent, type Content } from '../../core/content/content';
 import { init, reduce, seedFromText } from './logic';
 import { speedOf } from '../../core/mechanics/pedal';
@@ -88,6 +88,12 @@ let pinTurnPrevEased = 0; // 前フレームの ease の値 (角速度を決め�
     },
     logicalW: 1000,
     logicalH: 750,
+    // 盤面のカードの縦横の割合に論理の高さを合わせ、クリールとドラムをカードの高さいっぱいに描く (PU-14 追加修正)
+    logicalHFor: (w, h) => {
+      const H = logicalHeightFor(w, h);
+      setLogicalHeight(H);
+      return H;
+    },
     portraitStageRatio: 0.4, // 縦長では盤面を小さくして、ペダルをスクロールなしで見えるようにする
     message: false, // メッセージ欄は無い (状況は盤面のランプで示し、一度きりの案内は notify)
     onStageResize: (fit) => {
