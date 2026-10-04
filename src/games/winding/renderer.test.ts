@@ -1144,3 +1144,58 @@ describe('T2-16 前2: ドラムの絵の直し (描く順と帯の上の端の�
     expect(arcs).toContain(DRUM_AREA.y + STRIPE_H);
   });
 });
+
+describe('T2-16 前2 (3): 巻き量の目盛り盤 (白の内側・糸の束と重ならない)', () => {
+  it('1. 目盛り盤の円の内側を白で塗る (外枠と針は黒のまま)', () => {
+    const { ctx, rec } = makeFakeCtx();
+    drawBoard(ctx, fit, windingState(), content, { threadCount: 8, show: 'red', timeMs: 0 });
+    let whiteFilled = false;
+    let cur = '';
+    for (let i = 0; i < rec.ops.length; i++) {
+      const op = rec.ops[i]!;
+      if (op.k === 'style') cur = String(op.v);
+      const a = op.args as number[] | undefined;
+      if (op.k === 'arc' && a && Math.abs((a[0] ?? 0) - DIAL_X) < 1 && Math.abs((a[1] ?? 0) - DIAL_Y) < 1 && Math.abs((a[2] ?? 0) - DIAL_R) < 1) {
+        // 円の直後から次の描く命令 (fill/stroke) までの間に、fillStyle が白になっている
+        let cur2 = cur;
+        for (let j = i + 1; j < rec.ops.length; j++) {
+          const o2 = rec.ops[j]!;
+          if (o2.k === 'style') cur2 = String(o2.v);
+          else {
+            if (o2.k === 'fill' && cur2 === COLORS.white) whiteFilled = true;
+            break;
+          }
+        }
+      }
+    }
+    expect(whiteFilled, '目盛り盤の内側の白の塗り').toBe(true);
+    // 枠と針は sumi (黒) の stroke
+    const styles = rec.ops.filter((o) => o.k === 'style').map((o) => String(o.v));
+    expect(styles).toContain(COLORS.sumi);
+  });
+
+  it('2. 目盛り盤は、筬からドラムへ向かう糸の束と重ならない (どの帯・どの帯の数・どの高さでも)', () => {
+    for (const H of [750, 1000, 1400]) {
+      setLogicalHeight(H);
+      for (const sections of [3, 5, 7]) {
+        for (let i = 0; i < sections; i++) {
+          const ty = tableY(i, sections);
+          const frac = (DIAL_X - REED_X) / (DRUM_AREA.x - REED_X);
+          // 糸の束の3本 (dy −30・0・+30) のうち、目盛り盤の x でいちばん下になる線
+          let maxBundleY = -Infinity;
+          for (const dy of [-30, 0, 30]) {
+            const reedY = ty - 40 + dy;
+            const drumY = ty + dy * 0.4;
+            maxBundleY = Math.max(maxBundleY, reedY + frac * (drumY - reedY));
+          }
+          expect(
+            maxBundleY,
+            `H${H} sections${sections} band${i}: 束の下端 ${maxBundleY.toFixed(1)} が目盛り盤の上端 ${DIAL_Y - DIAL_R} より上`,
+          ).toBeLessThanOrEqual(DIAL_Y - DIAL_R + 1e-9);
+        }
+      }
+      expect(DIAL_Y + DIAL_R).toBeLessThanOrEqual(H); // 盤面の中
+    }
+    setLogicalHeight(750);
+  });
+});

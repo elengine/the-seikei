@@ -49,7 +49,7 @@ export const REED_RISE = 40;
  * 中心の y は論理の高さ H に合わせて下へ動く (setLogicalHeight。PU-14 追加修正2)。
  */
 export const DIAL_X = 568;
-export let DIAL_Y = 650;
+export let DIAL_Y = 690;
 export const DIAL_R = 28;
 
 /**
@@ -303,7 +303,7 @@ export function setLogicalHeight(height: number): void {
   TABLE_AREA.h = H - 150;
   DRUM_AREA.y = 100;
   DRUM_AREA.h = H - 150;
-  DIAL_Y = H - 100;
+  DIAL_Y = H - 60;
 }
 
 /** 桟のはみ出し (SLAT_OVER)・竿のはみ出し (16) を含む、描く範囲の上と下 (論理座標) */

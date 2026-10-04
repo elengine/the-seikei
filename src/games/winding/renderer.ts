@@ -223,9 +223,13 @@ function drawTable(
   }
 }
 
-/** 5. 目盛り盤 (今の帯の巻いた長さを円の針で示す) */
+/** 5. 目盛り盤 (今の帯の巻いた長さを円の針で示す)。内側は白で塗る (糸が透けないように。T2-16 前2 の 3) */
 function drawDial(ctx: CanvasRenderingContext2D, fit: StageFit, s: WindingState): void {
   const dialR = DIAL_R;
+  ctx.beginPath();
+  ctx.arc(DIAL_X, DIAL_Y, dialR, 0, Math.PI * 2);
+  ctx.fillStyle = COLORS.white;
+  ctx.fill();
   ctx.strokeStyle = COLORS.sumi;
   ctx.lineWidth = fontPx(fit, 3);
   ctx.beginPath();
