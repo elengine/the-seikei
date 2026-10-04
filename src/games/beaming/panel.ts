@@ -6,7 +6,7 @@ import { GOOD_SPEED_ZONES } from './params';
 /**
  * ビーム巻きの操作欄 (P3 T3-03a)。
  * 上から: 「巻き量 N%」(1 か所だけ、大きく。PU-15c)、依頼書 (巻き幅・帯の数・柄の名前)、
- * 幅合わせの段階 (今と目標の幅。円盤は絵の上で引っぱる)、巻き返しの段階 (張りのメーター・ペダルの溝・寄せる2つ)、主な操作。
+ * 幅合わせの段階 (今と目標の幅。円盤は絵の上で引っぱる)、巻き返しの段階 (速さのメーター・ペダルの溝・寄せる2つ)、主な操作。
  * ペダルの「戻す」「踏み込む」・速さの数・経過時間は無い (T3-04 で速さのレバーに置き換える)。メッセージ欄は無い (理由は onNotice → お知らせ)。
  * メーターの範囲は State のもの (range {center, width} を min/max に直して渡す)。
  */
@@ -45,7 +45,10 @@ export function createBeamingPanel(
     d.className = 'beaming-panel__band-zone';
     d.style.left = `${z.from}%`;
     d.style.width = `${z.to - z.from}%`;
-    d.textContent = z.speed === 0 ? '停止' : `${z.speed}%`;
+    // 狭い区間 (8% 未満) は文字を出さない (はみ出るため。色だけで分かる)
+    if (z.to - z.from >= 8) {
+      d.textContent = z.speed === 0 ? '停止' : `${z.speed}%`;
+    }
     band.appendChild(d);
     zoneEls.push(d);
   }
@@ -78,7 +81,7 @@ export function createBeamingPanel(
   setupBlock.appendChild(widthText);
   root.appendChild(setupBlock);
 
-  // 3. 巻き返しの段階: 張りのメーター・ペダル・寄せる2つ (1行に2つ) + 巻いた割合と時間
+  // 3. 巻き返しの段階: 速さのメーター・ペダル・寄せる2つ (1行に2つ) + 巻いた割合と時間
   const beamBlock = document.createElement('section');
   beamBlock.className = 'beaming-panel__block';
   beamBlock.setAttribute('aria-label', opts.terms.t('tension'));

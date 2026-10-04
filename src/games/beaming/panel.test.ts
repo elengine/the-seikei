@@ -174,7 +174,7 @@ describe('T3-04b (巻き量の帯)', () => {
     document.body.appendChild(host);
   });
 
-  it('1. 巻き量の下に横長の帯がある。適正な速さの区間ごとに塗り分け、区間の文字 (50%・100%・50%・停止)', () => {
+  it('1. 巻き量の下に横長の帯がある。適正な速さの区間ごとに塗り分け、区間の文字 (50%・100%・50%。狭い停止の区間は文字なし)', () => {
     const p = createBeamingPanel(host, { terms, onAction: () => undefined });
     p.update(beaming());
     const band = host.querySelector('.beaming-panel__band');
@@ -185,7 +185,7 @@ describe('T3-04b (巻き量の帯)', () => {
     expect(labels[0]).toContain('50%');
     expect(labels[1]).toContain('100%');
     expect(labels[2]).toContain('50%');
-    expect(labels[3]).toContain('停止');
+    expect(labels[3] ?? '').toBe(''); // 95〜100% は 5% しか無いので文字は出さない
     // 区間の位置と幅 (0〜30・25〜75・70〜99・95〜100)
     expect(zones[0]!.style.left).toBe('0%');
     expect(zones[0]!.style.width).toBe('30%');

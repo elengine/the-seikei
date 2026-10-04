@@ -151,8 +151,9 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
     }
   }
   function onStageUp(e: PointerEvent): void {
-    // レバーを離す: 一番近い止まりに吸い付いて速さを変える (T3-04b)
-    if (leverDragX !== null && e.pointerId === leverDragId) {
+    // レバーを離す: 一番近い止まりに吸い付いて速さを変える (T3-04b)。
+    // pointerId は問わない (離すのを取りこぼしたまま固まらないようにする)
+    if (leverDragX !== null) {
       const next = nearestNotch(leverDragX);
       leverDragX = null;
       leverDragId = -1;
@@ -167,8 +168,8 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
     }
   }
   function onStageCancel(e: PointerEvent): void {
-    if (leverDragX !== null && e.pointerId === leverDragId) {
-      // 引っぱっているのをやめる (速さは変えない)
+    if (leverDragX !== null) {
+      // 引っぱっているのをやめる (速さは変えない)。pointerId は問わない
       leverDragX = null;
       leverDragId = -1;
       render();

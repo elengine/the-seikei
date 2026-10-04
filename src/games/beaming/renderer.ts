@@ -312,10 +312,16 @@ function drawSpeedLever(ctx: CanvasRenderingContext2D, fit: StageFit, s: Beaming
       ctx.strokeStyle = COLORS.ai;
       ctx.lineWidth = fit.scale * 3;
       ctx.strokeRect(nx - 34, y - 34, 68, 68);
+      // 白い pill の上に藍の文字 (巻いた糸の上でも読めるように)
+      ctx.fillStyle = COLORS.white;
+      ctx.fillRect(nx - 30, y + 40, 60, 24);
+      ctx.strokeStyle = COLORS.ai;
+      ctx.lineWidth = fit.scale * 1.5;
+      ctx.strokeRect(nx - 30, y + 40, 60, 24);
       ctx.fillStyle = COLORS.ai;
       ctx.font = `${20 * fit.scale}px sans-serif`;
       ctx.textAlign = 'center';
-      ctx.fillText('適正', nx, y + 62);
+      ctx.fillText('適正', nx, y + 58);
     }
     // ノブ (押せる所は 64px 以上)
     ctx.beginPath();
