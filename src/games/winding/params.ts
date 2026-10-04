@@ -53,10 +53,8 @@ export function NOISE_AMP(level: Level): number {
   return level === 1 ? 1 : level === 2 ? 1.5 : 2;
 }
 
-/** 帯1本あたりの目標の時間 (秒。T2-09a) */
-export function TARGET_SEC_PER_SECTION(level: Level): number {
-  return level === 1 ? 30 : level === 2 ? 26 : 22;
-}
+/** 目標の時間の余裕 (適正の上端で巻くときの速さに掛ける。T2-16b) */
+export const TIME_MARGIN = 1.1;
 
 /** 引っかかりで上の端を超えても切れない猶予の量 (張りが上の端 + この値を超えたら数える。T2-16 その3) */
 export const SNAG_BREAK_MARGIN = 8;

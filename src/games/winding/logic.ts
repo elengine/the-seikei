@@ -5,10 +5,10 @@ import type { PedalState } from '../../core/mechanics/pedal';
 import { initBreak, stepBreak, tapThread } from '../../core/mechanics/breakage';
 import type { BreakState, TapResult } from '../../core/mechanics/breakage';
 import {
-  SECTION_LENGTH, RANGE_WIDTH, RANGE_CENTER, RANGE_SHIFT_ON_SECTION, RANGE_REACHABLE,
+  SECTION_LENGTH, RANGE_WIDTH, RANGE_CENTER, RANGE_SHIFT_ON_SECTION, RANGE_REACHABLE, MAX_SPEED,
   DRIFT, NOISE_AMP, BREAK_RATE, TENSION, BREAK,
-  MAX_TICK_MS, STARS3, STARS2, TARGET_SEC_PER_SECTION, BREAK_EXTRA_STEP, BREAK_MAX_THREADS,
-  YARN_FEEL, SNAG_BREAK_MARGIN, SNAG_GRACE_MS,
+  MAX_TICK_MS, STARS3, STARS2, BREAK_EXTRA_STEP, BREAK_MAX_THREADS,
+  YARN_FEEL, SNAG_BREAK_MARGIN, SNAG_GRACE_MS, TIME_MARGIN,
 } from './params';
 import type { Level, YarnFeel } from './params';
 
@@ -28,6 +28,8 @@ export interface WindingState {
   windMs: number[]; // 帯ごとの、巻いていた時間(speed > 0)
   okMs: number[]; // 帯ごとの、適正範囲に入っていた時間
   pedal: PedalState;
+  /** 目標の時間の合計 (ms)。帯が始まるときに、その帯のぶんを足す (T2-16b) */
+  targetMs: number;
   tension: number; // 最後に計算した張り(描画用)
   range: { center: number; width: number; min: number; max: number }; // 適正範囲。幅はレベルごとに固定・位置は帯が変わるときだけ動く (T2-16a)
   snagRaised: boolean; // 直前の tick で引っかかった (メッセージ用。T2-09a)
@@ -87,6 +89,7 @@ export function init(opts: { level: Level; patternId: string; sections: number; 
     okMs: new Array<number>(sections).fill(0),
     pedal: initPedal(seedFrom(opts.seed)),
     tension: TENSION.base,
+    targetMs: bandTargetMs(opts.level, range),
     range,
     snagRaised: false,
     snagOverMs: 0,
@@ -141,15 +144,17 @@ export function reduce(s: WindingState, a: WindingAction): WindingState {
       }
       // 次の帯へ。ペダルは 0 のまま。帯が変わるときだけ、範囲の位置が変わることがある (T2-16a)
       const shift = RANGE_SHIFT_ON_SECTION(s.level);
+      // 目標の時間は帯ごとに足す (帯が始まるときに計算する。T2-16b)
       if (shift <= 0) {
-        return { ...s, current: s.current + 1, phase: 'winding' };
+        return { ...s, current: s.current + 1, phase: 'winding', targetMs: s.targetMs + bandTargetMs(s.level, s.range) };
       }
       const [raw, r1] = nextFloat(s.rng);
       // 位置は RANGE_CENTER の中・ペダル 10〜100 で届く範囲 (RANGE_REACHABLE) に丸める
       const lo = Math.max(RANGE_CENTER(s.level).min, RANGE_REACHABLE().min);
       const hi = Math.min(RANGE_CENTER(s.level).max, RANGE_REACHABLE().max);
       const center = Math.min(hi, Math.max(lo, s.range.center + (raw * 2 - 1) * shift));
-      return { ...s, current: s.current + 1, phase: 'winding', range: makeRange(center, RANGE_WIDTH(s.level)), rng: r1 };
+      const range = makeRange(center, RANGE_WIDTH(s.level));
+      return { ...s, current: s.current + 1, phase: 'winding', range, rng: r1, targetMs: s.targetMs + bandTargetMs(s.level, range) };
     }
   }
 }
@@ -250,9 +255,16 @@ export function qualities(s: WindingState): number[] {
   });
 }
 
-/** お題の目標の時間 (ms)。1本あたりの秒数 × 帯の数 (T2-09a) */
+/** 帯 1 本の目標の時間 (ms) = 帯の長さ ÷ (適正の範囲の上の端の張りになるペダルの速さ) × TIME_MARGIN (T2-16b) */
+export function bandTargetMs(_level: Level, range: { max: number }): number {
+  const pedal = (range.max - TENSION.base) / TENSION.perPedal;
+  const speed = (pedal / 100) * MAX_SPEED;
+  return (SECTION_LENGTH / speed) * TIME_MARGIN * 1000;
+}
+
+/** お題の目標の時間 (ms)。帯が始まるごとに足した合計 (T2-16b) */
 export function targetMsOf(s: WindingState): number {
-  return TARGET_SEC_PER_SECTION(s.level) * 1000 * s.sections;
+  return s.targetMs;
 }
 
 /**
@@ -303,6 +315,8 @@ export function isValidResume(x: unknown): x is WindingState {
   if (typeof r.min !== 'number' || typeof r.max !== 'number') return false;
   // 引っかかりの超過の時間 (T2-16 その3)。無い古い形の保存は再開しない
   if (typeof o.snagOverMs !== 'number' || !(o.snagOverMs >= 0)) return false;
+  // 目標の時間の合計 (T2-16b)。足した目標を持たない古い形の保存は再開しない
+  if (typeof o.targetMs !== 'number' || !(o.targetMs >= 0)) return false;
   // T2-14a: puzzleId のキーが無い古い形の保存は再開しない (job モードなどの空文字は許す)
   if (!('puzzleId' in o) || typeof o.puzzleId !== 'string') {
     return false;

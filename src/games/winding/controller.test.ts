@@ -147,48 +147,65 @@ describe('winding module (T2-07)', () => {
     instance.unmount();
   });
 
-  it('2. プレイ: 初級で「巻き始める」→ ペダル 40 → 帯を巻き終え、「帯の端を結ぶ」を3回 → onFinish が1回、stars 3', async () => {
+  it("2. プレイ: 初級で「巻き始める」→ ペダル 40 → 帯を巻き終え、「帯の端を結ぶ」を3回 → onFinish が1回、stars 2 (固定ペダルの運転は目標時間を超えるので星2。星3は範囲の上を追いかける運転 = logic.test の T2-09a 4)。切れたら糸を押してつなぐ", async () => {
     const { deps } = await makeDeps();
     const container = document.createElement('div');
     document.body.appendChild(container);
     const module = createWindingModule(deps);
     const props = makeProps();
-    const instance = module.mount(container, props);
-    // 初級を選ぶ
-    const level1 = container.querySelector<HTMLButtonElement>('button[data-testid="winding-puzzle-s1"]')!;
-    level1.click();
-    // 「巻き始める」
-    const start = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める');
-    expect(start).toBeDefined();
-    start!.click();
-    // ペダル 40 (溝を 10 ずつ 4 回動かす)
-    for (let i = 0; i < 4; i++) {
-      stepPedal(container, 10);
-    }
-    // 帯1本: pedal 40 の速さ (16/秒) で 400 論理長 → 25秒。rAF 16ms ずつ → 約1563フレーム
-    raf.advance(2000);
-    // 「帯の端を結ぶ」が押せる (cutting)
-    const cut = (): HTMLButtonElement | undefined =>
-      Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '帯の端を結ぶ');
-    expect(cut()).toBeDefined();
-    // 3回 (演出の1秒ずつ)。ボタンが見えている (display が空) ときだけ押す。
-    // cut のあとはペダルが 0 に戻るので、次の帯の前に溝をもう4回動かす
-    for (let i = 0; i < 3; i++) {
-      if (i > 0) {
-        for (let k = 0; k < 4; k++) {
+    // jsdom では stage の clientWidth が 0 のため、盤面 1000×750 を返す (切れた糸を押すときに使う)
+    const descW = Object.getOwnPropertyDescriptor(Element.prototype, 'clientWidth');
+    const descH = Object.getOwnPropertyDescriptor(Element.prototype, 'clientHeight');
+    Object.defineProperty(Element.prototype, 'clientWidth', { configurable: true, get(): number { return 1000; } });
+    Object.defineProperty(Element.prototype, 'clientHeight', { configurable: true, get(): number { return 750; } });
+    try {
+      const instance = module.mount(container, props);
+      // 初級を選ぶ
+      const level1 = container.querySelector<HTMLButtonElement>('button[data-testid="winding-puzzle-s1"]')!;
+      level1.click();
+      // 「巻き始める」
+      const start = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める');
+      expect(start).toBeDefined();
+      start!.click();
+      const { threadY } = await import('./geometry');
+      // ペダル 40 (溝を 10 ずつ 4 回)。張り 40 で範囲 (35〜65) の中ほど → 切れずに品質 0.8 以上。
+      // 速さは目標に届かない (固定ペダルでは範囲の上を追いかけられない) ので星2 (T2-16b)
+      const setP = (): void => {
+        for (let i = 0; i < 4; i++) {
           stepPedal(container, 10);
         }
-      }
-      await vi.waitFor(
-        () => {
-          raf.advance(300); // まとめて進める (帯1本ぶん 約1563フレームを短い実時間で終わらせる。T2-15)
-          const b = cut();
-          expect(b).toBeDefined();
-          expect(b!.style.display).not.toBe('none');
-        },
-        { timeout: 30000, interval: 100 },
-      );
-      cut()!.click();
+      };
+      setP();
+      // 帯1本: pedal 40 の速さ (16/秒) で 400 論理長 → 25秒。rAF 16ms ずつ
+      raf.advance(2000);
+      // 「帯の端を結ぶ」が押せる (cutting)
+      const cut = (): HTMLButtonElement | undefined =>
+        Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '帯の端を結ぶ');
+      expect(cut()).toBeDefined();
+      // 切れたら糸を押してつなぎ、ペダルを踏み直す
+      const recover = (): void => {
+        const st = instance.suspend() as { phase: string; brk: { kind: string; threads: number[] } };
+        if (st.phase !== 'broken') return;
+        const rect = stageRect(container);
+        for (const th of st.brk.threads) {
+          tapStage(container, rect, 380, threadY(th, 8));
+        }
+        setP(); // 切れるとペダルが 0 に戻るので踏み直す
+      };
+      // 3回 (演出の1秒ずつ)。ボタンが見えている (display が空) ときだけ押す。
+      for (let i = 0; i < 3; i++) {
+        if (i > 0) setP();
+        await vi.waitFor(
+          () => {
+            raf.advance(300); // まとめて進める (帯1本ぶんを短い実時間で終わらせる。T2-15)
+            recover();
+            const b = cut();
+            expect(b).toBeDefined();
+            expect(b!.style.display).not.toBe('none');
+          },
+          { timeout: 30000, interval: 100 },
+        );
+        cut()!.click();
       // 結びの演出 (1秒) が終わって次の帯 (または結果) に進むまで rAF を進める。
       // 最後の帯のあとは done (完成しました) になる
       await vi.waitFor(
@@ -215,9 +232,13 @@ describe('winding module (T2-07)', () => {
     );
     const result = props.finished[0] as { gameId: string; stars: number };
     expect(result.gameId).toBe('winding');
-    expect(result.stars).toBe(3);
+    expect(result.stars).toBe(2); // 品質は足りるが時間が目標を超える (T2-16b)
     instance.unmount();
-  }, 30000);
+    } finally {
+      if (descW !== undefined) Object.defineProperty(Element.prototype, 'clientWidth', descW);
+      if (descH !== undefined) Object.defineProperty(Element.prototype, 'clientHeight', descH);
+    }
+  }, 60000);
 
   it('3. visibilitychange の hidden で、状態のペダルが 0 になり、rAF が止まる', async () => {
     const { deps } = await makeDeps();
