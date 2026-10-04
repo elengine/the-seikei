@@ -2491,3 +2491,10 @@ button {
   min-height: 64px;
   font-size: var(--fs-body);
 }
+
+/* 一覧の節の見出しの下の場面の名前 (糸割り) */
+.itowari-list__scene {
+  margin: var(--sp-1) 0 0;
+  font-size: var(--fs-body);
+  color: var(--c-sumi-sub);
+}

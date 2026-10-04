@@ -23,7 +23,7 @@ export interface DragState {
   moved: boolean;
 }
 
-export type DragTarget = { kind: 'lane'; spindle: number } | { kind: 'cone'; sourceId: string } | null;
+export type DragTarget = { kind: 'lane'; spindle: number } | { kind: 'cone'; sourceId: string } | { kind: 'box' } | null;
 
 export type DropResult =
   | { kind: 'mount'; spindle: number; sourceId: string } // 箱の糸を口にかける
@@ -49,8 +49,8 @@ export function dropResult(s: DragState, target: DragTarget): DropResult {
   if (s.source.kind === 'cone') {
     return target !== null && target.kind === 'lane' ? { kind: 'mount', spindle: target.spindle, sourceId: s.source.sourceId } : { kind: 'cancel' };
   }
-  // 口の糸: 箱の上で離すと外す。外や別の口では元に戻す
-  return target !== null && target.kind === 'cone' ? { kind: 'unmount', spindle: s.source.spindle } : { kind: 'cancel' };
+  // 口の糸: 箱 (糸が無い所も含む箱の上) で離すと外す。外や別の口では元に戻す
+  return target !== null && (target.kind === 'cone' || target.kind === 'box') ? { kind: 'unmount', spindle: s.source.spindle } : { kind: 'cancel' };
 }
 
 /** 盤面の点がどの口の列か (当たり判定は上の段から下の段までの列)。外れれば null */

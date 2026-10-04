@@ -1,8 +1,8 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-10-05T12:10:00+09:00",
+  "updated_at": "2026-10-05T14:30:00+09:00",
   "phase": "P0",
-  "current_task": "P2b T2b-04(糸割りの組み立て)を次に実施予定",
+  "current_task": "P2b 糸割り T2b-04 完了(次: T2-16 ドラム巻き → T3-04 ビーミング)",
   "done": [
     "P3",
     "T0-00",
@@ -97,7 +97,8 @@
     "T3-03a-fix",
     "T3-03b",
     "P2b/T2b-01 (2026-10-05): 糸割り itowari のルール・お題15題・テスト23件",
-    "P2b/T2b-02 (2026-10-05): 糸割りの盤面 (geometry+renderer+色3つ)・テスト13件"
+    "P2b/T2b-02 (2026-10-05): 糸割りの盤面 (geometry+renderer+色3つ)・テスト13件",
+    "P2b 糸割り T2b-01〜T2b-04 完成 (version 0.3.0)"
   ],
   "checks": [
     {
@@ -114,6 +115,16 @@
       "date": "2026-10-05T12:10:00+09:00",
       "task": "T2b-03 追加修正",
       "result": "テスト 938 passed/11 skipped・check 0・build OK"
+    },
+    {
+      "date": "2026-10-05T13:20:00+09:00",
+      "task": "T2b-04 (実装)",
+      "result": "テスト 946 passed/11 skipped・check 0・build OK (version minor UP 前)"
+    },
+    {
+      "date": "2026-10-05T14:30:00+09:00",
+      "task": "T2b-04",
+      "result": "テスト 950 passed/11 skipped・check 0・build OK・ブラウザ確認 (ホームの並び/一覧/遊び方4ページ/レベル1星3/失敗とやり直し/戻る確認/レベル4継ぎ星3/4サイズ)"
     }
   ],
   "notes": [

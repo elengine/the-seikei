@@ -298,4 +298,62 @@ describe('糸割り controller T2b-03a (プレイ画面)', () => {
     }, { timeout: 5000, interval: 50 });
     instance.unmount();
   }, 20000);
+
+  it('11. 1つ目がある口に引っぱると、継ぐ糸 (2本目) としてかかる', async () => {
+    const { instance } = await start(); // 何もかけていない状態
+    const canvas = stubStage();
+    // 1本目を口7にかける
+    pointer(canvas, 'pointerdown', 41, 392);
+    pointer(canvas, 'pointermove', 680, 300);
+    pointer(canvas, 'pointerup', 680, 300);
+    await vi.waitFor(() => {
+      expect(container.textContent).toContain('8番の口');
+    }, { timeout: 5000, interval: 50 });
+    // 2本目を同じ口に引っぱる → 継ぐ糸としてかかる (「1つ目」「継ぐ糸」の選びが出る)
+    pointer(canvas, 'pointerdown', 41 + 32, 392); // 箱の2つ目の糸
+    pointer(canvas, 'pointermove', 680, 500);
+    pointer(canvas, 'pointerup', 680, 500);
+    await vi.waitFor(() => {
+      expect(container.textContent).toContain('継ぐ糸');
+    }, { timeout: 5000, interval: 50 });
+    instance.unmount();
+  }, 20000);
+
+  it('13. 箱が空でも、口の糸を箱へ持っていくと外れる', async () => {
+    // 6本すべてを別々の口にかけて箱を空にする
+    const { instance } = await start(); // 何もかけていない状態
+    const canvas = stubStage();
+    for (let i = 0; i < 6; i++) {
+      const tx = 185 + i * 66.25 + 33; // 広い画面: 口は横1列
+      pointer(canvas, 'pointerdown', 41, 392);
+      pointer(canvas, 'pointermove', tx, 300);
+      pointer(canvas, 'pointerup', tx, 300);
+      await vi.waitFor(() => {
+        expect(container.textContent).toContain(`${i + 1}番の口`);
+      }, { timeout: 5000, interval: 50 });
+    }
+    // 口1の糸を、箱の糸が無い場所 (段ボールの下の段) へ持っていく → 外れる
+    pointer(canvas, 'pointerdown', 218, 300);
+    pointer(canvas, 'pointermove', 137, 444);
+    pointer(canvas, 'pointerup', 137, 444);
+    // 外れたら箱に糸が戻るので、もう一度引っぱってかけられる
+    pointer(canvas, 'pointerdown', 41, 392);
+    pointer(canvas, 'pointermove', 218, 300);
+    pointer(canvas, 'pointerup', 218, 300);
+    await vi.waitFor(() => {
+      expect(container.textContent).toContain('1番の口');
+    }, { timeout: 5000, interval: 50 });
+    instance.unmount();
+  }, 20000);
+
+  it('12. 空の口を押すと選ばれる (tap で口を選ぶ)', async () => {
+    const { instance } = await start(); // 何もかけていない状態
+    const canvas = stubStage();
+    pointer(canvas, 'pointerdown', 416, 300); // 口3の列 (x 384〜451)
+    pointer(canvas, 'pointerup', 416, 300);
+    await vi.waitFor(() => {
+      expect(container.textContent).toContain('4番の口');
+    }, { timeout: 5000, interval: 50 });
+    instance.unmount();
+  }, 20000);
 });

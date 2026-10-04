@@ -16,6 +16,7 @@ import { createCreelModule } from './games/creel';
 import { createDrumSetupModule } from './games/drumsetup';
 import { createWindingModule } from './games/winding';
 import { createBeamingModule } from './games/beaming';
+import { createItowariModule } from './games/itowari';
 import { gameDepsFrom } from './app/context';
 import { getContent } from './core/content/content';
 
@@ -82,6 +83,7 @@ async function main(): Promise<void> {
   }
 
   // ゲームの登録 (クリール立て・ドラム巻き)。内容データの問題があればログに残す
+  registerGame(createItowariModule(gameDepsFrom(ctx)));
   registerGame(createCreelModule(gameDepsFrom(ctx)));
   registerGame(createDrumSetupModule(gameDepsFrom(ctx)));
   registerGame(createWindingModule(gameDepsFrom(ctx)));

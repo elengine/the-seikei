@@ -178,7 +178,9 @@ export function judgeRun(state: ItowariState, puzzle: ItowariPuzzle): ItowariSta
     progress: 0,
     lastFailures: [],
   };
-  next.phase = made.length >= puzzle.needCount ? 'done' : 'setup';
+  // split は作った本数が要る本数。refill は「要る本数 − 残っている本数」を作れば完成
+  const target = puzzle.kind === 'split' ? puzzle.needCount : puzzle.needCount - puzzle.sources.length;
+  next.phase = made.length >= target ? 'done' : 'setup';
   return next;
 }
 

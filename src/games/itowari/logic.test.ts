@@ -134,6 +134,27 @@ describe('糸割り T2b-01 (巻く・止める・判定)', () => {
     expect(r.lines.join('\n')).toContain('糸を継いだ口 1');
   });
 
+  it('8b. refill は「要る本数 − 残り」を作ると done (残り6本・9本要る → 3本)', () => {
+    let s = init(p4);
+    const make1500 = (src1: number, len1: number, src2: number | null, len2: number): void => {
+      s = reduce(s, { type: 'mount', spindle: 0, sourceId: p4.sources[src1]!.id, slot: 0 }, p4);
+      s = reduce(s, { type: 'setLength', spindle: 0, slot: 0, lengthM: len1 }, p4);
+      if (src2 !== null) {
+        s = reduce(s, { type: 'mount', spindle: 0, sourceId: p4.sources[src2]!.id, slot: 1 }, p4);
+        s = reduce(s, { type: 'setLength', spindle: 0, slot: 1, lengthM: len2 }, p4);
+      }
+      s = wind(reduce(s, { type: 'start' }, p4), p4);
+    };
+    make1500(2, 1020, 3, 540); // 継ぎで 1,560 (余り 4%)
+    expect(s.phase).toBe('setup'); // あと2本
+    expect(s.made).toEqual([1560]);
+    make1500(0, 1500, null, 0); // 3,480 の残りから 1,500 (残り 1,980)
+    expect(s.phase).toBe('setup'); // あと1本
+    make1500(1, 1500, null, 0); // 3,000 の残りから 1,500 (残り 1,500)
+    expect(s.phase).toBe('done'); // 3本できたので完成
+    expect(s.made).toEqual([1560, 1500, 1500]);
+  });
+
   it('9. slot 1 は slot 0 が無いと mount できない。同じ糸は2か所にかけられない', () => {
     let s = init(p3);
     const src = p3.sources[0]!;

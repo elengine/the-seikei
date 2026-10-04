@@ -27,7 +27,7 @@ export function createGameScreen(ctx: AppContext): Screen {
       disposed = false;
       // /games/:id の id は screenManager が解決して params['id'] に入れる
       const rawId = params['id'];
-      const known: GameId[] = ['creel', 'drumsetup', 'winding', 'beaming', 'shop'];
+      const known: GameId[] = ['creel', 'drumsetup', 'winding', 'beaming', 'shop', 'itowari'];
       const id = rawId !== undefined && known.includes(rawId as GameId) ? (rawId as GameId) : undefined;
       const root = document.createElement('div');
       root.classList.add('game-screen');

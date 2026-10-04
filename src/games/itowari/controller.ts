@@ -4,7 +4,7 @@ import { openSheet } from '../../core/ui/sheet';
 import type { Sheet } from '../../core/ui/sheet';
 import type { StageFit } from '../../core/viewport/viewport';
 import type { GameDeps, GameInstance, GameProps } from '../../core/game/types';
-import { MACHINE } from './geometry';
+import { MACHINE, BOX } from './geometry';
 import { init, reduce, isValidResume } from './logic';
 import type { ItowariAction, ItowariState } from './logic';
 import { createItowariPanel } from './panel';
@@ -15,6 +15,8 @@ import { drawBoard, drawLifted, yarnHex } from './renderer';
 import { getContent } from '../../core/content/content';
 import { itowariPuzzles } from './puzzles';
 import { openCalculatorBody } from '../drumsetup/calculator';
+import { showTutorial } from '../../core/ui/tutorialOverlay';
+import { itowariTutorial } from './tutorial';
 
 /**
  * 糸割りの画面の動き (P2b T2b-03a)。盤面 (renderer) と操作欄 (panel) を置き、
@@ -46,16 +48,29 @@ export function createItowariController(
   let rafId = 0;
 
   let lastFit: StageFit = { scale: 1, offsetX: 0, offsetY: 0 };
+  // ドラッグで糸をかける・外す (T2b-03b)。押すだけなら口を選ぶ・はかりに載せる。
+  // つかんでいる指の id を覚えておき、ほかの指の動きは無視する (T2b-03 追加修正)
+  // (createGameFrame の初期 resize で render が走るので、宣言は前でなければならない)
+  let drag: DragState | null = null;
+  let dragPointerId: number | null = null;
   const frame: GameFrame = createGameFrame(parent, {
     title: deps.terms.t('game.itowari'),
     subtitle: `レベル${puzzle.level} ${puzzle.name}`,
     onBack: () => opts.onBack(),
-    onHelp: () => frame.notify('遊び方は準備中です'),
+    onHelp: () => {
+      void showTutorial(frame.root, itowariTutorial, { renderText: (s) => deps.terms.render(s) });
+    },
     logicalW: MACHINE.w,
     logicalH: MACHINE.h,
     message: false,
     onStageResize: (f) => {
-      if (f.scale > 0) lastFit = f; // 測れない環境 (jsdom) では既定のまま
+      // createGameFrame の代入中に最初の resize が来るので、1フレーム後に描く
+      window.requestAnimationFrame(() => {
+        if (f.scale > 0 && !disposed) {
+          lastFit = f; // 測れない環境 (jsdom) では既定のまま
+          render(); // setupCanvas で canvas が消されるので、大きさが変わったら描き直す
+        }
+      });
     },
   });
 
@@ -174,11 +189,6 @@ export function createItowariController(
     rafId = window.requestAnimationFrame(loop);
   }
 
-  // ドラッグで糸をかける・外す (T2b-03b)。押すだけなら口を選ぶ・はかりに載せる。
-  // つかんでいる指の id を覚えておき、ほかの指の動きは無視する (T2b-03 追加修正)
-  let drag: DragState | null = null;
-  let dragPointerId: number | null = null;
-
   /** 指の画面座標 → 盤面の論理座標 */
   function stagePoint(clientX: number, clientY: number): { x: number; y: number } {
     const rect = frame.stage.getBoundingClientRect();
@@ -200,7 +210,8 @@ export function createItowariController(
     if (disposed || finished || s.phase !== 'setup') return;
     const p = stagePoint(ev.clientX, ev.clientY);
     const lane = laneAt(p, (MACHINE.w / 12) * lastFit.scale < 64, s.spindles.length);
-    if (lane !== null && s.spindles[lane]!.segments.length > 0) {
+    if (lane !== null) {
+      // 糸がかかっている口なら引っぱって外せる。空の口なら押しただけの tap で選ばれる
       drag = beginDrag({ kind: 'lane', spindle: lane }, { x: ev.clientX, y: ev.clientY });
       dragPointerId = ev.pointerId;
       return;
@@ -226,10 +237,14 @@ export function createItowariController(
     const p = stagePoint(ev.clientX, ev.clientY);
     const lane = laneAt(p, (MACHINE.w / 12) * lastFit.scale < 64, s.spindles.length);
     const cone = coneAt(p, puzzle, s);
-    const target = lane !== null ? { kind: 'lane' as const, spindle: lane } : cone !== null ? { kind: 'cone' as const, sourceId: cone } : null;
+    // 箱の糸が無い所でも箱の上なら外せる (空になった箱へ戻す)
+    const inBox = p.x >= BOX.x && p.x <= BOX.x + BOX.w && p.y >= BOX.y && p.y <= BOX.y + BOX.h;
+    const target = lane !== null ? { kind: 'lane' as const, spindle: lane } : cone !== null ? { kind: 'cone' as const, sourceId: cone } : inBox ? { kind: 'box' as const } : null;
     const r = dropResult(d, target);
     if (r.kind === 'mount') {
-      dispatch({ type: 'mount', spindle: r.spindle, sourceId: r.sourceId, slot: 0 });
+      // その口に1つ目があれば、継ぐ糸 (2本目) としてかける (T2b-03)
+      const slot: 0 | 1 = s.spindles[r.spindle]!.segments.length === 0 ? 0 : 1;
+      dispatch({ type: 'mount', spindle: r.spindle, sourceId: r.sourceId, slot });
       panel.select(r.spindle);
     } else if (r.kind === 'unmount') {
       if (s.spindles[r.spindle]!.segments.length === 2) dispatch({ type: 'unmount', spindle: r.spindle, slot: 1 });
@@ -253,6 +268,8 @@ export function createItowariController(
   window.addEventListener('pointercancel', onPointerCancel);
 
   refresh();
+  // パネルを置き終わった大きさで測り直す (作った直後はまだ大きさが出ないことがある)
+  frame.resize();
   rafId = window.requestAnimationFrame(loop);
   const autosave = window.setInterval(() => {
     if (!disposed && !finished && s.phase === 'winding') props.onStateChange?.(s);

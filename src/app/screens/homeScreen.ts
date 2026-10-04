@@ -7,7 +7,6 @@ import { isUpdateReady, onUpdateState } from '../updater';
 
 /** 準備中のゲーム (名前は用語辞書の項目。無いものは固定の文字) */
 const COMING_SOON: { termKey?: string; fixedName?: string; summary: string }[] = [
-  { fixedName: '糸割り', summary: '決まった長さずつ巻き分ける' },
   { termKey: 'game.zukan', summary: '仕上げた柄を集めて眺める' },
 ];
 
@@ -26,7 +25,7 @@ export function createHomeScreen(ctx: AppContext): Screen {
   let offUpdate: (() => void) | null = null;
 
   function card(opts: {
-    kind: 'creel' | 'drumsetup' | 'winding' | 'beaming' | 'soon';
+    kind: 'creel' | 'drumsetup' | 'winding' | 'beaming' | 'itowari' | 'soon';
     name: string;
     summary: string;
     status: string;
@@ -120,9 +119,11 @@ export function createHomeScreen(ctx: AppContext): Screen {
                 ? 'winding'
                 : m.id === 'beaming'
                   ? 'beaming'
-                  : m.id === 'drumsetup'
-                    ? 'drumsetup'
-                    : 'creel',
+                  : m.id === 'itowari'
+                    ? 'itowari'
+                    : m.id === 'drumsetup'
+                      ? 'drumsetup'
+                      : 'creel',
             name: ctx.terms.t(m.titleTermKey),
             summary: m.summary ?? '',
             status: gameStatusText(m.id),

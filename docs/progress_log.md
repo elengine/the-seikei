@@ -1485,3 +1485,14 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 ## 2026-10-05T12:10+09:00 T2b-03 追加修正(pointercancel と touch-action)
 - controller.ts:盤面の Canvas に touch-action: none を付けて、引っぱっているあいだに画面がスクロール・拡大しないようにした。pointercancel は「離した」と同じにしない(取り消されたら、引っぱっていた糸を箱へ戻すだけ。mount・unmount をしない)。つかんでいる指の pointerId を覚えて、ほかの指の move・up は無視する。
 - テスト: controller 3件追加(RED→GREEN)。全体 938 passed/11 skipped・check 0・build OK。
+
+## 2026-10-05T14:30+09:00 T2b-04(糸割りの組み立て・version 0.3.0)
+- tutorial.ts(遊び方4ページ・絵は盤面と同じ見た目)・listView.ts(15題を5つの節に・節の見出しの下に場面の名前「チーズを分ける」「足りないコーンを作る」・行の補足)・index.ts(一覧→プレイ・resume・結果の次のお題/もう一度/一覧へ・戻る確認は「はい」「いいえ」)を追加
+- main.ts に登録(ホームのカードの並びの最初)・gameScreen.ts の id・homeScreen.ts は準備中から削除・homeCards.ts に糸割りの絵と「お題 15」・terms に game.itowari・base.css に場面の名前の節
+- controller.ts: 遊び方ボタンで tutorial を開く。実機確認で見つけた不具合を3つ直した
+  (1) 空の口を押しても選べなかった(ドラッグを始めていなかった)→ 空の口もドラッグ開始にして tap で選べるように
+  (2) 画面の大きさが変わったときに盤面が消えたまま(onStageResize で描き直していなかった)→ 1フレーム後に lastFit を更新して描き直す
+  (3) 箱が空のとき、口の糸を箱へ戻せなかった(箱の糸のあるセルしか外せなかった)→ 箱の上なら外せるように
+- logic.ts: refill の完成判定を直した(作った本数と「要る本数 − 残っている本数」を比べていたので絶対に完成しなかった)
+- テスト: controller 6件・logic 1件・listView 4件・tutorial 4件を追加。950 passed / 11 skipped・check 0・build OK
+- ブラウザ確認: ホームの並び(糸割りが最初・準備中は柄の図鑑だけ)・一覧(節・場面の名前・補足・星/次はこれ/鍵)・遊び方4ページ・レベル1を星3(失敗0・余分0.0%・1回)・失敗(残りが足りない)と「長さを設定し直す」・戻る確認(はい/いいえ)・レベル4を継ぎで星3(余分4.0%・継いだ口1)・4サイズで操作欄の縦スクロール0

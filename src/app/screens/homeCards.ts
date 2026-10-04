@@ -14,7 +14,7 @@ function shape(parent: SVGElement, tag: 'rect' | 'circle' | 'line' | 'polygon', 
 }
 
 /** カードの小さな絵 (200x100 の四角と丸だけの簡単な絵) */
-export function createCardArt(kind: 'creel' | 'drumsetup' | 'winding' | 'beaming' | 'soon'): SVGElement {
+export function createCardArt(kind: 'creel' | 'drumsetup' | 'winding' | 'beaming' | 'itowari' | 'soon'): SVGElement {
   const svg = document.createElementNS(NS, 'svg');
   svg.setAttribute('viewBox', '0 0 200 100');
   svg.setAttribute('aria-hidden', 'true');
@@ -58,6 +58,16 @@ export function createCardArt(kind: 'creel' | 'drumsetup' | 'winding' | 'beaming
     shape(svg, 'rect', { x: 44, y: 74, width: 112, height: 8, fill: COLORS.steel });
     shape(svg, 'rect', { x: 36, y: 58, width: 8, height: 28, fill: COLORS.machine });
     shape(svg, 'rect', { x: 156, y: 58, width: 8, height: 28, fill: COLORS.machine });
+  } else if (kind === 'itowari') {
+    // 糸割り: 緑の枠の台 (上の段の糸と下の段の銀色の胴) と、左の段ボール箱
+    shape(svg, 'rect', { x: 56, y: 18, width: 120, height: 68, fill: COLORS.machine });
+    for (let i = 0; i < 3; i++) {
+      shape(svg, 'polygon', { points: `${68 + i * 36},40 ${84 + i * 36},40 ${80 + i * 36},28 ${72 + i * 36},28`, fill: COLORS.threadYellow });
+      shape(svg, 'rect', { x: 64 + i * 36, y: 44, width: 24, height: 14, fill: COLORS.winderSteel });
+      shape(svg, 'polygon', { points: `${70 + i * 36},58 ${82 + i * 36},58 ${79 + i * 36},50 ${73 + i * 36},50`, fill: COLORS.kinari });
+    }
+    shape(svg, 'rect', { x: 16, y: 34, width: 32, height: 26, fill: COLORS.cardboard });
+    shape(svg, 'rect', { x: 20, y: 66, width: 24, height: 4, fill: COLORS.sumiSub });
   } else {
     // 準備中: 点線の四角と丸
     shape(svg, 'rect', {
@@ -96,6 +106,9 @@ export function gameStatusText(id: string): string {
     return '初級・中級・上級';
   }
   if (id === 'beaming') {
+    return `お題 ${getContent().creelPuzzles.length}`;
+  }
+  if (id === 'itowari') {
     return `お題 ${getContent().creelPuzzles.length}`;
   }
   return '';

@@ -27,7 +27,7 @@ vi.mock('../updater', () => ({
 }));
 
 
-function fakeModule(id: 'creel' | 'winding', titleTermKey: string, summary: string): GameModule {
+function fakeModule(id: 'creel' | 'winding' | 'itowari', titleTermKey: string, summary: string): GameModule {
   return {
     id,
     titleTermKey,
@@ -45,6 +45,7 @@ function makeCtx(settings: { shopName: string; playerName: string }): { ctx: App
     'game.creel': 'クリール立て',
     'game.winding': 'ドラム巻き',
     'game.beaming': 'ビーミング',
+    'game.itowari': '糸割り',
     'game.shop': '整経屋の一日',
     'game.zukan': '柄の図鑑',
   };
@@ -74,6 +75,7 @@ beforeEach(() => {
   vi.stubGlobal('__APP_VERSION__', '0.1.0');
   vi.stubGlobal('__BUILD_ID__', '2026-10-04T12:00:00.000Z');
   clearGamesForTest();
+  registerGame(fakeModule('itowari', 'game.itowari', '足りない糸を、ワインダーで巻き分ける'));
   registerGame(fakeModule('creel', 'game.creel', '依頼書のとおりにコーンを立てる'));
   registerGame(fakeModule('winding', 'game.winding', '張りを見ながら、帯をドラムに巻く'));
 });
@@ -108,30 +110,35 @@ describe('ホーム画面 (PU-03a)', () => {
     expect(b.root.querySelector('.home__greeting')).toBeNull();
   });
 
-  it('登録済みのゲームのカードに、名前・説明・状態が出て、押すとそのゲームへ移る', () => {
+  it('登録済みのゲームのカードに、名前・説明・状態が出て、押すとそのゲームへ移る。並びは糸割りが最初', () => {
     const { root, navigate } = mountHome();
     const cards = Array.from(root.querySelectorAll<HTMLButtonElement>('.game-card:not(.game-card--soon)'));
-    expect(cards).toHaveLength(2);
-    const creel = cards[0]!;
+    expect(cards).toHaveLength(3);
+    const itowari = cards[0]!;
+    expect(itowari.querySelector('.game-card__name')!.textContent).toBe('糸割り');
+    expect(itowari.querySelector('.game-card__summary')!.textContent).toBe('足りない糸を、ワインダーで巻き分ける');
+    expect(itowari.querySelector('.game-card__status')!.textContent).toBe('お題 15');
+    itowari.click();
+    expect(navigate).toHaveBeenCalledWith('/games/itowari');
+    const creel = cards[1]!;
     expect(creel.tagName).toBe('BUTTON');
     expect(creel.querySelector('.game-card__name')!.textContent).toBe('クリール立て');
     expect(creel.querySelector('.game-card__name')!.classList.contains('font-heading')).toBe(true);
     expect(creel.querySelector('.game-card__summary')!.textContent).toBe('依頼書のとおりにコーンを立てる');
     expect(creel.querySelector('.game-card__status')!.textContent).toMatch(/^お題 \d+$/);
-    expect(cards[1]!.querySelector('.game-card__status')!.textContent).toBe('初級・中級・上級');
+    expect(cards[2]!.querySelector('.game-card__status')!.textContent).toBe('初級・中級・上級');
     expect(creel.querySelector('.game-card__art')).not.toBeNull();
     creel.click();
     expect(navigate).toHaveBeenCalledWith('/games/creel');
-    cards[1]!.click();
+    cards[2]!.click();
     expect(navigate).toHaveBeenCalledWith('/games/winding');
   });
 
-  it('準備中のカード (糸割り・柄の図鑑。ビーム巻きは登録済みになった。題名と重なる「整経屋の一日」は無い) は「準備中」。押すと「準備中です」が2秒出て、移らない', () => {
+  it('準備中のカード (柄の図鑑のみ。糸割り・ビーム巻きは登録済みになった。題名と重なる「整経屋の一日」は無い) は「準備中」。押すと「準備中です」が2秒出て、移らない', () => {
     vi.useFakeTimers();
     const { root, navigate } = mountHome();
     const soon = Array.from(root.querySelectorAll<HTMLButtonElement>('.game-card--soon'));
     expect(soon.map((c) => c.querySelector('.game-card__name')!.textContent)).toEqual([
-      '糸割り',
       '柄の図鑑',
     ]);
     for (const c of soon) {
