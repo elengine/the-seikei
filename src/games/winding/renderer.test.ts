@@ -428,9 +428,11 @@ describe('winding renderer T2-08 追加修正2', () => {
     s = { ...s, phase: 'winding' as const, current: 1, lengths: s.lengths.map(() => 3000) };
     drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
     const inBand = fillRectsWithColor(rec).filter((f) => f.y >= drumSectionY(0, 3) && f.y < drumSectionY(1, 3) && f.w > 100);
-    expect(inBand.length).toBeGreaterThan(1);
+    // 縞 (T2-16 前の直しで、区画の下にも胴の塗り (区画の高さ) が入るので、細い縞だけを見る)
+    const stripes = inBand.filter((f) => f.h <= 8);
+    expect(stripes.length).toBeGreaterThan(1);
     // 縞1本の高さは STRIPE_H (6) 以下
-    expect(Math.max(...inBand.map((f) => f.h))).toBeLessThanOrEqual(8);
+    expect(Math.max(...stripes.map((f) => f.h))).toBeLessThanOrEqual(8);
   });
 
   it('4. 巻き終えた区画の結び目に、sumi の stroke がある', () => {
@@ -517,7 +519,7 @@ describe('winding renderer T2-10 追加修正 a (桟の数)', () => {
 describe('winding renderer T2-10 追加修正 b (上下の端・結び目とピンも回る)', () => {
   const fit = { scale: 1, offsetX: 0, offsetY: 0 };
 
-  it('5. ellipse の面を塗る (fill) は上の端と下の端の2つ (T2-13a で上の端にも色を付ける)', () => {
+  it('5. ellipse の面を塗る (fill) は下の端の円盤の1つ (上の縁は T2-16 前の直しで塗らない)', () => {
     const s = windingState();
     const { ctx, rec } = makeFakeCtx();
     drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0, drumAngle: 0 });
@@ -533,9 +535,8 @@ describe('winding renderer T2-10 追加修正 b (上下の端・結び目とピ�
       (e) => Math.abs(e.rx - (DRUM_AREA.w / 2 + 10)) < 1 &&
         e.y >= DRUM_AREA.y - 1 && e.y <= DRUM_AREA.y + DRUM_AREA.h + 1,
     );
-    expect(disks.length).toBe(2); // 上の端の面 + 下の端の円盤
-    expect(Math.abs(disks[0]!.y - DRUM_AREA.y)).toBeLessThan(1);
-    expect(Math.abs(disks[1]!.y - (DRUM_AREA.y + DRUM_AREA.h))).toBeLessThan(1);
+    expect(disks.length).toBe(1); // 下の端の円盤だけ (上の縁は縁の線だけ)
+    expect(Math.abs(disks[0]!.y - (DRUM_AREA.y + DRUM_AREA.h))).toBeLessThan(1);
   });
 
   it('6. drumAngle を変えると結び目の輪の x が変わる (結び目もドラムと一緒に回る)', () => {
@@ -705,7 +706,7 @@ describe('winding renderer T2-13a (実物の写真に合わせた絵)', () => {
     }
   });
 
-  it('4. 上の端の山なりの内側を塗る fill がある (ellipse のあとに fill)。下の端の円盤と合わせて2つ', () => {
+  it('4. 下の端の円盤の面を塗る fill がある。上の縁は塗らない (T2-16 前の直しで帯と板を見せる)', () => {
     const s = windingState();
     const { ctx, rec } = makeFakeCtx();
     drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0, drumAngle: 0 });
@@ -715,11 +716,11 @@ describe('winding renderer T2-13a (実物の写真に合わせた絵)', () => {
         filled.push({ y: (rec.ops[i]!.args?.[1] as number) ?? 0 });
       }
     }
-    expect(filled.length).toBe(2);
-    const top = filled.find((e) => Math.abs(e.y - DRUM_AREA.y) < 1);
+    expect(filled.length).toBe(1);
     const bottom = filled.find((e) => Math.abs(e.y - (DRUM_AREA.y + DRUM_AREA.h)) < 1);
-    expect(top, '上の端の面').toBeDefined();
+    const top = filled.find((e) => Math.abs(e.y - DRUM_AREA.y) < 1);
     expect(bottom, '下の端の円盤').toBeDefined();
+    expect(top, '上の縁は塗らない').toBeUndefined();
   });
 
   it('5. 羽の側面: 中央の板の隣には側面が無く、端に近い板の隣には幅のある側面がある', () => {
@@ -995,5 +996,74 @@ describe('PU-14 追加修正2: 目盛り盤・桟の上の端', () => {
     for (const scale of [0.4, 0.5, 1]) {
       expect(SLAT_OVER, `scale ${scale}`).toBeGreaterThan(12 / scale);
     }
+  });
+});
+
+describe('T2-16 前: ドラムの絵の直し (上の縁・帯の下の端。管理者の Fold 8 の指摘)', () => {
+  const drum = (s: WindingState, angle = 0): FakeRecorder => {
+    const { ctx, rec } = makeFakeCtx();
+    drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0, drumAngle: angle });
+    return rec;
+  };
+  /** 'done' に進めた状態 (3帯とも巻き終え、境目の線の問題が見える状態) */
+  function doneState(): WindingState {
+    let s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 1 });
+    s = { ...s, phase: 'done' } as WindingState;
+    return s;
+  }
+
+  it('1. 上の縁の楕円は面を塗らない (ellipse の直後に fill が無い。縁の線だけ。板と帯を縁まで見せる)', () => {
+    const rec = drum(windingState());
+    const rx = DRUM_AREA.w / 2 + 10;
+    let covered = false;
+    for (let i = 0; i < rec.ops.length; i++) {
+      const op = rec.ops[i]!;
+      const a = op.args as number[] | undefined;
+      if (op.k === 'ellipse' && a && Math.abs((a[1] ?? 0) - DRUM_AREA.y) < 1 && Math.abs((a[2] ?? 0) - rx) < 1) {
+        if (rec.ops[i + 1]?.k === 'fill') covered = true;
+      }
+    }
+    expect(covered, '上の縁の楕円が帯と板の上に塗りつぶされている').toBe(false);
+  });
+
+  it('2. 帯と板は上の縁まで描かれる (いちばん上の帯の山なりは縁の y から上へ。板の上端の y は縁と同じ)', () => {
+    const s = { ...windingState(), lengths: windingState().lengths.map((v, i) => (i === 0 ? 1500 : v)) };
+    const rec = drum(s);
+    const cx = DRUM_AREA.x + DRUM_AREA.w / 2;
+    // 帯: 区画の上端 (DRUM_AREA.y) から始まる山なりの縞 (制御点は縁より上)
+    const curves = rec.ops
+      .filter((o) => o.k === 'quadraticCurveTo')
+      .map((o) => o.args as number[])
+      .filter((a) => Math.abs(a[0]! - cx) < 1);
+    const topCurve = curves.find((a) => a[1]! < DRUM_AREA.y && Math.abs(a[3]! - DRUM_AREA.y) < 1);
+    expect(topCurve, 'いちばん上の帯の山なりが上の縁から描かれる').toBeDefined();
+    // 板: 上端の y が縁の y と同じ (差 0)
+    const boards = fillRectsWithColor(rec).filter((f) => f.v === COLORS.wood && f.h > DRUM_AREA.h - 4);
+    expect(boards.length).toBeGreaterThan(0);
+    for (const b of boards) {
+      expect(Math.abs(b.y - DRUM_AREA.y), `板の上端 ${b.y}`).toBeLessThan(1);
+    }
+  });
+
+  it('3. 巻き終えた区画の山なりの下にも胴の緑がある (全区画に胴の塗り。ドラムの中に白っぽい塗りは無い)', () => {
+    const s = doneState();
+    const rec = drum(s);
+    const secH = DRUM_AREA.h / s.sections;
+    for (let i = 0; i < s.sections; i++) {
+      const sy = drumSectionY(i, s.sections);
+      const body = fillRectsWithColor(rec).find(
+        (f) => Math.abs(f.x - (DRUM_AREA.x - 10)) < 1 && Math.abs(f.y - sy) < 1 && f.h > secH - 1,
+      );
+      expect(body, `区画 ${i} の胴の緑`).toBeDefined();
+    }
+    const inDrum = fillRectsWithColor(rec).filter(
+      (f) => f.v === COLORS.kinari && f.x >= DRUM_AREA.x - 30 && f.x < DRUM_AREA.x + DRUM_AREA.w + 30,
+    );
+    expect(inDrum.length, 'ドラムの中に背景色 (kinari) の塗り').toBe(0);
+  });
+
+  it('4. 帯の境目に黒い横線を描かない (巻き終えた帯の四角い枠線 strokeRect は無い)', () => {
+    const rec = drum(doneState());
+    expect(rec.ops.some((o) => o.k === 'strokeRect'), '帯の境目の strokeRect').toBe(false);
   });
 });

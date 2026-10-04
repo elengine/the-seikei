@@ -48,8 +48,8 @@ export function drawDrum(
   const cx = x + w / 2;
   const radius = (rightX - leftX) / 2;
 
-  // 胴の面 (巻き終えていない区画。今の帯を含む)。明るさの勾配は横向き
-  // (巻き始めた区画も描き、その上に桟と縞を重ねる。T2-08 追加修正2)
+  // 胴の面 (全区画)。明るさの勾配は横向き。巻き終えた区画の山なりの下にも緑を残す
+  // (白っぽい色が見えないように。T2-16 前: ドラムの絵の直し)
   const grads = ctx.createLinearGradient(leftX, 0, rightX, 0);
   grads.addColorStop(0, COLORS.machineDark);
   grads.addColorStop(0.3, COLORS.machineLight);
@@ -57,8 +57,6 @@ export function drawDrum(
   grads.addColorStop(1, COLORS.machineDark);
   ctx.fillStyle = grads;
   for (let i = 0; i < s.sections; i++) {
-    const finished = (i < s.current || s.phase === 'done') && s.phase !== 'ready';
-    if (finished) continue; // 胴を飛ばしてよいのは巻き終えた区画だけ
     const sy = drumSectionY(i, s.sections);
     ctx.fillRect(leftX, sy, rightX - leftX, secH);
   }
@@ -149,12 +147,7 @@ export function drawDrum(
       k++;
     }
     ctx.globalAlpha = 1;
-    // 完了した帯は縁に濃い線を引いて「完了」を分かるようにする
-    if (full) {
-      ctx.strokeStyle = COLORS.sumi;
-      ctx.lineWidth = fontPx(fit, 2);
-      ctx.strokeRect(leftX, sy, rightX - leftX, secH);
-    }
+    // 完了した帯に四角い枠線は引かない (帯の境目の黒い横線は要らない。T2-16 前: ドラムの絵の直し)
     // 帯の左右のふくらみ (割合に比例して最大 6)
     const bulge = 6 * ratio;
     ctx.fillStyle = base;
@@ -180,13 +173,11 @@ export function drawDrum(
     ctx.globalAlpha = 1;
   }
 
-  // 上の端: 楕円の上半分の面 (胴と同じ灰緑の勾配で塗り、縁に線。胴が上まで続いて見える。T2-13a)
+  // 上の端: 楕円の縁の線だけ (面は塗らない。板と帯を上の縁まで見せる。T2-16 前: ドラムの絵の直し)
   const rx = (rightX - leftX) / 2;
   const topCy = y + fontPx(fit, 0);
-  ctx.fillStyle = grads;
   ctx.beginPath();
   ctx.ellipse(cx, topCy, rx, fontPx(fit, 12), 0, Math.PI, Math.PI * 2);
-  ctx.fill();
   ctx.strokeStyle = COLORS.sumiSub;
   ctx.lineWidth = fontPx(fit, 2);
   ctx.stroke();
