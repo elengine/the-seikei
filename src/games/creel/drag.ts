@@ -9,6 +9,26 @@ import { hitTest } from './geometry';
 /** 動かし始めとみなす距離 (画面 px)。これ未満で離すと「押すだけ」 */
 export const DRAG_THRESHOLD_PX = 8;
 
+/** チーズの下の端を、指の点より上に離す距離 (画面 px。指でチーズが隠れない) */
+export const LIFT_MARGIN_PX = 24;
+
+/** チーズを指より上に出す量 (画面 px) = チーズの半径 + LIFT_MARGIN_PX。直径 diameter のチーズの下の端が、指の点より 24px 上にくる */
+export function liftFor(diameter: number): number {
+  return diameter / 2 + LIFT_MARGIN_PX;
+}
+
+/**
+ * 箱の帯の上で指が動き始めたとき、チーズを引っぱる動きか、帯を送る動きかを決める (dx・dy は指が動いた量)。
+ * axis は帯を送れる向き ('x' = 横に送る縦長の画面、'y' = 縦に送る横長の画面)。
+ * 引っぱる向き (縦長は上、横長は左) への成分が、送る向きの成分の半分以上あれば引っぱり。
+ * ちょうど斜めに動かしても引っぱりになる (これまでは、横の成分が少しでも大きいと「送る」にされて、チーズが出てこなかった)。
+ */
+export function isDragGesture(axis: 'x' | 'y', dx: number, dy: number): boolean {
+  const toward = axis === 'x' ? -dy : -dx; // 引っぱる向きへ動いた量
+  const along = axis === 'x' ? Math.abs(dx) : Math.abs(dy); // 送る向きへ動いた量
+  return toward > 0 && toward >= along * 0.5;
+}
+
 export type DragSource = { kind: 'box'; yarn: YarnTypeId } | { kind: 'peg'; index: number };
 
 export interface DragState {

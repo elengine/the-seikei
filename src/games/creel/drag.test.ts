@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { beginDrag, moveDrag, dropResult, DRAG_THRESHOLD_PX } from './drag';
+import { beginDrag, moveDrag, dropResult, DRAG_THRESHOLD_PX, LIFT_MARGIN_PX, liftFor, isDragGesture } from './drag';
 import { pegCenter } from './geometry';
 
 const rows = 1;
@@ -47,5 +47,31 @@ describe('引っぱる動き (drag.ts。PU-07a)', () => {
   it('軸を 8px 未満動かして離すと tap', () => {
     const s = moveDrag(beginDrag({ kind: 'peg', index: 0 }, { x: 10, y: 10 }), { x: 12, y: 11 });
     expect(dropResult(s, null, rows, cols)).toEqual({ kind: 'tap' });
+  });
+});
+
+describe('PU-13c: 持ち上げる量・引っぱりか送りかの判定', () => {
+  it('liftFor: チーズの半径 + 24px (チーズの下の端が指の点より 24px 上にくる)', () => {
+    expect(LIFT_MARGIN_PX).toBe(24);
+    expect(liftFor(48)).toBe(48);
+    expect(liftFor(100)).toBe(74);
+    expect(liftFor(33)).toBe(33 / 2 + 24);
+  });
+
+  it('isDragGesture (縦長の帯: 送る向きは x): 上へ動かせば引っぱり。上へ向かう成分が横の半分以上あれば、横にずれても引っぱり。ほぼ横なら送る。下へは送る (何も起きない)', () => {
+    expect(isDragGesture('x', 0, -10)).toBe(true);
+    expect(isDragGesture('x', 8, -8)).toBe(true); // 斜め上 (これまでは横と同じ大きさで「送る」にされて、出てこなかった)
+    expect(isDragGesture('x', 12, -6)).toBe(true); // 上の成分が横の半分
+    expect(isDragGesture('x', 20, -2)).toBe(false); // ほぼ横
+    expect(isDragGesture('x', 0, 10)).toBe(false); // 下
+    expect(isDragGesture('x', -12, -6)).toBe(true);
+  });
+
+  it('isDragGesture (横長の帯: 送る向きは y): 左 (盤面の方) へ動かせば引っぱり。左へ向かう成分が縦の半分以上あれば引っぱり。ほぼ縦なら送る', () => {
+    expect(isDragGesture('y', -10, 0)).toBe(true);
+    expect(isDragGesture('y', -8, 8)).toBe(true);
+    expect(isDragGesture('y', -6, 12)).toBe(true);
+    expect(isDragGesture('y', -2, 20)).toBe(false);
+    expect(isDragGesture('y', 10, 0)).toBe(false); // 右
   });
 });

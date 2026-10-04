@@ -1,6 +1,6 @@
 import type { YarnTypeId } from '../../core/domain/types';
 import type { StageFit } from '../../core/viewport/viewport';
-import { beginDrag, moveDrag, dropResult } from './drag';
+import { beginDrag, moveDrag, dropResult, liftFor, isDragGesture } from './drag';
 import type { DragSource, DragState, DropResult } from './drag';
 import { CREEL_AREA, fromPx, hitTest, pegCenter, toPx } from './geometry';
 
@@ -11,8 +11,8 @@ import { CREEL_AREA, fromPx, hitTest, pegCenter, toPx } from './geometry';
  * 重ねは、離したとき・取り消し・pointercancel・裏に回ったとき・destroy で必ず消す。
  */
 
-/** チーズを指より上に出す距離 (画面 px。指で隠れない) */
-export const LIFT_PX = 40;
+/** 引っぱるチーズの直径の下限 (画面 px) */
+const MIN_DIAMETER_PX = 48;
 /** 軸へ吸い込まれる動きの長さ / 箱へ戻る動きの長さ (ミリ秒) */
 const SUCK_MS = 150;
 const RETURN_MS = 200;
@@ -43,6 +43,7 @@ interface Active {
   target: Element;
   origin: HTMLElement | null; // 箱の要素 (戻る先)
   scrollAxis: 'x' | 'y' | null; // 箱の列を送れる向き (詰めた形)。最初の動きがこの向きなら、引っぱらず送る
+  lift: number; // チーズを指より上に出す量 (画面 px。チーズの半径 + 24px)
   pressIndex: number | null; // 盤面を押した軸
   layer: HTMLElement | null;
 }
@@ -64,9 +65,9 @@ export function attachDrag(opts: DragViewOpts): { cancel(): void; destroy(): voi
     return fromPx(opts.fit(), { x: cx, y: cy });
   }
 
-  /** 離した所 (チーズの位置 = 指より LIFT_PX 上)。クリールの枠の中なら論理座標、外なら null */
-  function dropPoint(p: { x: number; y: number }): { x: number; y: number } | null {
-    const l = logicalOf(p.x, p.y - LIFT_PX);
+  /** 離した所 (チーズの位置 = 指より lift 上)。クリールの枠の中なら論理座標、外なら null */
+  function dropPoint(p: { x: number; y: number }, lift: number): { x: number; y: number } | null {
+    const l = logicalOf(p.x, p.y - lift);
     if (l === null) {
       return null;
     }
@@ -156,8 +157,19 @@ export function attachDrag(opts: DragViewOpts): { cancel(): void; destroy(): voi
   }
 
   function onDown(e: PointerEvent): void {
-    if (destroyed || active !== null || e.button !== 0) {
-      return; // 2本目の指は無視する
+    if (destroyed || e.button !== 0) {
+      return;
+    }
+    if (active !== null) {
+      // 引っぱっている最中の 2 本目の指は無視する。ただし、前の指がまだチーズを出していない (離した・取り消しの知らせが
+      // 届かないまま残った) ときと、同じ番号の押さえがもう一度来たときは、前のを捨てて新しく始める
+      if (active.layer !== null && e.pointerId !== active.pointerId) {
+        return;
+      }
+      if (active.layer !== null) {
+        cancel();
+      }
+      active = null;
     }
     const target = e.target instanceof Element ? e.target : null;
     if (target === null) {
@@ -189,7 +201,17 @@ export function attachDrag(opts: DragViewOpts): { cancel(): void; destroy(): voi
       return;
     }
     // setPointerCapture は、引っぱりと決まってから (onMove) 行う。箱を横に送る動きをブラウザに任せるため
-    active = { pointerId: e.pointerId, drag: beginDrag(source, { x: e.clientX, y: e.clientY }), yarn, target, origin, scrollAxis, pressIndex, layer: null };
+    active = {
+      pointerId: e.pointerId,
+      drag: beginDrag(source, { x: e.clientX, y: e.clientY }),
+      yarn,
+      target,
+      origin,
+      scrollAxis,
+      lift: liftFor(Math.max(MIN_DIAMETER_PX, opts.diameterPx())),
+      pressIndex,
+      layer: null,
+    };
   }
 
   function onMove(e: PointerEvent): void {
@@ -204,9 +226,7 @@ export function attachDrag(opts: DragViewOpts): { cancel(): void; destroy(): voi
     }
     if (!wasMoved && a.scrollAxis !== null) {
       // 最初の 8px の動きの向きで、箱の列を送る (スクロール) か、チーズを引っぱるかを決める
-      const dx = Math.abs(a.drag.current.x - a.drag.start.x);
-      const dy = Math.abs(a.drag.current.y - a.drag.start.y);
-      const scrolling = a.scrollAxis === 'x' ? dx >= dy : dy > dx;
+      const scrolling = !isDragGesture(a.scrollAxis, a.drag.current.x - a.drag.start.x, a.drag.current.y - a.drag.start.y);
       if (scrolling) {
         active = null; // この指はブラウザに任せる
         return;
@@ -218,10 +238,10 @@ export function attachDrag(opts: DragViewOpts): { cancel(): void; destroy(): voi
       } catch {
         // 対応していない環境 (テスト等) では window の監視だけで動く
       }
-      a.layer = makeLayer(a.yarn, Math.max(48, opts.diameterPx()));
+      a.layer = makeLayer(a.yarn, Math.max(MIN_DIAMETER_PX, opts.diameterPx()));
     }
-    placeLayer(a.layer, e.clientX, e.clientY - LIFT_PX);
-    const l = dropPoint(a.drag.current);
+    placeLayer(a.layer, e.clientX, e.clientY - a.lift);
+    const l = dropPoint(a.drag.current, a.lift);
     const hit = l === null ? null : hitTest(l, opts.rows, opts.cols);
     const lifted = a.drag.source.kind === 'peg' ? a.drag.source.index : null;
     opts.onHover(hit !== null && hit !== lifted ? hit : null, lifted);
@@ -237,7 +257,7 @@ export function attachDrag(opts: DragViewOpts): { cancel(): void; destroy(): voi
       active = null;
       return;
     }
-    const result = dropResult(a.drag, dropPoint(a.drag.current), opts.rows, opts.cols);
+    const result = dropResult(a.drag, dropPoint(a.drag.current, a.lift), opts.rows, opts.cols);
     if (result.kind === 'tap') {
       active = null;
       opts.onHover(null, null);
