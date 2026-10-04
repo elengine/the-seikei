@@ -32,37 +32,46 @@ describe('beaming panel T3-03a (操作欄)', () => {
     document.body.appendChild(host);
   });
 
-  it('1. 幅合わせの段階: 円盤を動かすボタンが1行に4つ (4列の格子)。今の幅と目標の幅の数字が出る', () => {
-    // 4列の格子は base.css のビーム巻きの節で決める (jsdom は格子を計算できない)
+  it('1. 幅合わせの段階: 円盤のボタンは2行の格子 (各行に見出しと◀▶)。押せる部品は64×64以上。今の幅と目標の幅の数字が出る', () => {
+    // 格子と 64×64 は base.css のビーム巻きの節で決める (jsdom は格子を計算できない)
     const css = readFileSync('src/styles/base.css', 'utf8');
-    const grid4 = /\.beaming-panel__flanges\s*\{[^}]*grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/;
-    expect(grid4.test(css), 'flanges').toBe(true);
+    const rowGrid = /\.beaming-panel__flange-row\s*\{[^}]*grid-template-columns:[^;]*64px[^;]*64px/;
+    expect(rowGrid.test(css), 'flange-row grid').toBe(true);
+    const min64 = /\.beaming-panel__flanges \.btn\s*\{[^}]*min-width:\s*64px[^}]*min-height:\s*64px/;
+    expect(min64.test(css), 'flange btn 64x64').toBe(true);
     const p = createBeamingPanel(host, { terms, onAction: () => undefined });
     p.update(make());
-    const row = host.querySelector('.beaming-panel__flanges');
-    expect(row).toBeDefined();
-    expect(row!.querySelectorAll('button').length).toBe(4);
+    const rows = host.querySelectorAll('.beaming-panel__flange-row');
+    expect(rows.length).toBe(2);
+    const labels = Array.from(rows).map((r) => r.querySelector('.beaming-panel__flange-label')!.textContent);
+    expect(labels).toEqual(['左の円盤', '右の円盤']);
+    for (const r of Array.from(rows)) {
+      expect(r.querySelectorAll('button').length).toBe(2);
+    }
     expect(host.textContent).toContain('今');
     expect(host.textContent).toContain('目標');
     p.destroy();
   });
 
-  it('2. 幅合わせのボタンで moveFlange が送られる (◀ 左 は左の円盤を -1cm)', () => {
+  it('2. 幅合わせのボタン (矢印だけ。aria-label でどの円盤か分かる) で moveFlange が送られる', () => {
     const actions: BeamingAction[] = [];
     const p = createBeamingPanel(host, { terms, onAction: (a) => actions.push(a) });
     p.update(make());
-    const btn = (text: string): HTMLButtonElement | undefined =>
-      Array.from(host.querySelectorAll('button')).find((b) => b.textContent === text);
-    btn('◀ 左')!.click();
-    btn('左 ▶')!.click();
-    btn('◀ 右')!.click();
-    btn('右 ▶')!.click();
+    const btn = (aria: string): HTMLButtonElement | undefined =>
+      Array.from(host.querySelectorAll('button')).find((b) => b.getAttribute('aria-label') === aria);
+    btn('左の円盤を左へ')!.click();
+    btn('左の円盤を右へ')!.click();
+    btn('右の円盤を左へ')!.click();
+    btn('右の円盤を右へ')!.click();
     expect(actions).toEqual([
       { type: 'moveFlange', side: 'left', deltaCm: -1 },
       { type: 'moveFlange', side: 'left', deltaCm: 1 },
       { type: 'moveFlange', side: 'right', deltaCm: -1 },
       { type: 'moveFlange', side: 'right', deltaCm: 1 },
     ]);
+    // ボタンの文字は矢印だけ
+    expect(btn('左の円盤を左へ')!.textContent).toBe('◀');
+    expect(btn('左の円盤を右へ')!.textContent).toBe('▶');
     p.destroy();
   });
 
@@ -112,16 +121,14 @@ describe('beaming panel T3-03a (操作欄)', () => {
     p.destroy();
   });
 
-  it('6. 依頼書に巻き幅・帯の数・柄の名前。巻き返しの段階では巻いた割合と経過時間の1行', () => {
+  it('6. 依頼書は詰めた形で1行 (柄の名前・巻き幅・帯の数)。巻き返しの段階では巻いた割合と経過時間の1行', () => {
     const p = createBeamingPanel(host, {
       terms,
       onAction: () => undefined,
       puzzle: { bands: 3, patternName: '無地紺' },
     });
     p.update(make());
-    expect(host.textContent).toContain('巻き幅 60cm');
-    expect(host.textContent).toContain('帯 3本');
-    expect(host.textContent).toContain('無地紺');
+    expect(host.querySelector('.beaming-panel__order')!.textContent).toBe('無地紺・巻き幅 60cm・帯 3本');
     p.update(beaming());
     // 巻いた割合と時間 (「巻いた 0%」と 0:00 の形の時計)
     expect(host.textContent).toContain('巻いた');

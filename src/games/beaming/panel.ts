@@ -35,7 +35,8 @@ export function createBeamingPanel(
   order.className = 'beaming-panel__order';
   root.appendChild(order);
 
-  // 2. 幅合わせの段階: 円盤を動かす4つのボタン (1行に4つ) + 今と目標の幅
+  // 2. 幅合わせの段階: 円盤を動かすボタンは2行の格子 (T3-03 追加修正: 1行4つだと狭い画面で
+  //    ボタンが64px未満になるため。各行に「左の円盤」「右の円盤」の見出しと矢印2つ)
   const setupBlock = document.createElement('section');
   setupBlock.className = 'beaming-panel__block';
   setupBlock.setAttribute('aria-label', '幅合わせ');
@@ -43,15 +44,27 @@ export function createBeamingPanel(
   const flanges = document.createElement('div');
   flanges.className = 'beaming-panel__flanges';
   setupBlock.appendChild(flanges);
-  const mkFlangeBtn = (label: string, side: 'left' | 'right', deltaCm: number): HTMLButtonElement =>
-    createButton({
-      label,
-      onClick: () => opts.onAction({ type: 'moveFlange', side, deltaCm }),
-    });
-  flanges.appendChild(mkFlangeBtn('◀ 左', 'left', -1));
-  flanges.appendChild(mkFlangeBtn('左 ▶', 'left', 1));
-  flanges.appendChild(mkFlangeBtn('◀ 右', 'right', -1));
-  flanges.appendChild(mkFlangeBtn('右 ▶', 'right', 1));
+  const mkFlangeRow = (name: string, side: 'left' | 'right'): void => {
+    const row = document.createElement('div');
+    row.className = 'beaming-panel__flange-row';
+    const label = document.createElement('span');
+    label.className = 'beaming-panel__flange-label';
+    label.textContent = name;
+    row.appendChild(label);
+    const mk = (arrow: string, aria: string, deltaCm: number): void => {
+      const b = createButton({
+        label: arrow,
+        onClick: () => opts.onAction({ type: 'moveFlange', side, deltaCm }),
+      });
+      b.setAttribute('aria-label', aria);
+      row.appendChild(b);
+    };
+    mk('◀', `${name}を左へ`, -1);
+    mk('▶', `${name}を右へ`, 1);
+    flanges.appendChild(row);
+  };
+  mkFlangeRow('左の円盤', 'left');
+  mkFlangeRow('右の円盤', 'right');
   const widthText = document.createElement('div');
   widthText.className = 'beaming-panel__info';
   setupBlock.appendChild(widthText);
@@ -81,12 +94,10 @@ export function createBeamingPanel(
   shift.appendChild(mkNudgeBtn('◀ 寄せる', -1));
   shift.appendChild(mkNudgeBtn('寄せる ▶', 1));
   beamBlock.appendChild(shift);
-  const progress = document.createElement('div');
-  progress.className = 'beaming-panel__progress';
-  beamBlock.appendChild(progress);
   root.appendChild(beamBlock);
 
-  // 4. 一番下の主な操作 (幅合わせの段階は「巻き始める」。巻き返しの段階は無し)
+  // 4. 一番下の主な操作 + 巻き返しの進み (T3-03 追加修正: 巻き返しの段階は主な操作が無いので、
+  //    その行に「巻いた割合と時間」を出して操作欄の高さを減らす)
   const buttonRow = document.createElement('div');
   buttonRow.className = 'beaming-panel__actions';
   const startBtn = createButton({
@@ -96,6 +107,10 @@ export function createBeamingPanel(
   });
   startBtn.classList.add('beaming-panel__main');
   buttonRow.appendChild(startBtn);
+  const progress = document.createElement('div');
+  progress.className = 'beaming-panel__progress';
+  progress.style.display = 'none';
+  buttonRow.appendChild(progress);
   root.appendChild(buttonRow);
 
   parent.appendChild(root);
@@ -110,19 +125,22 @@ export function createBeamingPanel(
 
   return {
     update(s: BeamingState): void {
-      // 依頼書
+      // 依頼書 (詰めた形で1行: 柄の名前・巻き幅・帯の数。T3-03 追加修正)
       order.textContent = '';
       const bands = opts.puzzle?.bands;
       const patternName = opts.puzzle?.patternName;
       order.textContent =
+        (patternName !== undefined ? `${patternName}・` : '') +
         `巻き幅 ${s.widthCm}cm` +
-        (bands !== undefined ? `・帯 ${bands}本` : '') +
-        (patternName !== undefined ? `・${patternName}` : '');
+        (bands !== undefined ? `・帯 ${bands}本` : '');
       // 段階の切り替え (場所は空けたまま)
       const isSetup = s.phase === 'setup';
       setupBlock.style.display = isSetup ? '' : 'none';
       beamBlock.style.display = s.phase === 'beaming' ? '' : 'none';
       startBtn.style.display = isSetup ? '' : 'none';
+      progress.style.display = isSetup ? 'none' : '';
+      // 巻き返しの段階の下の行は進みの表示だけ (ボタンが無いので行を低くする。T3-03 追加修正)
+      buttonRow.style.minHeight = isSetup ? '' : '0';
       // 幅合わせ: 今の幅と目標の幅
       widthText.textContent = `今 ${Math.round(s.rightCm - s.leftCm)}cm/目標 ${s.widthCm}cm`;
       // 巻き返し: メーター・ペダル・割合と時間

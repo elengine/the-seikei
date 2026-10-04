@@ -2054,7 +2054,7 @@ button {
 .beaming-panel {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-4);
+  gap: var(--sp-2);
 }
 
 .beaming-panel__order {
@@ -2063,24 +2063,38 @@ button {
 }
 
 .beaming-panel__block .section-heading {
-  margin-bottom: var(--sp-2);
+  margin-bottom: var(--sp-1);
+  font-size: min(var(--fs-heading), 24px);
+  line-height: 1.2;
 }
 
-/* 幅合わせ: 円盤を動かすボタンは1行に4つ同じ幅 (T3-03a) */
+/* 幅合わせ: 円盤のボタンは2行の格子 (行見出し+◀▶。押せる部品は64×64以上。T3-03 追加修正) */
 .beaming-panel__flanges {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sp-1);
+}
+
+.beaming-panel__flange-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px 64px;
   gap: var(--sp-2);
+  align-items: center;
+}
+
+.beaming-panel__flange-label {
+  font-size: var(--fs-body);
+  color: var(--c-sumi);
 }
 
 .beaming-panel__flanges .btn {
-  min-width: 0;
+  min-width: 64px;
+  min-height: 64px;
   padding-inline: var(--sp-2);
   white-space: nowrap;
 }
 
 .beaming-panel__info {
-  margin-top: var(--sp-2);
+  margin-top: var(--sp-1);
   font-size: var(--fs-body);
   color: var(--c-sumi);
 }
@@ -2090,7 +2104,7 @@ button {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--sp-2);
-  margin-top: var(--sp-2);
+  margin-top: 0;
 }
 
 .beaming-panel__shift .btn {
@@ -2104,9 +2118,14 @@ button {
   column-gap: var(--sp-4);
   row-gap: var(--sp-1);
   align-items: baseline;
-  margin-top: var(--sp-2);
   font-size: var(--fs-body);
   color: var(--c-sumi);
+}
+
+/* 主な操作の行に入った進み (巻き返しの段階。T3-03 追加修正) */
+.beaming-panel__actions .beaming-panel__progress {
+  flex: 1;
+  margin-top: 0;
 }
 
 .beaming-panel__clock {
@@ -2115,13 +2134,13 @@ button {
 }
 
 .beaming-panel__actions {
-  min-height: 72px;
+  min-height: 64px;
   /* 主ボタンは操作欄の下に固定する (ドラム巻きと同じ) */
   position: sticky;
   bottom: 0;
   background: var(--c-white);
-  padding-top: var(--sp-3);
-  padding-bottom: var(--sp-2);
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 .beaming-panel__main {
@@ -2134,7 +2153,86 @@ button {
 }
 
 .game-frame--compact .beaming-panel {
-  gap: var(--sp-3);
+  gap: var(--sp-1);
+}
+
+/* 操作欄の幅: 隣の盤面の列より広くならない (core が幅を固定するため。T3-03 追加修正) */
+.game-frame__panel:has(.beaming-panel) {
+  max-width: 100%;
+}
+
+/* 依頼書は1行に収める (はみ出した分は「…」) */
+.beaming-panel__order {
+  font-size: min(var(--fs-body), 24px);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ビーム巻きの上のメッセージ欄 (直前の兄弟) は文字を小さくして高さを減らす (T3-03 追加修正) */
+.game-frame__message:has(+ .beaming-panel) {
+  font-size: min(var(--fs-body), 20px);
+  line-height: 1.3;
+}
+
+/* ペダルの文字は小さめ (「戻す」「踏み込む」が狭い操作欄で収まる。押せる大きさは変えない) */
+.beaming-panel .pedal__btn,
+.beaming-panel .pedal__value,
+.beaming-panel .tension-meter,
+.beaming-panel__info,
+.beaming-panel__progress,
+.beaming-panel__flange-label,
+.beaming-panel__shift .btn {
+  font-size: min(var(--fs-body), 20px);
+}
+
+.beaming-panel .pedal__btn,
+.beaming-panel .pedal__value,
+.beaming-panel .tension-meter,
+.beaming-panel .pedal__row {
+  line-height: 1.2;
+}
+
+/* 詰めた形 (コンパクト) ではペダルの溝とボタンを同じ行にして高さを減らす */
+.game-frame--compact .beaming-panel .pedal__btn {
+  flex: 0 0 auto;
+  min-width: 64px;
+  box-sizing: border-box;
+  padding-inline: var(--sp-2);
+}
+
+.game-frame--compact .beaming-panel .pedal__groove {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.game-frame--compact .beaming-panel .pedal__row {
+  flex-wrap: nowrap;
+}
+
+.game-frame--compact .beaming-panel .pedal-control {
+  gap: 2px;
+}
+
+/* 主な操作の行は64px (ボタンそのもの) + 余白なし。中身が収まるので固定位置にする */
+.game-frame--compact .beaming-panel__actions {
+  position: static;
+  min-height: 64px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.game-frame--compact .beaming-panel {
+  gap: 2px;
+}
+
+.game-frame--compact .beaming-panel__flanges {
+  gap: 2px;
+}
+
+.game-frame--compact .beaming-panel__flange-row {
+  gap: var(--sp-1);
 }
 
 /* アップデートの確認 (PU-10a): 押している間アイコンが回る / ホームの「設定」の朱のバッジ / 設定の画面の案内 */
