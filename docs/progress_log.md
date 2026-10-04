@@ -1420,3 +1420,10 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - 速さ: BEAM_LENGTH=800 (pedal 50 で 40秒)。採点: 星3 (誤差1cm・張り0.8・偏り0.8)、星2 (誤差3cm・0.6・0.6)、resultLines 4行。
 - 仕様書の BeamingState に level・widthCm・patternId・tension を追加 (tick の計算に必要。Discord 報告に記載)。
 - テスト 824 passed / 11 skipped・check・build エラー0。
+
+## 2026-10-04 T3-02 (ルビー)
+- 座標と盤面 (src/games/beaming/geometry.ts・renderer.ts 新規。テスト9件)。
+- geometry: cm→論理座標は pxPerCm = 700/巻き幅 (巻き幅は常に盤面の幅の70%)。往復一致。ドラム (奥・幅広)、ビーム (芯 y580・巻き太り最大110px)、円盤 (26×170px・穴の並び)、目標の点線 y690。
+- renderer: ドラム (帯の縞が drumAngle で流れる)・シート (縦縞・shiftCm で中心が動く)・巻き太り (machineLight)・円盤 (machine+穴)。乗り上げは円盤の縁を朱+「乗り上げ」24px。幅合わせは点線+10cm目盛り+内側の印 (藍=合う・朱=外れ)。
+- 偽の Canvas に setLineDash が無いため、点線は線分の並びで描く (helpers は変更しない)。
+- 見た目の確認は T3-03 でホームに出してから行う (ゲームがまだ route に無い)。テスト 833 passed・check・build エラー0。
