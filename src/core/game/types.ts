@@ -3,7 +3,7 @@ import type { AudioPlayer } from '../audio/audio';
 import type { Records } from '../game/records';
 import type { Clock } from '../clock/clock';
 
-export type GameId = 'creel' | 'winding' | 'drumsetup' | 'beaming' | 'shop';
+export type GameId = 'creel' | 'winding' | 'drumsetup' | 'beaming' | 'shop' | 'itowari';
 
 export interface TutorialPage {
   draw: (ctx: CanvasRenderingContext2D, w: number, h: number) => void;
