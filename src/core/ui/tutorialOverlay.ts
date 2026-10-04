@@ -83,10 +83,9 @@ export function showTutorial(
     text.classList.add('tutorial__text');
     box.appendChild(text);
 
-    // 左下のページ数
+    // ページ数 (下のボタンの行の真ん中。render のたびに「左・ページ数・右」の 3 つに並べ直す)
     const counter = document.createElement('span');
     counter.classList.add('tutorial__counter');
-    box.appendChild(counter);
 
     const actions = document.createElement('div');
     actions.classList.add('dialog__actions');
@@ -105,7 +104,10 @@ export function showTutorial(
         p.draw(ctx, canvasW, canvasH); // draw には CSS px の幅・高さを渡す
       }
       actions.textContent = ''; // ボタンを作り直す
-      // 前のページへ戻るボタン (最初のページでは置かない)。ゲームを終える「戻る」と区別するため「前へ」
+      // 前のページへ戻るボタン (最初のページでは、同じ幅の空きを置く。ページ数が真ん中のままになる)。ゲームを終える「戻る」と区別するため「前へ」
+      if (page === 0) {
+        actions.appendChild(document.createElement('span'));
+      }
       if (page > 0) {
         actions.appendChild(
           createButton({
@@ -121,6 +123,7 @@ export function showTutorial(
           }),
         );
       }
+      actions.appendChild(counter);
       // 「次へ」または「始める」(右。primary)
       if (page < total - 1) {
         actions.appendChild(

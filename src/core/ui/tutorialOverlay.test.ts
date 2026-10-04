@@ -128,3 +128,42 @@ describe('PU-10d: 遊び方の閉じるボタンと、画面の大きさへの�
     expect(css).toMatch(/@media \(max-width: 599px\)\s*\{[^@]*\.dialog\.tutorial\s*\{[^}]*max-height: 90%/);
   });
 });
+
+describe('PU-12b: ページ番号はボタンの行の中央', () => {
+  it('ページ番号は「前へ」と「次へ」の間 (ボタンの行の中)。2ページ目以降も、最後の「始める」のページも同じ', () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    void showTutorial(host, spec);
+    const actions = (): HTMLElement => host.querySelector<HTMLElement>('.dialog__actions')!;
+    button(host, '次へ')!.click();
+    let counter = actions().querySelector('.tutorial__counter')!;
+    expect(counter.textContent).toBe('2 / 3');
+    expect(counter.previousElementSibling).toBe(button(host, '前へ'));
+    expect(counter.nextElementSibling).toBe(button(host, '次へ'));
+    button(host, '次へ')!.click();
+    counter = actions().querySelector('.tutorial__counter')!;
+    expect(counter.previousElementSibling).toBe(button(host, '前へ'));
+    expect(counter.nextElementSibling).toBe(button(host, '始める'));
+    expect(host.querySelectorAll('.tutorial__counter')).toHaveLength(1);
+  });
+
+  it('1ページ目 (「前へ」が無い) でも、ページ番号は行の中で、左の空き (ボタンでない要素) と右の「次へ」の間 (真ん中のまま)', () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    void showTutorial(host, spec);
+    const counter = host.querySelector('.dialog__actions .tutorial__counter')!;
+    expect(counter).not.toBeNull();
+    expect(counter.previousElementSibling).not.toBeNull();
+    expect(counter.previousElementSibling!.tagName).not.toBe('BUTTON');
+    expect(counter.nextElementSibling).toBe(button(host, '次へ'));
+    expect(Array.from(host.querySelector('.dialog__actions')!.children)).toHaveLength(3);
+  });
+
+  it('base.css: ボタンの行は 3 列 (1fr auto 1fr) で、ページ番号は中央・20px 以上 (fs-body)', () => {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
+    const m = css.match(/\n\.tutorial \.dialog__actions\s*\{([^}]*)\}/)![1]!;
+    expect(m).toContain('display: grid');
+    expect(m).toContain('grid-template-columns: 1fr auto 1fr');
+    expect(css.match(/\n\.tutorial__counter\s*\{([^}]*)\}/)![1]).toContain('font-size: var(--fs-body)');
+  });
+});
