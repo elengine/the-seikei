@@ -84,8 +84,8 @@ export function createBeamingPanel(
   // 3. 巻き返しの段階: 速さのメーター・ペダル・寄せる2つ (1行に2つ) + 巻いた割合と時間
   const beamBlock = document.createElement('section');
   beamBlock.className = 'beaming-panel__block';
-  beamBlock.setAttribute('aria-label', opts.terms.t('tension'));
-  beamBlock.appendChild(createSectionHeading(opts.terms.t('tension')));
+  beamBlock.setAttribute('aria-label', opts.terms.t('speed'));
+  beamBlock.appendChild(createSectionHeading(opts.terms.t('speed')));
   const meterHost = document.createElement('div');
   meterHost.className = 'beaming-panel__meter';
   // 速さの3段階 (停止・50%・100%)。T3-04b で盤面のレバーに置き換えるまでの仮のボタン (T3-04a)
