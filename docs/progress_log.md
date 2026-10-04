@@ -1476,3 +1476,8 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - messages.ts(依頼書・レベルごとの計算の手伝い・失敗の中身・結果の行)・panel.ts(依頼書・手伝い+電卓・長さの設定 10m 単位 ±10/100/1000・1つ目/継ぐ糸の選び・ほかの口にも同じ長さ・巻き始める)・controller.ts(盤面と操作欄・rAF で巻きの進み・失敗は重ね表示「足りないものがあります」+「長さを設定し直す」・成功は 1.5 秒後に結果の画面)を追加。
 - drumsetup/calculator.ts に tables オプション(糸割りでは表を出さない)。base.css に itowari の節。
 - テスト: panel 11件 + controller 4件(RED→GREEN)。全体 919 passed/11 skipped・check 0・build OK。
+
+## 2026-10-05T11:30+09:00 T2b-03b(ドラッグで糸をかける・外す)
+- drag.ts(引っぱりの判定: 8px で moved・箱の糸→口 = mount・口→箱 = unmount・押すだけ = tap・laneAt/coneAt の当たり判定)を追加。renderer.ts に drawLifted(引っぱっている糸を指の 24px 上に描く)+ 円すい台の描画を cone() に共通化(296行)。
+- controller.ts に pointerdown/move/up を追加: setup のあいだだけ。ドラッグでかけると、かかった口が自動で選ばれる。押すだけでは箱の糸ははかりに載り(weigh)、口は選ばれる。口の糸を箱へ戻すと外れる(継ぐ糸があるときは2つとも外れる)。
+- テスト: drag 5件 + controller 3件(RED→GREEN)。全体 935 passed/11 skipped・check 0・build OK。

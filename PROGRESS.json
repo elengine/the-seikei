@@ -1,8 +1,8 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-10-05T10:30:00+09:00",
+  "updated_at": "2026-10-05T11:30:00+09:00",
   "phase": "P0",
-  "current_task": "P2b T2b-03a(糸割りの操作欄と画面の動き)実装中",
+  "current_task": "P2b T2b-04(糸割りの組み立て)を次に実施予定",
   "done": [
     "P3",
     "T0-00",
@@ -104,6 +104,11 @@
       "date": "2026-10-05T10:30:00+09:00",
       "task": "T2b-03a",
       "result": "テスト 919 passed/11 skipped・check 0・build OK"
+    },
+    {
+      "date": "2026-10-05T11:30:00+09:00",
+      "task": "T2b-03b",
+      "result": "テスト 935 passed/11 skipped・check 0・build OK"
     }
   ],
   "notes": [

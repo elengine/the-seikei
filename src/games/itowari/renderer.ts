@@ -1,11 +1,11 @@
 import type { Content } from '../../core/content/content';
 import { COLORS } from '../../core/ui/tokens';
 import type { StageFit } from '../../core/viewport/viewport';
-import {
-  MACHINE, BOX, SCALE, METER, METER_FULL_M,
+import { MACHINE, BOX, SCALE, METER, METER_FULL_M,
   laneRect, yarnBaseY, bodyTopY, bodyH, cheeseH, laneTextY, laneNumY,
   bandY, bandOf, meterAngle, meterLaps, toPx, laneView, fmtM, laneLengthText, meterMeters,
 } from './geometry';
+import { LIFT_MARGIN_PX } from './drag';
 import { lengthOf } from './logic';
 import type { ItowariState } from './logic';
 import type { ItowariPuzzle } from './puzzles';
@@ -42,7 +42,6 @@ export function drawBoard(
   ctx.save();
   ctx.translate(fit.offsetX, fit.offsetY);
   ctx.scale(fit.scale, fit.scale);
-
   drawFrame(ctx, narrow);
   drawBox(ctx, s, puzzle, hex);
   drawScale(ctx, s, puzzle, hex);
@@ -73,12 +72,21 @@ function drawFrame(ctx: CanvasRenderingContext2D, narrow: boolean): void {
     }
   }
 }
+/** 台形の円すい台を塗る (cx・baseY は下辺の中心と下端。topW/bottomW は上辺・下辺の幅)。色は呼び出し側で決める */
+function cone(ctx: CanvasRenderingContext2D, cx: number, baseY: number, topW: number, bottomW: number, h: number): void {
+  ctx.beginPath();
+  ctx.moveTo(cx - bottomW / 2, baseY);
+  ctx.lineTo(cx + bottomW / 2, baseY);
+  ctx.lineTo(cx + topW / 2, baseY - h);
+  ctx.lineTo(cx - topW / 2, baseY - h);
+  ctx.closePath();
+  ctx.fill();
+}
+
 /** 段ボール箱 (まだかけていない元の糸を小さな円すい台で並べる) */
 function drawBox(ctx: CanvasRenderingContext2D, s: ItowariState, puzzle: ItowariPuzzle, hex: string): void {
   ctx.fillStyle = COLORS.cardboard;
   ctx.fillRect(BOX.x, BOX.y, BOX.w, BOX.h);
-  ctx.fillStyle = COLORS.cardboardDark;
-  ctx.fillRect(BOX.x, BOX.y, BOX.w, 14);
   const mounted = new Set(s.spindles.flatMap((sp) => sp.segments.map((seg) => seg.sourceId)));
   const maxLen = Math.max(...puzzle.sources.map((src) => lengthOf(src.grossG, puzzle.coreG, puzzle.count)), 1);
   puzzle.sources
@@ -91,13 +99,7 @@ function drawBox(ctx: CanvasRenderingContext2D, s: ItowariState, puzzle: Itowari
       ctx.fillRect(cx - 9, baseY, 18, 4);
       ctx.fillStyle = hex;
       ctx.globalAlpha = 0.85;
-      ctx.beginPath();
-      ctx.moveTo(cx - 8, baseY);
-      ctx.lineTo(cx + 8, baseY);
-      ctx.lineTo(cx + 4, baseY - h);
-      ctx.lineTo(cx - 4, baseY - h);
-      ctx.closePath();
-      ctx.fill();
+      cone(ctx, cx, baseY, 8, 16, h);
       ctx.globalAlpha = 1;
     });
 }
@@ -114,14 +116,7 @@ function drawScale(ctx: CanvasRenderingContext2D, s: ItowariState, puzzle: Itowa
   const last = s.weighed[s.weighed.length - 1];
   if (last === undefined || !puzzle.sources.some((x) => x.id === last)) return;
   ctx.fillStyle = hex;
-  ctx.beginPath();
-  const cx = SCALE.x + SCALE.w / 2;
-  ctx.moveTo(cx - 14, SCALE.y);
-  ctx.lineTo(cx + 14, SCALE.y);
-  ctx.lineTo(cx + 7, SCALE.y - 34);
-  ctx.lineTo(cx - 7, SCALE.y - 34);
-  ctx.closePath();
-  ctx.fill();
+  cone(ctx, SCALE.x + SCALE.w / 2, SCALE.y, 14, 28, 34);
 }
 
 /** 上の段: 元の糸 (残りに比例して細る円すい台) と黄色い糸道。継ぐ糸は横に小さく並べ、結び目を描く */
@@ -136,22 +131,10 @@ function drawLaneTop(ctx: CanvasRenderingContext2D, s: ItowariState, puzzle: Ito
     // 円すい台 (斜め前から見た形) と紙の芯
     ctx.fillStyle = hex;
     ctx.globalAlpha = 0.9;
-    ctx.beginPath();
-    ctx.moveTo(cx - w / 2, baseY);
-    ctx.lineTo(cx + w / 2, baseY);
-    ctx.lineTo(cx + w * 0.3, baseY - h);
-    ctx.lineTo(cx - w * 0.3, baseY - h);
-    ctx.closePath();
-    ctx.fill();
+    cone(ctx, cx, baseY, w * 0.6, w, h);
     ctx.globalAlpha = 1;
     ctx.fillStyle = COLORS.white;
-    ctx.beginPath();
-    ctx.moveTo(cx - w / 2, baseY);
-    ctx.lineTo(cx + w / 2, baseY);
-    ctx.lineTo(cx + w / 4, baseY - h * 0.35);
-    ctx.lineTo(cx - w / 4, baseY - h * 0.35);
-    ctx.closePath();
-    ctx.fill();
+    cone(ctx, cx, baseY, w / 2, w, h * 0.35);
     // 黄色い糸道 (上の小さな丸) と結び目 (継ぐ糸のある口。1つ目を巻き終えたところで光る)
     ctx.fillStyle = COLORS.threadYellow;
     ctx.beginPath();
@@ -215,13 +198,11 @@ function drawLaneBody(ctx: CanvasRenderingContext2D, s: ItowariState, hex: strin
 /** メーターの目盛り盤 (1周 1,000m。太い目盛り 100m・細い 10m。中央の窓に周の数) と針 */
 function drawMeterDial(ctx: CanvasRenderingContext2D, s: ItowariState): void {
   ctx.fillStyle = COLORS.white;
-  ctx.beginPath();
-  ctx.arc(METER.cx, METER.cy, METER.r, 0, Math.PI * 2);
-  ctx.fill();
   ctx.strokeStyle = COLORS.sumiSub;
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.arc(METER.cx, METER.cy, METER.r, 0, Math.PI * 2);
+  ctx.fill();
   ctx.stroke();
   for (let m = 0; m < METER_FULL_M; m += 10) {
     const major = m % 100 === 0;
@@ -297,4 +278,19 @@ function drawTexts(ctx: CanvasRenderingContext2D, fit: StageFit, s: ItowariState
     }
   }
   ctx.textAlign = 'left';
+}
+
+/** 引っぱっている元の糸の円すい台 (指の 24px 上。画面 px で描く。controller が呼ぶ) */
+export function drawLifted(ctx: CanvasRenderingContext2D, hex: string, p: { x: number; y: number }): void {
+  const bottom = p.y - LIFT_MARGIN_PX;
+  ctx.fillStyle = hex;
+  ctx.globalAlpha = 0.9;
+  cone(ctx, p.x, bottom, 12, 26, 28);
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = hex;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(p.x, bottom - 28);
+  ctx.quadraticCurveTo(p.x + 14, bottom - 40, p.x + 26, bottom - 38); // 糸の尾
+  ctx.stroke();
 }

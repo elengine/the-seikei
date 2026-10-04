@@ -100,9 +100,11 @@ describe('糸割り controller T2b-03a (プレイ画面)', () => {
     document.body.textContent = '';
     raf = installFakeRaf();
     drawBoardCalls.length = 0;
-    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
-      canvas: document.createElement('canvas'),
-    } as unknown as CanvasRenderingContext2D);
+    const fake = { canvas: document.createElement('canvas') } as unknown as Record<string, unknown>;
+    for (const m of ['fillRect', 'beginPath', 'moveTo', 'lineTo', 'closePath', 'fill', 'stroke', 'arc', 'setLineDash', 'strokeRect', 'quadraticCurveTo', 'clearRect']) {
+      fake[m] = () => undefined;
+    }
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(fake as unknown as CanvasRenderingContext2D);
     container = document.createElement('div');
     document.body.appendChild(container);
   });
@@ -189,4 +191,66 @@ describe('糸割り controller T2b-03a (プレイ画面)', () => {
     expect(container.textContent).toContain('チーズ 6 個');
     instance.unmount();
   });
+
+  /** Canvas の当たり判定を固定する (論理座標 = 画面座標) */
+  function stubStage(): HTMLCanvasElement {
+    const canvas = container.querySelector('canvas')!;
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      left: 0, top: 0, right: 1000, bottom: 750, width: 1000, height: 750, x: 0, y: 0, toJSON: () => ({}),
+    } as DOMRect);
+    canvas.width = 1000;
+    canvas.height = 750;
+    return canvas;
+  }
+
+  function pointer(canvas: HTMLCanvasElement, type: string, x: number, y: number): void {
+    const ev = new MouseEvent(type, { clientX: x, clientY: y, bubbles: true });
+    Object.defineProperty(ev, 'pointerId', { value: 1 });
+    (type === 'pointermove' || type === 'pointerup' ? window : canvas).dispatchEvent(ev);
+  }
+
+  it('5. ドラッグ: 箱の糸を口まで引っぱって離すと、その口にかかる (かかった口が選ばれる)', async () => {
+    const { instance } = await start(); // 何もかけていない状態
+    const canvas = stubStage();
+    // 箱の1つ目の糸 (BOX.x+26, BOX.y+62) から口7 (x 649〜715・y 300) へ
+    pointer(canvas, 'pointerdown', 15 + 26, 330 + 62);
+    raf.advance(2);
+    pointer(canvas, 'pointermove', 680, 300);
+    raf.advance(2);
+    pointer(canvas, 'pointerup', 680, 300);
+    await vi.waitFor(() => {
+      expect(container.textContent).toContain('8番の口');
+    }, { timeout: 5000, interval: 50 });
+    instance.unmount();
+  }, 20000);
+
+  it('6. 押すだけではかりに載せる: 箱の糸を押すと重さが出て、レベル1 の手伝い (長さと半分) が出る', async () => {
+    const { instance } = await start(); // 何もかけていない状態
+    const canvas = stubStage();
+    pointer(canvas, 'pointerdown', 15 + 26, 330 + 62);
+    pointer(canvas, 'pointerup', 15 + 26, 330 + 62); // 動かさずに離す
+    await vi.waitFor(() => {
+      expect(container.textContent).toContain('約 12,000 m');
+      expect(container.textContent).toContain('半分 6,000 m');
+    }, { timeout: 5000, interval: 50 });
+    instance.unmount();
+  }, 20000);
+
+  it('7. ドラッグ: 口の糸を箱へ戻すと外れる (押せる形が変わる)', async () => {
+    // 口0だけにかけておく
+    let s0 = init(p1);
+    s0 = reduce(s0, { type: 'mount', spindle: 0, sourceId: p1.sources[0]!.id, slot: 0 }, p1);
+    s0 = reduce(s0, { type: 'setLength', spindle: 0, slot: 0, lengthM: 6000 }, p1);
+    const { instance } = await start(s0);
+    const canvas = stubStage();
+    // 口0 の糸 (x 200・y 400) を箱 (15+26, 330+62) へ
+    pointer(canvas, 'pointerdown', 200, 400);
+    raf.advance(2);
+    pointer(canvas, 'pointermove', 41, 392);
+    pointer(canvas, 'pointerup', 41, 392);
+    await vi.waitFor(() => {
+      expect(container.textContent).toContain('1番の口:— m');
+    }, { timeout: 5000, interval: 50 });
+    instance.unmount();
+  }, 20000);
 });

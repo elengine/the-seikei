@@ -4,12 +4,14 @@ import { openSheet } from '../../core/ui/sheet';
 import type { Sheet } from '../../core/ui/sheet';
 import type { StageFit } from '../../core/viewport/viewport';
 import type { GameDeps, GameInstance, GameProps } from '../../core/game/types';
-import { MACHINE, laneArea } from './geometry';
+import { MACHINE } from './geometry';
 import { init, reduce, isValidResume } from './logic';
 import type { ItowariAction, ItowariState } from './logic';
 import { createItowariPanel } from './panel';
 import { failLines, resultOfGame } from './messages';
-import { drawBoard } from './renderer';
+import { beginDrag, moveDrag, dropResult, laneAt, coneAt } from './drag';
+import type { DragState } from './drag';
+import { drawBoard, drawLifted, yarnHex } from './renderer';
 import { getContent } from '../../core/content/content';
 import { itowariPuzzles } from './puzzles';
 import { openCalculatorBody } from '../drumsetup/calculator';
@@ -53,7 +55,7 @@ export function createItowariController(
     logicalH: MACHINE.h,
     message: false,
     onStageResize: (f) => {
-      lastFit = f;
+      if (f.scale > 0) lastFit = f; // 測れない環境 (jsdom) では既定のまま
     },
   });
 
@@ -71,6 +73,9 @@ export function createItowariController(
       return;
     }
     drawBoard(ctx, lastFit, s, getContent(), puzzle, windT);
+    if (drag !== null && drag.moved) {
+      drawLifted(ctx, yarnHex(getContent(), puzzle), canvasPoint(drag.current));
+    }
   }
 
   function refresh(): void {
@@ -166,25 +171,71 @@ export function createItowariController(
     rafId = window.requestAnimationFrame(loop);
   }
 
-  // 口を押して選ぶ (setup のあいだだけ)
-  function onStageClick(ev: MouseEvent): void {
-    if (disposed || s.phase !== 'setup') return;
+  // ドラッグで糸をかける・外す (T2b-03b)。押すだけなら口を選ぶ・はかりに載せる
+  let drag: DragState | null = null;
+
+  /** 指の画面座標 → 盤面の論理座標 */
+  function stagePoint(clientX: number, clientY: number): { x: number; y: number } {
     const rect = frame.stage.getBoundingClientRect();
-    if (rect.width === 0) return;
-    const fit = lastFit;
-    const narrow = (MACHINE.w / 12) * fit.scale < 64;
-    const pxPerCss = frame.stage.width / rect.width;
-    const x = ((ev.clientX - rect.left) * pxPerCss - fit.offsetX) / fit.scale;
-    const y = ((ev.clientY - rect.top) * pxPerCss - fit.offsetY) / fit.scale;
-    for (let i = 0; i < puzzle.sources.length; i++) {
-      const area = laneArea(i, narrow);
-      if (x >= area.x && x <= area.x + area.w && y >= area.y && y <= area.y + area.h) {
-        panel.select(i);
-        return;
-      }
+    const pxPerCss = rect.width > 0 ? frame.stage.width / rect.width : 1;
+    return {
+      x: ((clientX - rect.left) * pxPerCss - lastFit.offsetX) / lastFit.scale,
+      y: ((clientY - rect.top) * pxPerCss - lastFit.offsetY) / lastFit.scale,
+    };
+  }
+
+  /** 指の画面座標 → Canvas の px (引っぱっている糸を描く位置) */
+  function canvasPoint(p: { x: number; y: number }): { x: number; y: number } {
+    const rect = frame.stage.getBoundingClientRect();
+    const pxPerCss = rect.width > 0 ? frame.stage.width / rect.width : 1;
+    return { x: (p.x - rect.left) * pxPerCss, y: (p.y - rect.top) * pxPerCss };
+  }
+
+  function onPointerDown(ev: PointerEvent): void {
+    if (disposed || finished || s.phase !== 'setup') return;
+    const p = stagePoint(ev.clientX, ev.clientY);
+    const lane = laneAt(p, (MACHINE.w / 12) * lastFit.scale < 64, s.spindles.length);
+    if (lane !== null && s.spindles[lane]!.segments.length > 0) {
+      drag = beginDrag({ kind: 'lane', spindle: lane }, { x: ev.clientX, y: ev.clientY });
+      return;
+    }
+    const cone = coneAt(p, puzzle, s);
+    if (cone !== null) {
+      drag = beginDrag({ kind: 'cone', sourceId: cone }, { x: ev.clientX, y: ev.clientY });
     }
   }
-  frame.stage.addEventListener('click', onStageClick);
+
+  function onPointerMove(ev: PointerEvent): void {
+    if (drag === null) return;
+    drag = moveDrag(drag, { x: ev.clientX, y: ev.clientY });
+    render();
+  }
+
+  function onPointerUp(ev: PointerEvent): void {
+    if (drag === null) return;
+    const d = drag;
+    drag = null;
+    const p = stagePoint(ev.clientX, ev.clientY);
+    const lane = laneAt(p, (MACHINE.w / 12) * lastFit.scale < 64, s.spindles.length);
+    const cone = coneAt(p, puzzle, s);
+    const target = lane !== null ? { kind: 'lane' as const, spindle: lane } : cone !== null ? { kind: 'cone' as const, sourceId: cone } : null;
+    const r = dropResult(d, target);
+    if (r.kind === 'mount') {
+      dispatch({ type: 'mount', spindle: r.spindle, sourceId: r.sourceId, slot: 0 });
+      panel.select(r.spindle);
+    } else if (r.kind === 'unmount') {
+      if (s.spindles[r.spindle]!.segments.length === 2) dispatch({ type: 'unmount', spindle: r.spindle, slot: 1 });
+      dispatch({ type: 'unmount', spindle: r.spindle, slot: 0 });
+    } else if (r.kind === 'tap') {
+      if (d.source.kind === 'cone') dispatch({ type: 'weigh', sourceId: d.source.sourceId });
+      else panel.select(d.source.spindle);
+    }
+    render();
+  }
+  frame.stage.addEventListener('pointerdown', onPointerDown);
+  window.addEventListener('pointermove', onPointerMove);
+  window.addEventListener('pointerup', onPointerUp);
+  window.addEventListener('pointercancel', onPointerUp);
 
   refresh();
   rafId = window.requestAnimationFrame(loop);
@@ -202,7 +253,10 @@ export function createItowariController(
       window.clearInterval(autosave);
       failSheet?.close();
       failSheet = null;
-      frame.stage.removeEventListener('click', onStageClick);
+      frame.stage.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
       panel.destroy();
       frame.destroy();
     },
