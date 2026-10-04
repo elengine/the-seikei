@@ -58,7 +58,7 @@ export function createItowariController(
     subtitle: `レベル${puzzle.level} ${puzzle.name}`,
     onBack: () => opts.onBack(),
     onHelp: () => {
-      void showTutorial(frame.root, itowariTutorial, { renderText: (s) => deps.terms.render(s) });
+      void openTutorial();
     },
     logicalW: MACHINE.w,
     logicalH: MACHINE.h,
@@ -187,6 +187,28 @@ export function createItowariController(
       }
     }
     rafId = window.requestAnimationFrame(loop);
+  }
+
+  /**
+   * 遊び方を開いているあいだは一時停止し、閉じたら自動で再開する (T2-17)。
+   * 再開の最初のフレームで止めていた時間を足さない (lastTs を測り直す。最初の dt は 16ms)。
+   */
+  let tutorialOpen = false;
+  async function openTutorial(): Promise<void> {
+    if (tutorialOpen || disposed || finished) {
+      return;
+    }
+    tutorialOpen = true;
+    window.cancelAnimationFrame(rafId);
+    lastTs = null;
+    try {
+      await showTutorial(frame.root, itowariTutorial, { renderText: (s) => deps.terms.render(s) });
+    } finally {
+      tutorialOpen = false;
+      if (!disposed && !finished) {
+        rafId = window.requestAnimationFrame(loop);
+      }
+    }
   }
 
   /** 指の画面座標 → 盤面の論理座標 */

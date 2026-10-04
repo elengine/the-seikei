@@ -58,23 +58,28 @@ function p1(): DrumSetupPuzzle {
 }
 
 /** 偽の requestAnimationFrame (手動で進める) */
-function installFakeRaf(): { advance(n: number): void; count: number } {
+function installFakeRaf(): { advance(n: number): void; readonly count: number } {
   const frames: Array<() => void> = [];
   let now = 0;
-  let count = 0;
+  let seq = 0;
+  const cancelled = new Set<number>();
   vi.stubGlobal('requestAnimationFrame', (cb: (t: number) => void): number => {
     const at = now + 16;
+    seq += 1;
+    const id = seq;
     frames.push(() => {
+      if (cancelled.has(id)) return; // cancelAnimationFrame されたフレームは動かない (T2-17)
       now = at;
       cb(at);
     });
-    count++;
-    return count;
+    return id;
   });
-  vi.stubGlobal('cancelAnimationFrame', () => undefined);
+  vi.stubGlobal('cancelAnimationFrame', (id: number): void => {
+    cancelled.add(id);
+  });
   return {
     get count(): number {
-      return count;
+      return seq;
     },
     advance(n: number): void {
       for (let i = 0; i < n; i++) {
@@ -84,7 +89,6 @@ function installFakeRaf(): { advance(n: number): void; count: number } {
     },
   };
 }
-
 async function wait(ms: number): Promise<void> {
   await new Promise((r) => setTimeout(r, ms));
 }
@@ -222,4 +226,31 @@ describe('drumsetup controller T2c-03a', () => {
     document.dispatchEvent(new Event('visibilitychange'));
     instance.unmount();
   });
+});
+
+describe('drumsetup controller T2-17 (遊び方を開いているあいだの一時停止)', () => {
+  it('1. 試し巻きのあいだに遊び方を開くと、5 秒進めても試し巻きが終わらない。閉じると自動で再開する', async () => {
+    const { parent, instance, raf } = await setupToTrial(p1(), ['1', '.', '0', '7']);
+    // 「巻く」で試し巻きを始める
+    buttonByText(parent, '巻く').click();
+    expect((instance.suspend() as { phase: string }).phase).toBe('trial');
+    const helpBtn = parent.querySelector<HTMLButtonElement>('button[aria-label="遊び方"]');
+    expect(helpBtn).not.toBeNull();
+    helpBtn!.click();
+    await vi.waitFor(() => expect(parent.querySelector('.dialog-backdrop')).not.toBeNull());
+    raf.advance(312); // 5 秒ぶん (TRIAL_MS より長い)
+    expect((instance.suspend() as { phase: string }).phase).toBe('trial'); // 止まっているので終わらない
+    // 閉じると再開する
+    const closeBtn = parent.querySelector<HTMLButtonElement>('button[aria-label="閉じる"]');
+    closeBtn!.click();
+    await vi.waitFor(() => expect(parent.querySelector('.dialog-backdrop')).toBeNull());
+    await vi.waitFor(
+      () => {
+        raf.advance(100);
+        expect((instance.suspend() as { phase: string }).phase).not.toBe('trial'); // 試し巻きが終わって結果が出る
+      },
+      { timeout: 5000, interval: 50 },
+    );
+    instance.unmount();
+  }, 30000);
 });

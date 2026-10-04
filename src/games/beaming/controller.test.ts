@@ -60,6 +60,22 @@ function makeProps(overrides?: Partial<GameProps>): GameProps & { finished: unkn
 const tutorial: TutorialSpec = { pages: [{ draw: () => undefined, text: 'てすと' }] };
 
 /** 目標どおりに合わせた幅合わせの状態 (まだ「巻き始める」の前) */
+
+/** 盤面のカードを 600×400 に見せる (fitStage が 0 にならないように。T3-04b/T3-04c/T2-17 で使う) */
+function showBoardOn(container: HTMLElement, raf: { advance(n: number): void }): { toScreen: (x: number, y: number) => { x: number; y: number } } {
+  const stage = container.querySelector('canvas')!;
+  Object.defineProperty(stage.parentElement!, 'clientWidth', { configurable: true, value: 600 });
+  Object.defineProperty(stage.parentElement!, 'clientHeight', { configurable: true, value: 400 });
+  Object.defineProperty(stage, 'getBoundingClientRect', {
+    configurable: true,
+    value: () => ({ x: 0, y: 0, left: 0, top: 0, right: 600, bottom: 400, width: 600, height: 400 }),
+  });
+  window.dispatchEvent(new Event('resize'));
+  raf.advance(3);
+  const fit = fitStage(1000, logicalHeightFor(600, 400), 600, 400);
+  return { toScreen: (x: number, y: number) => ({ x: x * fit.scale + fit.offsetX, y: y * fit.scale + fit.offsetY }) };
+}
+
 function setupAligned(): BeamingState {
   let s = init({ level: 1, widthCm: 60, seed: 42, puzzleId: 's1', patternId: 'p-muji-kon' });
   s = reduce(s, { type: 'moveFlange', side: 'left', deltaCm: -30 - s.leftCm });
@@ -71,15 +87,22 @@ function setupAligned(): BeamingState {
 function installFakeRaf(): { advance(n: number): void } {
   const frames: Array<() => void> = [];
   let now = 0;
+  let seq = 0;
+  const cancelled = new Set<number>();
   vi.stubGlobal('requestAnimationFrame', (cb: (t: number) => void): number => {
     const at = now + 16;
+    seq += 1;
+    const id = seq;
     frames.push(() => {
+      if (cancelled.has(id)) return; // cancelAnimationFrame されたフレームは動かない (T2-17)
       now = at;
       cb(at);
     });
-    return frames.length;
+    return id;
   });
-  vi.stubGlobal('cancelAnimationFrame', () => undefined);
+  vi.stubGlobal('cancelAnimationFrame', (id: number): void => {
+    cancelled.add(id);
+  });
   return {
     advance(n: number): void {
       for (let i = 0; i < n; i++) {
@@ -89,7 +112,6 @@ function installFakeRaf(): { advance(n: number): void } {
     },
   };
 }
-
 /** jsdom に無い setPointerCapture を足す (ペダルの溝を指で動かす操作のため) */
 if (typeof Element !== 'undefined' && !Element.prototype.setPointerCapture) {
   Element.prototype.setPointerCapture = function setPointerCapture(): void {};
@@ -400,21 +422,6 @@ describe('T3-04b (盤面の速さのレバー)', () => {
     vi.unstubAllGlobals();
   });
 
-  /** 盤面のカードを 600×400 に見せる (fitStage が 0 にならないように) */
-  function showBoard(): { fit: StageFit; toScreen: (x: number, y: number) => { x: number; y: number } } {
-    const stage = container.querySelector('canvas')!;
-    Object.defineProperty(stage.parentElement!, 'clientWidth', { configurable: true, value: 600 });
-    Object.defineProperty(stage.parentElement!, 'clientHeight', { configurable: true, value: 400 });
-    Object.defineProperty(stage, 'getBoundingClientRect', {
-      configurable: true,
-      value: () => ({ x: 0, y: 0, left: 0, top: 0, right: 600, bottom: 400, width: 600, height: 400 }),
-    });
-    window.dispatchEvent(new Event('resize'));
-    raf.advance(3);
-    const fit = fitStage(1000, logicalHeightFor(600, 400), 600, 400);
-    return { fit, toScreen: (x: number, y: number) => ({ x: x * fit.scale + fit.offsetX, y: y * fit.scale + fit.offsetY }) };
-  }
-
   /** 盤面にポインタ操作を送る */
   function stagePointer(type: 'pointerdown' | 'pointermove' | 'pointerup', sx: number, sy: number): void {
     const c = container.querySelector('canvas')!;
@@ -425,7 +432,7 @@ describe('T3-04b (盤面の速さのレバー)', () => {
     const { instance } = await mountAligned(setupAligned());
     Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める')!.click();
     const { leverNotchX, leverY } = await import('./geometry');
-    const { toScreen } = showBoard();
+    const { toScreen } = showBoardOn(container, raf);
     const at = (sp: 0 | 50 | 100): { x: number; y: number } => toScreen(leverNotchX(sp), leverY());
     const speed = (): number => (instance.suspend() as { speed: number }).speed;
     expect(speed()).toBe(0);
@@ -442,7 +449,7 @@ describe('T3-04b (盤面の速さのレバー)', () => {
     const { instance } = await mountAligned(setupAligned());
     Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める')!.click();
     const { leverNotchX, leverY } = await import('./geometry');
-    const { toScreen } = showBoard();
+    const { toScreen } = showBoardOn(container, raf);
     // 停止の止まりから、100% の近くまで引っぱって離す → 100%
     const start = toScreen(leverNotchX(0), leverY());
     const end = toScreen(leverNotchX(100) - 40, leverY());
@@ -456,7 +463,7 @@ describe('T3-04b (盤面の速さのレバー)', () => {
   it("3. 幅合わせの段階 ('setup') ではレバーを押しても speed は変わらない", async () => {
     const { instance } = await mountAligned(setupAligned());
     const { leverNotchX, leverY } = await import('./geometry');
-    const { toScreen } = showBoard();
+    const { toScreen } = showBoardOn(container, raf);
     const at = toScreen(leverNotchX(100), leverY());
     stagePointer('pointerdown', at.x, at.y);
     stagePointer('pointerup', at.x, at.y);
@@ -502,26 +509,11 @@ describe('T3-04b 不具合修正 (レバーの固まり)', () => {
     vi.unstubAllGlobals();
   });
 
-  /** 盤面のカードを 600×400 に見せる (fitStage が 0 にならないように) */
-  function showBoard(): { fit: StageFit; toScreen: (x: number, y: number) => { x: number; y: number } } {
-    const stage = container.querySelector('canvas')!;
-    Object.defineProperty(stage.parentElement!, 'clientWidth', { configurable: true, value: 600 });
-    Object.defineProperty(stage.parentElement!, 'clientHeight', { configurable: true, value: 400 });
-    Object.defineProperty(stage, 'getBoundingClientRect', {
-      configurable: true,
-      value: () => ({ x: 0, y: 0, left: 0, top: 0, right: 600, bottom: 400, width: 600, height: 400 }),
-    });
-    window.dispatchEvent(new Event('resize'));
-    raf.advance(3);
-    const fit = fitStage(1000, logicalHeightFor(600, 400), 600, 400);
-    return { fit, toScreen: (x: number, y: number) => ({ x: x * fit.scale + fit.offsetX, y: y * fit.scale + fit.offsetY }) };
-  }
-
   it('pointerup の pointerId が違っても (取りこぼしでも) レバーを離して速さが変わる。次の操作も効く', async () => {
     const { instance } = await mountAligned(setupAligned());
     Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める')!.click();
     const { leverNotchX, leverY } = await import('./geometry');
-    const { toScreen } = showBoard();
+    const { toScreen } = showBoardOn(container, raf);
     const at = (sp: 0 | 50 | 100): { x: number; y: number } => toScreen(leverNotchX(sp), leverY());
     const stage = () => container.querySelector('canvas')!;
     const speed = (): number => (instance.suspend() as { speed: number }).speed;
@@ -540,21 +532,6 @@ describe('T3-04b 不具合修正 (レバーの固まり)', () => {
 describe('T3-04c (糸切れの結果の画面)', () => {
   let raf: ReturnType<typeof installFakeRaf>;
   let container: HTMLElement;
-
-  /** 盤面のカードを 600×400 に見せる (fitStage が 0 にならないように) */
-  function showBoard(): { fit: StageFit; toScreen: (x: number, y: number) => { x: number; y: number } } {
-    const stage = container.querySelector('canvas')!;
-    Object.defineProperty(stage.parentElement!, 'clientWidth', { configurable: true, value: 600 });
-    Object.defineProperty(stage.parentElement!, 'clientHeight', { configurable: true, value: 400 });
-    Object.defineProperty(stage, 'getBoundingClientRect', {
-      configurable: true,
-      value: () => ({ x: 0, y: 0, left: 0, top: 0, right: 600, bottom: 400, width: 600, height: 400 }),
-    });
-    window.dispatchEvent(new Event('resize'));
-    raf.advance(3);
-    const fit = fitStage(1000, logicalHeightFor(600, 400), 600, 400);
-    return { fit, toScreen: (x: number, y: number) => ({ x: x * fit.scale + fit.offsetX, y: y * fit.scale + fit.offsetY }) };
-  }
 
   /** 幅を合わせた状態でマウントする (onBack を渡せる) */
   async function mountAligned(onBack: () => void): Promise<{ instance: { unmount(): void; suspend(): unknown }; finished: unknown[] }> {
@@ -601,7 +578,7 @@ describe('T3-04c (糸切れの結果の画面)', () => {
     const onBack = vi.fn();
     const { instance, finished } = await mountAligned(() => onBack());
     Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める')!.click();
-    const { toScreen } = showBoard();
+    const { toScreen } = showBoardOn(container, raf);
     pressLever(toScreen, 100);
     // 30 秒以上巻いて 100% を超える (16ms × 2000 フレーム = 32 秒)
     await vi.waitFor(
@@ -635,7 +612,7 @@ describe('T3-04c (糸切れの結果の画面)', () => {
     const onBack = vi.fn();
     const { instance } = await mountAligned(() => onBack());
     Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める')!.click();
-    const { toScreen } = showBoard();
+    const { toScreen } = showBoardOn(container, raf);
     pressLever(toScreen, 100);
     await vi.waitFor(
       () => {
@@ -655,4 +632,94 @@ describe('T3-04c (糸切れの結果の画面)', () => {
     expect(Array.from(container.querySelectorAll('button')).some((b) => b.textContent === '巻き始める')).toBe(true);
     instance.unmount();
   }, 60000);
+});
+
+describe('T2-17 (遊び方を開いているあいだの一時停止)', () => {
+  let raf: ReturnType<typeof installFakeRaf>;
+  let container: HTMLElement;
+
+  /** 幅を合わせた状態でマウントする */
+  async function mountAligned(resume?: BeamingState): Promise<{ instance: { unmount(): void; suspend(): unknown }; finished: unknown[] }> {
+    const { deps } = await makeDeps();
+    const props = makeProps();
+    const instance = createBeamingController(container, deps, props, {
+      level: 1,
+      widthCm: 60,
+      puzzleId: 's1',
+      patternId: 'p-muji-kon',
+      puzzleName: '無地紺',
+      bands: 3,
+      resume,
+      tutorial,
+      onBack: () => undefined,
+    });
+    return { instance, finished: (props as GameProps & { finished: unknown[] }).finished };
+  }
+
+  beforeEach(() => {
+    document.body.textContent = '';
+    raf = installFakeRaf();
+    drawBoardCalls.length = 0;
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      canvas: document.createElement('canvas'),
+    } as unknown as CanvasRenderingContext2D);
+    container = document.createElement('div');
+    document.body.appendChild(container);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const helpBtn = (c: HTMLElement): HTMLButtonElement | null => c.querySelector<HTMLButtonElement>('button[aria-label="遊び方"]');
+  const closeBtn = (c: HTMLElement): HTMLButtonElement | null => c.querySelector<HTMLButtonElement>('button[aria-label="閉じる"]');
+
+  it('1. 巻いているあいだに遊び方を開くと、5 秒進めても巻き量が変わらない', async () => {
+    const { instance } = await mountAligned(setupAligned());
+    Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める')!.click();
+    pressLeverOn(container, raf, 50);
+    raf.advance(30);
+    const before = instance.suspend() as { progress: number; windMs: number };
+    expect(before.progress).toBeGreaterThan(0);
+    helpBtn(container)!.click();
+    await vi.waitFor(() => expect(container.querySelector('.dialog-backdrop')).not.toBeNull());
+    raf.advance(312); // 5 秒ぶん
+    const after = instance.suspend() as { progress: number; windMs: number };
+    expect(after.progress).toBe(before.progress);
+    expect(after.windMs).toBe(before.windMs);
+    instance.unmount();
+  }, 30000);
+
+  it('2. 閉じると自動で再開する。レバーは開く前のまま (50%)。直後の 1 フレームでは進まない', async () => {
+    const { instance } = await mountAligned(setupAligned());
+    Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める')!.click();
+    pressLeverOn(container, raf, 50);
+    raf.advance(30);
+    const before = instance.suspend() as { progress: number; windMs: number; speed: number };
+    helpBtn(container)!.click();
+    await vi.waitFor(() => expect(container.querySelector('.dialog-backdrop')).not.toBeNull());
+    raf.advance(312);
+    closeBtn(container)!.click();
+    await vi.waitFor(() => expect(container.querySelector('.dialog-backdrop')).toBeNull());
+    const resumed = instance.suspend() as { progress: number; windMs: number; speed: number };
+    expect(resumed.speed).toBe(50); // レバーの位置はそのまま
+    expect(resumed.progress).toBe(before.progress); // 最初のフレームでは進まない (dt 0)
+    raf.advance(60);
+    const later = instance.suspend() as { progress: number };
+    expect(later.progress).toBeGreaterThan(before.progress);
+    instance.unmount();
+  }, 30000);
+
+  it('3. 遊び方を開いたまま unmount すると rAF が止まる', async () => {
+    const { instance } = await mountAligned(setupAligned());
+    Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める')!.click();
+    pressLeverOn(container, raf, 50);
+    raf.advance(10);
+    helpBtn(container)!.click();
+    await vi.waitFor(() => expect(container.querySelector('.dialog-backdrop')).not.toBeNull());
+    const draws = drawBoardCalls.length;
+    instance.unmount();
+    raf.advance(30);
+    expect(drawBoardCalls.length).toBe(draws);
+  }, 30000);
 });

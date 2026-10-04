@@ -57,15 +57,22 @@ function makeProps(overrides?: Partial<GameProps>): GameProps & { finished: unkn
 function installFakeRaf(): { frames: Array<() => void>; advance(n: number): void } {
   const frames: Array<() => void> = [];
   let now = 0; // 偽の時計 (1フレーム = 16ms)
+  let seq = 0;
+  const cancelled = new Set<number>();
   vi.stubGlobal('requestAnimationFrame', (cb: (t: number) => void): number => {
     const at = now + 16;
+    seq += 1;
+    const id = seq;
     frames.push(() => {
+      if (cancelled.has(id)) return; // cancelAnimationFrame されたフレームは動かない (T2-17)
       now = at;
       cb(at);
     });
-    return frames.length;
+    return id;
   });
-  vi.stubGlobal('cancelAnimationFrame', () => undefined);
+  vi.stubGlobal('cancelAnimationFrame', (id: number): void => {
+    cancelled.add(id);
+  });
   return {
     frames,
     advance(n: number): void {
@@ -1093,4 +1100,95 @@ describe('PU-14a: メッセージ欄を無くし、一度きりの案内はお�
     stepPedal(container, 10);
     expect(container.querySelector('.game-frame__notice')!.textContent).toContain('巻き始める');
   });
+});
+
+describe('winding module T2-17 (遊び方を開いているあいだの一時停止)', () => {
+  let raf: ReturnType<typeof installFakeRaf>;
+
+  beforeEach(() => {
+    document.body.textContent = '';
+    raf = installFakeRaf();
+    drawBoardCalls.length = 0;
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      canvas: document.createElement('canvas'),
+    } as unknown as CanvasRenderingContext2D);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  const btn = (container: HTMLElement, label: string): HTMLButtonElement | undefined =>
+    Array.from(container.querySelectorAll('button')).find((b) => b.textContent === label);
+  const helpBtn = (container: HTMLElement): HTMLButtonElement | null =>
+    container.querySelector<HTMLButtonElement>('button[aria-label="遊び方"]');
+  const closeBtn = (container: HTMLElement): HTMLButtonElement | null =>
+    container.querySelector<HTMLButtonElement>('button[aria-label="閉じる"]');
+
+  async function startWinding(): Promise<{ container: HTMLElement; instance: { suspend(): unknown; unmount(): void } }> {
+    const { deps } = await makeDeps();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const module = createWindingModule(deps);
+    const instance = module.mount(container, makeProps());
+    container.querySelector<HTMLButtonElement>('button[data-testid="winding-puzzle-s1"]')!.click();
+    await vi.waitFor(() => expect(btn(container, '巻き始める')).toBeDefined());
+    btn(container, '巻き始める')!.click();
+    return { container, instance: instance as unknown as { suspend(): unknown; unmount(): void } };
+  }
+
+  it('1. 巻いているあいだに遊び方を開くと、5 秒進めても経過時間と巻き量が変わらない', async () => {
+    const { container, instance } = await startWinding();
+    for (let i = 0; i < 5; i++) {
+      stepPedal(container, 10); // ペダル 50
+    }
+    raf.advance(20);
+    const before = instance.suspend() as { elapsedMs: number; lengths: number[] };
+    expect(before.elapsedMs).toBeGreaterThan(0);
+    helpBtn(container)!.click();
+    await vi.waitFor(() => expect(container.querySelector('.dialog-backdrop')).not.toBeNull());
+    raf.advance(312); // 5 秒ぶんのフレーム
+    const after = instance.suspend() as { elapsedMs: number; lengths: number[] };
+    expect(after.elapsedMs).toBe(before.elapsedMs);
+    expect(after.lengths).toEqual(before.lengths);
+    instance.unmount();
+  }, 30000);
+
+  it('2. 閉じると自動で再開する。ペダルは開く前のまま。直後の 1 フレームで止めていた 5 秒を足さない', async () => {
+    const { container, instance } = await startWinding();
+    for (let i = 0; i < 5; i++) {
+      stepPedal(container, 10);
+    }
+    raf.advance(20);
+    const before = instance.suspend() as { elapsedMs: number; lengths: number[] };
+    helpBtn(container)!.click();
+    await vi.waitFor(() => expect(container.querySelector('.dialog-backdrop')).not.toBeNull());
+    raf.advance(312); // 5 秒止まる
+    closeBtn(container)!.click();
+    await vi.waitFor(() => expect(container.querySelector('.dialog-backdrop')).toBeNull());
+    expect(pedalValue(container)).toBe(50); // ペダルは開く前のまま (裏に回ったときのようには 0 にしない)
+    raf.advance(1); // 再開の最初のフレーム (dt 0)
+    const afterFirst = instance.suspend() as { elapsedMs: number; lengths: number[] };
+    expect(afterFirst.elapsedMs).toBe(before.elapsedMs);
+    expect(afterFirst.lengths).toEqual(before.lengths);
+    raf.advance(60);
+    const resumed = instance.suspend() as { elapsedMs: number; lengths: number[] };
+    expect(resumed.elapsedMs).toBeGreaterThan(before.elapsedMs);
+    instance.unmount();
+  }, 30000);
+
+  it('3. 遊び方を開いたまま unmount すると、rAF が止まる (描画も止まる)', async () => {
+    const { container, instance } = await startWinding();
+    for (let i = 0; i < 5; i++) {
+      stepPedal(container, 10);
+    }
+    raf.advance(10);
+    helpBtn(container)!.click();
+    await vi.waitFor(() => expect(container.querySelector('.dialog-backdrop')).not.toBeNull());
+    const draws = drawBoardCalls.length;
+    instance.unmount();
+    raf.advance(30);
+    expect(drawBoardCalls.length).toBe(draws);
+  }, 30000);
 });

@@ -84,7 +84,7 @@ let pinTurnPrevEased = 0; // 前フレームの ease の値 (角速度を決め�
       (feel !== 'standard' ? `・${feelLabel(feel)}` : ''),
     onBack: opts.onBack,
     onHelp: () => {
-      void showTutorial(frame.root, opts.tutorial, { renderText: (t) => deps.terms.render(t) }).then(() => undefined);
+      void openTutorial();
     },
     logicalW: 1000,
     logicalH: 750,
@@ -339,6 +339,28 @@ let pinTurnPrevEased = 0; // 前フレームの ease の値 (角速度を決め�
       rafId = null;
     }
     lastFrameMs = null;
+  }
+
+  /**
+   * 遊び方を開いているあいだは一時停止し、閉じたら自動で再開する (T2-17)。
+   * ペダルの位置は変えない (裏に回ったときのように 0 にしない)。再開の最初のフレームでは
+   * 止めていた時間を足さない (startLoop が lastFrameMs を測り直す)。
+   */
+  let tutorialOpen = false;
+  async function openTutorial(): Promise<void> {
+    if (tutorialOpen || disposed || finished) {
+      return;
+    }
+    tutorialOpen = true;
+    stopLoop();
+    try {
+      await showTutorial(frame.root, opts.tutorial, { renderText: (t) => deps.terms.render(t) });
+    } finally {
+      tutorialOpen = false;
+      if (!disposed && !finished) {
+        startLoop();
+      }
+    }
   }
 
   // ---- 裏に回ったとき ----

@@ -69,7 +69,7 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
         : `${LEVEL_NAMES[opts.level]} 巻き幅 ${opts.widthCm}cm`,
     onBack: opts.onBack,
     onHelp: () => {
-      void showTutorial(frame.root, opts.tutorial, { renderText: (t) => deps.terms.render(t) }).then(() => undefined);
+      void openTutorial();
     },
     message: false, // メッセージ欄は無い。短い知らせは notify (PU-15c)
     logicalW: 1000,
@@ -364,6 +364,28 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
       rafId = null;
     }
     lastFrameMs = null;
+  }
+
+  /**
+   * 遊び方を開いているあいだは一時停止し、閉じたら自動で再開する (T2-17)。
+   * レバーの位置は変えない (裏に回ったときのように停止にしない)。再開の最初のフレームでは
+   * 止めていた時間を足さない (stopLoop が lastFrameMs を測り直す)。
+   */
+  let tutorialOpen = false;
+  async function openTutorial(): Promise<void> {
+    if (tutorialOpen || disposed || finished) {
+      return;
+    }
+    tutorialOpen = true;
+    stopLoop();
+    try {
+      await showTutorial(frame.root, opts.tutorial, { renderText: (t) => deps.terms.render(t) });
+    } finally {
+      tutorialOpen = false;
+      if (!disposed && !finished && s.phase !== 'done') {
+        startLoop();
+      }
+    }
   }
 
   // ---- 裏に回ったとき ----

@@ -49,7 +49,7 @@ export function createDrumSetupController(
     logicalH: 750,
     onBack: opts.onBack,
     onHelp: () => {
-      void showTutorial(frame.root, opts.tutorial, { renderText: (t) => deps.terms.render(t) }).then(() => undefined);
+      void openTutorial();
     },
     onStageResize: (fit) => {
       lastFit = fit;
@@ -65,6 +65,28 @@ export function createDrumSetupController(
 
   /** 電卓のシート (開いていれば閉じる) */
   let closeCalc: (() => void) | null = null;
+
+  /**
+   * 遊び方を開いているあいだは一時停止し、閉じたら自動で再開する (T2-17)。
+   * 試し巻きの積み上げ (trialElapsedMs) も進まない。再開の最初のフレームの dt は
+   * createGameLoop が 16ms に直すので、止めていた時間は足されない。
+   */
+  let tutorialOpen = false;
+  async function openTutorial(): Promise<void> {
+    if (tutorialOpen || disposed || done) {
+      return;
+    }
+    tutorialOpen = true;
+    loop.stop();
+    try {
+      await showTutorial(frame.root, opts.tutorial, { renderText: (t) => deps.terms.render(t) });
+    } finally {
+      tutorialOpen = false;
+      if (!disposed && !done) {
+        loop.start();
+      }
+    }
+  }
 
   function openCalculator(): void {
     if (closeCalc !== null || s.phase === 'trial') {

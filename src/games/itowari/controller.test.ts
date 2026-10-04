@@ -55,15 +55,22 @@ function makeProps(overrides?: Partial<GameProps>): GameProps & { finished: unkn
 function installFakeRaf(): { advance(n: number): void } {
   const frames: Array<() => void> = [];
   let now = 0;
+  let seq = 0;
+  const cancelled = new Set<number>();
   vi.stubGlobal('requestAnimationFrame', (cb: (t: number) => void): number => {
     const at = now + 16;
+    seq += 1;
+    const id = seq;
     frames.push(() => {
+      if (cancelled.has(id)) return; // cancelAnimationFrame されたフレームは動かない (T2-17)
       now = at;
       cb(at);
     });
-    return frames.length;
+    return id;
   });
-  vi.stubGlobal('cancelAnimationFrame', () => undefined);
+  vi.stubGlobal('cancelAnimationFrame', (id: number): void => {
+    cancelled.add(id);
+  });
   return {
     advance(n: number): void {
       for (let i = 0; i < n; i++) {
@@ -73,7 +80,6 @@ function installFakeRaf(): { advance(n: number): void } {
     },
   };
 }
-
 /** レベル1 のお題を、6口すべてに 6,000m を設定した状態 (巻き始めると成功) */
 function readyState(): ItowariState {
   let s = init(p1);
@@ -356,4 +362,89 @@ describe('糸割り controller T2b-03a (プレイ画面)', () => {
     }, { timeout: 5000, interval: 50 });
     instance.unmount();
   }, 20000);
+});
+
+describe('糸割り controller T2-17 (遊び方を開いているあいだの一時停止)', () => {
+  let raf: ReturnType<typeof installFakeRaf>;
+  let container: HTMLElement;
+
+  beforeEach(() => {
+    document.body.textContent = '';
+    raf = installFakeRaf();
+    drawBoardCalls.length = 0;
+    const fake = { canvas: document.createElement('canvas') } as unknown as Record<string, unknown>;
+    for (const m of ['fillRect', 'beginPath', 'moveTo', 'lineTo', 'closePath', 'fill', 'stroke', 'arc', 'setLineDash', 'strokeRect', 'quadraticCurveTo', 'clearRect']) {
+      fake[m] = () => undefined;
+    }
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(fake as unknown as CanvasRenderingContext2D);
+    container = document.createElement('div');
+    document.body.appendChild(container);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  async function start(resume?: ItowariState): Promise<{ instance: { unmount(): void; suspend(): unknown }; finished: unknown[] }> {
+    const { deps } = await makeDeps();
+    const props = makeProps();
+    const instance = createItowariController(container, deps, props, {
+      puzzleId: 's1',
+      resume,
+      onBack: () => undefined,
+    });
+    return { instance, finished: (props as GameProps & { finished: unknown[] }).finished };
+  }
+
+  const helpBtn = (c: HTMLElement): HTMLButtonElement | null => c.querySelector<HTMLButtonElement>('button[aria-label="遊び方"]');
+  const closeBtn = (c: HTMLElement): HTMLButtonElement | null => c.querySelector<HTMLButtonElement>('button[aria-label="閉じる"]');
+
+  async function startWinding(): Promise<{ instance: { unmount(): void; suspend(): unknown }; finished: unknown[] }> {
+    const { instance, finished } = await start(readyState());
+    const startBtn = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める');
+    startBtn!.click();
+    await vi.waitFor(() => expect((instance.suspend() as { phase: string }).phase).toBe('winding'));
+    return { instance, finished };
+  }
+
+  it('1. 巻いているあいだに遊び方を開くと、5 秒進めても巻いている回の進みが変わらない', async () => {
+    const { instance } = await startWinding();
+    raf.advance(20);
+    const before = instance.suspend() as { progress: number };
+    expect(before.progress).toBeGreaterThan(0);
+    helpBtn(container)!.click();
+    await vi.waitFor(() => expect(container.querySelector('.dialog-backdrop')).not.toBeNull());
+    raf.advance(312); // 5 秒ぶん
+    const after = instance.suspend() as { progress: number };
+    expect(after.progress).toBe(before.progress);
+    instance.unmount();
+  }, 30000);
+
+  it('2. 閉じると自動で再開する。直後の 1 フレームで止めていた時間を足さない', async () => {
+    const { instance } = await startWinding();
+    raf.advance(20);
+    const before = instance.suspend() as { progress: number };
+    helpBtn(container)!.click();
+    await vi.waitFor(() => expect(container.querySelector('.dialog-backdrop')).not.toBeNull());
+    raf.advance(312);
+    closeBtn(container)!.click();
+    await vi.waitFor(() => expect(container.querySelector('.dialog-backdrop')).toBeNull());
+    const afterFirst = instance.suspend() as { progress: number };
+    expect(afterFirst.progress).toBe(before.progress); // 最初のフレームでは進まない (lastTs を測り直す)
+    raf.advance(60);
+    const later = instance.suspend() as { progress: number };
+    expect(later.progress).toBeGreaterThan(before.progress);
+    instance.unmount();
+  }, 30000);
+
+  it('3. 遊び方を開いたまま unmount すると rAF が止まる', async () => {
+    const { instance } = await startWinding();
+    raf.advance(10);
+    helpBtn(container)!.click();
+    await vi.waitFor(() => expect(container.querySelector('.dialog-backdrop')).not.toBeNull());
+    const draws = drawBoardCalls.length;
+    instance.unmount();
+    raf.advance(30);
+    expect(drawBoardCalls.length).toBe(draws);
+  }, 30000);
 });
