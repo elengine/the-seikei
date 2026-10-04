@@ -122,7 +122,7 @@ export function createWindingPanel(
       section.textContent = '';
       const len = s.lengths[s.current] ?? 0;
       const pct = Math.floor((len / SECTION_LENGTH) * 100);
-      section.appendChild(part(`帯 ${s.current + 1} / ${s.sections}`));
+      section.appendChild(part(`帯 ${s.current + 1}/${s.sections}`));
       section.appendChild(part(`巻き量 ${pct}%`));
       const target = targetMsOf(s);
       const over = s.elapsedMs > target;

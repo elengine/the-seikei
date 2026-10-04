@@ -68,7 +68,7 @@ describe('winding panel (T2-06)', () => {
     expect(root.className).not.toContain('disabled');
   });
 
-  it('4. 「帯 2 / 5」の文字が current と sections に従う', () => {
+  it('4. 「帯 2/5」の文字が current と sections に従う', () => {
     const s = init({ level: 1, patternId: 'p-pin-kon', sections: 5, seed: 1 });
     // current 1 (2本目) の 'cutting' 状態を作る
     let cur = reduce(s, { type: 'start' });
@@ -79,7 +79,7 @@ describe('winding panel (T2-06)', () => {
     cur = reduce(cur, { type: 'cut' });
     panel.update(cur);
     const label = document.body.querySelector('.winding-panel__section')!;
-    expect(label.textContent).toContain('帯 2 / 5');
+    expect(label.textContent).toContain('帯 2/5');
   });
 
   it('5. ペダルの溝を動かすと setPedal が渡る (「踏み込む」ボタンは PU-14a で無くなった)', () => {
@@ -143,7 +143,7 @@ describe('PU-05c: ドラム巻きの操作欄の並び', () => {
     const { panel: p, host } = mountPanel();
     p.update(init({ level: 1, patternId: 'p-pin-kon', sections: 5, seed: 1 }));
     const line = host.querySelector('.winding-panel__section')!;
-    expect(line.textContent).toContain('帯 1 / 5');
+    expect(line.textContent).toContain('帯 1/5');
     expect(line.textContent).toContain('巻き量');
     expect(line.textContent).not.toContain('巻いた長さ');
     expect(line.textContent).toMatch(/\d:\d\d \/ \d:\d\d/);

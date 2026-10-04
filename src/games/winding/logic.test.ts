@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { init, reduce, qualities, starsOf, isValidResume, lastTapResult } from './logic';
 import { resultOf, guideFor } from './messages';
 import type { WindingState } from './logic';
-import { paramsOf, SECTION_LENGTH, MAX_SPEED, TENSION, DRIFT, NOISE_AMP, RANGE_CENTER, RANGE_WIDTH, YARN_FEEL } from './params';
+import { paramsOf, SECTION_LENGTH, MAX_SPEED, TENSION, DRIFT, NOISE_AMP, RANGE_CENTER, RANGE_WIDTH, RANGE_REACHABLE, YARN_FEEL } from './params';
 import type { YarnFeel } from './params';
 import { tensionOf } from '../../core/mechanics/pedal';
 import { seedFrom } from '../../core/clock/clock';
@@ -556,7 +556,7 @@ describe('winding logic T2-16a (張りと適正の範囲)', () => {
     for (let seed = 1; seed <= 20; seed++) {
       let s = init({ level: 3, patternId: 'x', sections: 3, seed });
       s = cutBand(s);
-      expect(s.range.center).toBeGreaterThanOrEqual(36 - 1e-9);
+      expect(s.range.center).toBeGreaterThanOrEqual(35 - 1e-9); // RANGE_CENTER(3).min (T2-16 その3 で届く範囲が広がった)
       expect(s.range.center).toBeLessThanOrEqual(65 + 1e-9);
       expect(Math.abs(s.range.center - 50)).toBeLessThanOrEqual(15 + 1e-9);
       l3.add(Math.round(s.range.center * 100));
@@ -618,8 +618,64 @@ describe('winding logic T2-16a (張りと適正の範囲)', () => {
     }
     expect(found, '引っかかりが起きて、戻りきるまで巻ける種').not.toBeNull();
     expect(found!.maxSnag, `上がり幅 ${found!.maxSnag}`).toBeLessThanOrEqual(25 + 1e-6);
-    expect(found!.riseMs, '0.2秒ほどで上がる').toBeLessThanOrEqual(200 + 1e-6);
-    expect(found!.recoverMs, '1〜2秒かけて徐々に戻る').toBeGreaterThanOrEqual(1000 - 1e-6);
-    expect(found!.recoverMs).toBeLessThanOrEqual(2000 + 1e-6);
+    expect(found!.riseMs, '0.5秒ほどで上がる (T2-16 その3)').toBeLessThanOrEqual(500 + 1e-6);
+    expect(found!.recoverMs, '2〜3秒かけて徐々に戻る (T2-16 その3)').toBeGreaterThanOrEqual(2000 - 1e-6);
+    expect(found!.recoverMs).toBeLessThanOrEqual(3000 + 1e-6);
+  });
+});
+
+describe('T2-16 その3: 張り≒ペダルの位置・引っかかりで切れる (猶予つき)', () => {
+  it('1. 揺れが 0 のとき、ペダル 0 で張り 0・ペダル 50 で張り 50 (張り≒ペダルの位置)', () => {
+    const zero = { pedal: 0, noise: 0, drift: 0, snag: 0, rng: seedFrom(1) };
+    expect(tensionOf(zero, TENSION, 0)).toBe(0);
+    const mid = { pedal: 50, noise: 0, drift: 0, snag: 0, rng: seedFrom(1) };
+    expect(tensionOf(mid, TENSION, 0)).toBe(50);
+  });
+
+  it('2. 最初の帯で、ペダル 50 の張りは範囲の中。ペダル 0 の張りは範囲の外 (下)', () => {
+    const s = init({ level: 1, patternId: 'x', sections: 3, seed: 1 });
+    expect(s.range.min).toBeLessThanOrEqual(50);
+    expect(50).toBeLessThanOrEqual(s.range.max);
+    // ペダル 0 の張り (揺れが最大でも) は範囲の下より下
+    expect(NOISE_AMP(1)).toBeLessThan(s.range.min);
+  });
+
+  it('3. RANGE_REACHABLE は新しい式に合う (ペダル 10〜100 で中心 10〜100 に届く)', () => {
+    expect(RANGE_REACHABLE()).toEqual({ min: 10, max: 100 });
+  });
+
+  it('4. 引っかかりで張りが上の端 + 8 を超えると猶予があり、レベル1 では 2 秒続くと 1 本切れる', () => {
+    // 流れでの糸切れが先に起きず、猶予の時間が溜まって 2 秒で切れる種を選ぶ
+    let s: WindingState | null = null;
+    for (let seed = 1; seed <= 60 && s === null; seed++) {
+      let st = init({ level: 1, patternId: 'x', sections: 3, seed });
+      st = reduce(st, { type: 'start' });
+      st = reduce(st, { type: 'setPedal', value: 70 }); // 範囲の上の端 (65) より上
+      // 引っかかり (+25) を手で立てる (張り 95。引っかかりが無ければ 70)
+      st = { ...st, pedal: { ...st.pedal, snag: 25, snagTarget: 25 } };
+      let over = false;
+      for (let i = 0; i < 19; i++) {
+        st = reduce(st, { type: 'tick', dtMs: 100 });
+        if (st.snagOverMs > 0) over = true; // 猶予の時間が溜まっている
+      }
+      if (st.phase !== 'winding' || !over) continue;
+      st = reduce(st, { type: 'tick', dtMs: 100 });
+      if (st.phase === 'broken' && st.breaks === 1) s = st;
+    }
+    expect(s, '猶予 (2 秒) のあとで切れる種').not.toBeNull();
+  });
+
+  it('5. 猶予のうちにペダルを戻して張りが下がると数え直すので切れない', () => {
+    let s = init({ level: 1, patternId: 'x', sections: 3, seed: 1 });
+    s = reduce(s, { type: 'start' });
+    s = reduce(s, { type: 'setPedal', value: 70 });
+    s = { ...s, pedal: { ...s.pedal, snag: 25, snagTarget: 25 } };
+    s = reduce(s, { type: 'tick', dtMs: 1500 }); // 1.5 秒超過 (猶予 2 秒の途中)
+    expect(s.phase).toBe('winding');
+    s = reduce(s, { type: 'setPedal', value: 30 }); // 張り 30 + 戻りかけの引っかかり
+    for (let i = 0; i < 40; i++) {
+      s = reduce(s, { type: 'tick', dtMs: 100 });
+    }
+    expect(s.phase, '切れない').toBe('winding');
   });
 });

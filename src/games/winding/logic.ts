@@ -8,7 +8,7 @@ import {
   SECTION_LENGTH, RANGE_WIDTH, RANGE_CENTER, RANGE_SHIFT_ON_SECTION, RANGE_REACHABLE,
   DRIFT, NOISE_AMP, BREAK_RATE, TENSION, BREAK,
   MAX_TICK_MS, STARS3, STARS2, TARGET_SEC_PER_SECTION, BREAK_EXTRA_STEP, BREAK_MAX_THREADS,
-  YARN_FEEL,
+  YARN_FEEL, SNAG_BREAK_MARGIN, SNAG_GRACE_MS,
 } from './params';
 import type { Level, YarnFeel } from './params';
 
@@ -31,6 +31,8 @@ export interface WindingState {
   tension: number; // 最後に計算した張り(描画用)
   range: { center: number; width: number; min: number; max: number }; // 適正範囲。幅はレベルごとに固定・位置は帯が変わるときだけ動く (T2-16a)
   snagRaised: boolean; // 直前の tick で引っかかった (メッセージ用。T2-09a)
+  /** 引っかかりで張りが上の端 + 8 を超えている時間の合計 (ms)。下がると 0 に戻す (T2-16 その3) */
+  snagOverMs: number;
   elapsedMs: number; // 巻いていた時間と止まっていた時間の合計 (目標の時間の比較用。T2-09a)
   brk: BreakState;
   breaks: number;
@@ -87,6 +89,7 @@ export function init(opts: { level: Level; patternId: string; sections: number; 
     tension: TENSION.base,
     range,
     snagRaised: false,
+    snagOverMs: 0,
     elapsedMs: 0,
     brk: initBreak(),
     breaks: 0,
@@ -185,6 +188,28 @@ function tick(s: WindingState, dtMs: number): WindingState {
   const cur: WindingState = { ...s, pedal, tension, elapsedMs, snagRaised: snag.raised > 0, range };
   // 3. speed > 0 なら長さを進め、糸切れの判定をする (あとで cur に重ねるので let)
   let state = cur;
+  // 引っかかりのあいだ、張りが上の端 + SNAG_BREAK_MARGIN を超えている時間を数える (T2-16 その3)。
+  // ペダルを戻して張りが下がると 0 に戻す (数え直す)。猶予を過ぎたら 1 本切れる (今の糸切れの扱いと同じ)
+  const overLimit = tp.range.max + SNAG_BREAK_MARGIN;
+  if (pedal.snag > 0 && tension > overLimit) {
+    const overMs = s.snagOverMs + dtClamped;
+    if (overMs >= SNAG_GRACE_MS(s.level)) {
+      const [pickRaw, pickNext] = nextFloat(state.rng);
+      const thread = Math.min(BREAK.threadCount - 1, Math.floor(pickRaw * BREAK.threadCount));
+      return {
+        ...state,
+        brk: { kind: 'broken', threads: [thread], tied: [] },
+        breaks: state.breaks + 1,
+        phase: 'broken',
+        pedal: setPedal(state.pedal, 0),
+        rng: pickNext,
+        snagOverMs: 0,
+      };
+    }
+    state = { ...state, snagOverMs: overMs };
+  } else if (s.snagOverMs !== 0) {
+    state = { ...state, snagOverMs: 0 };
+  }
   const speed = speedOf(pedal, tp);
   if (speed > 0) {
     const lengths = [...cur.lengths];
@@ -276,6 +301,8 @@ export function isValidResume(x: unknown): x is WindingState {
   // 範囲の形 (T2-16a): center・width も必須。古い形 (min・max だけ) の保存は再開しない
   if (typeof r.center !== 'number' || typeof r.width !== 'number') return false;
   if (typeof r.min !== 'number' || typeof r.max !== 'number') return false;
+  // 引っかかりの超過の時間 (T2-16 その3)。無い古い形の保存は再開しない
+  if (typeof o.snagOverMs !== 'number' || !(o.snagOverMs >= 0)) return false;
   // T2-14a: puzzleId のキーが無い古い形の保存は再開しない (job モードなどの空文字は許す)
   if (!('puzzleId' in o) || typeof o.puzzleId !== 'string') {
     return false;

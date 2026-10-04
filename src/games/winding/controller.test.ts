@@ -199,7 +199,7 @@ describe('winding module (T2-07)', () => {
             expect(panel).toContain('100%'); // done の表示のまま (変化の確認は onFinish)
             expect(props.finished.length).toBe(1);
           } else {
-            expect(panel).not.toContain(`帯 ${i + 1} / 3巻き量 100%`);
+            expect(panel).not.toContain(`帯 ${i + 1}/3巻き量 100%`);
           }
         },
         { timeout: 30000, interval: 100 },
@@ -384,9 +384,9 @@ describe('winding module (T2-07)', () => {
     // rAF で 1000ms 以上進める (16ms × 70 = 1120ms)
     raf.advance(70);
     await wait(50);
-    // cut が送られ、次の帯 (帯 2 / 3) に進む
+    // cut が送られ、次の帯 (帯 2/3) に進む
     const label = jsPanelText(container);
-    expect(label).toContain('帯 2 / 3');
+    expect(label).toContain('帯 2/3');
     // unmount のあとに進めても何も起きない (エラーが出ない)
     instance.unmount();
     raf.advance(10);
@@ -865,7 +865,7 @@ describe('PU-05c: ドラム巻きの結果のつなぎ', () => {
           if (i === 2) {
             expect(props.finished.length).toBe(1);
           } else {
-            expect(container.querySelector('.winding-panel')?.textContent ?? '').not.toContain(`帯 ${i + 1} / 3巻き量 100%`);
+            expect(container.querySelector('.winding-panel')?.textContent ?? '').not.toContain(`帯 ${i + 1}/3巻き量 100%`);
           }
         },
         { timeout: 30000, interval: 100 },

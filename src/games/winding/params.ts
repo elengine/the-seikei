@@ -35,14 +35,14 @@ export function RANGE_SHIFT_ON_SECTION(level: Level): number {
   return level === 1 ? 0 : level === 2 ? 10 : 15;
 }
 
-/** ペダル 10〜100 で範囲の中心に届く中心の範囲 (T2-11・T2-16a。base 30・perPedal 0.6 から) */
+/** ペダル 10〜100 で範囲の中心に届く中心の範囲 (T2-11・T2-16a。base 0・perPedal 1.0 から。T2-16 その3) */
 export function RANGE_REACHABLE(): { min: number; max: number } {
-  return { min: 36, max: 90 };
+  return { min: 10, max: 100 };
 }
 
-/** 張りの流れ・引っかかりのパラメータ (T2-09a・T2-16a)。引っかかりは +15〜25・0.2秒で上がり 1〜2秒で戻る (起きやすさはレベルで変わる) */
+/** 張りの流れ・引っかかりのパラメータ (T2-09a・T2-16a・T2-16 その3)。引っかかりは +15〜25・0.5秒で上がり 2〜3秒で戻る (起きやすさはレベルで変わる) */
 export function DRIFT(level: Level): DriftParams {
-  const common = { snagSizeMin: 15, snagSizeMax: 25, snagRiseMs: 200, snagRecoverMinMs: 1000, snagRecoverMaxMs: 2000 };
+  const common = { snagSizeMin: 15, snagSizeMax: 25, snagRiseMs: 500, snagRecoverMinMs: 2000, snagRecoverMaxMs: 3000 }; // 0.5秒で上がり 2〜3秒で戻る (T2-16 その3)
   if (level === 2) return { perSec: 1.0, turnRate: 0.15, max: 12, snagRate: 0.04, snagSize: 9, ...common };
   if (level === 3) return { perSec: 1.6, turnRate: 0.15, max: 12, snagRate: 0.06, snagSize: 12, ...common }; // max 16 → 12 (T2-11a。どの状態でもペダルで範囲に届くように)
   return { perSec: 0.6, turnRate: 0.15, max: 8, snagRate: 0.02, snagSize: 6, ...common };
@@ -56,6 +56,14 @@ export function NOISE_AMP(level: Level): number {
 /** 帯1本あたりの目標の時間 (秒。T2-09a) */
 export function TARGET_SEC_PER_SECTION(level: Level): number {
   return level === 1 ? 30 : level === 2 ? 26 : 22;
+}
+
+/** 引っかかりで上の端を超えても切れない猶予の量 (張りが上の端 + この値を超えたら数える。T2-16 その3) */
+export const SNAG_BREAK_MARGIN = 8;
+
+/** 引っかかりで上の端 + 8 を超えたまま切れるまでの猶予 (ms。T2-16 その3) */
+export function SNAG_GRACE_MS(level: Level): number {
+  return level === 1 ? 2000 : level === 2 ? 1500 : 1200;
 }
 
 /** 張りのメッセージを切り替えるまでの待ち時間 (ms)。新しい張りの状態が続いたときだけ変える (T2-07 追加修正2) */
@@ -74,8 +82,8 @@ export function STANDALONE_PATTERN(level: Level): string {
 /** 張りの計算の初期値 (T2-01・P2/README「ペダルと張りの計算」) */
 export const TENSION: TensionParams = {
   maxSpeed: MAX_SPEED,
-  base: 30,
-  perPedal: 0.6, // 0.4 → 0.6 (T2-11a。どの状態でもペダルで範囲に届くように)
+  base: 0,
+  perPedal: 1.0, // 張り≒ペダルの位置 (T2-16 その3。ペダル 0 で張り 0・速さを十分に出せる)
   yarnDrift: 0, // 糸量による +4 はやめた (T2-09a の流れに置き換え。T2-09 追加修正a)
   noiseAmp: 2,
   noiseStepPerSec: 1,
