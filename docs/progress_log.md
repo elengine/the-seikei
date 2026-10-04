@@ -1412,3 +1412,11 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - 直し方:waitFor の中で rAF をまとめて進める (帯1本ぶん 300フレーム/回、結びの演出 100フレーム/回)。実時間の待ちがなくなり、テスト2は約4秒 (CPU だけで動く)。期待値は変えていない。
 - 全体のテストを5回続けて流して 5回とも 806 passed / 11 skipped。check・build エラー0。CI success (51c6537)。
 - T2-15 受け入れ (2026-10-04、Discord)。ビーム巻きの設計は管理者確認中。仕様ができるまで待機。
+
+## 2026-10-04 T3-01 (ルビー)
+- ビーム巻きのルールとお題 (src/games/beaming/ 新規。params・puzzles・logic とテスト18件)。
+- お題15題: widthCm = winding の PUZZLE_STAGE の帯の数 × drumsetup の STAGE_SECTION の幅 (s1 は 60cm)。level は段階1〜2→1、3〜4→2、5→3。
+- ルール: 幅合わせ (幅のずれと中心のずれの大きいほうを widthErrCm に。±1cm で「合いました」)、張りは pedal.ts を使い回し (流れ max ±4/6/8・ぶれ 0.5/0.8/1.2・引っかかりなし・範囲の中心は 50 で動かさない・幅 34/28/22)、偏り (shiftVel 0.3/0.5/0.8 cm/秒・ときどき向きが変わる・nudge で ±1cm)、乗り上げ (シートの端が円盤を越えると overflowMs)、糸切れは無し。
+- 速さ: BEAM_LENGTH=800 (pedal 50 で 40秒)。採点: 星3 (誤差1cm・張り0.8・偏り0.8)、星2 (誤差3cm・0.6・0.6)、resultLines 4行。
+- 仕様書の BeamingState に level・widthCm・patternId・tension を追加 (tick の計算に必要。Discord 報告に記載)。
+- テスト 824 passed / 11 skipped・check・build エラー0。

@@ -1,8 +1,8 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-10-04T11:30:00+09:00",
+  "updated_at": "2026-10-04T13:30:00+09:00",
   "phase": "P0",
-  "current_task": "T2-15 受け入れ済み。ビーム巻きの仕様待ち (待機)",
+  "current_task": "T3-01 完了 (報告待ち)。次は T3-02 (座標と盤面)",
   "done": [
     "T0-00",
     "T0-01",
@@ -89,7 +89,8 @@
     "T2c-03b: ドラム設定の一覧と遊び方とモジュール (ホームのカード)",
     "T2c-04a: 羽を左に開いて太く・ボタン1行4つ・巻く・遊び方の絵 (6ecddf9+6020341)",
     "T2c-04b: 電卓を大きなポップアップに (d00ce54)",
-    "T2-15: winding controller.test の時間切れ対策 (51c6537)"
+    "T2-15: winding controller.test の時間切れ対策 (51c6537)",
+    "T3-01"
   ],
   "checks": {
     "T2c-02": "10 passed (geometry 3 + renderer 7), 全体 714 passed/11 skipped, check 0, CI success (52eb34a)",
