@@ -1471,3 +1471,8 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - tokens.ts に色を3つ足した (機械の緑 winderGreen #708662・銀の胴 winderSteel #A8AFB6・黄色い糸道 threadYellow #D9A62E)。tokens.test の「全色が :root の変数と一致」があるため base.css の :root にも同じ3行を足した (色以外は変更していない)
 - 見た目の確認 (ブラウザ) は T2b-03 のブラウザ確認で行う (ゲームの登録は T2b-04。T3-02 と同じ進め方)
 - テスト 904 passed / 11 skipped・check エラー0・build 成功
+
+## 2026-10-05T10:30+09:00 T2b-03a(糸割りの操作欄と画面の動き)
+- messages.ts(依頼書・レベルごとの計算の手伝い・失敗の中身・結果の行)・panel.ts(依頼書・手伝い+電卓・長さの設定 10m 単位 ±10/100/1000・1つ目/継ぐ糸の選び・ほかの口にも同じ長さ・巻き始める)・controller.ts(盤面と操作欄・rAF で巻きの進み・失敗は重ね表示「足りないものがあります」+「長さを設定し直す」・成功は 1.5 秒後に結果の画面)を追加。
+- drumsetup/calculator.ts に tables オプション(糸割りでは表を出さない)。base.css に itowari の節。
+- テスト: panel 11件 + controller 4件(RED→GREEN)。全体 919 passed/11 skipped・check 0・build OK。

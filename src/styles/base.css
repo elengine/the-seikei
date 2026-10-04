@@ -2441,3 +2441,88 @@ button {
 .game-frame--compact[data-layout='landscape'] .sheet .creel-order-repeat {
   grid-column: 1 / -1;
 }
+
+/* ---- 糸割り (itowari) T2b-03a ---- */
+
+/* 依頼書は 2 行 (品番と番手 / 依頼の内容) */
+.itowari-panel__order {
+  margin: 0;
+  white-space: pre-line;
+  font-size: var(--fs-body);
+  line-height: 1.35;
+  color: var(--c-sumi);
+}
+
+/* 計算の手伝いと電卓 */
+.itowari-panel__helprow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+}
+
+.itowari-panel__help {
+  margin: 0;
+  flex: 1;
+  white-space: pre-line;
+  font-size: var(--fs-body);
+  line-height: 1.35;
+  color: var(--c-sumi-sub, var(--c-sumi));
+}
+
+/* 長さの設定: 大きな数字・区間の選び・テンキー (2 行 × 3 つ) */
+.itowari-panel__setting {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.itowari-panel__length {
+  margin: 0;
+  font-size: var(--fs-heading);
+  line-height: 1.2;
+  color: var(--c-sumi);
+  white-space: nowrap;
+}
+
+.itowari-panel__keys {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(64px, 1fr));
+  gap: var(--sp-1);
+}
+
+.itowari-panel__keys .btn {
+  min-height: 64px; /* 押せる部品は 64px 以上 */
+  min-width: 64px;
+  font-size: var(--fs-body);
+}
+
+/* 巻き始める (操作欄の下) */
+.itowari-panel__actions {
+  display: flex;
+  gap: var(--sp-2);
+}
+
+.itowari-panel__actions .btn {
+  flex: 1;
+  min-height: 64px;
+  font-size: var(--fs-body);
+}
+
+/* 失敗の重ね表示の中身 (1 行ずつ) */
+.itowari-fail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.itowari-fail__line {
+  margin: 0;
+  font-size: var(--fs-body);
+  line-height: 1.4;
+  color: var(--c-sumi);
+}
+
+.itowari-fail__retry {
+  min-height: 64px;
+  font-size: var(--fs-body);
+}

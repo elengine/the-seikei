@@ -111,7 +111,7 @@ export function displayValue(s: CalcState): string {
 /** 電卓の本体 (openSheet の中身)。tan の表と厚みの係数の表も見られる (T2c-04b:大きなポップアップ) */
 export function openCalculatorBody(
   parent: HTMLElement,
-  opts: { onUse: (value: number) => void },
+  opts: { onUse: (value: number) => void; tables?: boolean }, // tables: false で表のボタンを出さない (糸割りで使う)
 ): { destroy(): void } {
   // controller は今は size を渡せないので、ここで大きな重ね表示 (sheet--tall) にする。
   // controller.ts を触れるようになったら openSheet({ size: 'tall' }) 側へ移す。
@@ -127,7 +127,7 @@ export function openCalculatorBody(
   const right = document.createElement('div');
   right.className = 'drumsetup-calc__right';
 
-  // 表の切り替えと表示場所 (表示の下。ボタンで開閉する)
+  // 表の切り替えと表示場所 (表示の下。ボタンで開閉する)。tables: false のときは作らない
   const tableArea = document.createElement('div');
   tableArea.className = 'drumsetup-calc__tables';
   const tanBtn = createButton({ label: 'tan の表', variant: 'secondary', onClick: () => toggleTable('tan') });
@@ -139,8 +139,11 @@ export function openCalculatorBody(
   const table = document.createElement('div');
   table.className = 'drumsetup-calc__table';
   table.dataset.testid = 'drumsetup-calc-table';
-  tableArea.appendChild(tableRow);
-  tableArea.appendChild(table);
+  const withTables = opts.tables !== false;
+  if (withTables) {
+    tableArea.appendChild(tableRow);
+    tableArea.appendChild(table);
+  }
 
   let openKind: 'tan' | 'coef' | null = null;
   function showTable(kind: 'tan' | 'coef'): void {

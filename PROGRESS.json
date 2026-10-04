@@ -1,8 +1,8 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-10-05T09:20:00+09:00",
+  "updated_at": "2026-10-05T10:30:00+09:00",
   "phase": "P0",
-  "current_task": "P2b T2b-02(糸割りの座標と盤面)完了。T2b-03 へ進む",
+  "current_task": "P2b T2b-03a(糸割りの操作欄と画面の動き)実装中",
   "done": [
     "P3",
     "T0-00",
@@ -99,14 +99,13 @@
     "P2b/T2b-01 (2026-10-05): 糸割り itowari のルール・お題15題・テスト23件",
     "P2b/T2b-02 (2026-10-05): 糸割りの盤面 (geometry+renderer+色3つ)・テスト13件"
   ],
-  "checks": {
-    "test": "868 passed / 11 skipped",
-    "check": "error 0",
-    "build": "ok",
-    "version": "0.2.1",
-    "2026-10-05 T2b-01": "npm test 891 passed / 11 skipped、check エラー0、build 成功",
-    "2026-10-05 T2b-02": "npm test 904 passed / 11 skipped、check エラー0、build 成功"
-  },
+  "checks": [
+    {
+      "date": "2026-10-05T10:30:00+09:00",
+      "task": "T2b-03a",
+      "result": "テスト 919 passed/11 skipped・check 0・build OK"
+    }
+  ],
   "notes": [
     "保存データをキャッシュして使う部品は、必ず repo.subscribe で外からの変更を見張り、読み直す (terms・settings は対応済み)。",
     "時刻・乱数・ID は clock を使う。色・文字サイズは tokens.ts と CSS 変数。画面の用語は terms.t()。",
