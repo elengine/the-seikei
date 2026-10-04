@@ -2100,31 +2100,7 @@ button {
   line-height: 1.2;
 }
 
-/* 幅合わせ: 円盤のボタンは2行の格子 (行見出し+◀▶。押せる部品は64×64以上。T3-03 追加修正) */
-.beaming-panel__flanges {
-  display: grid;
-  gap: var(--sp-1);
-}
-
-.beaming-panel__flange-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 64px 64px;
-  gap: var(--sp-2);
-  align-items: center;
-}
-
-.beaming-panel__flange-label {
-  font-size: var(--fs-body);
-  color: var(--c-sumi);
-}
-
-.beaming-panel__flanges .btn {
-  min-width: 64px;
-  min-height: 64px;
-  padding-inline: var(--sp-2);
-  white-space: nowrap;
-}
-
+/* 幅合わせ: 円盤は絵の上で引っぱる (ボタンは無い。PU-15b) */
 .beaming-panel__info {
   margin-top: var(--sp-1);
   font-size: var(--fs-body);
@@ -2214,7 +2190,6 @@ button {
 .beaming-panel .tension-meter,
 .beaming-panel__info,
 .beaming-panel__progress,
-.beaming-panel__flange-label,
 .beaming-panel__shift .btn {
   font-size: min(var(--fs-body), 20px);
 }
@@ -2257,14 +2232,6 @@ button {
 
 .game-frame--compact .beaming-panel {
   gap: 2px;
-}
-
-.game-frame--compact .beaming-panel__flanges {
-  gap: 2px;
-}
-
-.game-frame--compact .beaming-panel__flange-row {
-  gap: var(--sp-1);
 }
 
 /* アップデートの確認 (PU-10a): 押している間アイコンが回る / ホームの「設定」の朱のバッジ / 設定の画面の案内 */

@@ -82,11 +82,9 @@ export function drawBoard(
   ctx.font = '20px sans-serif';
   ctx.fillStyle = COLORS.sumi;
   const top = toPx(fit, TOP_TEXT);
-  if (s.phase === 'setup') {
-    ctx.fillText(`巻き幅 ${s.widthCm}cm。円盤を動かして合わせてください`, top.x, top.y);
-  } else {
+  if (s.phase !== 'setup') {
     ctx.fillText(`巻いた ${Math.round(s.progress * 100)}%`, top.x, top.y);
-  }
+  } // 幅合わせの案内は、最初のお知らせ (notify) で出す
   // 乗り上げの文字 (20px 以上。朱)
   if (s.phase === 'beaming' && (overflowing(s, 'left') || overflowing(s, 'right'))) {
     ctx.fillStyle = COLORS.shu;

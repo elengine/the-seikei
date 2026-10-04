@@ -32,46 +32,15 @@ describe('beaming panel T3-03a (操作欄)', () => {
     document.body.appendChild(host);
   });
 
-  it('1. 幅合わせの段階: 円盤のボタンは2行の格子 (各行に見出しと◀▶)。押せる部品は64×64以上。今の幅と目標の幅の数字が出る', () => {
-    // 格子と 64×64 は base.css のビーム巻きの節で決める (jsdom は格子を計算できない)
-    const css = readFileSync('src/styles/base.css', 'utf8');
-    const rowGrid = /\.beaming-panel__flange-row\s*\{[^}]*grid-template-columns:[^;]*64px[^;]*64px/;
-    expect(rowGrid.test(css), 'flange-row grid').toBe(true);
-    const min64 = /\.beaming-panel__flanges \.btn\s*\{[^}]*min-width:\s*64px[^}]*min-height:\s*64px/;
-    expect(min64.test(css), 'flange btn 64x64').toBe(true);
+  it('1. 幅合わせの段階: 円盤を動かすボタン (◀▶) は無い (絵の上で引っぱる。PU-15b)。今の幅と目標の幅の数字が出る', () => {
     const p = createBeamingPanel(host, { terms, onAction: () => undefined });
     p.update(make());
-    const rows = host.querySelectorAll('.beaming-panel__flange-row');
-    expect(rows.length).toBe(2);
-    const labels = Array.from(rows).map((r) => r.querySelector('.beaming-panel__flange-label')!.textContent);
-    expect(labels).toEqual(['左の円盤', '右の円盤']);
-    for (const r of Array.from(rows)) {
-      expect(r.querySelectorAll('button').length).toBe(2);
-    }
-    expect(host.textContent).toContain('今');
-    expect(host.textContent).toContain('目標');
-    p.destroy();
-  });
-
-  it('2. 幅合わせのボタン (矢印だけ。aria-label でどの円盤か分かる) で moveFlange が送られる', () => {
-    const actions: BeamingAction[] = [];
-    const p = createBeamingPanel(host, { terms, onAction: (a) => actions.push(a) });
-    p.update(make());
-    const btn = (aria: string): HTMLButtonElement | undefined =>
-      Array.from(host.querySelectorAll('button')).find((b) => b.getAttribute('aria-label') === aria);
-    btn('左の円盤を左へ')!.click();
-    btn('左の円盤を右へ')!.click();
-    btn('右の円盤を左へ')!.click();
-    btn('右の円盤を右へ')!.click();
-    expect(actions).toEqual([
-      { type: 'moveFlange', side: 'left', deltaCm: -1 },
-      { type: 'moveFlange', side: 'left', deltaCm: 1 },
-      { type: 'moveFlange', side: 'right', deltaCm: -1 },
-      { type: 'moveFlange', side: 'right', deltaCm: 1 },
-    ]);
-    // ボタンの文字は矢印だけ
-    expect(btn('左の円盤を左へ')!.textContent).toBe('◀');
-    expect(btn('左の円盤を右へ')!.textContent).toBe('▶');
+    expect(host.querySelector('.beaming-panel__flange-row')).toBeNull();
+    expect(host.querySelector('.beaming-panel__flanges')).toBeNull();
+    const labels = Array.from(host.querySelectorAll('button')).map((b) => b.getAttribute('aria-label') ?? b.textContent);
+    expect(labels.some((l) => /円盤を(左|右)へ/.test(String(l)))).toBe(false);
+    expect(host.textContent).not.toContain('◀ 左');
+    expect(host.textContent).toMatch(/今 \d+cm\/目標 60cm/);
     p.destroy();
   });
 
@@ -87,7 +56,7 @@ describe('beaming panel T3-03a (操作欄)', () => {
     expect(shift!.querySelectorAll('button').length).toBe(2);
     expect(host.querySelector('.beaming-panel__pedal')).toBeDefined();
     // 幅合わせの入れ物 (block) ごと隠れる
-    const setupBlock = host.querySelector('.beaming-panel__flanges')!.closest('.beaming-panel__block') as HTMLElement;
+    const setupBlock = host.querySelector('.beaming-panel__info')!.closest('.beaming-panel__block') as HTMLElement;
     expect(setupBlock.style.display).toBe('none');
     p.destroy();
   });

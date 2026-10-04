@@ -1,7 +1,7 @@
 import type { GameDeps, GameInstance, GameProps, TutorialSpec } from '../../core/game/types';
 import type { StageFit } from '../../core/viewport/viewport';
 import { createGameFrame } from '../../core/ui/gameFrame';
-import { setBoardHeight } from './geometry';
+import { setBoardHeight, flangeHit, dragCm } from './geometry';
 import { logicalHeightFor } from '../winding/geometry';
 import { showTutorial } from '../../core/ui/tutorialOverlay';
 import { drawBoard } from './renderer';
@@ -89,6 +89,62 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
       }
     },
   });
+
+  // ---- 円盤を絵の上で引っぱって合わせる (PU-15b。幅合わせの段階だけ) ----
+  let flangeDrag: { side: 'left' | 'right'; startCm: number; startX: number; pointerId: number } | null = null;
+  /** 画面の点 → 論理座標の x と y (Canvas の上の位置から、変換を戻す) */
+  function logicalOf(e: PointerEvent): { x: number; y: number } {
+    const rect = frame.stage.getBoundingClientRect();
+    return { x: (e.clientX - rect.left - lastFit.offsetX) / lastFit.scale, y: (e.clientY - rect.top - lastFit.offsetY) / lastFit.scale };
+  }
+  const currentCm = (side: 'left' | 'right'): number => (side === 'left' ? s.leftCm : s.rightCm);
+  function onStageDown(e: PointerEvent): void {
+    if (s.phase !== 'setup' || flangeDrag !== null || finished || disposed || e.button !== 0 || !(lastFit.scale > 0)) {
+      return;
+    }
+    const p = logicalOf(e);
+    const side = flangeHit(p, s.leftCm, s.rightCm, s.widthCm, lastFit.scale);
+    if (side === null) {
+      return;
+    }
+    flangeDrag = { side, startCm: currentCm(side), startX: p.x, pointerId: e.pointerId };
+    try {
+      frame.stage.setPointerCapture(e.pointerId);
+    } catch {
+      // 対応していない環境 (テスト等) では、そのまま受け取る
+    }
+  }
+  function onStageMove(e: PointerEvent): void {
+    const d = flangeDrag;
+    if (d === null || e.pointerId !== d.pointerId || s.phase !== 'setup') {
+      return;
+    }
+    const cm = dragCm(s.widthCm, d.startCm, d.startX, logicalOf(e).x);
+    const delta = cm - currentCm(d.side);
+    if (delta !== 0) {
+      dispatch({ type: 'moveFlange', side: d.side, deltaCm: delta });
+    }
+  }
+  function onStageUp(e: PointerEvent): void {
+    if (flangeDrag !== null && e.pointerId === flangeDrag.pointerId) {
+      flangeDrag = null;
+    }
+  }
+  function onStageCancel(e: PointerEvent): void {
+    const d = flangeDrag;
+    if (d === null || e.pointerId !== d.pointerId) {
+      return;
+    }
+    flangeDrag = null;
+    const delta = d.startCm - currentCm(d.side); // 動かした分を戻す
+    if (delta !== 0) {
+      dispatch({ type: 'moveFlange', side: d.side, deltaCm: delta });
+    }
+  }
+  frame.stage.addEventListener('pointerdown', onStageDown);
+  frame.stage.addEventListener('pointermove', onStageMove);
+  frame.stage.addEventListener('pointerup', onStageUp);
+  frame.stage.addEventListener('pointercancel', onStageCancel);
 
   // ---- 操作欄 ----
   const panel = createBeamingPanel(frame.panel, {
@@ -268,6 +324,9 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
   updateMessage();
   ready = true;
   refresh();
+  if (s.phase === 'setup') {
+    frame.notify('円盤を左右に引っぱって、巻き幅に合わせます'); // 最初の 1 回
+  }
 
   return {
     suspend(): unknown {
@@ -288,6 +347,10 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
         doneTimer = null;
       }
       document.removeEventListener('visibilitychange', onVisibilityChange);
+      frame.stage.removeEventListener('pointerdown', onStageDown);
+      frame.stage.removeEventListener('pointermove', onStageMove);
+      frame.stage.removeEventListener('pointerup', onStageUp);
+      frame.stage.removeEventListener('pointercancel', onStageCancel);
       panel.destroy();
       frame.destroy();
     },

@@ -7,6 +7,10 @@ import type { GameDeps, GameProps, TutorialSpec } from '../../core/game/types';
 import { createAppContext } from '../../app/context';
 import type { AppContext } from '../../app/context';
 import { createFixedClock } from '../../core/clock/clock';
+import { cmToX, pxPerCm, BOARD, BEAM_CENTER_X } from './geometry';
+import { logicalHeightFor } from '../winding/geometry';
+import { fitStage } from '../../core/viewport/viewport';
+import type { StageFit } from '../../core/viewport/viewport';
 
 const drawBoardCalls: unknown[][] = [];
 vi.mock('./renderer', async (importOriginal) => {
@@ -213,6 +217,107 @@ describe('beaming controller T3-03a (プレイ画面)', () => {
     raf.advance(30);
     const a2 = lastDrumAngle();
     expect(a2! > a1!).toBe(true); // 巻いているあいだは増える
+    instance.unmount();
+  });
+});
+
+describe('PU-15b: 円盤を絵の上で引っぱって合わせる', () => {
+  let raf: ReturnType<typeof installFakeRaf>;
+  let container: HTMLElement;
+
+  beforeEach(() => {
+    document.body.textContent = '';
+    raf = installFakeRaf();
+    drawBoardCalls.length = 0;
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      canvas: document.createElement('canvas'),
+    } as unknown as CanvasRenderingContext2D);
+    container = document.createElement('div');
+    document.body.appendChild(container);
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  /** 幅合わせの画面を開く (盤面のカードは 600×400 に見せる) */
+  async function open(): Promise<{ instance: { unmount(): void; suspend(): unknown }; stage: HTMLCanvasElement; fit: StageFit }> {
+    const { deps } = await makeDeps();
+    const instance = createBeamingController(container, deps, makeProps(), {
+      level: 1, widthCm: 60, puzzleId: 's1', patternId: 'p-muji-kon', puzzleName: '無地紺', bands: 3, tutorial, onBack: () => undefined,
+      resume: init({ level: 1, widthCm: 60, seed: 42, puzzleId: 's1', patternId: 'p-muji-kon' }),
+    });
+    const stage = container.querySelector('canvas')!;
+    Object.defineProperty(stage.parentElement!, 'clientWidth', { configurable: true, value: 600 });
+    Object.defineProperty(stage.parentElement!, 'clientHeight', { configurable: true, value: 400 });
+    Object.defineProperty(stage, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({ x: 0, y: 0, left: 0, top: 0, right: 600, bottom: 400, width: 600, height: 400 }),
+    });
+    window.dispatchEvent(new Event('resize'));
+    raf.advance(3);
+    const fit = fitStage(1000, logicalHeightFor(600, 400), 600, 400);
+    return { instance, stage, fit };
+  }
+
+  const px = (fit: StageFit, x: number, y: number): { x: number; y: number } => ({ x: x * fit.scale + fit.offsetX, y: y * fit.scale + fit.offsetY });
+  const fire = (el: Element, type: string, p: { x: number; y: number }, id = 1): void => {
+    el.dispatchEvent(new PointerEvent(type, { clientX: p.x, clientY: p.y, pointerId: id, bubbles: true, button: 0 }));
+  };
+  const leftCm = (inst: { suspend(): unknown }): number => (inst.suspend() as BeamingState).leftCm;
+  const rightCm = (inst: { suspend(): unknown }): number => (inst.suspend() as BeamingState).rightCm;
+
+  it('左の円盤を引っぱると、leftCm が 1cm 単位で変わる。右も同じ', async () => {
+    const { instance, stage, fit } = await open();
+    const l0 = leftCm(instance);
+    const r0 = rightCm(instance);
+    const perCm = pxPerCm(60);
+    const start = px(fit, cmToX(60, l0), BOARD.axisY);
+    fire(stage, 'pointerdown', start);
+    fire(stage, 'pointermove', { x: start.x + perCm * 3.4 * fit.scale, y: start.y });
+    expect(leftCm(instance)).toBe(Math.round(l0 + 3.4));
+    fire(stage, 'pointermove', { x: start.x - perCm * 2 * fit.scale, y: start.y });
+    expect(leftCm(instance)).toBe(Math.round(l0 - 2));
+    fire(stage, 'pointerup', { x: start.x - perCm * 2 * fit.scale, y: start.y });
+    expect(Number.isInteger(leftCm(instance))).toBe(true); // 1cm 単位に吸い付く
+    expect(rightCm(instance)).toBe(r0);
+    const rStart = px(fit, cmToX(60, r0), BOARD.axisY);
+    fire(stage, 'pointerdown', rStart, 2);
+    fire(stage, 'pointermove', { x: rStart.x + perCm * 5 * fit.scale, y: rStart.y }, 2);
+    expect(rightCm(instance)).toBe(Math.round(r0 + 5));
+    fire(stage, 'pointerup', rStart, 2);
+    instance.unmount();
+  });
+
+  it('pointercancel で、動かした分を戻す。円盤から離れた所を押しても何も動かない', async () => {
+    const { instance, stage, fit } = await open();
+    const l0 = leftCm(instance);
+    const start = px(fit, cmToX(60, l0), BOARD.axisY);
+    fire(stage, 'pointerdown', start);
+    fire(stage, 'pointermove', { x: start.x + 60, y: start.y });
+    expect(leftCm(instance)).not.toBe(l0);
+    fire(stage, 'pointercancel', { x: start.x + 60, y: start.y });
+    expect(leftCm(instance)).toBe(l0);
+    // 遠い所
+    const far = px(fit, BEAM_CENTER_X, BOARD.axisY);
+    fire(stage, 'pointerdown', far);
+    fire(stage, 'pointermove', { x: far.x + 80, y: far.y });
+    expect(leftCm(instance)).toBe(l0);
+    instance.unmount();
+  });
+
+  it('円盤を動かすボタン (◀▶) は無い。最初に「円盤を左右に引っぱって、巻き幅に合わせます」のお知らせが 1 回出る。巻き返しに入ると円盤は引っぱれない', async () => {
+    const { instance, stage, fit } = await open();
+    const labels = Array.from(container.querySelectorAll('button')).map((b) => b.getAttribute('aria-label') ?? b.textContent ?? '');
+    expect(labels.some((l) => /円盤を(左|右)へ/.test(l))).toBe(false);
+    expect(container.querySelectorAll('.game-frame__notice')).toHaveLength(1);
+    expect(container.querySelector('.game-frame__notice')!.textContent).toBe('円盤を左右に引っぱって、巻き幅に合わせます');
+    // 巻き始めたあとは動かない
+    Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める')!.click();
+    const l0 = leftCm(instance);
+    const start = px(fit, cmToX(60, l0), BOARD.axisY);
+    fire(stage, 'pointerdown', start);
+    fire(stage, 'pointermove', { x: start.x + 80, y: start.y });
+    expect(leftCm(instance)).toBe(l0);
     instance.unmount();
   });
 });

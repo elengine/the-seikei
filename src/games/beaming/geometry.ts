@@ -96,6 +96,35 @@ export function drawnExtent(): { top: number; bottom: number } {
   return { top: BOARD.drumY, bottom: BOARD.targetY + 28 };
 }
 
+/** 円盤の当たりの幅の下限 (画面 px。押せる部品は 64px 以上) */
+export const FLANGE_HIT_MIN_PX = 64;
+
+/**
+ * 論理座標の点 p が、どの円盤の当たりか (PU-15b)。当たりは円盤の縦の範囲 (軸を中心に ± 円盤の半径) で、
+ * 横は ± max(円盤の楕円の半径, 画面上 32px) (縮尺 scale が小さいほど広がる)。左右が重なるときは近いほう。
+ */
+export function flangeHit(
+  p: { x: number; y: number },
+  leftCm: number,
+  rightCm: number,
+  widthCm: number,
+  scale: number,
+): 'left' | 'right' | null {
+  if (Math.abs(p.y - BOARD.axisY) > BOARD.flangeR) return null;
+  const halfW = Math.max(FLANGE_RX, FLANGE_HIT_MIN_PX / 2 / scale);
+  const dl = Math.abs(p.x - cmToX(widthCm, leftCm));
+  const dr = Math.abs(p.x - cmToX(widthCm, rightCm));
+  const l = dl <= halfW;
+  const r = dr <= halfW;
+  if (l && r) return dl <= dr ? 'left' : 'right';
+  return l ? 'left' : r ? 'right' : null;
+}
+
+/** 円盤をつかんだ位置 (startX) から指が curX まで動いたときの円盤の cm。つかんだときの cm (startCm) に動いた分を足し、1cm 単位に丸める */
+export function dragCm(widthCm: number, startCm: number, startX: number, curX: number): number {
+  return Math.round(startCm + (curX - startX) / pxPerCm(widthCm));
+}
+
 /** 上の設定表示の位置 (画面 px で描く) */
 export const TOP_TEXT = { x: 40, y: 60 };
 

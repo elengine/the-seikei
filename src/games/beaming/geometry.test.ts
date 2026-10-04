@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import {
   pxPerCm, cmToX, xToCm, BEAM_W_PX, BOARD_W, BEAM_CENTER_X, woundRadius, setBoardHeight, BOARD, drawnExtent, FLANGE_RX, CORE_R,
+  flangeHit, dragCm, FLANGE_HIT_MIN_PX,
 } from './geometry';
 import { logicalHeightFor } from '../winding/geometry';
 
@@ -82,5 +83,39 @@ describe('PU-15a: ビームの巻き太りと盤面の高さ', () => {
   it('円盤の楕円の横の半径 (FLANGE_RX) は、画面上の当たりを 64px 幅にできる大きさ (縮尺 0.4 でも 64/0.4 = 160 以内で当たりを広げられる)', () => {
     expect(FLANGE_RX).toBeGreaterThan(10);
     expect(FLANGE_RX).toBeLessThan(80);
+  });
+});
+
+describe('PU-15b: 円盤を引っぱる (当たり判定・1cm 単位の吸い付き)', () => {
+  afterEach(() => {
+    setBoardHeight(750);
+  });
+
+  it('flangeHit: 円盤の楕円の中の点でその円盤を返し、遠い点・円盤の上下の外は null。画面上の幅が 64px 以上になるよう、縮尺が小さいほど当たりを横に広げる', () => {
+    const w = 60;
+    const lx = cmToX(w, -30);
+    const rx = cmToX(w, 30);
+    const y = BOARD.axisY;
+    expect(flangeHit({ x: lx, y }, -30, 30, w, 1)).toBe('left');
+    expect(flangeHit({ x: rx, y }, -30, 30, w, 1)).toBe('right');
+    expect(flangeHit({ x: BEAM_CENTER_X, y }, -30, 30, w, 1)).toBeNull();
+    expect(flangeHit({ x: lx, y: y - BOARD.flangeR - 5 }, -30, 30, w, 1)).toBeNull(); // 上の外
+    // 縮尺 0.4: 画面上 32px (論理 80) までの横ずれで当たる。1.0 では FLANGE_RX 付近まで
+    expect(flangeHit({ x: lx + 70, y }, -30, 30, w, 0.4)).toBe('left');
+    expect(flangeHit({ x: lx + 70, y }, -30, 30, w, 1)).toBeNull();
+    expect(FLANGE_HIT_MIN_PX).toBeGreaterThanOrEqual(64);
+    // 2 つの円盤の当たりが重なるときは近いほう
+    expect(flangeHit({ x: lx + 3, y }, -30, -29, w, 0.4)).toBe('left');
+  });
+
+  it('dragCm: 指が動いた分だけ cm が変わり、1cm 単位に丸める (吸い付く)。つかんだ位置からのずれ分だけ飛ばない', () => {
+    const w = 60;
+    const perCm = pxPerCm(w);
+    expect(dragCm(w, -30, cmToX(w, -30) + 3, cmToX(w, -30) + 3)).toBe(-30); // 動かさない
+    expect(dragCm(w, -30, cmToX(w, -30), cmToX(w, -30) + perCm * 4.4)).toBe(-26);
+    expect(dragCm(w, -30, cmToX(w, -30), cmToX(w, -30) + perCm * 4.6)).toBe(-25);
+    expect(dragCm(w, 30, cmToX(w, 30), cmToX(w, 30) - perCm * 7)).toBe(23);
+    // つかんだ位置が円盤の中心から 10px ずれていても、動かした量だけ変わる
+    expect(dragCm(w, -30, cmToX(w, -30) + 10, cmToX(w, -30) + 10 + perCm * 2)).toBe(-28);
   });
 });

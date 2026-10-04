@@ -5,7 +5,7 @@ import type { BeamingState, BeamingAction } from './logic';
 
 /**
  * ビーム巻きの操作欄 (P3 T3-03a)。
- * 上から: 依頼書 (巻き幅・帯の数・柄の名前)、幅合わせの段階 (円盤を動かす4つのボタン+今と目標の幅)、
+ * 上から: 依頼書 (巻き幅・帯の数・柄の名前)、幅合わせの段階 (今と目標の幅。円盤は絵の上で引っぱる)、
  * 巻き返しの段階 (張りのメーター・ペダル・寄せる2つ+巻いた割合と経過時間)、主な操作。
  * メッセージは GameFrame の message 欄を使う (controller が書く)。この部品はメッセージ欄を作らない。
  * メーターの範囲は State のもの (range {center, width} を min/max に直して渡す)。
@@ -35,36 +35,11 @@ export function createBeamingPanel(
   order.className = 'beaming-panel__order';
   root.appendChild(order);
 
-  // 2. 幅合わせの段階: 円盤を動かすボタンは2行の格子 (T3-03 追加修正: 1行4つだと狭い画面で
-  //    ボタンが64px未満になるため。各行に「左の円盤」「右の円盤」の見出しと矢印2つ)
+  // 2. 幅合わせの段階: 円盤は絵の上で引っぱって動かす (ボタンは無い。PU-15b)。ここには今の幅と目標の幅だけ
   const setupBlock = document.createElement('section');
   setupBlock.className = 'beaming-panel__block';
   setupBlock.setAttribute('aria-label', '幅合わせ');
   setupBlock.appendChild(createSectionHeading('幅合わせ'));
-  const flanges = document.createElement('div');
-  flanges.className = 'beaming-panel__flanges';
-  setupBlock.appendChild(flanges);
-  const mkFlangeRow = (name: string, side: 'left' | 'right'): void => {
-    const row = document.createElement('div');
-    row.className = 'beaming-panel__flange-row';
-    const label = document.createElement('span');
-    label.className = 'beaming-panel__flange-label';
-    label.textContent = name;
-    row.appendChild(label);
-    const mk = (arrow: string, aria: string, deltaCm: number): void => {
-      const b = createButton({
-        label: arrow,
-        onClick: () => opts.onAction({ type: 'moveFlange', side, deltaCm }),
-      });
-      b.setAttribute('aria-label', aria);
-      row.appendChild(b);
-    };
-    mk('◀', `${name}を左へ`, -1);
-    mk('▶', `${name}を右へ`, 1);
-    flanges.appendChild(row);
-  };
-  mkFlangeRow('左の円盤', 'left');
-  mkFlangeRow('右の円盤', 'right');
   const widthText = document.createElement('div');
   widthText.className = 'beaming-panel__info';
   setupBlock.appendChild(widthText);
