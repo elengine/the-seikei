@@ -111,9 +111,9 @@ export function drawPage2(ctx: CanvasRenderingContext2D, w: number, h: number): 
     ctx.fill();
     ctx.strokeStyle = COLORS.ai;
     ctx.stroke();
-    drawText(ctx, label, kx, bandY + h * 0.018);
+    drawText(ctx, label, kx, bandY - h * 0.058);
   }
-  drawText(ctx, 'レバー', bX - w * 0.06, bandY + h * 0.018);
+  drawText(ctx, 'レバー', bX + bW * 0.08, bandY + h * 0.075);
   // 巻き量の帯 (適正な速さの区間)
   const gX = w * 0.24;
   const gW = w * 0.52;
@@ -162,11 +162,11 @@ export const beamingTutorial: TutorialSpec = {
     },
     {
       draw: (ctx, w, h) => drawPage2(ctx, w, h),
-      text: 'ビームの上のレバーで速さを3段階で変えます (停止・50%・100%)。巻き量ごとに適正な速さが違い、レバーの枠と緑のランプで分かります。速く巻くほど糸が左右に寄ります。止めずに巻き量が 100% を超えると糸が切れます',
+      text: 'ビームの上のレバーで速さを変えます (停止・50%・100%)。巻き量ごとに適正な速さが違い、枠と緑のランプで分かります。止めずに 100% を超えると糸が切れます',
     },
     {
       draw: (ctx, w, h) => drawPage3(ctx, w, h),
-      text: 'ドラムのほうが幅が広いので、糸が左右に寄っていきます。寄せるボタンで中央に保ちます。円盤に乗り上げると出来が下がります。巻き量が 95% を超えたらレバーを停止にして、操作欄の「確認」を押します',
+      text: '糸が左右に寄ります。寄せるボタンで中央に保ち、円盤に乗り上げないようにします。95% を超えたらレバーを停止にして「確認」を押します',
     },
   ],
 };
