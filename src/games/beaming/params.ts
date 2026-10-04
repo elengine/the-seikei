@@ -12,8 +12,32 @@ export type Level = 1 | 2 | 3;
 /** pedal 100 のときの速さ (長さ/秒)。ドラム巻きと同じ */
 export const MAX_SPEED = 40;
 
-/** ビーム1本ぶんの長さ。pedal 50 (速さ 20) で 40 秒で巻き終わる長さ */
-export const BEAM_LENGTH = MAX_SPEED * 0.5 * 40; // = 800
+/** ビーム1本ぶんの長さ */
+export const BEAM_LENGTH = 1;
+
+/** 速さ 100 (レバー右) で 0 から 1 まで巻くにかかる秒数 (T3-04a)。50 はその半分の速さ */
+export const FULL_WIND_SEC_AT_100 = 30;
+
+/**
+ * 巻き量 (%) ごとの適正な速さの表 (T3-04a)。from〜to は両端を含む。
+ * 重なる区間はどちらの速さでも適正。speed 0 (停止) が適正の区間では巻くと適正でない。
+ */
+export const GOOD_SPEED_ZONES: ReadonlyArray<{ from: number; to: number; speed: 0 | 50 | 100 }> = [
+  { from: 0, to: 30, speed: 50 },
+  { from: 25, to: 75, speed: 100 },
+  { from: 70, to: 99, speed: 50 },
+  { from: 95, to: 100, speed: 0 },
+];
+
+/** 確認できるようになる巻き量 (T3-04c)。微調整の数え始めも同じ */ 
+export const CONFIRM_MIN = 0.95;
+
+/** 止めた位置の星の境目 (巻き量) */
+export const STOP3 = 0.99;
+export const STOP2 = 0.97;
+
+/** 星3の微調整の回数の上限 */
+export const RESTARTS_OK = 2;
 
 /** 1回の tick の dtMs の上限 (Safari 対策。ドラム巻きと同じ) */
 export const MAX_TICK_MS = 100;

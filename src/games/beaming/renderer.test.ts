@@ -18,7 +18,7 @@ function beamState(over?: Partial<BeamingState>): BeamingState {
   s = reduce(s, { type: 'moveFlange', side: 'left', deltaCm: -30 - s.leftCm });
   s = reduce(s, { type: 'moveFlange', side: 'right', deltaCm: 30 - s.rightCm });
   s = reduce(s, { type: 'finishSetup' });
-  s = reduce(s, { type: 'setPedal', value: 50 });
+  s = reduce(s, { type: 'setSpeed', speed: 50 });
   return over !== undefined ? { ...s, ...over } : s;
 }
 

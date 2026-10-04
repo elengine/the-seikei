@@ -95,20 +95,11 @@ if (typeof Element !== 'undefined' && !Element.prototype.setPointerCapture) {
   Element.prototype.releasePointerCapture = function releasePointerCapture(): void {};
 }
 
-/** ペダルを n 回、溝を指で 10 ずつ動かして上げる (PU-15c。「踏み込む」ボタンは無くなった)。溝は幅 364px (横木 64px を除いた 300px が動く範囲) に見せる */
-function pressPedal(container: HTMLElement, n: number): void {
-  const groove = container.querySelector<HTMLElement>('.pedal__groove')!;
-  const bar = container.querySelector<HTMLElement>('.pedal__bar')!;
-  Object.defineProperty(groove, 'getBoundingClientRect', {
-    configurable: true,
-    value: () => ({ left: 0, top: 0, width: 364, height: 64, right: 364, bottom: 64, x: 0, y: 0 }),
-  });
-  Object.defineProperty(bar, 'clientWidth', { configurable: true, value: 64 });
-  for (let i = 0; i < n; i++) {
-    const cur = parseFloat(bar.style.left || '0');
-    const v = Math.min(100, cur + 10);
-    groove.dispatchEvent(new PointerEvent('pointerdown', { clientX: 32 + v * 3, clientY: 32, pointerId: 1, bubbles: true }));
-  }
+/** 速さのボタンを押す (T3-04a。レバーは T3-04b) */
+function pressSpeed(container: HTMLElement, speed: 0 | 50 | 100): void {
+  const label = speed === 0 ? '停止' : speed === 50 ? '50%' : '100%';
+  const btn = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === label);
+  btn?.click();
 }
 
 describe('beaming controller T3-03a (プレイ画面)', () => {
@@ -154,8 +145,8 @@ describe('beaming controller T3-03a (プレイ画面)', () => {
     const start = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める');
     expect(start).toBeDefined();
     start!.click();
-    pressPedal(container, 4); // ペダル 40
-    // ペダル 40 の速さ (16/秒) で 800 → 50秒 = 約3125フレーム。寄せながら進める
+    pressSpeed(container, 100); // 全速
+    // 寄せながら 95% まで巻く (速さ 100 は 25〜75% だけ適正。結果の星は問わない)
     const nudge = (dir: number): void => {
       const btn = Array.from(container.querySelectorAll('button')).find(
         (b) => b.textContent === (dir < 0 ? '◀ 寄せる' : '寄せる ▶'),
@@ -166,13 +157,21 @@ describe('beaming controller T3-03a (プレイ画面)', () => {
       () => {
         raf.advance(300);
         // 偏りを中央へ戻す (メッセージを見て寄せる方向を決める)
-        const shift = (instance.suspend() as BeamingState | null)?.shiftCm ?? 0;
+        const st = instance.suspend() as BeamingState | null;
+        const shift = st?.shiftCm ?? 0;
         if (shift > 1.5) nudge(-1);
         else if (shift < -1.5) nudge(1);
-        expect(finished.length).toBeGreaterThan(0);
+        expect((st?.progress ?? 0)).toBeGreaterThanOrEqual(0.95);
       },
       { timeout: 60000, interval: 100 },
     );
+    // 95% を超えたら停止して「確認」→ 結果 (T3-04a。確認の正式な出し方は T3-04c)
+    pressSpeed(container, 0);
+    const confirm = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '確認');
+    expect(confirm, '確認のボタン (仮)').toBeDefined();
+    confirm!.click();
+    // 結果の画面 (rAF のフレームで done を検知する)
+    await vi.waitFor(() => expect(finished.length).toBeGreaterThan(0), { timeout: 30000, interval: 50 });
     const result = finished[0] as { stars: number; resultLines: Array<{ label: string; value: string }> };
     expect(result.stars).toBeGreaterThanOrEqual(1);
     const width = result.resultLines.find((l) => l.label === '幅合わせの誤差');
@@ -183,7 +182,7 @@ describe('beaming controller T3-03a (プレイ画面)', () => {
   it('2. 寄せるボタンで偏りが戻る (偏りが出たら反対へ寄せて、偏りが小さくなる)', async () => {
     const { instance } = await startAligned(setupAligned());
     Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める')!.click();
-    pressPedal(container, 4);
+    pressSpeed(container, 100);
     const shift = (): number => (instance.suspend() as BeamingState).shiftCm;
     // 偏るまで進める
     await vi.waitFor(
@@ -205,7 +204,7 @@ describe('beaming controller T3-03a (プレイ画面)', () => {
   it('3. unmount で rAF が止まり、盤面の描画も止まる', async () => {
     const { instance, finished } = await startAligned(setupAligned());
     Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める')!.click();
-    pressPedal(container, 4);
+    pressSpeed(container, 100);
     raf.advance(50);
     const draws = drawBoardCalls.length;
     instance.unmount();
@@ -217,7 +216,7 @@ describe('beaming controller T3-03a (プレイ画面)', () => {
   it('4. 巻いているあいだ、ドラムが回る角度 (drumAngle) が renderer に渡る', async () => {
     const { instance } = await startAligned(setupAligned());
     Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める')!.click();
-    pressPedal(container, 4);
+    pressSpeed(container, 100);
     raf.advance(30);
     const a1 = lastDrumAngle();
     expect(typeof a1).toBe('number');
@@ -342,8 +341,8 @@ describe('PU-15c: メッセージ欄を無くす', () => {
       resume: setupAligned(),
     });
     expect(c.querySelector('.game-frame__message')).toBeNull();
-    pressPedal(c, 1); // 巻く前にペダルの溝を押す
-    expect(c.querySelector('.game-frame__notice')!.textContent).toContain('巻き始める');
+    pressSpeed(c, 100); // 巻く前に押しても無効 (幅合わせの段階。ボタンが押せないので何も起きない)
+    expect((instance.suspend() as { progress: number }).progress).toBe(0);
     raf2.advance(2);
     instance.unmount();
     vi.unstubAllGlobals();

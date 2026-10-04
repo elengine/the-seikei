@@ -124,17 +124,36 @@ describe('PU-15c: 操作欄の整理 (戻す・踏み込む・速さ・経過時
     document.body.appendChild(host);
   });
 
-  it('「戻す」「踏み込む」のボタン・速さの表示・経過時間が無い。ペダルは溝だけ (T3-04 で速さのレバーに置き換えるまで残す)', () => {
+  it('速さの3段階のボタン (停止・50%・100%) がある。「戻す」「踏み込む」・経過時間は無い (T3-04a。レバーは T3-04b)', () => {
     const p = createBeamingPanel(host, { terms, onAction: () => undefined });
     p.update(beaming());
+    const labels = Array.from(host.querySelectorAll('button')).map((b) => b.textContent);
+    expect(labels).toContain('停止');
+    expect(labels).toContain('50%');
+    expect(labels).toContain('100%');
     expect(host.querySelector('.pedal__btn')).toBeNull();
-    expect(host.querySelector('.pedal__value')).toBeNull();
+    expect(host.querySelector('.pedal__groove')).toBeNull();
     expect(host.querySelector('.beaming-panel__clock')).toBeNull();
     expect(host.textContent).not.toContain('踏み込む');
     expect(host.textContent).not.toContain('戻す');
-    expect(host.textContent).not.toContain('速さ');
     expect(host.textContent).not.toMatch(/\d+:\d{2}/);
-    expect(host.querySelector('.pedal__groove')).not.toBeNull();
+    p.destroy();
+  });
+
+  it('巻き返しの段階では速さのボタンは押せない。押すと setSpeed が送られる', () => {
+    const actions: unknown[] = [];
+    const p = createBeamingPanel(host, { terms, onAction: (a) => actions.push(a) });
+    p.update(make()); // setup
+    for (const b of Array.from(host.querySelectorAll('.beaming-panel__speed button')) as HTMLButtonElement[]) {
+      expect(b.disabled, `setup で押せない (${b.textContent})`).toBe(true);
+    }
+    p.update(beaming()); // beaming
+    for (const b of Array.from(host.querySelectorAll('.beaming-panel__speed button')) as HTMLButtonElement[]) {
+      expect(b.disabled, `beaming で押せる (${b.textContent})`).toBe(false);
+    }
+    const b50 = Array.from(host.querySelectorAll('button')).find((b) => b.textContent === '50%') as HTMLButtonElement;
+    b50.click();
+    expect(actions[actions.length - 1]).toEqual({ type: 'setSpeed', speed: 50 });
     p.destroy();
   });
 
@@ -145,13 +164,4 @@ describe('PU-15c: 操作欄の整理 (戻す・踏み込む・速さ・経過時
     expect(m).toContain('font-weight: bold');
   });
 
-  it('押せないペダルの溝を押すと、理由が onNotice に出る (戻す・踏み込むの代わり)', () => {
-    const notice: string[] = [];
-    const p = createBeamingPanel(host, { terms, onAction: () => undefined, onNotice: (t) => notice.push(t) });
-    p.update(make());
-    host.querySelector('.pedal__groove')!.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, clientX: 5, clientY: 5 }));
-    expect(notice.length).toBe(1);
-    expect(notice[0]).toContain('巻き始める');
-    p.destroy();
-  });
 });

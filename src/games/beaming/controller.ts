@@ -9,10 +9,8 @@ import { createBeamingPanel } from './panel';
 import { getContent } from '../../core/content/content';
 import { init, reduce } from './logic';
 import { seedFromText } from '../winding/logic';
-import { speedOf } from '../../core/mechanics/pedal';
 import { resultOf } from './messages';
 import type { BeamingState, BeamingAction, Level } from './logic';
-import { TENSION } from './params';
 import { DRUM_TURN_PER_SPEED } from '../winding/params';
 
 const LEVEL_NAMES: Record<Level, string> = { 1: '初級', 2: '中級', 3: '上級' };
@@ -41,7 +39,7 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
   const startState = opts.resume as BeamingState | undefined;
   let s: BeamingState =
     startState !== undefined
-      ? reduce(startState, { type: 'pausePedal' }) // 再開のときはペダル 0
+      ? reduce(startState, { type: 'setSpeed', speed: 0 }) // 再開のときはレバーを停止に
       : init({
           level: opts.level,
           widthCm: opts.widthCm,
@@ -231,9 +229,9 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
     lastFrameMs = ms;
     if (dtMs > 0) {
       // ドラムが回って見える角度 (巻いている速さに合わせる)
-      const speed = speedOf(s.pedal, TENSION);
-      if (s.phase === 'beaming' && speed > 0) {
-        drumAngle += speed * DRUM_TURN_PER_SPEED * (dtMs / 1000);
+      // ドラムが回って見える角度 (レバーの速さに合わせる。T3-04a)
+      if (s.phase === 'beaming' && s.speed > 0) {
+        drumAngle += s.speed * DRUM_TURN_PER_SPEED * (dtMs / 1000);
       }
       const prev = s;
       const next = reduce(s, { type: 'tick', dtMs });
@@ -271,7 +269,7 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
   function onVisibilityChange(): void {
     if (document.visibilityState === 'hidden') {
       stopLoop();
-      const next = reduce(s, { type: 'pausePedal' });
+      const next = reduce(s, { type: 'setSpeed', speed: 0 });
       if (next !== s) {
         s = next;
         refresh();
