@@ -1,8 +1,8 @@
 import type { WindingState } from './logic';
 import { COLORS, FONT_FAMILY } from '../../core/ui/tokens';
-import { SECTION_LENGTH, STRIPE_H, WING_OUT, WING_SIDE_MAX_RATIO } from './params';
+import { SECTION_LENGTH, STRIPE_H, WING_OUT, WING_SIDE_MAX_RATIO, SLAT_OVER, SLAT_FLARE } from './params';
 import type { StageFit } from '../../core/viewport/viewport';
-import { DRUM_AREA, fontPx, drumSectionY, threadY, CREEL_AREA, CREEL_END_X, DRUM_END_X } from './geometry';
+import { DRUM_AREA, fontPx, drumSectionY, threadY, CREEL_END_X, DRUM_END_X } from './geometry';
 
 /**
  * ドラム巻きの盤面のうち、ドラム (円筒) と結び目を描く部品。
@@ -19,7 +19,7 @@ const KNOT = { w: 24, h: 30 } as const; // 幅はピンの横木に少し重な�
 const DRUM_BULGE = 10;
 
 /** ドラムの桟の数 (円筒の周りに等間隔に並ぶ。正面に 10〜12 本見える。T2-10 追加修正) */
-export const SLAT_COUNT = 24;
+export const SLAT_COUNT = 16;
 
 /** 板の穴の縦の間隔 (論理座標。T2-13a) */
 const HOLE_STEP = 60;
@@ -99,6 +99,15 @@ export function drawDrum(
     }
     // 板の面 (上端から下端まで1本)
     ctx.fillRect(sx - sw / 2, y, sw, h);
+    // ドラムの上の縁より上へはみ出した所。外へ開く (左の板は左へ、右の板は右へ。正面の中央は真上。ドラム設定の羽と同じ考え。PU-14c)
+    const flare = SLAT_FLARE * Math.sin(th);
+    ctx.beginPath();
+    ctx.moveTo(sx - sw / 2, y);
+    ctx.lineTo(sx + sw / 2, y);
+    ctx.lineTo(sx + sw / 2 + flare, y - SLAT_OVER);
+    ctx.lineTo(sx - sw / 2 + flare, y - SLAT_OVER);
+    ctx.closePath();
+    ctx.fill();
     // 板の丸い穴 (正面に近い板だけ。暗い色の小さな丸を縦に等間隔に。T2-13a)
     if (cosT > 0.6) {
       ctx.fillStyle = COLORS.machineDark;
@@ -123,11 +132,20 @@ export function drawDrum(
     // 縞の濃さ: 巻いた割合で 0.15 → 1 (巻き始めは薄い。T2-08 追加修正a)
     const alpha = full ? 1 : 0.15 + 0.85 * ratio;
     // 柄の並びの色を、区画の高さの中で上から順に繰り返す (1本の高さは STRIPE_H。T2-08 追加修正2)
+    // 縞は、上の縁の楕円と同じ曲がり方の弓なり (正面の中央が下がる。ドラムの周りを回る糸に見える。PU-14c)
+    const sag = fontPx(fit, 12);
     let k = 0;
     for (let yy = sy; yy < sy + secH; yy += STRIPE_H) {
+      const sh = Math.min(STRIPE_H, sy + secH - yy);
       ctx.globalAlpha = alpha;
       ctx.fillStyle = hexes[k % hexes.length] ?? COLORS.sumiSub;
-      ctx.fillRect(leftX, yy, rightX - leftX, Math.min(STRIPE_H, sy + secH - yy));
+      ctx.beginPath();
+      ctx.moveTo(leftX, yy);
+      ctx.quadraticCurveTo(cx, yy + 2 * sag, rightX, yy);
+      ctx.lineTo(rightX, yy + sh);
+      ctx.quadraticCurveTo(cx, yy + sh + 2 * sag, leftX, yy + sh);
+      ctx.closePath();
+      ctx.fill();
       k++;
     }
     ctx.globalAlpha = 1;
@@ -196,7 +214,9 @@ export function drawDrum(
   const pinX = cx + radius * Math.sin(thPin);
   if (cosPin > 0) {
     ctx.fillStyle = COLORS.machineDark;
-    ctx.fillRect(pinX - (fontPx(fit, 10) * cosPin) / 2, y, Math.max(3, fontPx(fit, 10) * cosPin), h + fontPx(fit, 16));
+    // 帯を止める緑の竿は、ドラムの上と下に同じ長さだけはみ出す (PU-14c)
+    const overhang = fontPx(fit, 16);
+    ctx.fillRect(pinX - (fontPx(fit, 10) * cosPin) / 2, y - overhang, Math.max(3, fontPx(fit, 10) * cosPin), h + 2 * overhang);
     for (let i = 0; i < s.sections; i++) {
       const py = drumSectionPinY(i, s.sections);
       ctx.fillStyle = COLORS.steel;
@@ -293,13 +313,11 @@ export function drawBrokenThread(
     ctx.strokeStyle = opts.show === 'red' ? COLORS.shu : base;
     ctx.lineWidth = fontPx(fit, 2.5);
     ctx.beginPath();
-    // クリール側の切れ端 (切れて垂れる)
-    ctx.moveTo(CREEL_AREA.x + CREEL_AREA.w / 2, y);
-    ctx.lineTo(CREEL_END_X, y);
+    // クリール側の端: コーンからの糸が、切れたところから垂れ下がる (つながっている区間は drawThreads が描く)
+    ctx.moveTo(CREEL_END_X, y);
     ctx.quadraticCurveTo(CREEL_END_X + sway, y + droop / 2, CREEL_END_X + sway, y + droop);
-    // ドラム側の切れ端 (今の帯の区画のピンから)
-    ctx.moveTo(drumSectionPinY(s.current, s.sections), y);
-    ctx.lineTo(DRUM_END_X, y);
+    // ドラム側の端: 筬からの糸が、切れたところから垂れ下がる。2 つの端のあいだは空く (まっすぐ伸びる線は無い)
+    ctx.moveTo(DRUM_END_X, y);
     ctx.quadraticCurveTo(DRUM_END_X - sway, y + droop / 2, DRUM_END_X - sway, y + droop);
     ctx.stroke();
   }

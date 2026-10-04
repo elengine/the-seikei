@@ -1,14 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { drawBoard } from './renderer';
-import { endPoint, threadY, tableY, DRUM_END_X, drumSectionY, DRUM_AREA, REED_X } from './geometry';
+import { endPoint, threadY, tableY, THREAD_MARK_X, CREEL_END_X, DRUM_END_X, drumSectionY, DRUM_AREA, REED_X } from './geometry';
 import { COLORS } from '../../core/ui/tokens';
 import type { FakeRecorder } from './renderer.test.helpers';
 
 // 偽の ctx (呼ばれた命令を記録する) は helpers に置く
 import { makeFakeCtx } from './renderer.test.helpers';
 import { SLAT_COUNT, PIN_ANGLE0, lampStateOf, lampGeometry } from './renderer.parts';
-import { WING_SIDE_MAX_RATIO } from './params';
+import { WING_SIDE_MAX_RATIO, SLAT_OVER } from './params';
 import { init, reduce } from './logic';
 import type { WindingState } from './logic';
 import { loadContent } from '../../core/content/content';
@@ -249,23 +249,19 @@ describe('winding renderer T2-08-fix a (ドラムの向き・台の移動・結�
     expect(centers.some((cy) => cy > 620)).toBe(true);
   });
 
-  it('2. 帯の縞は横の線 (fillRect の幅が区画の全幅、高さが区画の高さ未満)。板は全高さなので数えない (T2-13a)', () => {
+  it('2. 帯の縞は、帯の全幅にわたる弓なりの曲線 (quadraticCurveTo。横の線ではない。PU-14c)', () => {
     const { ctx, rec } = makeFakeCtx();
     let s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 1 });
     s = reduce(s, { type: 'start' });
     s = reduce(s, { type: 'setPedal', value: 50 });
-    // 巻き途中にする (tick で長さを進める。板は全高さになったので縞だけを見る)
     for (let i = 0; i < 50 && s.phase === 'winding'; i++) {
       s = reduce(s, { type: 'tick', dtMs: 100 });
     }
     expect((s.lengths[0] ?? 0)).toBeGreaterThan(0);
     drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
-    // 帯の縞: 帯の領域 (leftX 570 〜 rightX 970) から始まる fillRect で、幅が帯の全幅・高さが区画の高さ (200) より小さい
+    const cx = DRUM_AREA.x + DRUM_AREA.w / 2;
     const stripes = rec.ops.filter(
-      (op) => op.k === 'fillRect' && typeof op.args?.[0] === 'number' &&
-        (op.args[0] as number) >= 560 && (op.args[0] as number) <= 580 &&
-        (op.args[2] as number) > 300 &&
-        (op.args[3] as number) < 190,
+      (op) => op.k === 'quadraticCurveTo' && Math.abs((op.args?.[0] as number) - cx) < 1,
     );
     expect(stripes.length).toBeGreaterThanOrEqual(1);
   });
@@ -374,7 +370,11 @@ describe('winding renderer T2-09b (複数の糸切れ)', () => {
     const { ctx, rec } = makeFakeCtx();
     const s = { ...brokenState(), brk: { kind: 'broken' as const, threads: [1, 4], tied: [] } };
     drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
-    const curves = rec.ops.filter((op) => op.k === 'quadraticCurveTo');
+    // 切れ端の垂れ下がり (クリール側の端・ドラム側の端の x から下へ)。帯の縞の曲線 (中心の x) は数えない
+    const curves = rec.ops.filter(
+      (op) => op.k === 'quadraticCurveTo' &&
+        (Math.abs((op.args?.[2] as number) - CREEL_END_X) < 12 || Math.abs((op.args?.[2] as number) - DRUM_END_X) < 12),
+    );
     // 糸ごとに creel 側 + drum 側の 2つの曲線
     expect(curves.length).toBe(4);
     // 両方の糸の高さ (threadY(1,8) と threadY(4,8)) を通る (moveTo の y)
@@ -578,7 +578,7 @@ describe('winding renderer T2-13b (切れた糸の印と「停止」)', () => {
 
   /** 糸道の印 (テンションの皿) の位置 (論理座標)。drawCreel と同じ式 */
   function markPos(t: number): { x: number; y: number } {
-    return { x: 124, y: threadY(t, 8) };
+    return { x: THREAD_MARK_X, y: threadY(t, 8) };
   }
 
   /** 指定の位置に描かれた arc の直前の fillStyle */
@@ -735,7 +735,7 @@ describe('winding renderer T2-13a (実物の写真に合わせた絵)', () => {
       boards.some((f) => f !== b && Math.abs(f.x + f.w - b.x) < 2);
     const faces = boards.filter((b) => !isSide(b));
     const sides = boards.filter((b) => isSide(b));
-    expect(faces.length).toBeGreaterThanOrEqual(10);
+    expect(faces.length).toBeGreaterThanOrEqual(6); // 桟の数を減らした (PU-14c)
     // 中央の板 (面の中心 x が cx に最も近い) の右隣に側面は無い (sin θ = 0)
     const center = faces.reduce((m, b) => (Math.abs(b.x + b.w / 2 - cx) < Math.abs(m.x + m.w / 2 - cx) ? b : m), faces[0]!);
     const nextToCenter = sides.filter((b) => Math.abs(b.x - (center.x + center.w)) < 2);
@@ -840,6 +840,124 @@ describe('PU-14b: 張りのランプ (大きく・左寄り。緑・オレンジ
       expect(lamp.x).toBeLessThan(DRUM_AREA.x + DRUM_AREA.w / 2);
       const arcs = rec.ops.filter((o) => o.k === 'arc').map((o) => o.args as number[]);
       expect(arcs.some((a) => a[0] === lamp.x && a[1] === lamp.y && a[2] === lamp.r)).toBe(true);
+    }
+  });
+});
+
+describe('PU-14c: 盤面の絵 (切れた糸・緑の竿・桟・糸の弓なり)', () => {
+  const drawS = (s: WindingState): FakeRecorder => {
+    const { ctx, rec } = makeFakeCtx();
+    drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
+    return rec;
+  };
+
+  /** moveTo→lineTo の線分 (論理座標) を集める */
+  function segments(rec: FakeRecorder): Array<{ x1: number; y1: number; x2: number; y2: number }> {
+    const out: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
+    let cur: { x: number; y: number } | null = null;
+    for (const op of rec.ops) {
+      const a = op.args as number[] | undefined;
+      if (op.k === 'moveTo' && a) {
+        cur = { x: a[0]!, y: a[1]! };
+      } else if (op.k === 'lineTo' && a) {
+        if (cur !== null) {
+          out.push({ x1: cur.x, y1: cur.y, x2: a[0]!, y2: a[1]! });
+        }
+        cur = { x: a[0]!, y: a[1]! };
+      } else if (op.k === 'quadraticCurveTo' && a) {
+        cur = { x: a[2]!, y: a[3]! };
+      } else if (op.k === 'beginPath') {
+        cur = null;
+      }
+    }
+    return out;
+  }
+
+  it('切れた糸は、クリール側の端とドラム側の端が別々に垂れ下がり、あいだが空く。ドラムまで届く 1 本の線が無い (切れた糸の y で、クリール側の端からドラム側の端をまたぐ線分が無い)', () => {
+    const s = brokenState();
+    const broken = (s.brk as { threads: number[] }).threads;
+    expect(broken.length).toBeGreaterThan(0);
+    const rec = drawS(s);
+    const segs = segments(rec);
+    for (const th of broken) {
+      const y = threadY(th, 8);
+      const onY = segs.filter((g) => Math.abs(g.y1 - y) < 0.5 && Math.abs(g.y2 - y) < 0.5);
+      for (const g of onY) {
+        const lo = Math.min(g.x1, g.x2);
+        const hi = Math.max(g.x1, g.x2);
+        const spans = lo <= CREEL_END_X + 0.5 && hi >= DRUM_END_X - 0.5;
+        expect(spans, `糸 ${th} の線分 ${lo}→${hi} がクリール側の端からドラム側の端まで届いている`).toBe(false);
+      }
+      // 両側に垂れ下がる曲線がある (クリール側の端 x と ドラム側の端 x から下へ)
+      const droops = rec.ops.filter((o) => o.k === 'quadraticCurveTo').map((o) => o.args as number[]);
+      expect(droops.some((a) => Math.abs(a[2]! - CREEL_END_X) < 12 && a[3]! > y)).toBe(true);
+      expect(droops.some((a) => Math.abs(a[2]! - DRUM_END_X) < 12 && a[3]! > y)).toBe(true);
+    }
+  });
+
+  it('つながっている糸は、クリールからドラムまで (CONE_X から DRUM_AREA.x まで) 途切れず描く', () => {
+    const s = brokenState();
+    const broken = (s.brk as { threads: number[] }).threads;
+    const ok = [0, 1, 2, 3, 4, 5, 6, 7].filter((t) => !broken.includes(t))[0]!;
+    const segs = segments(drawS(s));
+    const y = threadY(ok, 8);
+    const onY = segs.filter((g) => Math.abs(g.y1 - y) < 0.5 && Math.abs(g.y2 - y) < 0.5);
+    // 切れ端の位置をまたぐ区間も、線でつながっている
+    expect(onY.some((g) => Math.abs(g.x1 - CREEL_END_X) < 0.5 && Math.abs(g.x2 - DRUM_END_X) < 0.5)).toBe(true);
+  });
+
+  it('帯を止める緑の竿は、ドラムの上と下に同じ長さだけはみ出す', () => {
+    const rec = drawS(windingState());
+    const rects = rec.ops.filter((o) => o.k === 'fillRect').map((o) => o.args as number[]);
+    const poles = rects.filter((r) => r[3]! > DRUM_AREA.h + 1 && r[2]! <= 12);
+    expect(poles.length).toBeGreaterThan(0);
+    for (const p of poles) {
+      const top = DRUM_AREA.y - p[1]!;
+      const bottom = p[1]! + p[3]! - (DRUM_AREA.y + DRUM_AREA.h);
+      expect(top).toBeGreaterThan(0);
+      expect(top).toBeCloseTo(bottom, 6);
+    }
+  });
+
+  it('桟 (板) は、ドラムの上の縁より上へはみ出し、はみ出した所は外へ開く (左側の板は左へ、右側の板は右へ)。桟の数は減った (SLAT_COUNT 16 以下)', () => {
+    expect(SLAT_COUNT).toBeLessThanOrEqual(16);
+    const rec = drawS(windingState());
+    const pts: Array<{ op: string; x: number; y: number }> = [];
+    for (const o of rec.ops) {
+      const a = o.args as number[] | undefined;
+      if ((o.k === 'moveTo' || o.k === 'lineTo') && a) pts.push({ op: o.k, x: a[0]!, y: a[1]! });
+    }
+    // 上の縁 (y = DRUM_AREA.y) から SLAT_OVER 上 (y = DRUM_AREA.y - SLAT_OVER) までの台形を探す
+    const cx = DRUM_AREA.x + DRUM_AREA.w / 2;
+    let found = 0;
+    for (let i = 0; i + 3 < pts.length; i++) {
+      const [p0, p1, p2, p3] = [pts[i]!, pts[i + 1]!, pts[i + 2]!, pts[i + 3]!];
+      if (
+        p0.op === 'moveTo' && Math.abs(p0.y - DRUM_AREA.y) < 0.01 && Math.abs(p1.y - DRUM_AREA.y) < 0.01 &&
+        Math.abs(p2.y - (DRUM_AREA.y - SLAT_OVER)) < 0.01 && Math.abs(p3.y - (DRUM_AREA.y - SLAT_OVER)) < 0.01
+      ) {
+        found++;
+        const bottomMid = (p0.x + p1.x) / 2;
+        const topMid = (p2.x + p3.x) / 2;
+        const outward = Math.sign(bottomMid - cx) || 1;
+        expect(Math.sign(topMid - bottomMid) * outward).toBeGreaterThanOrEqual(0); // 外へ開く (中心の板は真上)
+      }
+    }
+    expect(found).toBeGreaterThanOrEqual(3);
+  });
+
+  it('帯の縞は弓なりの曲線 (quadraticCurveTo) で描く: 中央が両端より下がる (制御点の y が端より下)', () => {
+    let s = windingState();
+    s = { ...s, phase: 'done' } as WindingState;
+    const rec = drawS(s);
+    const cx = DRUM_AREA.x + DRUM_AREA.w / 2;
+    const curves = rec.ops
+      .filter((o) => o.k === 'quadraticCurveTo')
+      .map((o) => o.args as number[])
+      .filter((a) => Math.abs(a[0]! - cx) < 1);
+    expect(curves.length).toBeGreaterThanOrEqual(10);
+    for (const a of curves) {
+      expect(a[1]!).toBeGreaterThan(a[3]!); // 制御点の y が端の y より下 (中央が下がる)
     }
   });
 });

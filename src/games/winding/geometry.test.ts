@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { LOGICAL_W, LOGICAL_H, endPoint, hitEnd, toPx, fromPx, threadY, drumSectionY, tableY, TABLE_AREA, REED_X, DRUM_END_X, DRUM_AREA, pointOnPath, threadPath, PIN_RAIL_X, DIAL_X, DIAL_Y, DIAL_R, reedRect, reedThreadY, THREAD_SHEET_HALF, hitBrokenThread } from './geometry';
+import { CREEL_AREA, CREEL_END_X, LOGICAL_W, LOGICAL_H, endPoint, hitEnd, toPx, fromPx, threadY, drumSectionY, tableY, TABLE_AREA, REED_X, DRUM_END_X, DRUM_AREA, pointOnPath, threadPath, PIN_RAIL_X, DIAL_X, DIAL_Y, DIAL_R, reedRect, reedThreadY, THREAD_SHEET_HALF, hitBrokenThread, THREAD_MARK_X } from './geometry';
 
 const fit = { scale: 1, offsetX: 0, offsetY: 0 };
 
@@ -30,9 +30,10 @@ describe('winding geometry (T2-05)', () => {
     const b = endPoint(1, 'creel', 8);
     const c = endPoint(2, 'creel', 8);
     expect(b.y - a.y).toBeCloseTo(c.y - b.y, 9);
-    // クリール側は x 290、ドラム側は x 360 (まっすぐ横に進む区間の上。T2-10a)
-    expect(endPoint(0, 'creel', 8).x).toBeCloseTo(290, 0);
-    expect(endPoint(0, 'drum', 8).x).toBeCloseTo(360, 0);
+    // クリール側の切れ端はクリールの右、ドラム側は台の左 (まっすぐ横に進む区間の上。T2-10a。PU-14c で広いあいだに移した)
+    expect(endPoint(0, 'creel', 8).x).toBeCloseTo(CREEL_END_X, 0);
+    expect(endPoint(0, 'drum', 8).x).toBeCloseTo(DRUM_END_X, 0);
+    expect(DRUM_END_X - CREEL_END_X).toBeGreaterThanOrEqual(60);
   });
 
   it('hitEnd が端の上で当たり、遠いと null', () => {
@@ -296,5 +297,42 @@ describe('winding geometry T2-13c (切れたあたりを1回押す当たり)', (
     // scale 0.5 なら画面 40px = 論理 80。thread 1 から 60 論理離れても当たる
     const nearSmall = { x: 200, y: threadY(1, 8) + 60 };
     expect(hitBrokenThread(nearSmall, [1, 4], 8, 0.5)).toBe(1);
+  });
+});
+
+describe('PU-14c: 盤面の配置 (クリールは左端・ドラムは右端、あいだを広く。チーズは等間隔に広げる)', () => {
+  it('クリールとドラムのあいだの幅が、盤面の幅の 35% 以上 (縦の画面でも同じ論理座標なので同じ割合)', () => {
+    const gap = DRUM_AREA.x - (CREEL_AREA.x + CREEL_AREA.w);
+    expect(gap / LOGICAL_W).toBeGreaterThanOrEqual(0.35);
+  });
+
+  it('クリールは盤面の左端、ドラムは右端 (ドラムの胴のふくらみ 10 を含めて盤面の幅に収まり、右の端から 20 以内)', () => {
+    expect(CREEL_AREA.x).toBeLessThanOrEqual(20);
+    const drumRight = DRUM_AREA.x + DRUM_AREA.w + 10;
+    expect(drumRight).toBeLessThanOrEqual(LOGICAL_W);
+    expect(drumRight).toBeGreaterThanOrEqual(LOGICAL_W - 20);
+  });
+
+  it('筬と台は、あいだのドラム寄り (筬の x が、クリールとドラムの真ん中より右)。切れ端は台より左の広いあいだにある', () => {
+    const mid = (CREEL_AREA.x + CREEL_AREA.w + DRUM_AREA.x) / 2;
+    expect(REED_X).toBeGreaterThan(mid);
+    expect(CREEL_END_X).toBeGreaterThan(CREEL_AREA.x + CREEL_AREA.w);
+    expect(DRUM_END_X).toBeLessThan(TABLE_AREA.x);
+  });
+
+  it('糸 (チーズ) の縦の間隔が等しく、クリールの高さの 85% 以上に広がる (クリールの高さの中に収まる)', () => {
+    const n = 8;
+    const ys = Array.from({ length: n }, (_, t) => threadY(t, n));
+    const step = ys[1]! - ys[0]!;
+    for (let t = 1; t < n; t++) {
+      expect(ys[t]! - ys[t - 1]!).toBeCloseTo(step, 9);
+    }
+    expect(ys[n - 1]! - ys[0]!).toBeGreaterThanOrEqual(CREEL_AREA.h * 0.85);
+    expect(ys[0]!).toBeGreaterThan(CREEL_AREA.y);
+    expect(ys[n - 1]!).toBeLessThan(CREEL_AREA.y + CREEL_AREA.h);
+  });
+
+  it('切れた糸を押せる区間 (クリールの糸道の印から筬まで) の幅は、盤面の幅の 35% 以上', () => {
+    expect((REED_X - THREAD_MARK_X) / LOGICAL_W).toBeGreaterThanOrEqual(0.35);
   });
 });

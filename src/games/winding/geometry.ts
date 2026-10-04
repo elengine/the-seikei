@@ -10,25 +10,25 @@ export const LOGICAL_W = 1000;
 /** 論理座標の高さ */
 export const LOGICAL_H = 750;
 
-/** 区画: 左にクリール、中央に台と筬、右にドラム (T2-10a で台と筬を右へ) */
-export const CREEL_AREA = { x: 40, y: 90, w: 200, h: 600 } as const;
-export const TABLE_AREA = { x: 420, y: 90, w: 120, h: 600 } as const;
+/** 区画: 左端にクリール、右端にドラム、あいだを広く (糸が切れる場所。PU-14c)。台と筬はあいだのドラム寄り */
+export const CREEL_AREA = { x: 10, y: 90, w: 200, h: 600 } as const;
+export const TABLE_AREA = { x: 460, y: 90, w: 120, h: 600 } as const;
 /** ドラムの左の縦木 (ピンの横木) の左の端の x (T2-10 追加修正。台と重ならないようにする) */
-export const PIN_RAIL_X = 560;
-export const DRUM_AREA = { x: 580, y: 90, w: 380, h: 600 } as const;
+export const PIN_RAIL_X = 600;
+export const DRUM_AREA = { x: 620, y: 90, w: 370, h: 600 } as const;
 /** 上の余白 (目盛り盤と赤ランプ) */
 export const TOP_AREA = { y: 0, h: 90 } as const;
 
 /** クリール側の切れ端の x (まっすぐ横に進む区間の上。T2-10a) */
-export const CREEL_END_X = 290;
+export const CREEL_END_X = 270;
 /** ドラム側の切れ端の x (まっすぐ横に進む区間の上。クリール側との差は 60 以上。T2-10a) */
-export const DRUM_END_X = 360;
+export const DRUM_END_X = 390;
 /** 切れ端の縦の範囲 (台の中)。糸の縦の位置はこの範囲で threadY が決める */
-const END_Y_TOP = 300;
-const END_Y_BOTTOM = 620;
+const END_Y_TOP = 125; // クリールの高さ (90〜690) いっぱいに等間隔に広げる (PU-14c)
+const END_Y_BOTTOM = 655;
 
 /** 筬 (くし状の金具) の x (台の中央。T2-10a で 520 へ) */
-export const REED_X = 480;
+export const REED_X = 520;
 /** 帯のシートの半分の幅 (論理座標。糸がまとまる帯の幅) */
 export const THREAD_SHEET_HALF = 30;
 
@@ -36,7 +36,7 @@ export const THREAD_SHEET_HALF = 30;
 export const REED_RISE = 40;
 
 /** 目盛り盤の中心と半径 (論理座標。上部の余白の、筬と重ならない位置。T2-13a) */
-export const DIAL_X = 700;
+export const DIAL_X = 820;
 export const DIAL_Y = 45;
 export const DIAL_R = 32;
 
@@ -79,7 +79,7 @@ export function tableY(current: number, sections: number): number {
 }
 
 /** コーンの右の x (糸の線の始点) */
-export const CONE_X = 180;
+export const CONE_X = 150;
 
 /**
  * 糸 thread の道筋の頂点 (折れ線)。糸の線を描く処理と、流れる印の位置 (pointOnPath) の
@@ -198,7 +198,7 @@ export function hitEnd(
 }
 
 /** クリールの糸道の印 (テンションの皿) の x。renderer の皿と同じ位置 (T2-13c) */
-export const THREAD_MARK_X = 124;
+export const THREAD_MARK_X = 94;
 
 /** 点と線分の距離 */
 function distToSeg(p: { x: number; y: number }, a: { x: number; y: number }, b: { x: number; y: number }): number {

@@ -153,11 +153,17 @@ function drawThreads(
   ctx.lineWidth = fontPx(fit, 1);
   ctx.beginPath();
   for (let t = 0; t < opts.threadCount; t++) {
-    // 糸の線は geometry の threadPath (頂点の折れ線) どおりに描く (T2-10a)
+    // 糸の線は geometry の threadPath (頂点の折れ線) どおりに描く (T2-10a)。
+    // 切れた糸は、クリール側の端 (path[1]) とドラム側の端 (path[2]) のあいだを描かない (あいだを空ける。PU-14c)
     const path = threadPath(t, opts.threadCount, s.current, s.sections);
+    const cut = s.phase === 'broken' && s.brk.kind === 'broken' && s.brk.threads.includes(t);
     ctx.moveTo(path[0]!.x, path[0]!.y);
     for (let i = 1; i < path.length; i++) {
-      ctx.lineTo(path[i]!.x, path[i]!.y);
+      if (cut && i === 2) {
+        ctx.moveTo(path[i]!.x, path[i]!.y);
+      } else {
+        ctx.lineTo(path[i]!.x, path[i]!.y);
+      }
     }
   }
   ctx.stroke();

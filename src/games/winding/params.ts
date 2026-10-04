@@ -122,6 +122,11 @@ export const DRUM_STOP_MS = 250;
 /** ドラムの羽 (斜めに張り出した板) の側面が見える最大の幅 (論理座標。T2-13a。のちの「ドラム設定」で変える) */
 export const WING_OUT = 14;
 
+/** ドラムの桟 (板) が、ドラムの上の縁より上へはみ出す長さ (論理座標。PU-14c) */
+export const SLAT_OVER = 30;
+/** はみ出した所が外へ開く量 (論理座標。左右の端の板ほど大きく、正面の中央の板は 0。PU-14c) */
+export const SLAT_FLARE = 14;
+
 /** 羽の側面の幅の上限 (板の幅 × この割合。T2-13 追加修正: 端で側面が太すぎるのを直す) */
 export const WING_SIDE_MAX_RATIO = 0.4;
 
