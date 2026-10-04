@@ -184,10 +184,15 @@ describe('PU-10a: ホームの「設定」ボタンのバッジ', () => {
 });
 
 describe('PU-10e: 版の番号とアプリ名', () => {
-  it('題名の下に「バージョン 0.1.0(2026-10-04)」が小さく出る (20px 以上・muted)。題名と挨拶のあいだ', () => {
+  it('題名の下に「バージョン 0.1.0(日付 時刻)」が小さく出る (20px 以上・muted)。題名と挨拶のあいだ', () => {
     const { root } = mountHome({ shopName: '山田整経', playerName: '太郎' });
     const v = root.querySelector('.home__version')!;
-    expect(v.textContent).toBe('バージョン 0.1.0(2026-10-04)');
+    // 日付と時刻 (分まで) は、この端末の時刻で出す
+    const d = new Date('2026-10-04T12:00:00.000Z');
+    const p2 = (n: number): string => String(n).padStart(2, '0');
+    const local = `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+    expect(v.textContent).toBe(`バージョン 0.1.0(${local})`);
+    expect(v.textContent).toMatch(/\(\d{4}-\d{2}-\d{2} \d{2}:\d{2}\)$/);
     const app = root.querySelector('.home__app')!;
     expect(app.nextElementSibling).toBe(v);
     const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');

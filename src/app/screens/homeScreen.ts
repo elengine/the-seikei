@@ -71,11 +71,11 @@ export function createHomeScreen(ctx: AppContext): Screen {
       titles.appendChild(app);
       // 題名の下に、版の番号を小さく (アプリの版とビルドの日付)
       const version = el('p', 'home__version');
-      const built = new Date(__BUILD_ID__); // ビルドの時刻 (ISO)。日付はこの端末の時刻で出す
+      const built = new Date(__BUILD_ID__); // ビルドの時刻 (ISO)。日付と時刻 (分まで) はこの端末の時刻で出す
       const pad2 = (n: number): string => String(n).padStart(2, '0');
       const day = Number.isNaN(built.getTime())
         ? __BUILD_ID__.slice(0, 10)
-        : `${built.getFullYear()}-${pad2(built.getMonth() + 1)}-${pad2(built.getDate())}`;
+        : `${built.getFullYear()}-${pad2(built.getMonth() + 1)}-${pad2(built.getDate())} ${pad2(built.getHours())}:${pad2(built.getMinutes())}`;
       version.textContent = `バージョン ${__APP_VERSION__}(${day})`;
       titles.appendChild(version);
       const playerName = ctx.settings.get().playerName;
