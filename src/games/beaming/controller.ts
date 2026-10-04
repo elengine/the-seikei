@@ -10,10 +10,10 @@ import { getContent } from '../../core/content/content';
 import { init, reduce } from './logic';
 import { seedFromText } from '../winding/logic';
 import { speedOf } from '../../core/mechanics/pedal';
-import { messageFor, resultOf } from './messages';
+import { resultOf } from './messages';
 import type { BeamingState, BeamingAction, Level } from './logic';
 import { TENSION } from './params';
-import { DRUM_TURN_PER_SPEED, MESSAGE_HOLD_MS } from '../winding/params';
+import { DRUM_TURN_PER_SPEED } from '../winding/params';
 
 const LEVEL_NAMES: Record<Level, string> = { 1: '初級', 2: '中級', 3: '上級' };
 const DONE_WAIT_MS = 1500; // done のあと結果を出すまでの見せる時間
@@ -57,7 +57,6 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
   let saveTimer: ReturnType<typeof setInterval> | null = null;
   let doneTimer: ReturnType<typeof setTimeout> | null = null;
   let drumAngle = 0; // ドラムが回って見える角度 (見た目だけの値。State には入らない)
-  let nowMs = 0;
   let ready = false;
 
   const content = getContent();
@@ -73,6 +72,7 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
     onHelp: () => {
       void showTutorial(frame.root, opts.tutorial, { renderText: (t) => deps.terms.render(t) }).then(() => undefined);
     },
+    message: false, // メッセージ欄は無い。短い知らせは notify (PU-15c)
     logicalW: 1000,
     logicalH: 750,
     // 盤面のカードの縦横の割合に論理の高さを合わせ、機械をカードの高さいっぱいに描く (PU-15a。ドラム巻きと同じ考え)
@@ -153,47 +153,13 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
       dispatch(a);
     },
     onNotice: (text: string) => {
-      frame.message.textContent = text;
+      frame.notify(text);
     },
     puzzle:
       opts.bands !== undefined && opts.puzzleName !== undefined
         ? { bands: opts.bands, patternName: opts.puzzleName }
         : undefined,
   });
-
-  // ---- メッセージ (張りの文は MESSAGE_HOLD_MS 続いてから切り替える。それ以外はすぐ) ----
-  let pendingMsg: { text: string; sinceMs: number } | null = null;
-  let shownMsg = '';
-  function setMessage(text: string, holdMs: boolean): void {
-    if (!holdMs) {
-      pendingMsg = null;
-      shownMsg = text;
-      frame.message.textContent = text;
-      return;
-    }
-    if (text === shownMsg) {
-      pendingMsg = null;
-      return;
-    }
-    if (pendingMsg !== null && pendingMsg.text !== text) {
-      pendingMsg = { text, sinceMs: nowMs };
-      return;
-    }
-    if (pendingMsg === null) {
-      pendingMsg = { text, sinceMs: nowMs };
-      return;
-    }
-    if (nowMs - pendingMsg.sinceMs >= MESSAGE_HOLD_MS) {
-      pendingMsg = null;
-      shownMsg = text;
-      frame.message.textContent = text;
-    }
-  }
-  function updateMessage(): void {
-    const text = messageFor(s, (x) => deps.terms.render(x));
-    // 偏り・乗り上げの文は待たずにすぐ出す。待つのは張りの文だけ
-    setMessage(text, text.includes('張り'));
-  }
 
   // ---- 描画 ----
   function render(): void {
@@ -240,7 +206,6 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
     }
     s = next;
     saveState();
-    updateMessage();
     if (s.phase === 'done') {
       handleDone();
     } else {
@@ -262,7 +227,6 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
       rafId = null;
       return;
     }
-    nowMs = ms;
     const dtMs = lastFrameMs === null ? 0 : Math.max(0, ms - lastFrameMs);
     lastFrameMs = ms;
     if (dtMs > 0) {
@@ -275,7 +239,6 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
       const next = reduce(s, { type: 'tick', dtMs });
       if (next !== prev) {
         s = next;
-        updateMessage();
         if (s.phase === 'done') {
           handleDone(); // 巻き終わりは tick で起こる (糸切れは無いので done に入るのはここだけ)
         } else {
@@ -321,7 +284,6 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
   if (s.phase !== 'done') {
     startLoop();
   }
-  updateMessage();
   ready = true;
   refresh();
   if (s.phase === 'setup') {

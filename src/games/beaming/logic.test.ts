@@ -3,7 +3,6 @@ import { init, reduce, starsOf, widthOk, resultLines, isValidResume, overflowSid
 import type { BeamingState, BeamingAction } from './logic';
 import { OVERFLOW_CLEARANCE_CM, CENTER_OK_CM } from './params';
 import { drawBoard } from './renderer';
-import { messageFor } from './messages';
 import { getContent } from '../../core/content/content';
 import { COLORS } from '../../core/ui/tokens';
 import { makeFakeCtx } from '../winding/renderer.test.helpers';
@@ -274,7 +273,7 @@ describe('T3-03a 追加修正 (乗り上げの判定を1か所に・遊びは中
     expect(OVERFLOW_CLEARANCE_CM).toBe(CENTER_OK_CM);
   });
 
-  it('18. renderer と messages が overflowSides と同じ結果になる (朱の縁・文が判定と一致)', () => {
+  it('18. renderer が overflowSides と同じ結果になる (朱の縁・文字が判定と一致。メッセージ欄は PU-15c で無くなった)', () => {
     const content = getContent();
     const fit = { scale: 1, offsetX: 0, offsetY: 0 };
     for (const shiftCm of [-2, -1.6, -1.2, 0, 1.2, 1.6, 2]) {
@@ -287,9 +286,6 @@ describe('T3-03a 追加修正 (乗り上げの判定を1か所に・遊びは中
       const text = rec.ops.some((o) => o.k === 'fillText' && String(o.args?.[0]).includes('乗り上げ'));
       expect(shu).toBe(sides.left || sides.right);
       expect(text).toBe(sides.left || sides.right);
-      // messages: 乗り上げの文は、判定が true のときだけ出る
-      const msg = messageFor(s, (x) => x);
-      expect(msg.includes('乗り上げ')).toBe(sides.left || sides.right);
     }
   });
 });

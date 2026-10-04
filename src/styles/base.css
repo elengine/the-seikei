@@ -2089,6 +2089,14 @@ button {
   gap: var(--sp-2);
 }
 
+/* 巻き量: 操作欄の一番上に 1 か所だけ。大きな太字 (PU-15c) */
+.beaming-panel__amount {
+  font-size: 32px;
+  font-weight: bold;
+  line-height: 1.2;
+  color: var(--c-ai);
+}
+
 .beaming-panel__order {
   font-size: var(--fs-body);
   color: var(--c-sumi);
@@ -2119,26 +2127,6 @@ button {
   min-width: 0;
   padding-inline: var(--sp-2);
   white-space: nowrap;
-}
-
-.beaming-panel__progress {
-  display: flex;
-  column-gap: var(--sp-4);
-  row-gap: var(--sp-1);
-  align-items: baseline;
-  font-size: var(--fs-body);
-  color: var(--c-sumi);
-}
-
-/* 主な操作の行に入った進み (巻き返しの段階。T3-03 追加修正) */
-.beaming-panel__actions .beaming-panel__progress {
-  flex: 1;
-  margin-top: 0;
-}
-
-.beaming-panel__clock {
-  margin-left: auto;
-  color: var(--c-sumi-sub);
 }
 
 .beaming-panel__actions {
@@ -2178,37 +2166,19 @@ button {
   text-overflow: ellipsis;
 }
 
-/* ビーム巻きの上のメッセージ欄 (直前の兄弟) は文字を小さくして高さを減らす (T3-03 追加修正) */
-.game-frame__message:has(+ .beaming-panel) {
-  font-size: min(var(--fs-body), 20px);
-  line-height: 1.3;
-}
-
-/* ペダルの文字は小さめ (「戻す」「踏み込む」が狭い操作欄で収まる。押せる大きさは変えない) */
-.beaming-panel .pedal__btn,
-.beaming-panel .pedal__value,
+/* 文字は小さめ (狭い操作欄で収まる。押せる大きさは変えない) */
 .beaming-panel .tension-meter,
 .beaming-panel__info,
-.beaming-panel__progress,
 .beaming-panel__shift .btn {
   font-size: min(var(--fs-body), 20px);
 }
 
-.beaming-panel .pedal__btn,
-.beaming-panel .pedal__value,
 .beaming-panel .tension-meter,
 .beaming-panel .pedal__row {
   line-height: 1.2;
 }
 
-/* 詰めた形 (コンパクト) ではペダルの溝とボタンを同じ行にして高さを減らす */
-.game-frame--compact .beaming-panel .pedal__btn {
-  flex: 0 0 auto;
-  min-width: 64px;
-  box-sizing: border-box;
-  padding-inline: var(--sp-2);
-}
-
+/* 詰めた形 (コンパクト) ではペダルの溝を行いっぱいに広げる */
 .game-frame--compact .beaming-panel .pedal__groove {
   flex: 1 1 0;
   min-width: 0;

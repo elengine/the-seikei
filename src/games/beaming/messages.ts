@@ -1,14 +1,11 @@
 import type { GameResult, GameProps } from '../../core/game/types';
-import { starsOf, resultLines, overflowSides } from './logic';
+import { starsOf, resultLines } from './logic';
 import type { BeamingState } from './logic';
 
 /**
- * ビーム巻きのプレイ画面のメッセージと結果 (P3 T3-03a)。
- * 文は大人向け。{{…}} は呼び出し側の render で呼び名に置き換わる。
+ * ビーム巻きの結果 (P3 T3-03a)。メッセージ欄は PU-15c で無くなった。
  * ビーム巻きでは糸切れは起きない (管理者の指示)。張りと偏りで品質が下がるだけ。
  */
-
-type Render = (text: string) => string;
 
 /** 秒を「1分20秒」の形にする */
 export function msToText(ms: number): string {
@@ -17,37 +14,6 @@ export function msToText(ms: number): string {
   const sec = total % 60;
   if (min === 0) return `${sec}秒`;
   return `${min}分${sec}秒`;
-}
-
-/** 状態に応じたメッセージを返す。乗り上げ > 偏り > 張り の順で出す */
-export function messageFor(s: BeamingState, render: Render): string {
-  if (s.phase === 'setup') {
-    return render('円盤を動かして、巻き幅に合わせてください');
-  }
-  if (s.phase === 'beaming') {
-    const over = overflowSides(s);
-    if (over.left) {
-      return render('左の円盤に乗り上げています');
-    }
-    if (over.right) {
-      return render('右の円盤に乗り上げています');
-    }
-    if (s.shiftCm > 1.5) {
-      return render('糸が右に寄っています。寄せてください');
-    }
-    if (s.shiftCm < -1.5) {
-      return render('糸が左に寄っています。寄せてください');
-    }
-    if (s.tension > s.range.center + s.range.width / 2) {
-      return render('張りが強すぎます。{{pedal}}を戻してください');
-    }
-    if (s.tension < s.range.center - s.range.width / 2) {
-      return render('張りが弱めです');
-    }
-    return render('適正な張りです');
-  }
-  // done
-  return render('完成しました');
 }
 
 /** 結果の GameResult (大人向けの summary つき) */

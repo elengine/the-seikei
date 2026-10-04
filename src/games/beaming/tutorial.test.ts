@@ -7,7 +7,7 @@ import { beamingTutorial } from './tutorial';
 describe('ビーム巻きの遊び方 T3-03b (3ページ)', () => {
   it('3ページあり、文は幅合わせ・ペダルと張り・偏りと乗り上げの順', () => {
     expect(beamingTutorial.pages).toHaveLength(3);
-    expect(beamingTutorial.pages[0]!.text).toContain('円盤を動かして');
+    expect(beamingTutorial.pages[0]!.text).toContain('引っぱ');
     expect(beamingTutorial.pages[1]!.text).toContain('{{pedal}}');
     expect(beamingTutorial.pages[2]!.text).toContain('寄せる');
     expect(beamingTutorial.pages[2]!.text).toContain('乗り上げ');
@@ -37,5 +37,36 @@ describe('ビーム巻きの遊び方 T3-03b (3ページ)', () => {
       expect(ops.length).toBeGreaterThan(0);
     }
     // 文字は 20px 以上 (drawPage 関数が font を '20px' 以上で設定する)
+  });
+
+  it('PU-15c: 文に「巻き量」があり、円盤を引っぱると書く。「◀」「踏み込む」「戻す」「速さ」は無い', () => {
+    const all = beamingTutorial.pages.map((p) => p.text).join('\n');
+    expect(all).toContain('巻き量');
+    expect(all).toContain('引っぱ');
+    for (const w of ['◀', '▶', '踏み込む', '戻す', '速さ', '円盤を動かして']) {
+      expect(all, w).not.toContain(w);
+    }
+  });
+
+  it('PU-15c: 絵は新しい盤面と同じ作り (ドラムの縦の筋・円盤の楕円・軸・ガイドの棒)。1 ページ目の絵に「引っぱる」', () => {
+    const calls: Array<{ k: string; args: unknown[] }> = [];
+    const texts: string[] = [];
+    const fake = new Proxy({ canvas: { width: 300, height: 200 } } as Record<string, unknown>, {
+      get(t, key): unknown {
+        if (key in t) return t[key as string];
+        return (...args: unknown[]): void => {
+          calls.push({ k: String(key), args });
+          if (key === 'fillText') texts.push(String(args[0]));
+        };
+      },
+      set(t, key, v): boolean {
+        t[key as string] = v;
+        return true;
+      },
+    });
+    beamingTutorial.pages[0]!.draw(fake as unknown as CanvasRenderingContext2D, 900, 600);
+    expect(calls.filter((c) => c.k === 'ellipse').length).toBeGreaterThanOrEqual(4); // 円盤 2 + ドラムの端 2
+    expect(texts.some((t) => t.includes('引っぱる'))).toBe(true);
+    expect(texts.some((t) => t.includes('←→'))).toBe(false);
   });
 });

@@ -182,6 +182,14 @@ describe('beaming renderer PU-15a (盤面。実物の写真に寄せた絵)', ()
     expect(segments(rec2).filter((g) => g.y1 === BOARD.targetY && g.y2 === BOARD.targetY).length).toBe(0);
   });
 
+  it('9b. 盤面の上の「巻いた N%」「巻き幅…合わせてください」の文字は無い (巻き量は操作欄の 1 か所。PU-15c)', () => {
+    for (const s of [beamState({ progress: 0.5 }), init({ level: 1, widthCm: 60, seed: 42, puzzleId: 's1', patternId: 'p-muji-kon' })]) {
+      const texts = draw(s).ops.filter((o) => o.k === 'fillText').map((o) => String(o.args?.[0]));
+      expect(texts.some((t) => t.includes('巻いた'))).toBe(false);
+      expect(texts.some((t) => t.includes('合わせてください'))).toBe(false);
+    }
+  });
+
   it('9. 色の直書きが無い (renderer.ts・geometry.ts に hex のリテラルがない)', () => {
     for (const file of ['src/games/beaming/renderer.ts', 'src/games/beaming/geometry.ts']) {
       const src = readFileSync(file, 'utf8');

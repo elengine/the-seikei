@@ -5,9 +5,9 @@ import type { BeamingState, BeamingAction } from './logic';
 
 /**
  * ビーム巻きの操作欄 (P3 T3-03a)。
- * 上から: 依頼書 (巻き幅・帯の数・柄の名前)、幅合わせの段階 (今と目標の幅。円盤は絵の上で引っぱる)、
- * 巻き返しの段階 (張りのメーター・ペダル・寄せる2つ+巻いた割合と経過時間)、主な操作。
- * メッセージは GameFrame の message 欄を使う (controller が書く)。この部品はメッセージ欄を作らない。
+ * 上から: 「巻き量 N%」(1 か所だけ、大きく。PU-15c)、依頼書 (巻き幅・帯の数・柄の名前)、
+ * 幅合わせの段階 (今と目標の幅。円盤は絵の上で引っぱる)、巻き返しの段階 (張りのメーター・ペダルの溝・寄せる2つ)、主な操作。
+ * ペダルの「戻す」「踏み込む」・速さの数・経過時間は無い (T3-04 で速さのレバーに置き換える)。メッセージ欄は無い (理由は onNotice → お知らせ)。
  * メーターの範囲は State のもの (range {center, width} を min/max に直して渡す)。
  */
 
@@ -21,7 +21,7 @@ export function createBeamingPanel(
   opts: {
     terms: { t(k: string): string };
     onAction: (a: BeamingAction) => void;
-    /** 押せないボタンを押したときの理由を出す (message 欄に書くなど) */
+    /** 押せないペダルの溝を押したときの理由を出す (お知らせに出すなど) */
     onNotice?: (text: string) => void;
     /** 依頼書の情報 (帯の数と柄の名前。巻き幅は State にある) */
     puzzle?: { bands: number; patternName: string };
@@ -29,6 +29,11 @@ export function createBeamingPanel(
 ): BeamingPanel {
   const root = document.createElement('div');
   root.className = 'beaming-panel';
+
+  // 0. 巻き量 (操作欄の一番上に 1 か所だけ。大きな太字)
+  const amount = document.createElement('div');
+  amount.className = 'beaming-panel__amount';
+  root.appendChild(amount);
 
   // 1. 依頼書 (巻き幅・帯の数・柄の名前)
   const order = document.createElement('div');
@@ -59,6 +64,8 @@ export function createBeamingPanel(
   beamBlock.appendChild(pedalHost);
   const pedal = createPedalControl(pedalHost, {
     label: '',
+    buttons: false,
+    showValue: false,
     onChange: (v) => opts.onAction({ type: 'setPedal', value: v }),
     onLocked: (reason) => opts.onNotice?.(reason),
   });
@@ -71,8 +78,7 @@ export function createBeamingPanel(
   beamBlock.appendChild(shift);
   root.appendChild(beamBlock);
 
-  // 4. 一番下の主な操作 + 巻き返しの進み (T3-03 追加修正: 巻き返しの段階は主な操作が無いので、
-  //    その行に「巻いた割合と時間」を出して操作欄の高さを減らす)
+  // 4. 一番下の主な操作 (巻き返しの段階は主な操作が無いので、行を詰める)
   const buttonRow = document.createElement('div');
   buttonRow.className = 'beaming-panel__actions';
   const startBtn = createButton({
@@ -82,21 +88,9 @@ export function createBeamingPanel(
   });
   startBtn.classList.add('beaming-panel__main');
   buttonRow.appendChild(startBtn);
-  const progress = document.createElement('div');
-  progress.className = 'beaming-panel__progress';
-  progress.style.display = 'none';
-  buttonRow.appendChild(progress);
   root.appendChild(buttonRow);
 
   parent.appendChild(root);
-
-  /** 経過時間を「0:42」の形にする */
-  function clockText(ms: number): string {
-    const total = Math.max(0, Math.floor(ms / 1000));
-    const min = Math.floor(total / 60);
-    const sec = total % 60;
-    return `${min}:${String(sec).padStart(2, '0')}`;
-  }
 
   return {
     update(s: BeamingState): void {
@@ -113,26 +107,18 @@ export function createBeamingPanel(
       setupBlock.style.display = isSetup ? '' : 'none';
       beamBlock.style.display = s.phase === 'beaming' ? '' : 'none';
       startBtn.style.display = isSetup ? '' : 'none';
-      progress.style.display = isSetup ? 'none' : '';
-      // 巻き返しの段階の下の行は進みの表示だけ (ボタンが無いので行を低くする。T3-03 追加修正)
+      amount.textContent = `巻き量 ${Math.round(s.progress * 100)}%`;
+      // 巻き返しの段階の下の行は空 (ボタンが無いので行を低くする)
       buttonRow.style.minHeight = isSetup ? '' : '0';
       // 幅合わせ: 今の幅と目標の幅
       widthText.textContent = `今 ${Math.round(s.rightCm - s.leftCm)}cm/目標 ${s.widthCm}cm`;
-      // 巻き返し: メーター・ペダル・割合と時間
+      // 巻き返し: メーター・ペダル
       meter.update(s.tension, {
         min: s.range.center - s.range.width / 2,
         max: s.range.center + s.range.width / 2,
       });
       pedal.setEnabled(s.phase === 'beaming', '「巻き始める」を押すと使えます');
       pedal.setValue(s.pedal.pedal);
-      progress.textContent = '';
-      const pct = document.createElement('span');
-      pct.textContent = `巻いた ${Math.round(s.progress * 100)}%`;
-      const time = document.createElement('span');
-      time.textContent = clockText(s.windMs);
-      time.className = 'beaming-panel__clock';
-      progress.appendChild(pct);
-      progress.appendChild(time);
     },
     destroy(): void {
       pedal.destroy();

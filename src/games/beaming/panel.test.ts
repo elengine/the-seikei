@@ -90,7 +90,7 @@ describe('beaming panel T3-03a (操作欄)', () => {
     p.destroy();
   });
 
-  it('6. 依頼書は詰めた形で1行 (柄の名前・巻き幅・帯の数)。巻き返しの段階では巻いた割合と経過時間の1行', () => {
+  it('6. 依頼書は詰めた形で1行 (柄の名前・巻き幅・帯の数)。「巻き量」は操作欄の一番上に 1 か所だけ', () => {
     const p = createBeamingPanel(host, {
       terms,
       onAction: () => undefined,
@@ -99,9 +99,12 @@ describe('beaming panel T3-03a (操作欄)', () => {
     p.update(make());
     expect(host.querySelector('.beaming-panel__order')!.textContent).toBe('無地紺・巻き幅 60cm・帯 3本');
     p.update(beaming());
-    // 巻いた割合と時間 (「巻いた 0%」と 0:00 の形の時計)
-    expect(host.textContent).toContain('巻いた');
-    expect(host.textContent).toMatch(/\d+:\d{2}/);
+    const amounts = host.querySelectorAll('.beaming-panel__amount');
+    expect(amounts).toHaveLength(1);
+    expect(host.querySelector('.beaming-panel')!.firstElementChild).toBe(amounts[0]);
+    expect(amounts[0]!.textContent).toBe('巻き量 0%');
+    expect((host.textContent ?? '').match(/巻き量/g)).toHaveLength(1);
+    expect(host.textContent).not.toContain('巻いた');
     p.destroy();
   });
 
@@ -110,5 +113,45 @@ describe('beaming panel T3-03a (操作欄)', () => {
     p.update(make());
     p.destroy();
     expect(host.querySelector('.beaming-panel')).toBeNull();
+  });
+});
+
+describe('PU-15c: 操作欄の整理 (戻す・踏み込む・速さ・経過時間を無くす)', () => {
+  let host: HTMLElement;
+  beforeEach(() => {
+    document.body.textContent = '';
+    host = document.createElement('div');
+    document.body.appendChild(host);
+  });
+
+  it('「戻す」「踏み込む」のボタン・速さの表示・経過時間が無い。ペダルは溝だけ (T3-04 で速さのレバーに置き換えるまで残す)', () => {
+    const p = createBeamingPanel(host, { terms, onAction: () => undefined });
+    p.update(beaming());
+    expect(host.querySelector('.pedal__btn')).toBeNull();
+    expect(host.querySelector('.pedal__value')).toBeNull();
+    expect(host.querySelector('.beaming-panel__clock')).toBeNull();
+    expect(host.textContent).not.toContain('踏み込む');
+    expect(host.textContent).not.toContain('戻す');
+    expect(host.textContent).not.toContain('速さ');
+    expect(host.textContent).not.toMatch(/\d+:\d{2}/);
+    expect(host.querySelector('.pedal__groove')).not.toBeNull();
+    p.destroy();
+  });
+
+  it('巻き量は 32px 以上の太字 (base.css)', () => {
+    const css = readFileSync('src/styles/base.css', 'utf8');
+    const m = css.match(/\n\.beaming-panel__amount\s*\{([^}]*)\}/)![1]!;
+    expect(parseInt(m.match(/font-size: (\d+)px/)![1]!, 10)).toBeGreaterThanOrEqual(32);
+    expect(m).toContain('font-weight: bold');
+  });
+
+  it('押せないペダルの溝を押すと、理由が onNotice に出る (戻す・踏み込むの代わり)', () => {
+    const notice: string[] = [];
+    const p = createBeamingPanel(host, { terms, onAction: () => undefined, onNotice: (t) => notice.push(t) });
+    p.update(make());
+    host.querySelector('.pedal__groove')!.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, clientX: 5, clientY: 5 }));
+    expect(notice.length).toBe(1);
+    expect(notice[0]).toContain('巻き始める');
+    p.destroy();
   });
 });
