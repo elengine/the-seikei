@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { drawBoard } from './renderer';
-import { endPoint, threadY, tableY, THREAD_MARK_X, CREEL_END_X, DRUM_END_X, drumSectionY, DRUM_AREA, REED_X, DIAL_X, DIAL_Y, DIAL_R, reedRect, setLogicalHeight } from './geometry';
+import { endPoint, threadY, tableY, THREAD_MARK_X, CREEL_END_X, DRUM_END_X, drumSectionY, DRUM_AREA, REED_X, DIAL_X, DIAL_Y, DIAL_R, reedRect, setLogicalHeight, fontPx } from './geometry';
 import { COLORS } from '../../core/ui/tokens';
 import type { FakeRecorder } from './renderer.test.helpers';
 
 // 偽の ctx (呼ばれた命令を記録する) は helpers に置く
 import { makeFakeCtx } from './renderer.test.helpers';
-import { SLAT_COUNT, PIN_ANGLE0, lampStateOf, lampGeometry } from './renderer.parts';
+import { SLAT_COUNT, PIN_ANGLE0, lampStateOf, lampGeometry, drumRimY, DRUM_BULGE } from './renderer.parts';
 import { WING_SIDE_MAX_RATIO, SLAT_OVER, SLAT_FLARE, STRIPE_H } from './params';
 import { init, reduce } from './logic';
 import type { WindingState } from './logic';
@@ -481,7 +481,7 @@ describe('winding renderer T2-10b (ドラムが回って見える)', () => {
     const inDrum = fillRectsWithColor(rec).filter(
       (f) => f.v === COLORS.wood && f.w > 0 &&
         f.x >= DRUM_AREA.x - 10 && f.x < DRUM_AREA.x + DRUM_AREA.w + 10 &&
-        f.y >= DRUM_AREA.y && f.y < DRUM_AREA.y + DRUM_AREA.h,
+        f.y >= DRUM_AREA.y - 13 && f.y < DRUM_AREA.y + DRUM_AREA.h, // 上端は弧の分だけ上がる (T2-16 その3-4)
     );
     expect(inDrum.length).toBeLessThan(SLAT_COUNT * s.sections); // 裏側 (約半分) が消えている
     expect(inDrum.length).toBeGreaterThan(0);
@@ -508,7 +508,7 @@ describe('winding renderer T2-10 追加修正 a (桟の数)', () => {
     const boards = fillRectsWithColor(rec).filter(
       (f) => f.v === COLORS.wood && f.w > 0 && f.h > 20 &&
         f.x >= DRUM_AREA.x - 20 && f.x < DRUM_AREA.x + DRUM_AREA.w + 20 &&
-        f.y >= DRUM_AREA.y - 1 && f.y <= DRUM_AREA.y + 1,
+        f.y >= DRUM_AREA.y - 13 && f.y <= DRUM_AREA.y + 1, // 上端は弧の分だけ上がる (T2-16 その3-4)
     );
     expect(boards.length).toBeGreaterThanOrEqual(10);
     // 板の高さは胴の高さ (区画の高さではない)
@@ -699,7 +699,7 @@ describe('winding renderer T2-13a (実物の写真に合わせた絵)', () => {
     const boards = fillRectsWithColor(rec).filter(
       (f) => f.v === COLORS.wood && f.w > 0 &&
         f.x >= DRUM_AREA.x - 30 && f.x < DRUM_AREA.x + DRUM_AREA.w + 30 &&
-        f.y >= DRUM_AREA.y - 1 && f.y <= DRUM_AREA.y + 1,
+        f.y >= DRUM_AREA.y - 13 && f.y <= DRUM_AREA.y + 1, // 上端は弧の分だけ上がる (T2-16 その3-4)
     );
     expect(boards.length).toBeGreaterThanOrEqual(10); // 正面に見える板
     for (const b of boards) {
@@ -917,7 +917,7 @@ describe('PU-14c: 盤面の絵 (切れた糸・緑の竿・桟・糸の弓なり
       const bottom = p[1]! + p[3]! - (DRUM_AREA.y + DRUM_AREA.h);
       expect(top).toBeGreaterThan(0);
       expect(bottom).toBeLessThanOrEqual(top * 1.5);
-      expect(bottom).toBeLessThan(16);
+      expect(bottom).toBeLessThan(27); // 14 + 弧のぶん 12 (T2-16 その3-4)
     }
   });
 
@@ -934,9 +934,10 @@ describe('PU-14c: 盤面の絵 (切れた糸・緑の竿・桟・糸の弓なり
     let found = 0;
     for (let i = 0; i + 3 < pts.length; i++) {
       const [p0, p1, p2, p3] = [pts[i]!, pts[i + 1]!, pts[i + 2]!, pts[i + 3]!];
+      const baseY = drumRimY((p0.x + p1.x) / 2, fit, true); // 底辺は上の縁の弧の上 (T2-16 その3-4)
       if (
-        p0.op === 'moveTo' && Math.abs(p0.y - DRUM_AREA.y) < 0.01 && Math.abs(p1.y - DRUM_AREA.y) < 0.01 &&
-        Math.abs(p2.y - (DRUM_AREA.y - SLAT_OVER)) < 0.01 && Math.abs(p3.y - (DRUM_AREA.y - SLAT_OVER)) < 0.01
+        p0.op === 'moveTo' && Math.abs(p0.y - baseY) < 1 && Math.abs(p1.y - baseY) < 1 &&
+        Math.abs(p2.y - (baseY - SLAT_OVER)) < 1 && Math.abs(p3.y - (baseY - SLAT_OVER)) < 1
       ) {
         found++;
         const bottomMid = (p0.x + p1.x) / 2;
@@ -1045,7 +1046,8 @@ describe('T2-16 前: ドラムの絵の直し (上の縁・帯の下の端。管
     const boards = fillRectsWithColor(rec).filter((f) => f.v === COLORS.wood && f.h > DRUM_AREA.h - 4);
     expect(boards.length).toBeGreaterThan(0);
     for (const b of boards) {
-      expect(Math.abs(b.y - DRUM_AREA.y), `板の上端 ${b.y}`).toBeLessThan(1);
+      // 板の上端は、その x での上の縁の弧の y (T2-16 その3-4)
+      expect(Math.abs(b.y - drumRimY(b.x + b.w / 2, fit, true)), `板の上端 ${b.y}`).toBeLessThan(1);
     }
   });
 
@@ -1228,5 +1230,73 @@ describe('T2-16c (ハサミのアイコン)', () => {
     const s = { ...windingState(), phase: 'cutting' } as WindingState;
     const rec2 = draw(s);
     expect(hasBase(rec2, 570, 120)).toBe(false);
+  });
+});
+
+describe('T2-16 その3 追加 (4)(5) (ドラムの板・竿・結び目が弧の上を動く・巻き終えの黒い横線を消す)', () => {
+  const fit = { scale: 1, offsetX: 0, offsetY: 0 };
+
+  it('4. 板の上の端の y は上の縁の楕円の弧の上 (x が中央に近いほど小さい。差 1 以下)。下の端は下の縁の弧', () => {
+    const cx = DRUM_AREA.x + DRUM_AREA.w / 2;
+    const radius = (DRUM_AREA.w + DRUM_BULGE * 2) / 2;
+    const topRy = fontPx(fit, 12);
+    // 中央に近いほど上の端は小さい (高い)
+    expect(drumRimY(cx, fit, true)).toBeLessThan(drumRimY(cx + radius * 0.8, fit, true));
+    // 弧の式: 楕円の上の半分の弧の y と一致 (下は下の半分)
+    for (const k of [-0.8, -0.4, 0, 0.4, 0.8]) {
+      const x = cx + radius * k;
+      const f = Math.sqrt(Math.max(0, 1 - k * k));
+      expect(Math.abs(drumRimY(x, fit, true) - (DRUM_AREA.y - topRy * f))).toBeLessThanOrEqual(1);
+      expect(Math.abs(drumRimY(x, fit, false) - (DRUM_AREA.y + DRUM_AREA.h + topRy * f))).toBeLessThanOrEqual(1);
+    }
+    // 描いた板の上端が弧の上にある: drumAngle 0.5 の板の頂点を探す
+    const th = 0.5;
+    const sx = cx + radius * Math.sin(th);
+    const { ctx, rec } = makeFakeCtx();
+    drawBoard(ctx, fit, windingState(), content, { threadCount: 8, show: 'red', timeMs: 0, drumAngle: th });
+    const sw = fontPx(fit, 12) * Math.cos(th);
+    // 板の面の fillRect (wood・上端が弧の上)
+    const boards = rec.ops.filter((o) => {
+      if (o.k !== 'fillRect') return false;
+      const a = o.args as number[];
+      return Math.abs((a[0] ?? 0) - (sx - sw / 2)) < 1.5;
+    });
+    expect(boards.length, '板の面').toBeGreaterThan(0);
+    const y0 = (boards[0]!.args as number[])[1] ?? 0;
+    expect(Math.abs(y0 - drumRimY(sx, fit, true))).toBeLessThanOrEqual(1);
+  });
+
+  it("5. 全部巻き終えた状態 ('done') に、同じ y が続く横の直線の命令が無い (質の波は上の縁と同じ弓なりに乗る)", () => {
+    const { ctx } = makeFakeCtx();
+    drawBoard(ctx, fit, windingState(), content, { threadCount: 8, show: 'red', timeMs: 0 });
+    // done に変えてもう一度
+    const rec2 = (() => {
+      const { ctx: c2, rec: r2 } = makeFakeCtx();
+      const full = windingState();
+      // 適正な張りで巻いた (質 1・波 0) 状態。昔の描き方だと黒い横の直線になる
+      drawBoard(c2, fit, {
+        ...full, phase: 'done', current: full.sections,
+        lengths: Array(full.sections).fill(400),
+        windMs: Array(full.sections).fill(40000),
+        okMs: Array(full.sections).fill(40000),
+      } as unknown as WindingState, content, { threadCount: 8, show: 'red', timeMs: 0 });
+      return r2;
+    })();
+    let run = 0;
+    for (let n = 1; n < rec2.ops.length; n++) {
+      const o = rec2.ops[n]!;
+      if (o.k !== 'lineTo' || rec2.ops[n - 1]!.k !== 'lineTo') {
+        run = 0;
+        continue;
+      }
+      const y1 = (o.args as number[])[1] ?? -999;
+      const y0 = (rec2.ops[n - 1]!.args as number[])[1] ?? -998;
+      if (Math.abs(y1 - y0) < 0.01) {
+        run += 1;
+        expect(run, '同じ y の直線が続かない (黒い横線)').toBeLessThan(2);
+      } else {
+        run = 0;
+      }
+    }
   });
 });

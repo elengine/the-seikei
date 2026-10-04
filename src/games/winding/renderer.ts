@@ -6,7 +6,7 @@ import { speedOf } from '../../core/mechanics/pedal';
 import { TENSION, SECTION_LENGTH } from './params';
 import type { StageFit } from '../../core/viewport/viewport';
 import { CREEL_AREA, TABLE_AREA, DRUM_AREA, REED_X, THREAD_SHEET_HALF, REED_RISE, DIAL_X, DIAL_Y, DIAL_R, reedRect, reedThreadY, threadY, threadPath, drumSectionY, tableY, pointOnPath, fontPx } from './geometry';
-import { drawDrum, drawBrokenThread, drawTensionLamp , drawScissors } from './renderer.parts';
+import { drawDrum, drawBrokenThread, drawTensionLamp , drawScissors, drumRimY } from './renderer.parts';
 
 /**
  * ドラム巻きの盤面の描画 (P2 T2-05・T2-08・T2-08 追加修正a)。
@@ -263,8 +263,9 @@ function drawDoneSurface(ctx: CanvasRenderingContext2D, fit: StageFit, s: Windin
     const y = drumSectionY(i, s.sections) + secH / 2;
     ctx.beginPath();
     for (let xx = 0; xx <= 20; xx++) {
-      const py = y + (Math.sin((xx / 20) * Math.PI * 3) * wave) / 2;
       const px = DRUM_AREA.x + (xx / 20) * (DRUM_AREA.w - 40);
+      // 線は上の縁と同じ弓なりに乗せる (まっすぐ横の黒い線は描かない。T2-16 その3-5)
+      const py = drumRimY(px, fit, true) + (y - DRUM_AREA.y) + (Math.sin((xx / 20) * Math.PI * 3) * wave) / 2;
       if (xx === 0) ctx.moveTo(px, py);
       else ctx.lineTo(px, py);
     }

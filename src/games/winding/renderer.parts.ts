@@ -16,7 +16,8 @@ import { DRUM_AREA, fontPx, drumSectionY, threadY, CREEL_END_X, DRUM_END_X, SCIS
 const KNOT = { w: 24, h: 30 } as const; // 幅はピンの横木に少し重なる程度 (T2-08 追加修正2)
 
 /** ドラムの円筒の見た目の半分の厚み (帯の面の左右のふくらみ) */
-const DRUM_BULGE = 10;
+/** ドラムの胴の面の左右のふくらみ (論理座標) */
+export const DRUM_BULGE = 10;
 
 /** ドラムの桟の数 (円筒の周りに等間隔に並ぶ。正面に 10〜12 本見える。T2-10 追加修正) */
 export const SLAT_COUNT = 16;
@@ -104,27 +105,32 @@ export function drawDrum(
     const sw = Math.max(2, slatW0 * cosT);
     // 羽の側面 (少し薄い木の色。|sin θ| に比例し、板の幅の 40% が上限。T2-13a・T2-13 追加修正)
     const sideW = Math.min(WING_OUT, slatW0 * WING_SIDE_MAX_RATIO) * Math.abs(Math.sin(th));
+    // 板の上端・下端の y は、その x での上の縁・下の縁の楕円の弧の高さ (帯の弓なりと同じ曲線。T2-16 その3-4)
+    const topC = drumRimY(sx, fit, true);
+    const botC = drumRimY(sx, fit, false);
     if (sideW > 1) {
+      const sideX = sx + sw / 2 + sideW / 2;
       ctx.globalAlpha = 0.8;
-      ctx.fillRect(sx + sw / 2, y, sideW, h);
+      ctx.fillRect(sx + sw / 2, drumRimY(sideX, fit, true), sideW, drumRimY(sideX, fit, false) - drumRimY(sideX, fit, true));
       ctx.globalAlpha = 1;
       ctx.fillStyle = COLORS.wood;
     }
-    // 板の面 (上端から下端まで1本)
-    ctx.fillRect(sx - sw / 2, y, sw, h);
-    // ドラムの上の縁より上へはみ出した所。外へ開く (左の板は左へ、右の板は右へ。正面の中央は真上。ドラム設定の羽と同じ考え。PU-14c)
+    // 板の面 (上端から下端まで1本。上端・下端は弧に沿う)
+    ctx.fillRect(sx - sw / 2, topC, sw, botC - topC);
+    // ドラムの上の縁より上へはみ出した所。外へ開く (左の板は左へ、右の板は右へ。正面の中央は真上。ドラム設定の羽と同じ考え。PU-14c)。
+    // はみ出しの長さと角度は今のまま (T2-16 その3-4)
     const flare = SLAT_FLARE * Math.sin(th);
     ctx.beginPath();
-    ctx.moveTo(sx - sw / 2, y);
-    ctx.lineTo(sx + sw / 2, y);
-    ctx.lineTo(sx + sw / 2 + flare, y - SLAT_OVER);
-    ctx.lineTo(sx - sw / 2 + flare, y - SLAT_OVER);
+    ctx.moveTo(sx - sw / 2, topC);
+    ctx.lineTo(sx + sw / 2, topC);
+    ctx.lineTo(sx + sw / 2 + flare, topC - SLAT_OVER);
+    ctx.lineTo(sx - sw / 2 + flare, topC - SLAT_OVER);
     ctx.closePath();
     ctx.fill();
     // 板の丸い穴 (正面に近い板だけ。暗い色の小さな丸を縦に等間隔に。T2-13a)
     if (cosT > 0.6) {
       ctx.fillStyle = COLORS.machineDark;
-      for (let hy = y + HOLE_STEP / 2; hy < y + h - fontPx(fit, 10); hy += HOLE_STEP) {
+      for (let hy = topC + HOLE_STEP / 2; hy < drumRimY(sx, fit, false) - fontPx(fit, 10); hy += HOLE_STEP) {
         ctx.beginPath();
         ctx.arc(sx, hy, fontPx(fit, HOLE_R), 0, Math.PI * 2);
         ctx.fill();
@@ -213,12 +219,19 @@ export function drawDrum(
   const pinX = cx + radius * Math.sin(thPin);
   if (cosPin > 0) {
     ctx.fillStyle = COLORS.machineDark;
-    // 帯を止める緑の竿: 上は縁の楕円より外へ出し、下は短く (PU-14 追加修正2)
+    // 帯を止める緑の竿: 上は縁の楕円より外へ出し、下は短く (PU-14 追加修正2)。
+    // 上端・下端はその x での上の縁・下の縁の楕円の弧に沿う (T2-16 その3-4)
     const overTop = fontPx(fit, 24);
     const overBottom = fontPx(fit, 14);
-    ctx.fillRect(pinX - (fontPx(fit, 10) * cosPin) / 2, y - overTop, Math.max(3, fontPx(fit, 10) * cosPin), h + overTop + overBottom);
+    const pinTop = drumRimY(pinX, fit, true) - overTop;
+    const pinBot = drumRimY(pinX, fit, false) + overBottom;
+    ctx.fillRect(pinX - (fontPx(fit, 10) * cosPin) / 2, pinTop, Math.max(3, fontPx(fit, 10) * cosPin), pinBot - pinTop);
+    // 竿の上の帯の位置は、弧に沿った胴の面の中の割合で決める (中央で弓なりに上がる。T2-16 その3-4)
+    const spanTop = drumRimY(pinX, fit, true);
+    const spanBot = drumRimY(pinX, fit, false);
+    const onSurface = (rawY: number): number => spanTop + ((rawY - y) / h) * (spanBot - spanTop);
     for (let i = 0; i < s.sections; i++) {
-      const py = drumSectionPinY(i, s.sections);
+      const py = onSurface(drumSectionPinY(i, s.sections));
       ctx.fillStyle = COLORS.steel;
       ctx.fillRect(pinX - fontPx(fit, 2) * cosPin, py - fontPx(fit, 3), Math.max(4, fontPx(fit, 12) * cosPin), fontPx(fit, 6));
       // 巻いている帯のピンには糸の束が掛かる
@@ -236,9 +249,11 @@ export function drawDrum(
   }
 
   // 結び目 (巻き終えた帯の区画のピンの位置) + 結ぶ演出の輪。ピンと同じ角度で回る (T2-10 追加修正 b)
+  const knotTop = cosPin > 0 ? drumRimY(pinX, fit, true) : 0;
+  const knotBot = cosPin > 0 ? drumRimY(pinX, fit, false) : 1;
   for (let i = 0; i < s.sections; i++) {
     const kx = pinX;
-    const ky = drumSectionY(i, s.sections) + h / s.sections / 2;
+    const ky = cosPin > 0 ? knotTop + ((drumSectionY(i, s.sections) + h / s.sections / 2 - y) / h) * (knotBot - knotTop) : drumSectionY(i, s.sections) + h / s.sections / 2;
     const onFront = cosPin > 0;
     if ((i < s.current || s.phase === 'done') && onFront) {
       drawKnot(ctx, fit, kx, ky, base);
@@ -260,6 +275,16 @@ export function drawDrum(
       }
     }
   }
+}
+
+/** ドラムの縁の楕円の弧の y (正面から見た x での。top は上の縁・false は下の縁。中央がいちばん膨らむ。T2-16 その3-4) */
+export function drumRimY(x: number, fit: StageFit, top: boolean): number {
+  const { x: dx, y, w, h } = DRUM_AREA;
+  const cx = dx + w / 2;
+  const radius = (w + DRUM_BULGE * 2) / 2;
+  const ry = fontPx(fit, 12);
+  const f = Math.sqrt(Math.max(0, 1 - ((x - cx) / radius) ** 2));
+  return top ? y - ry * f : y + h + ry * f;
 }
 
 /** 帯 i のピンの y (ドラムの左の縁に、帯ごとの区画の高さ) */
