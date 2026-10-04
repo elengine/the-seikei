@@ -33,6 +33,8 @@ export function createCreelPanel(parent: HTMLElement, opts: {
   onAction: (a: CreelAction) => void;
   /** GameFrame の message 欄。渡されたときはそこに書き、独自のメッセージ欄は作らない */
   message?: HTMLElement;
+  /** 盤面の上のお知らせ (GameFrame の notify)。渡されたときは、ヒントの案内をここに出し、メッセージ欄は作らない */
+  notify?: (text: string) => void;
 }): CreelPanel {
   const content = opts.content;
   const root = document.createElement('div');
@@ -40,13 +42,24 @@ export function createCreelPanel(parent: HTMLElement, opts: {
 
   // ---- メッセージ (一番上) ----
   // GameFrame の message 欄が渡されたらそれを使う (メッセージ欄を1つにする)
+  // notify が渡されたときは、メッセージ欄を作らない (欄の代わりに、盤面の上のお知らせを使う)
   const message = opts.message ?? (() => {
     const m = document.createElement('p');
     m.classList.add('creel-panel__message');
     m.dataset.testid = 'creel-message';
-    root.appendChild(m);
+    if (opts.notify === undefined) {
+      root.appendChild(m);
+    }
     return m;
   })();
+  /** ヒントの案内などを伝える: お知らせがあればそこへ、無ければメッセージ欄へ */
+  function say(text: string): void {
+    if (opts.notify !== undefined) {
+      opts.notify(text);
+    } else {
+      message.textContent = text;
+    }
+  }
 
   function section(heading: string): HTMLElement {
     const box = document.createElement('section');
@@ -81,7 +94,7 @@ export function createCreelPanel(parent: HTMLElement, opts: {
     testId: 'creel-hint',
     lockedReason: '2回確認すると使えます',
     onLocked: (reason) => {
-      message.textContent = reason;
+      say(reason);
     },
     onClick: () => {
       const before = current;
@@ -89,7 +102,7 @@ export function createCreelPanel(parent: HTMLElement, opts: {
       if (before !== null && before.marks !== null) {
         // 使ったあとの残り (1 回で ✕ を 1 つ直す)。onAction の中でメッセージが書き換わるので、そのあとに書く
         const rest = before.marks.wrong.length + before.marks.empty.length - 1;
-        message.textContent = rest > 0 ? `ヒントを使いました。あと ${rest} 回使えます` : 'ヒントを使いました';
+        say(rest > 0 ? `ヒントを使いました。あと ${rest} 回使えます` : 'ヒントを使いました');
       }
     },
   });
@@ -261,8 +274,8 @@ export function createCreelPanel(parent: HTMLElement, opts: {
       hinban.textContent = yarn?.hinban ?? yarnId;
       // チーズの絵: 糸の色の丸・紙の芯の輪・中央の穴 (依頼書の行と同じ部品)
       const cheese = createConeIcon({ bodyHex: color?.hex, coreHex: core?.hex, className: 'creel-box__cheese' });
+      box.appendChild(cheese); // 絵 → 型番 (縦長は絵の下に型番、横長は絵の右に型番)
       box.appendChild(hinban);
-      box.appendChild(cheese);
       boxes.appendChild(box);
     }
   }

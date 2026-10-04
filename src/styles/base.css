@@ -775,8 +775,8 @@ body {
   flex-direction: column;
   align-items: center;
   gap: var(--sp-1);
-  min-width: 120px;
-  padding: 22px var(--sp-3) var(--sp-2); /* 上はふたの分 */
+  min-width: 0;
+  padding: 22px var(--sp-2) var(--sp-2); /* 上はふたの分 */
   background: var(--c-cardboard);
   border: 2px solid var(--c-cardboard-dark);
   border-radius: 6px;
@@ -812,9 +812,10 @@ body {
 }
 
 .creel-box__hinban {
-  font-size: var(--fs-label); /* 24px (段階1)。操作欄の幅で 2 つ並べるため、依頼書の行 (32px) よりひと回り小さく */
-  font-weight: bold;
+  font-size: 20px; /* 型番は控えめに (これより小さくしない) */
+  font-weight: normal;
   line-height: 1.2;
+  letter-spacing: -0.04em; /* 狭い箱に入るよう字間を詰める */
   white-space: nowrap; /* 品番は折り返さない (箱の幅が品番に合わせて広がる) */
 }
 
@@ -885,6 +886,7 @@ body {
 
 /* 盤面のカード: kinariDeep の地・line の枠・角 14 */
 .game-frame__stage {
+  position: relative; /* お知らせ (.game-frame__notice) を盤面の上に重ねる */
   flex: 1;
   min-width: 0;
   min-height: 0;
@@ -1966,24 +1968,23 @@ button {
 
 .game-frame--compact[data-layout='portrait'] .creel-box {
   flex: none;
-  min-width: 120px; /* 品番が長いときは広がる (横に送る) */
-  padding-left: var(--sp-2);
-  padding-right: var(--sp-2);
+  min-width: 0; /* 絵と型番に合わせて狭く (型番が広いときだけ広がる。横に送る) */
   touch-action: pan-x;
 }
 
 /* 横: 箱を縦に並べ、縦に送る (操作欄がスクロールする)。引っぱるのは左 (盤面の方) */
 .game-frame--compact[data-layout='landscape'] .creel-boxes {
-  flex-direction: column;
-  flex-wrap: nowrap;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr)); /* 帯の中に 2 列。縦に送る */
+  gap: var(--sp-2);
 }
 
 .game-frame--compact[data-layout='landscape'] .creel-box {
   flex: none;
   width: 100%;
-  flex-direction: row; /* 品番とチーズを横並びに (高さ 76px ほど) */
+  flex-direction: row; /* 絵の右に型番 (高さ 76px ほど) */
   justify-content: center;
-  gap: var(--sp-3);
+  gap: var(--sp-2);
   padding: 18px var(--sp-2) 6px;
   touch-action: pan-y;
 }
@@ -2296,3 +2297,21 @@ button {
   grid-area: actions;
 }
 
+
+/* 盤面の上に重ねる短いお知らせ (PU-12d。gameFrame の notify)。盤面の下寄りの中央、白地に藍の枠 */
+.game-frame__notice {
+  position: absolute;
+  left: 50%;
+  bottom: var(--sp-3);
+  transform: translateX(-50%);
+  max-width: calc(100% - 2 * var(--sp-3));
+  box-sizing: border-box;
+  margin: 0;
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--c-white);
+  border: 2px solid var(--c-ai);
+  border-radius: var(--r-small);
+  font-size: var(--fs-body);
+  line-height: 1.4;
+  z-index: 3;
+}

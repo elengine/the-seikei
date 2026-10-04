@@ -826,3 +826,82 @@ describe('PU-09a: 詰めた形の枠', () => {
     expect(msg![1]).toContain('min-height: calc(2 * 1.3em');
   });
 });
+
+describe('PU-12d: createGameFrame の alwaysCompact・message・notify', () => {
+  const rectOf = (w: number, h: number) => (): DOMRect =>
+    ({ width: w, height: h, top: 0, left: 0, right: w, bottom: h, x: 0, y: 0, toJSON: () => undefined }) as DOMRect;
+  function makeFrame(w: number, h: number, extra: { alwaysCompact?: boolean; message?: boolean } = {}) {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    parent.getBoundingClientRect = rectOf(w, h);
+    const frame = createGameFrame(parent, {
+      title: 'テスト',
+      onBack: () => undefined,
+      onHelp: () => undefined,
+      logicalW: 1000,
+      logicalH: 750,
+      ...extra,
+    });
+    return { parent, frame };
+  }
+
+  it('alwaysCompact: 幅 1180×820 でも game-frame--compact が付く。向きの判定は今のまま (横長)。指定が無ければ付かない', () => {
+    const a = makeFrame(1180, 820, { alwaysCompact: true });
+    expect(a.frame.root.classList.contains('game-frame--compact')).toBe(true);
+    expect(a.frame.root.dataset.layout).toBe('landscape');
+    const b = makeFrame(700, 880, { alwaysCompact: true });
+    expect(b.frame.root.classList.contains('game-frame--compact')).toBe(true);
+    expect(b.frame.root.dataset.layout).toBe('portrait');
+    const c = makeFrame(1180, 820);
+    expect(c.frame.root.classList.contains('game-frame--compact')).toBe(false);
+  });
+
+  it('message: false ならメッセージ欄 (.game-frame__message) を置かない。指定が無ければある (ほかのゲームは今のまま)', () => {
+    const a = makeFrame(1180, 820, { message: false });
+    expect(a.frame.root.querySelector('.game-frame__message')).toBeNull();
+    const b = makeFrame(1180, 820);
+    expect(b.frame.root.querySelector('.game-frame__message')).not.toBeNull();
+    const c = makeFrame(412, 915, { message: false, alwaysCompact: true });
+    expect(c.frame.root.querySelector('.game-frame__message')).toBeNull();
+  });
+
+  it('notify: 盤面のカードの中に短いお知らせが出て、2.5 秒で消える。押しても消える。続けて出すと置き換わる。destroy で消える', () => {
+    vi.useFakeTimers();
+    const { frame } = makeFrame(412, 915, { message: false, alwaysCompact: true });
+    frame.notify('ヒントを使いました');
+    const stageBox = frame.root.querySelector('.game-frame__stage')!;
+    const note = stageBox.querySelector('.game-frame__notice')!;
+    expect(note.textContent).toBe('ヒントを使いました');
+    expect(note.getAttribute('role')).toBe('status');
+    vi.advanceTimersByTime(2400);
+    expect(stageBox.querySelector('.game-frame__notice')).not.toBeNull();
+    vi.advanceTimersByTime(200);
+    expect(stageBox.querySelector('.game-frame__notice')).toBeNull();
+    // 押すと消える
+    frame.notify('もう一度');
+    (stageBox.querySelector('.game-frame__notice') as HTMLElement).click();
+    expect(stageBox.querySelector('.game-frame__notice')).toBeNull();
+    // 置き換わる (1 つだけ)。時間は最後の通知から数える
+    frame.notify('一つ目');
+    vi.advanceTimersByTime(2000);
+    frame.notify('二つ目');
+    expect(stageBox.querySelectorAll('.game-frame__notice')).toHaveLength(1);
+    vi.advanceTimersByTime(1000);
+    expect(stageBox.querySelector('.game-frame__notice')!.textContent).toBe('二つ目');
+    frame.destroy();
+    expect(vi.getTimerCount()).toBe(0);
+    vi.useRealTimers();
+  });
+
+  it('base.css: お知らせは盤面の下寄りの中央・白地・藍の枠・20px 以上', () => {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
+    const m = css.match(/\n\.game-frame__notice\s*\{([^}]*)\}/)![1]!;
+    expect(m).toContain('position: absolute');
+    expect(m).toContain('background: var(--c-white)');
+    expect(m).toContain('border: 2px solid var(--c-ai)');
+    expect(m).toContain('font-size: var(--fs-body)');
+    expect(m).toMatch(/bottom: /);
+    expect(m).toContain('translateX(-50%)');
+    expect(css.match(/\n\.game-frame__stage\s*\{([^}]*)\}/)![1]).toContain('position: relative');
+  });
+});

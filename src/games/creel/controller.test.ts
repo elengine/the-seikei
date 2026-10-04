@@ -426,8 +426,9 @@ describe('T1-16: 追加したお題の箱と依頼書', () => {
     expect(boxes.join(' ')).toContain('W-7520'); // midori-a
     expect(boxes.join(' ')).toContain('W-7040'); // enji-a
     expect(boxes.join(' ')).toContain('W-8260'); // beige-a
-    // 依頼書に3行ある
-    const orderText = parent.querySelector('[data-testid="creel-order"]')?.textContent ?? '';
+    // 依頼書に3行ある (クリール立ては詰めた形なので、「依頼書を見る」のポップアップの中)
+    Array.from(parent.querySelectorAll('button')).find((b) => b.textContent === '依頼書を見る')!.click();
+    const orderText = parent.querySelector('.sheet [data-testid="creel-order"]')?.textContent ?? '';
     expect(orderText).toContain('W-7520');
     expect(orderText).toContain('W-7040');
     expect(orderText).toContain('W-8260');
@@ -800,7 +801,7 @@ describe('PU-07b: 引っぱって置く・外す・入れ替える (押して置
     fire(stage, 'pointerdown', p.x, p.y);
     fire(stage, 'pointerup', p.x, p.y);
     expect(placedOf(instance)[4]).toBeNull(); // 何も立たない
-    expect(parent.querySelector('.game-frame__message')!.textContent).toBe('箱からコーンを引っぱって、軸の丸に嵌めてください');
+    expect(parent.querySelector('.game-frame__notice')!.textContent).toBe('箱からコーンを引っぱって、軸の丸に嵌めてください');
     // 引っぱって立てたあと、その軸を押すと品番の吹き出し (inspected)
     dragBoxToPeg(parent, stage, 's2', 'shiro-a', 4);
     fire(stage, 'pointerdown', p.x, p.y);
@@ -853,7 +854,7 @@ describe('PU-09b: 詰めた形で、箱の横送りと引っぱるを見分け�
     expect(parent.querySelector('.game-frame--compact')).not.toBeNull();
     expect(Array.from(parent.querySelectorAll('button')).some((b) => b.textContent === '依頼書を見る')).toBe(true);
     expect(parent.querySelector<HTMLElement>('.creel-boxes')!.dataset.scroll).toBe('x');
-    expect(parent.querySelector('.game-frame__message + .game-frame__stage')).not.toBeNull(); // 盤面のカードの外のすぐ上
+    expect(parent.querySelector('.game-frame__message')).toBeNull(); // メッセージ欄は無い (PU-12d)
   });
 
   it('縦の詰めた形: 箱の上で横に 20px 動かしても引っぱりにならず (重ねが出ない)、上に 20px 動かすと引っぱりになる', () => {
@@ -888,13 +889,19 @@ describe('PU-09b: 詰めた形で、箱の横送りと引っぱるを見分け�
     vi.advanceTimersByTime(400);
   });
 
-  it('今の形 (詰めない) では、どの向きに動かしても引っぱりになる', () => {
+  it('クリール立ては、広い画面 (1180×820) でも詰めた形 (alwaysCompact)。メッセージ欄は無く、依頼書は「依頼書を見る」、箱は縦に送れる (横長)', () => {
     const { parent } = openCompact(1180, 820);
-    const b = parent.querySelector<HTMLButtonElement>('[data-testid="creel-box-kon-a"]')!;
-    fire(b, 'pointerdown', 700, 300);
-    fire(b, 'pointermove', 720, 300);
-    expect(document.querySelector('.creel-drag')).not.toBeNull();
-    fire(b, 'pointerup', 720, 300);
-    vi.advanceTimersByTime(400);
+    expect(parent.querySelector('.game-frame--compact')).not.toBeNull();
+    expect(parent.querySelector('.game-frame__message')).toBeNull();
+    expect(parent.querySelector('.creel-panel__message')).toBeNull();
+    expect(Array.from(parent.querySelectorAll('button')).some((b) => b.textContent === '依頼書を見る')).toBe(true);
+    expect(parent.querySelector<HTMLElement>('.creel-boxes')!.dataset.scroll).toBe('y');
+  });
+
+  it('メッセージ欄で伝えていた「依頼書どおりに…」「完成しました」「✕ の箇所を直してください」は出さない。ヒントが使えない理由は盤面のお知らせに出る', () => {
+    const { parent } = openCompact(412, 915);
+    expect(parent.textContent).not.toContain('依頼書どおりに');
+    parent.querySelector<HTMLButtonElement>('[data-testid="creel-hint"]')!.click();
+    expect(parent.querySelector('.game-frame__notice')!.textContent).toBe('2回確認すると使えます');
   });
 });

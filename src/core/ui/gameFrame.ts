@@ -14,6 +14,7 @@ export interface GameFrame {
   message: HTMLElement; // panel 内のメッセージ欄
   footer: HTMLElement; // 盤面 (Canvas) の下の欄。横長のときだけ使う
   setSubtitle(text: string): void; // 題名の下の文字 (今のお題)
+  notify(text: string): void; // 盤面の上に重ねる短いお知らせ (2.5 秒で消える。押しても消える)
   layout(): 'landscape' | 'portrait'; // いまの配置
   resize(): void; // 画面サイズに合わせて配置と Canvas を調整
   destroy(): void; // 監視の解除と DOM の削除
@@ -38,6 +39,9 @@ export function splitWidths(
 /** 上の見出しの行の高さ。測れない環境 (jsdom など) ではこの値を使う */
 const BAR_H = 72;
 
+/** お知らせを出しておく時間 (ミリ秒) */
+const NOTICE_MS = 2500;
+
 export function createGameFrame(
   parent: HTMLElement,
   opts: {
@@ -49,6 +53,8 @@ export function createGameFrame(
     logicalH: number;
     portraitStageRatio?: number; // 縦長のときに盤面が使う高さの割合 (無ければ 0.6。詰めた形では 0.45)
     compactStageWidthRatio?: number; // 詰めた形の横長で盤面が使う幅の割合 (無ければ 0.6)
+    alwaysCompact?: boolean; // 真なら画面の大きさに依らず詰めた形 (縦長・横長の判定は今のまま)
+    message?: boolean; // 偽ならメッセージ欄を置かない (無ければ置く)。空いた分は盤面に使う
     onStageResize?: (fit: StageFit) => void;
   },
 ): GameFrame {
@@ -94,7 +100,10 @@ export function createGameFrame(
   panel.classList.add('game-frame__panel');
   const message = document.createElement('div');
   message.classList.add('game-frame__message');
-  panel.appendChild(message);
+  const withMessage = opts.message !== false;
+  if (withMessage) {
+    panel.appendChild(message);
+  } // 偽のときは作るだけで DOM に置かない (frame.message を読む側が壊れないように)
   // 盤面の列 (横長のとき): Canvas の上・footer の下
   const stageCol = document.createElement('div');
   stageCol.classList.add('game-frame__stage-col');
@@ -111,6 +120,9 @@ export function createGameFrame(
 
   /** メッセージ欄の置き場: 詰めた形は盤面のカードのすぐ上 (カードの外。盤面に重ならない)、今の形は操作欄の一番上 */
   function placeMessage(compact: boolean): void {
+    if (!withMessage) {
+      return;
+    }
     if (compact) {
       if (message.parentElement !== stageCol || message.nextElementSibling !== stageBox) {
         stageCol.insertBefore(message, stageBox);
@@ -127,7 +139,7 @@ export function createGameFrame(
     const innerH = Math.max(0, rect.height);
     const layout: Layout = layoutOf({ width: innerW, height: innerH }); // レイアウト判定も parent の内寸
     // 狭い・低い画面は「詰めた形」(測れない環境 (jsdom 等) の 0×0 は今の形のまま)。回転のたびに判定し直す
-    const compact = innerW > 0 && innerH > 0 && isCompact(innerW, innerH);
+    const compact = opts.alwaysCompact === true || (innerW > 0 && innerH > 0 && isCompact(innerW, innerH));
     root.classList.toggle('game-frame--compact', compact);
     root.dataset.layout = layout;
     placeMessage(compact);
@@ -203,6 +215,29 @@ export function createGameFrame(
 
   parent.appendChild(root);
 
+  // 盤面の上に重ねる短いお知らせ (盤面のカードの下寄りの中央。2.5 秒で消える。押しても消える)
+  let noticeEl: HTMLElement | null = null;
+  let noticeTimer: ReturnType<typeof setTimeout> | null = null;
+  function clearNotice(): void {
+    if (noticeTimer !== null) {
+      clearTimeout(noticeTimer);
+      noticeTimer = null;
+    }
+    noticeEl?.remove();
+    noticeEl = null;
+  }
+  function notify(text: string): void {
+    clearNotice();
+    const el = document.createElement('p');
+    el.classList.add('game-frame__notice');
+    el.setAttribute('role', 'status');
+    el.textContent = text;
+    el.addEventListener('click', clearNotice);
+    stageBox.appendChild(el);
+    noticeEl = el;
+    noticeTimer = setTimeout(clearNotice, NOTICE_MS);
+  }
+
   // footer の高さが変わったとき (中身が増えた/減ったとき) も、Canvas を作り直して onStageResize を呼ぶ
   let ro: ResizeObserver | null = null;
   if (typeof ResizeObserver !== 'undefined') {
@@ -239,12 +274,14 @@ export function createGameFrame(
     message,
     footer,
     setSubtitle,
+    notify,
     layout(): 'landscape' | 'portrait' {
       const rect = parent.getBoundingClientRect();
       return layoutOf({ width: Math.max(0, rect.width), height: Math.max(0, rect.height) });
     },
     resize,
     destroy(): void {
+      clearNotice();
       offViewport?.();
       offViewport = null;
       ro?.disconnect();

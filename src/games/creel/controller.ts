@@ -57,6 +57,8 @@ export function createController(parent: HTMLElement, deps: GameDeps, props: Gam
     },
     logicalW: 1000,
     logicalH: 750,
+    alwaysCompact: true, // どの大きさでも、依頼書はポップアップ・箱は盤面の横か下の帯
+    message: false, // メッセージ欄は無い (盤面を大きく使う。案内は frame.notify)
     onStageResize: (fit) => {
       lastFit = fit;
       if (panelReady) {
@@ -68,7 +70,7 @@ export function createController(parent: HTMLElement, deps: GameDeps, props: Gam
   // ---- 操作欄 ----
   const panel: CreelPanel = createCreelPanel(frame.panel, {
     content,
-    message: frame.message,
+    notify: (text) => frame.notify(text),
     onAction: (a: CreelAction) => {
       dispatch(a);
     },
@@ -96,7 +98,7 @@ export function createController(parent: HTMLElement, deps: GameDeps, props: Gam
       }
       if (s.placed[index] === null) {
         // 置くのは引っぱる操作だけ。空いた軸を押したら、やり方を案内する
-        panel.setMessage(deps.terms.render('箱から{{cone}}を引っぱって、{{spindle}}の丸に嵌めてください'));
+        frame.notify(deps.terms.render('箱から{{cone}}を引っぱって、{{spindle}}の丸に嵌めてください'));
         return;
       }
       dispatch({ type: 'pressPeg', index });
@@ -154,24 +156,10 @@ export function createController(parent: HTMLElement, deps: GameDeps, props: Gam
     }
   }
 
-  // ---- メッセージ ----
-  function updateMessage(): void {
-    if (s.done) {
-      panel.setMessage(deps.terms.render('完成しました'));
-      return;
-    }
-    if (s.marks !== null && (s.marks.wrong.length > 0 || s.marks.empty.length > 0)) {
-      panel.setMessage(s.checks >= 2 ? '✕ の箇所を直してください (ヒントも使えます)' : '✕ の箇所を直してください');
-      return;
-    }
-    panel.setMessage(deps.terms.render('依頼書どおりに{{cone}}を立ててください'));
-  }
-
   // ---- 画面の更新 (盤面 + 操作欄 + メッセージ) ----
   function refresh(): void {
     render();
     panel.update(s);
-    updateMessage();
   }
 
   // ---- 完了処理 ----

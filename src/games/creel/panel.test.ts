@@ -605,7 +605,7 @@ describe('PU-09b: 詰めた形の操作欄 (依頼書を見る・箱の横送り
     expect(row![1]).toContain('overflow-x: auto');
     const box = css.match(/\.game-frame--compact\[data-layout='portrait'\] \.creel-box\s*\{([^}]*)\}/);
     expect(box![1]).toContain('touch-action: pan-x');
-    expect(box![1]).toContain('min-width: 120px');
+    expect(box![1]).toContain('min-width: 0'); // 絵と型番に合わせて狭く (PU-12d)
     const col = css.match(/\.game-frame--compact\[data-layout='landscape'\] \.creel-box\s*\{([^}]*)\}/);
     expect(col![1]).toContain('touch-action: pan-y');
     // 詰めた横 (高さ 560px 未満): 箱は品番とチーズを横並びにして、高さを 72px 程度に (PU-10 追記)
@@ -658,6 +658,57 @@ describe('PU-11b: 依頼書の行の文字の大きさ (PU-12c で型番を控�
     panel.update(s2State());
     const counts = Array.from(parent.querySelectorAll('.creel-order-row__count')).map((c) => c.textContent);
     expect(counts).toEqual(['× 7', '× 1']);
+    panel.destroy();
+  });
+});
+
+describe('PU-12d: 箱の並び (縦長は絵の下に型番、横長は 2 列で絵の右に型番)・お知らせ', () => {
+  it('箱の子の並びは 絵 → 型番。型番は 20px のふつうの太さ (段階が上がっても 20px より小さくしない)', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const panel = createCreelPanel(parent, { content, onAction: () => undefined });
+    panel.update(s2State());
+    const kids = Array.from(parent.querySelector('.creel-box')!.children);
+    expect(kids[0]!.classList.contains('cone-icon')).toBe(true);
+    expect(kids[1]!.classList.contains('creel-box__hinban')).toBe(true);
+    panel.destroy();
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
+    const hin = css.match(/\n\.creel-box__hinban\s*\{([^}]*)\}/)![1]!;
+    expect(hin).toContain('font-size: 20px');
+    expect(hin).toContain('font-weight: normal');
+    expect(hin).toContain('letter-spacing: -0.04em'); // 入らないときは字間を詰める
+  });
+
+  it('base.css: 縦長は箱が縦並び (flex-direction: column) で幅は絵と型番に合わせて狭く (最小幅 0)、横長は箱が横並び (row) で、帯が 2 列の格子', () => {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
+    const base = css.match(/\n\.creel-box\s*\{([^}]*)\}/)![1]!;
+    expect(base).toContain('flex-direction: column');
+    const pBox = css.match(/\.game-frame--compact\[data-layout='portrait'\] \.creel-box\s*\{([^}]*)\}/)![1]!;
+    expect(pBox).toContain('min-width: 0');
+    expect(pBox).not.toContain('min-width: 120px');
+    const lBox = css.match(/\.game-frame--compact\[data-layout='landscape'\] \.creel-box\s*\{([^}]*)\}/)![1]!;
+    expect(lBox).toContain('flex-direction: row');
+    const lBoxes = css.match(/\.game-frame--compact\[data-layout='landscape'\] \.creel-boxes\s*\{([^}]*)\}/)![1]!;
+    expect(lBoxes).toContain('display: grid');
+    expect(lBoxes).toContain('grid-template-columns: repeat(2, minmax(0, 1fr))');
+  });
+
+  it('notify を渡すと、ヒントが使えないときに押した理由と、ヒントを使ったあとの残りが notify に出る。メッセージ欄 (creel-panel__message) は作らない', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const notify = vi.fn();
+    const panel = createCreelPanel(parent, { content, onAction: () => undefined, notify });
+    expect(parent.querySelector('.creel-panel__message')).toBeNull();
+    let s = s2State();
+    panel.update(s);
+    parent.querySelector<HTMLButtonElement>('[data-testid="creel-hint"]')!.click();
+    expect(notify).toHaveBeenLastCalledWith('2回確認すると使えます');
+    const wrong: CreelState = { ...s, placed: ['shiro-a', 'kon-a', null, null, null, null, null, null] };
+    s = reduce(reduce(wrong, { type: 'check' }), { type: 'check' });
+    panel.update(s);
+    parent.querySelector<HTMLButtonElement>('[data-testid="creel-hint"]')!.click();
+    const total = s.marks!.wrong.length + s.marks!.empty.length;
+    expect(notify).toHaveBeenLastCalledWith(`ヒントを使いました。あと ${total - 1} 回使えます`);
     panel.destroy();
   });
 });
