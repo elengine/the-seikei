@@ -8,7 +8,7 @@ import type { FakeRecorder } from './renderer.test.helpers';
 // 偽の ctx (呼ばれた命令を記録する) は helpers に置く
 import { makeFakeCtx } from './renderer.test.helpers';
 import { SLAT_COUNT, PIN_ANGLE0, lampStateOf, lampGeometry } from './renderer.parts';
-import { WING_SIDE_MAX_RATIO, SLAT_OVER, SLAT_FLARE } from './params';
+import { WING_SIDE_MAX_RATIO, SLAT_OVER, SLAT_FLARE, STRIPE_H } from './params';
 import { init, reduce } from './logic';
 import type { WindingState } from './logic';
 import { loadContent } from '../../core/content/content';
@@ -249,7 +249,7 @@ describe('winding renderer T2-08-fix a (ドラムの向き・台の移動・結�
     expect(centers.some((cy) => cy > 620)).toBe(true);
   });
 
-  it('2. 帯の縞は、帯の全幅にわたる弓なりの曲線 (quadraticCurveTo。横の線ではない。PU-14c)', () => {
+  it('2. 帯の縞は、帯の全幅にわたる楕円の弧 (上の縁と同じ横半径・縦半径。横の線ではない。T2-16 前2)', () => {
     const { ctx, rec } = makeFakeCtx();
     let s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 1 });
     s = reduce(s, { type: 'start' });
@@ -259,9 +259,9 @@ describe('winding renderer T2-08-fix a (ドラムの向き・台の移動・結�
     }
     expect((s.lengths[0] ?? 0)).toBeGreaterThan(0);
     drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
-    const cx = DRUM_AREA.x + DRUM_AREA.w / 2;
+    const rx = DRUM_AREA.w / 2 + 10;
     const stripes = rec.ops.filter(
-      (op) => op.k === 'quadraticCurveTo' && Math.abs((op.args?.[0] as number) - cx) < 1,
+      (op) => op.k === 'ellipse' && Math.abs(((op.args as number[])[2] ?? 0) - rx) < 1 && ((op.args as number[])[1] ?? 0) > DRUM_AREA.y,
     );
     expect(stripes.length).toBeGreaterThanOrEqual(1);
   });
@@ -519,7 +519,7 @@ describe('winding renderer T2-10 追加修正 a (桟の数)', () => {
 describe('winding renderer T2-10 追加修正 b (上下の端・結び目とピンも回る)', () => {
   const fit = { scale: 1, offsetX: 0, offsetY: 0 };
 
-  it('5. ellipse の面を塗る (fill) は下の端の円盤の1つ (上の縁は T2-16 前の直しで塗らない)', () => {
+  it('5. ellipse の面を塗る (fill) は上の面の半円と下の端の円盤の2つ (T2-16 前2 で上の面も胴の色で塗る)', () => {
     const s = windingState();
     const { ctx, rec } = makeFakeCtx();
     drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0, drumAngle: 0 });
@@ -535,8 +535,9 @@ describe('winding renderer T2-10 追加修正 b (上下の端・結び目とピ�
       (e) => Math.abs(e.rx - (DRUM_AREA.w / 2 + 10)) < 1 &&
         e.y >= DRUM_AREA.y - 1 && e.y <= DRUM_AREA.y + DRUM_AREA.h + 1,
     );
-    expect(disks.length).toBe(1); // 下の端の円盤だけ (上の縁は縁の線だけ)
-    expect(Math.abs(disks[0]!.y - (DRUM_AREA.y + DRUM_AREA.h))).toBeLessThan(1);
+    expect(disks.length).toBe(2); // 上の面の半円 (胴の一部) + 下の端の円盤
+    expect(Math.abs(disks[0]!.y - DRUM_AREA.y)).toBeLessThan(1);
+    expect(Math.abs(disks[1]!.y - (DRUM_AREA.y + DRUM_AREA.h))).toBeLessThan(1);
   });
 
   it('6. drumAngle を変えると結び目の輪の x が変わる (結び目もドラムと一緒に回る)', () => {
@@ -706,7 +707,7 @@ describe('winding renderer T2-13a (実物の写真に合わせた絵)', () => {
     }
   });
 
-  it('4. 下の端の円盤の面を塗る fill がある。上の縁は塗らない (T2-16 前の直しで帯と板を見せる)', () => {
+  it('4. 上の面の半円と下の端の円盤の面を塗る fill がある (T2-16 前2 で上の面も胴の色で塗る)', () => {
     const s = windingState();
     const { ctx, rec } = makeFakeCtx();
     drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0, drumAngle: 0 });
@@ -716,11 +717,11 @@ describe('winding renderer T2-13a (実物の写真に合わせた絵)', () => {
         filled.push({ y: (rec.ops[i]!.args?.[1] as number) ?? 0 });
       }
     }
-    expect(filled.length).toBe(1);
-    const bottom = filled.find((e) => Math.abs(e.y - (DRUM_AREA.y + DRUM_AREA.h)) < 1);
+    expect(filled.length).toBe(2);
     const top = filled.find((e) => Math.abs(e.y - DRUM_AREA.y) < 1);
+    const bottom = filled.find((e) => Math.abs(e.y - (DRUM_AREA.y + DRUM_AREA.h)) < 1);
+    expect(top, '上の面の半円 (胴の薄緑)').toBeDefined();
     expect(bottom, '下の端の円盤').toBeDefined();
-    expect(top, '上の縁は塗らない').toBeUndefined();
   });
 
   it('5. 羽の側面: 中央の板の隣には側面が無く、端に近い板の隣には幅のある側面がある', () => {
@@ -947,18 +948,19 @@ describe('PU-14c: 盤面の絵 (切れた糸・緑の竿・桟・糸の弓なり
     expect(found).toBeGreaterThanOrEqual(3);
   });
 
-  it('帯の縞は弓なりの曲線 (quadraticCurveTo) で描く: 真ん中が上がる山なり (制御点の y が端より上。PU-14 追加修正2)', () => {
+  it('帯の縞の弧は、上の縁の楕円と同じ形 (同じ横半径・縦半径) を帯の高さに置いたもの。真ん中が上がる ∩ (T2-16 前2)', () => {
     let s = windingState();
     s = { ...s, phase: 'done' } as WindingState;
     const rec = drawS(s);
     const cx = DRUM_AREA.x + DRUM_AREA.w / 2;
-    const curves = rec.ops
-      .filter((o) => o.k === 'quadraticCurveTo')
+    const rx = DRUM_AREA.w / 2 + 10;
+    const arcs = rec.ops
+      .filter((o) => o.k === 'ellipse')
       .map((o) => o.args as number[])
-      .filter((a) => Math.abs(a[0]! - cx) < 1);
-    expect(curves.length).toBeGreaterThanOrEqual(10);
-    for (const a of curves) {
-      expect(a[1]!).toBeLessThan(a[3]!); // 制御点の y が端の y より上 (真ん中が上がる ∩)
+      .filter((a) => Math.abs(a[0]! - cx) < 1 && Math.abs(a[2]! - rx) < 1 && Math.abs(a[3]! - 12) < 1);
+    expect(arcs.length).toBeGreaterThanOrEqual(10);
+    for (const a of arcs) {
+      expect(a[1]!).toBeGreaterThanOrEqual(DRUM_AREA.y - 1); // 中心は帯の高さ (弧の山は中心の上)
     }
   });
 });
@@ -1012,31 +1014,33 @@ describe('T2-16 前: ドラムの絵の直し (上の縁・帯の下の端。管
     return s;
   }
 
-  it('1. 上の縁の楕円は面を塗らない (ellipse の直後に fill が無い。縁の線だけ。板と帯を縁まで見せる)', () => {
+  it('1. 上の縁の内側は胴と同じ薄緑で塗る (板の前)。板のあとには塗り直さない (T2-16 前2)', () => {
     const rec = drum(windingState());
     const rx = DRUM_AREA.w / 2 + 10;
-    let covered = false;
+    const topEllipses: Array<{ i: number; filled: boolean }> = [];
     for (let i = 0; i < rec.ops.length; i++) {
       const op = rec.ops[i]!;
       const a = op.args as number[] | undefined;
       if (op.k === 'ellipse' && a && Math.abs((a[1] ?? 0) - DRUM_AREA.y) < 1 && Math.abs((a[2] ?? 0) - rx) < 1) {
-        if (rec.ops[i + 1]?.k === 'fill') covered = true;
+        topEllipses.push({ i, filled: rec.ops[i + 1]?.k === 'fill' });
       }
     }
-    expect(covered, '上の縁の楕円が帯と板の上に塗りつぶされている').toBe(false);
+    expect(topEllipses.length).toBeGreaterThanOrEqual(2); // 塗り (胴の一部) と縁の線
+    expect(topEllipses[0]!.filled, '上の縁の内側の塗り (胴の薄緑)').toBe(true);
+    expect(topEllipses[topEllipses.length - 1]!.filled, '縁の線は塗りでない').toBe(false);
   });
 
-  it('2. 帯と板は上の縁まで描かれる (いちばん上の帯の山なりは縁の y から上へ。板の上端の y は縁と同じ)', () => {
+  it('2. 帯と板は上の縁まで描かれる (いちばん上の帯の上の端の弧は縁の楕円と同じ。板の上端の y は縁と同じ)', () => {
     const s = { ...windingState(), lengths: windingState().lengths.map((v, i) => (i === 0 ? 1500 : v)) };
     const rec = drum(s);
     const cx = DRUM_AREA.x + DRUM_AREA.w / 2;
-    // 帯: 区画の上端 (DRUM_AREA.y) から始まる山なりの縞 (制御点は縁より上)
-    const curves = rec.ops
-      .filter((o) => o.k === 'quadraticCurveTo')
-      .map((o) => o.args as number[])
-      .filter((a) => Math.abs(a[0]! - cx) < 1);
-    const topCurve = curves.find((a) => a[1]! < DRUM_AREA.y && Math.abs(a[3]! - DRUM_AREA.y) < 1);
-    expect(topCurve, 'いちばん上の帯の山なりが上の縁から描かれる').toBeDefined();
+    const rx = DRUM_AREA.w / 2 + 10;
+    // 帯: 区画の上端 (DRUM_AREA.y) を中心とする楕円の弧 (縦の半径 12)。同じ種なら同じ
+    const arcs = rec.ops
+      .filter((o) => o.k === 'ellipse')
+      .map((o) => o.args as number[]);
+    const topArc = arcs.find((a) => Math.abs((a[0] ?? 0) - cx) < 1 && Math.abs((a[1] ?? 0) - DRUM_AREA.y) < 1 && Math.abs((a[2] ?? 0) - rx) < 1 && Math.abs((a[3] ?? 0) - 12) < 1);
+    expect(topArc, 'いちばん上の帯の上の端の弧が上の縁の楕円と同じ').toBeDefined();
     // 板: 上端の y が縁の y と同じ (差 0)
     const boards = fillRectsWithColor(rec).filter((f) => f.v === COLORS.wood && f.h > DRUM_AREA.h - 4);
     expect(boards.length).toBeGreaterThan(0);
@@ -1065,5 +1069,78 @@ describe('T2-16 前: ドラムの絵の直し (上の縁・帯の下の端。管
   it('4. 帯の境目に黒い横線を描かない (巻き終えた帯の四角い枠線 strokeRect は無い)', () => {
     const rec = drum(doneState());
     expect(rec.ops.some((o) => o.k === 'strokeRect'), '帯の境目の strokeRect').toBe(false);
+  });
+});
+
+describe('T2-16 前2: ドラムの絵の直し (描く順と帯の上の端の弧。管理者の Fold 8 の指摘)', () => {
+  const drum = (s: WindingState, angle = 0): FakeRecorder => {
+    const { ctx, rec } = makeFakeCtx();
+    drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0, drumAngle: angle });
+    return rec;
+  };
+
+  it('1. 描く順: 胴の塗り (上の面の半円を含む) → 縁の線 → 板 → 板の丸い印 → 竿', () => {
+    const rec = drum(windingState(), 0);
+    const rx = DRUM_AREA.w / 2 + 10;
+    const ops = rec.ops;
+    // 胴の塗り: 上の縁の楕円の内側の半円 (ellipse → fill)
+    let topFaceFill = -1;
+    for (let i = 0; i < ops.length; i++) {
+      const a = ops[i]!.args as number[] | undefined;
+      if (ops[i]!.k === 'ellipse' && a && Math.abs((a[1] ?? 0) - DRUM_AREA.y) < 1 && Math.abs((a[2] ?? 0) - rx) < 1 && ops[i + 1]?.k === 'fill') {
+        topFaceFill = i;
+        break;
+      }
+    }
+    expect(topFaceFill, '上の面の半円の塗り').toBeGreaterThanOrEqual(0);
+    // 縁の線: 同じ楕円を stroke (fill が来ない)
+    let edgeStroke = -1;
+    for (let i = topFaceFill + 1; i < ops.length; i++) {
+      const a = ops[i]!.args as number[] | undefined;
+      if (ops[i]!.k === 'ellipse' && a && Math.abs((a[1] ?? 0) - DRUM_AREA.y) < 1 && Math.abs((a[2] ?? 0) - rx) < 1 && ops[i + 1]?.k !== 'fill') {
+        edgeStroke = i;
+        break;
+      }
+    }
+    expect(edgeStroke, '縁の線 (灰色の線)').toBeGreaterThan(topFaceFill);
+    // 板: 縁の線のあとに wood の fillRect
+    const firstWood = ops.findIndex((o, i) => i > edgeStroke && o.k === 'style' && o.v === COLORS.wood);
+    expect(firstWood, '板 (茶色) は縁の線のあと').toBeGreaterThan(edgeStroke);
+    // 板の丸い印: 板のあとに machineDark の小さな arc の fill
+    let firstHole = -1;
+    for (let i = firstWood + 1; i < ops.length; i++) {
+      const a = ops[i]!.args as number[] | undefined;
+      if (ops[i]!.k === 'arc' && a && (a[2] ?? 0) < 10 && (a[0] ?? 0) > DRUM_AREA.x && (a[0] ?? 0) < DRUM_AREA.x + DRUM_AREA.w && ops[i + 1]?.k === 'fill') {
+        firstHole = i;
+        break;
+      }
+    }
+    expect(firstHole, '板の丸い印 (深緑) は板のあと').toBeGreaterThan(firstWood);
+    // 竿: 深緑 (machineDark) の縦長の fillRect が印のあと
+    let pole = -1;
+    for (let i = firstHole + 1; i < ops.length; i++) {
+      const a = ops[i]!.args as number[] | undefined;
+      if (ops[i]!.k === 'fillRect' && a && (a[3] ?? 0) > DRUM_AREA.h) {
+        pole = i;
+        break;
+      }
+    }
+    expect(pole, '帯を止める竿 (深緑) は丸い印のあと').toBeGreaterThan(firstHole);
+  });
+
+  it('2. 帯の境目の曲線も、上の縁の楕円と同じ形を下へずらしたもの (縦の半径は同じ)', () => {
+    let s = windingState();
+    s = { ...s, lengths: s.lengths.map((v, i) => (i === 0 ? 1500 : v)) };
+    const rec = drum(s);
+    const rx = DRUM_AREA.w / 2 + 10;
+    const cx = DRUM_AREA.x + DRUM_AREA.w / 2;
+    const arcs = rec.ops
+      .filter((o) => o.k === 'ellipse')
+      .map((o) => o.args as number[])
+      .filter((a) => Math.abs((a[0] ?? 0) - cx) < 1 && Math.abs((a[2] ?? 0) - rx) < 1 && Math.abs((a[3] ?? 0) - 12) < 1)
+      .map((a) => a[1] ?? 0);
+    // 区画の上端から STRIPE_H ごとに、同じ形の弧が並ぶ (上の端の弧と境目の弧)
+    expect(arcs).toContain(DRUM_AREA.y);
+    expect(arcs).toContain(DRUM_AREA.y + STRIPE_H);
   });
 });

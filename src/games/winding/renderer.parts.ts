@@ -61,6 +61,14 @@ export function drawDrum(
     ctx.fillRect(leftX, sy, rightX - leftX, secH);
   }
 
+  // 上の縁の内側 (見えている上の面) も胴と同じ薄緑で塗る (T2-16 前2:
+  // 楕円の内側と胴の上の端のあいだが背景色にならないようにする)
+  const topCy = y;
+  const topRy = fontPx(fit, 12);
+  ctx.beginPath();
+  ctx.ellipse(cx, topCy, radius, topRy, 0, Math.PI, Math.PI * 2);
+  ctx.fill();
+
   // 板の内側の、薄い緑の輪 (骨組み)。区画の境目に数本 (控えめに。T2-13a)
   for (let i = 1; i < s.sections; i++) {
     const by = drumSectionY(i, s.sections);
@@ -73,6 +81,13 @@ export function drawDrum(
     ctx.stroke();
     ctx.globalAlpha = 1;
   }
+
+  // 上の縁の線 (灰色)。胴の塗りのあと、板の前に引く (T2-16 前2 の描く順)
+  ctx.strokeStyle = COLORS.sumiSub;
+  ctx.lineWidth = fontPx(fit, 2);
+  ctx.beginPath();
+  ctx.ellipse(cx, topCy, radius, topRy, 0, Math.PI, Math.PI * 2);
+  ctx.stroke();
 
   // 胴の木の板: 端から端まで1本の板として、円筒の周りに等間隔に並ぶ (区画の境目で切れない。T2-13a)。
   // 板 k の角度 θ = drumAngle + 2π k / 板の数。正面から見た x は 中心 + 半径 × sin θ、
@@ -130,18 +145,18 @@ export function drawDrum(
     // 縞の濃さ: 巻いた割合で 0.15 → 1 (巻き始めは薄い。T2-08 追加修正a)
     const alpha = full ? 1 : 0.15 + 0.85 * ratio;
     // 柄の並びの色を、区画の高さの中で上から順に繰り返す (1本の高さは STRIPE_H。T2-08 追加修正2)
-    // 縞は、真ん中が上がる山なり (∩。ドラムの周りを回る糸に見える。PU-14 追加修正2 で向きを直した)
-    const sag = fontPx(fit, 12);
+    // 縞の上の端と境目の曲線は、上の縁の楕円と同じ形 (同じ中心の横半径・縦半径) を下へずらした弧。
+    // 真ん中が上がる ∩ (ドラムの周りを回る糸に見える。T2-16 前2 で二次曲線から楕円の弧に変えた)
     let k = 0;
     for (let yy = sy; yy < sy + secH; yy += STRIPE_H) {
       const sh = Math.min(STRIPE_H, sy + secH - yy);
       ctx.globalAlpha = alpha;
       ctx.fillStyle = hexes[k % hexes.length] ?? COLORS.sumiSub;
       ctx.beginPath();
-      ctx.moveTo(leftX, yy);
-      ctx.quadraticCurveTo(cx, yy - 2 * sag, rightX, yy);
-      ctx.lineTo(rightX, yy + sh);
-      ctx.quadraticCurveTo(cx, yy + sh - 2 * sag, leftX, yy + sh);
+      // 上の端: 左端 → 山 → 右端 (楕円の上の半分の弧)
+      ctx.ellipse(cx, yy, radius, topRy, 0, Math.PI, Math.PI * 2);
+      // 下の端: 右端 → 山 → 左端 (同じ形を sh 下へずらした弧を逆にたどる)
+      ctx.ellipse(cx, yy + sh, radius, topRy, 0, 0, Math.PI, true);
       ctx.closePath();
       ctx.fill();
       k++;
@@ -173,15 +188,8 @@ export function drawDrum(
     ctx.globalAlpha = 1;
   }
 
-  // 上の端: 楕円の縁の線だけ (面は塗らない。板と帯を上の縁まで見せる。T2-16 前: ドラムの絵の直し)
-  const rx = (rightX - leftX) / 2;
-  const topCy = y + fontPx(fit, 0);
-  ctx.beginPath();
-  ctx.ellipse(cx, topCy, rx, fontPx(fit, 12), 0, Math.PI, Math.PI * 2);
-  ctx.strokeStyle = COLORS.sumiSub;
-  ctx.lineWidth = fontPx(fit, 2);
-  ctx.stroke();
   // 下の端: 楕円の面の全体 (灰色の金属の円盤) + 放射状の腕 (drumAngle で回す)
+  const rx = radius;
   const botCy = y + h;
   ctx.fillStyle = COLORS.steel;
   ctx.beginPath();
