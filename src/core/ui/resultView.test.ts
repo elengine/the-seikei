@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { showResult } from './resultView';
 
@@ -127,5 +130,16 @@ describe('PU-14d: 結果のボタンの文字は短い (「一覧」「もう一
     expect(labels).toEqual(['一覧', 'もう一度', '次へ']);
     expect(host.textContent).not.toContain('一覧へ');
     expect(host.textContent).not.toContain('次のお題へ');
+  });
+
+  it('base.css: 結果の 3 つのボタンは、狭い画面 (412px・文字の段階5) でも 1 行に収まる指定 (折り返さない・最小幅 64px・左右の余白 8px・間隔を詰める)', () => {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
+    const btn = css.match(/\n\.result__actions \.btn\s*\{([^}]*)\}/)![1]!;
+    expect(btn).toContain('min-width: 64px');
+    expect(btn).toContain('padding: 0 var(--sp-2)');
+    const left = css.match(/\n\.result__actions-left\s*\{([^}]*)\}/)![1]!;
+    expect(left).toContain('gap: var(--sp-2)');
+    expect(left).not.toContain('flex-wrap: wrap');
+    expect(css.match(/\n\.result__actions\s*\{([^}]*)\}/)![1]).toContain('flex-wrap: nowrap');
   });
 });

@@ -262,4 +262,17 @@ describe('PU-14a: ドラム巻きの操作欄 (戻す・踏み込む・速さ・
     expect(clock).toContain('font-weight: bold');
     expect(css.match(/\n\.winding-panel__clock--over\s*\{([^}]*)\}/)![1]).toContain('color: var(--c-shu)');
   });
+
+  it('base.css: 詰めた形では、操作欄の区画の間隔を 8px に詰める (段階5・915×412 でスクロールを 0 にするため)', () => {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
+    const m = css.match(/\n\.game-frame--compact \.winding-panel\s*\{([^}]*)\}/)![1]!;
+    expect(m).toContain('gap: var(--sp-2)');
+    const base = css.match(/\n\.winding-panel\s*\{([^}]*)\}/)![1]!;
+    expect(base).toContain('gap: var(--sp-3)'); // 縦長のメイン画面 (700×880) の段階5 でも収まる
+    const act0 = css.match(/\n\.winding-panel__actions\s*\{([^}]*)\}/)![1]!;
+    expect(act0).toContain('padding-top: var(--sp-1)'); // 縦長のメイン画面 (700×880) の段階5 でスクロールを 0 に
+    const act = css.match(/\n\.game-frame--compact \.winding-panel__actions\s*\{([^}]*)\}/)![1]!;
+    expect(act).toContain('padding-top: var(--sp-1)');
+    expect(act).toContain('padding-bottom: var(--sp-1)');
+  });
 });
