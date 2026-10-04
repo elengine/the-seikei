@@ -5,8 +5,8 @@ import { COLORS } from '../../core/ui/tokens';
 import { speedOf } from '../../core/mechanics/pedal';
 import { TENSION, SECTION_LENGTH } from './params';
 import type { StageFit } from '../../core/viewport/viewport';
-import { CREEL_AREA, TABLE_AREA, DRUM_AREA, TOP_AREA, REED_X, THREAD_SHEET_HALF, REED_RISE, DIAL_X, DIAL_Y, reedRect, reedThreadY, threadY, threadPath, drumSectionY, tableY, pointOnPath, fontPx } from './geometry';
-import { drawDrum, drawBrokenThread } from './renderer.parts';
+import { CREEL_AREA, TABLE_AREA, DRUM_AREA, REED_X, THREAD_SHEET_HALF, REED_RISE, DIAL_X, DIAL_Y, reedRect, reedThreadY, threadY, threadPath, drumSectionY, tableY, pointOnPath, fontPx } from './geometry';
+import { drawDrum, drawBrokenThread, drawTensionLamp } from './renderer.parts';
 
 /**
  * ドラム巻きの盤面の描画 (P2 T2-05・T2-08・T2-08 追加修正a)。
@@ -64,7 +64,7 @@ export function drawBoard(
   drawTable(ctx, fit, s, opts.threadCount);
   drawDrum(ctx, fit, s, hexes, base, opts.tieProgress ?? 0, opts.drumAngle ?? 0);
   drawDial(ctx, fit, s);
-  drawLamp(ctx, s);
+  drawTensionLamp(ctx, fit, s);
   drawBrokenThread(ctx, fit, s, opts, base);
   drawDoneSurface(ctx, fit, s);
 
@@ -73,10 +73,6 @@ export function drawBoard(
 
   // 「停止」の文字は描かない (赤いランプと切れた糸の朱の印で分かる。T2-13b)
 }
-
-/** 赤ランプの位置 (論理座標)。目盛り盤の DIAL_X・DIAL_Y は geometry (T2-13a) */
-const LAMP_X = 620;
-const LAMP_Y = TOP_AREA.y + 45;
 
 /** 1. クリール: 縦の柱・段の横木・ペグ + 横向きコーン + テンションの皿 + 赤い小ランプ */
 function drawCreel(
@@ -236,14 +232,6 @@ function drawDial(ctx: CanvasRenderingContext2D, fit: StageFit, s: WindingState)
   ctx.moveTo(DIAL_X, DIAL_Y);
   ctx.lineTo(DIAL_X + Math.cos(angle) * (dialR - 6), DIAL_Y + Math.sin(angle) * (dialR - 6));
   ctx.stroke();
-}
-
-/** 6. 赤ランプ ('broken' で shu で点灯。それ以外は灰色で消灯) */
-function drawLamp(ctx: CanvasRenderingContext2D, s: WindingState): void {
-  ctx.fillStyle = s.phase === 'broken' ? COLORS.shu : COLORS.steel;
-  ctx.beginPath();
-  ctx.arc(LAMP_X, LAMP_Y, 16, 0, Math.PI * 2);
-  ctx.fill();
 }
 
 /** 8. 'done' のとき、出来が低い帯ほど表面の縞を波打たせる */

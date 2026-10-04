@@ -1,5 +1,5 @@
 import type { WindingState } from './logic';
-import { COLORS } from '../../core/ui/tokens';
+import { COLORS, FONT_FAMILY } from '../../core/ui/tokens';
 import { SECTION_LENGTH, STRIPE_H, WING_OUT, WING_SIDE_MAX_RATIO } from './params';
 import type { StageFit } from '../../core/viewport/viewport';
 import { DRUM_AREA, fontPx, drumSectionY, threadY, CREEL_AREA, CREEL_END_X, DRUM_END_X } from './geometry';
@@ -304,4 +304,61 @@ export function drawBrokenThread(
     ctx.stroke();
   }
   // 1手目の藍の丸印は無くなった (T2-13c: 1回押し。押した点に印を出す装飾は今後の課題)
+}
+
+
+/** 張りのランプの状態 (PU-14b)。break=糸が切れた、ok=適正、high=強すぎ、low=弱すぎ、off=巻いていない (ペダル 0・巻く前・帯の端を結ぶとき) */
+export type LampState = 'off' | 'ok' | 'high' | 'low' | 'break';
+
+export function lampStateOf(s: WindingState): LampState {
+  if (s.phase === 'broken') {
+    return 'break';
+  }
+  if (s.phase !== 'winding' || s.pedal.pedal <= 0) {
+    return 'off';
+  }
+  if (s.tension > s.range.max) {
+    return 'high';
+  }
+  if (s.tension < s.range.min) {
+    return 'low';
+  }
+  return 'ok';
+}
+
+/** ランプの中心 (論理座標。ドラムの上の縁の左寄り) と半径 (論理)。画面上の直径が 32px 以上になる大きさ (上の余白に収まる範囲) */
+export function lampGeometry(fit: StageFit): { x: number; y: number; r: number } {
+  return { x: DRUM_AREA.x + 40, y: 45, r: Math.min(42, Math.max(22, fontPx(fit, 16))) };
+}
+
+/** 張りのランプを描く (適正=緑「○」、強すぎ=橙「▲」、弱すぎ=橙「▼」、切れた=赤「✕」、巻いていない=消灯の灰色)。光っているときは外側に薄い輪 */
+export function drawTensionLamp(ctx: CanvasRenderingContext2D, fit: StageFit, s: WindingState): void {
+  const state = lampStateOf(s);
+  const { x, y, r } = lampGeometry(fit);
+  const color =
+    state === 'ok' ? COLORS.lampOk : state === 'high' || state === 'low' ? COLORS.lampWarn : state === 'break' ? COLORS.lampBreak : COLORS.steel;
+  if (state !== 'off') {
+    // 光っている感じ (外側の薄い輪)
+    ctx.save();
+    ctx.globalAlpha = 0.3;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x, y, r * 1.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fill();
+  if (state === 'off') {
+    return;
+  }
+  // 中の記号 (色だけに頼らない)
+  const symbol = state === 'ok' ? '○' : state === 'high' ? '▲' : state === 'low' ? '▼' : '✕';
+  ctx.fillStyle = COLORS.white;
+  ctx.font = `bold ${Math.round(r * 1.3)}px ${FONT_FAMILY}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(symbol, x, y + r * 0.05);
 }

@@ -73,6 +73,9 @@ body {
   --c-cardboard: #c9a272;
   --c-cardboard-dark: #a9814f;
   --c-cardboard-tape: #d9be96;
+  --c-lamp-ok: #2f8f4e;
+  --c-lamp-warn: #e8871e;
+  --c-lamp-break: #c62828;
   --c-winder-green: #708662;
   --c-winder-steel: #a8afb6;
   --c-thread-yellow: #d9a62e;

@@ -426,3 +426,11 @@ describe('PU-11a: 段ボールの色', () => {
     expect(COLORS.cardboardTape).toBe('#D9BE96');
   });
 });
+
+describe('PU-14b: ランプの色', () => {
+  it('lampOk (緑)・lampWarn (オレンジ)・lampBreak (赤)', () => {
+    expect(COLORS.lampOk).toBe('#2F8F4E');
+    expect(COLORS.lampWarn).toBe('#E8871E');
+    expect(COLORS.lampBreak).toBe('#C62828');
+  });
+});

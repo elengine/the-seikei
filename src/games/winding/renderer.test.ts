@@ -7,7 +7,7 @@ import type { FakeRecorder } from './renderer.test.helpers';
 
 // 偽の ctx (呼ばれた命令を記録する) は helpers に置く
 import { makeFakeCtx } from './renderer.test.helpers';
-import { SLAT_COUNT, PIN_ANGLE0 } from './renderer.parts';
+import { SLAT_COUNT, PIN_ANGLE0, lampStateOf, lampGeometry } from './renderer.parts';
 import { WING_SIDE_MAX_RATIO } from './params';
 import { init, reduce } from './logic';
 import type { WindingState } from './logic';
@@ -92,12 +92,14 @@ describe('winding renderer (T2-05)', () => {
     expect(rects.length).toBeGreaterThanOrEqual(3);
   });
 
-  it('盤面の文字は無い (「帯 N / M」は T2-07 追加修正b で、「停止」は T2-13b でやめた。赤いランプで分かる)', () => {
+  it('盤面の文字は、ランプの中の記号 (○▲▼✕) だけ (「帯 N / M」は T2-07 追加修正b で、「停止」は T2-13b でやめた。PU-14b でランプに記号が入った)', () => {
     for (const s of [windingState(), brokenState()]) {
       const { ctx, rec } = makeFakeCtx();
       drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
       const texts = rec.ops.filter((op) => op.k === 'fillText');
-      expect(texts.length, `${s.phase} でも fillText は無い`).toBe(0);
+      for (const t of texts) {
+        expect(['○', '▲', '▼', '✕'], `${s.phase} の文字 ${String(t.args![0])}`).toContain(t.args![0]);
+      }
     }
   });
 });
@@ -135,7 +137,7 @@ describe('winding renderer T2-05-fix (座標の変換と決まり)', () => {
       drawBoard(ctx, f, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
       const ks = rec.ops.map((op) => op.k);
       const restoreI = ks.lastIndexOf('restore');
-      // restore の後に来る命令は無い (fillText・font も含めて盤面の文字は無い)
+      // restore の後に来る命令は無い (ランプの記号は変換の中で描く)
       expect(ks.slice(restoreI + 1).length, `scale ${f.scale}`).toBe(0);
     }
   });
@@ -779,5 +781,65 @@ describe('winding renderer T2-13a (実物の写真に合わせた絵)', () => {
         rec.ops[rec.ops.indexOf(op) + 1]?.k === 'fill',
     );
     expect(holes.length).toBeGreaterThanOrEqual(10);
+  });
+});
+
+describe('PU-14b: 張りのランプ (大きく・左寄り。緑・オレンジ・赤・消灯)', () => {
+  const draw = (s: WindingState, f = { scale: 0.4, offsetX: 0, offsetY: 0 }): FakeRecorder => {
+    const { ctx, rec } = makeFakeCtx();
+    drawBoard(ctx, f, s, content, { threadCount: 8, show: 'red', timeMs: 0 });
+    return rec;
+  };
+  const lampTexts = (rec: FakeRecorder): string[] =>
+    rec.ops.filter((o) => o.k === 'fillText').map((o) => String((o.args as unknown[])[0]));
+
+  it('lampStateOf: 切れた=break、巻いていない (ペダル 0・ready)=off、範囲の中=ok、強すぎ=high、弱すぎ=low', () => {
+    const w = windingState();
+    expect(lampStateOf({ ...w, tension: (w.range.min + w.range.max) / 2 })).toBe('ok');
+    expect(lampStateOf({ ...w, tension: w.range.max + 5 })).toBe('high');
+    expect(lampStateOf({ ...w, tension: w.range.min - 5 })).toBe('low');
+    expect(lampStateOf(brokenState())).toBe('break');
+    expect(lampStateOf(init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 1 }))).toBe('off');
+    expect(lampStateOf({ ...w, pedal: { ...w.pedal, pedal: 0 } })).toBe('off');
+  });
+
+  it('適正は緑 (lampOk) に「○」、強すぎは橙 (lampWarn) に「▲」、弱すぎは橙に「▼」、切れたら赤 (lampBreak) に「✕」', () => {
+    const w = windingState();
+    const ok = draw({ ...w, tension: (w.range.min + w.range.max) / 2 });
+    expect(ok.fillStyleLog).toContain(COLORS.lampOk);
+    expect(lampTexts(ok)).toContain('○');
+    const high = draw({ ...w, tension: w.range.max + 5 });
+    expect(high.fillStyleLog).toContain(COLORS.lampWarn);
+    expect(lampTexts(high)).toContain('▲');
+    expect(high.fillStyleLog).not.toContain(COLORS.lampOk);
+    const low = draw({ ...w, tension: w.range.min - 5 });
+    expect(low.fillStyleLog).toContain(COLORS.lampWarn);
+    expect(lampTexts(low)).toContain('▼');
+    const brk = draw(brokenState());
+    expect(brk.fillStyleLog).toContain(COLORS.lampBreak);
+    expect(lampTexts(brk)).toContain('✕');
+  });
+
+  it('巻いていないときは消灯 (灰色。緑・橙・赤を使わず、記号も無い)', () => {
+    const off = draw(init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 1 }));
+    for (const c of [COLORS.lampOk, COLORS.lampWarn, COLORS.lampBreak]) {
+      expect(off.fillStyleLog).not.toContain(c);
+    }
+    for (const t of ['○', '▲', '▼', '✕']) {
+      expect(lampTexts(off)).not.toContain(t);
+    }
+  });
+
+  it('ランプは画面上の直径 32px 以上 (縮尺 0.4・0.5・1 のどれでも)。ドラムの上の縁の左寄り (x がドラムの左半分)', () => {
+    for (const scale of [0.4, 0.5, 1]) {
+      const w = windingState();
+      const rec = draw({ ...w, tension: (w.range.min + w.range.max) / 2 }, { scale, offsetX: 0, offsetY: 0 });
+      const lamp = lampGeometry({ scale, offsetX: 0, offsetY: 0 });
+      expect(lamp.r * scale * 2).toBeGreaterThanOrEqual(32);
+      expect(lamp.x).toBeGreaterThanOrEqual(DRUM_AREA.x);
+      expect(lamp.x).toBeLessThan(DRUM_AREA.x + DRUM_AREA.w / 2);
+      const arcs = rec.ops.filter((o) => o.k === 'arc').map((o) => o.args as number[]);
+      expect(arcs.some((a) => a[0] === lamp.x && a[1] === lamp.y && a[2] === lamp.r)).toBe(true);
+    }
   });
 });
