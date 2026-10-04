@@ -1,12 +1,11 @@
 import type { WindingState } from './logic';
-import { qualities } from './logic';
 import type { Content } from '../../core/content/content';
 import { COLORS } from '../../core/ui/tokens';
 import { speedOf } from '../../core/mechanics/pedal';
 import { TENSION, SECTION_LENGTH } from './params';
 import type { StageFit } from '../../core/viewport/viewport';
-import { CREEL_AREA, TABLE_AREA, DRUM_AREA, REED_X, THREAD_SHEET_HALF, REED_RISE, DIAL_X, DIAL_Y, DIAL_R, reedRect, reedThreadY, threadY, threadPath, drumSectionY, tableY, pointOnPath, fontPx } from './geometry';
-import { drawDrum, drawBrokenThread, drawTensionLamp , drawScissors, drumRimY } from './renderer.parts';
+import { CREEL_AREA, TABLE_AREA, DRUM_AREA, REED_X, THREAD_SHEET_HALF, REED_RISE, DIAL_X, DIAL_Y, DIAL_R, reedRect, reedThreadY, threadY, threadPath, tableY, pointOnPath, fontPx } from './geometry';
+import { drawDrum, drawBrokenThread, drawTensionLamp , drawScissors } from './renderer.parts';
 
 /**
  * ドラム巻きの盤面の描画 (P2 T2-05・T2-08・T2-08 追加修正a)。
@@ -66,7 +65,6 @@ export function drawBoard(
   drawDial(ctx, fit, s);
   drawTensionLamp(ctx, fit, s);
   drawBrokenThread(ctx, fit, s, opts, base);
-  drawDoneSurface(ctx, fit, s);
   // ハサミのアイコン (帯を巻き終えた 'cutting' のときだけ。いちばん上に重ねる。T2-16c)
   if (s.phase === 'cutting' && opts.scissors !== undefined) {
     drawScissors(ctx, fit, opts.scissors);
@@ -249,26 +247,3 @@ function drawDial(ctx: CanvasRenderingContext2D, fit: StageFit, s: WindingState)
 }
 
 /** 8. 'done' のとき、出来が低い帯ほど表面の縞を波打たせる */
-function drawDoneSurface(ctx: CanvasRenderingContext2D, fit: StageFit, s: WindingState): void {
-  if (s.phase !== 'done') {
-    return;
-  }
-  const qs = qualities(s);
-  const secH = DRUM_AREA.h / s.sections;
-  ctx.strokeStyle = COLORS.sumi;
-  ctx.lineWidth = fontPx(fit, 2);
-  for (let i = 0; i < s.sections; i++) {
-    const q = qs[i] ?? 0;
-    const wave = (1 - q) * 12;
-    const y = drumSectionY(i, s.sections) + secH / 2;
-    ctx.beginPath();
-    for (let xx = 0; xx <= 20; xx++) {
-      const px = DRUM_AREA.x + (xx / 20) * (DRUM_AREA.w - 40);
-      // 線は上の縁と同じ弓なりに乗せる (まっすぐ横の黒い線は描かない。T2-16 その3-5)
-      const py = drumRimY(px, fit, true) + (y - DRUM_AREA.y) + (Math.sin((xx / 20) * Math.PI * 3) * wave) / 2;
-      if (xx === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
-    }
-    ctx.stroke();
-  }
-}

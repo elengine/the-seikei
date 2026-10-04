@@ -1300,3 +1300,91 @@ describe('T2-16 その3 追加 (4)(5) (ドラムの板・竿・結び目が弧�
     }
   });
 });
+
+describe('T2-16 その4a (巻き終えの黒い線を全部消す・竿の下の端は下の円盤の手前の縁まで)', () => {
+  const fit = { scale: 1, offsetX: 0, offsetY: 0 };
+
+  /** 全部巻き終えた (質 1) の done の状態で描く */
+  function drawDone(): ReturnType<typeof makeFakeCtx>['rec'] {
+    const full = windingState();
+    const { ctx, rec } = makeFakeCtx();
+    drawBoard(ctx, fit, {
+      ...full, phase: 'done', current: full.sections,
+      lengths: Array(full.sections).fill(400),
+      windMs: Array(full.sections).fill(40000),
+      okMs: Array(full.sections).fill(40000),
+    } as unknown as WindingState, content, { threadCount: 8, show: 'red', timeMs: 0 });
+    return rec;
+  }
+
+  it('1. 全部巻き終えた状態で、帯の上に濃い色 (sumi・sumiSub) の線を描く命令が無い (直線でも曲線でも)', () => {
+    const rec = drawDone();
+    // 糸の線の lineTo のあいだ、strokeStyle が濃い色なら帯の上の線。ドラムの面 (x が DRUM_AREA 内) で判定する
+    const dark: Set<string> = new Set([COLORS.sumi, COLORS.sumiSub]);
+    let style = '';
+    let run = 0;
+    for (const o of rec.ops) {
+      if (o.k === 'style') {
+        style = String(o.v);
+        run = 0;
+        continue;
+      }
+      if (o.k !== 'lineTo') {
+        run = 0;
+        continue;
+      }
+      run += 1;
+      // 線らしいもの (4 点以上続く折れ線) が濃い色で、ドラムの面の x の範囲にあればアウト
+      if (run >= 4 && dark.has(style)) {
+        const x = (o.args as number[])[0] ?? 0;
+        if (x >= DRUM_AREA.x - 20 && x <= DRUM_AREA.x + DRUM_AREA.w + 20) {
+          expect.fail(`濃い色の線がドラムの上にある (${style} x=${x} run=${run})`);
+        }
+      }
+    }
+  });
+
+  it('2. 竿の下の端の y は、その x での下の縁の楕円の手前の弧の y と差 1 以下 (はみ出さない)', () => {
+    const cx = DRUM_AREA.x + DRUM_AREA.w / 2;
+    const radius = (DRUM_AREA.w + DRUM_BULGE * 2) / 2;
+    for (const th of [0, 0.6, -0.6]) {
+      const thPin = th + PIN_ANGLE0;
+      const pinX = cx + radius * Math.sin(thPin);
+      if (Math.cos(th) <= 0) continue;
+      const { ctx, rec } = makeFakeCtx();
+      drawBoard(ctx, fit, windingState(), content, { threadCount: 8, show: 'red', timeMs: 0, drumAngle: th });
+      // 竿 (machineDark の縦の棒。x が pinX・幅 10 前後・ドラムの高さにまたがる)
+      const rod = rec.ops.find((o) => {
+        if (o.k !== 'fillRect') return false;
+        const a = o.args as number[];
+        const prevStyle = rec.ops.slice(0, rec.ops.indexOf(o)).reverse().find((p) => p.k === 'style');
+        return String(prevStyle?.v) === COLORS.machineDark && Math.abs((a[0] ?? 0) + (a[2] ?? 0) / 2 - pinX) < 2 && (a[3] ?? 0) > DRUM_AREA.h * 0.8;
+      });
+      expect(rod, `竿 (th=${th})`).toBeDefined();
+      const a = (rod as { args: number[] }).args;
+      const bottom = (a[1] ?? 0) + (a[3] ?? 0);
+      expect(Math.abs(bottom - drumRimY(pinX, fit, false)), `竿の下の端 (th=${th})`).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('3. 竿の上下の端は、x が中央に近いほど上下に広がる (弓なり)', () => {
+    const cx = DRUM_AREA.x + DRUM_AREA.w / 2;
+    const radius = (DRUM_AREA.w + DRUM_BULGE * 2) / 2;
+    const rodHeight = (th: number): number => {
+      const pinX = cx + radius * Math.sin(th + PIN_ANGLE0);
+      const { ctx, rec } = makeFakeCtx();
+      drawBoard(ctx, fit, windingState(), content, { threadCount: 8, show: 'red', timeMs: 0, drumAngle: th });
+      const rod = rec.ops.find((o) => {
+        if (o.k !== 'fillRect') return false;
+        const a = o.args as number[];
+        const prevStyle = rec.ops.slice(0, rec.ops.indexOf(o)).reverse().find((p) => p.k === 'style');
+        return String(prevStyle?.v) === COLORS.machineDark && Math.abs((a[0] ?? 0) + (a[2] ?? 0) / 2 - pinX) < 2 && (a[3] ?? 0) > DRUM_AREA.h * 0.8;
+      });
+      expect(rod, `竿 (th=${th})`).toBeDefined();
+      const a = (rod as { args: number[] }).args;
+      return (a[3] ?? 0);
+    };
+    // 中央の竿のほうが、はずれの竿より上下に長い (th は thPin = th + PIN_ANGLE0 が 0 と 0.9 になるように)
+    expect(rodHeight(-PIN_ANGLE0)).toBeGreaterThan(rodHeight(-PIN_ANGLE0 + 0.9));
+  });
+});

@@ -219,12 +219,12 @@ export function drawDrum(
   const pinX = cx + radius * Math.sin(thPin);
   if (cosPin > 0) {
     ctx.fillStyle = COLORS.machineDark;
-    // 帯を止める緑の竿: 上は縁の楕円より外へ出し、下は短く (PU-14 追加修正2)。
-    // 上端・下端はその x での上の縁・下の縁の楕円の弧に沿う (T2-16 その3-4)
+    // 帯を止める緑の竿: 上は縁の楕円より外へ出す (PU-14 追加修正2)。
+    // 下の端は、下の縁の楕円のその x での手前の弧まで (それより下へはみ出さない。T2-16 その4-2)。
+    // 上端・下端とも、その x での弧の高さに合わせるので弓なりに動く
     const overTop = fontPx(fit, 24);
-    const overBottom = fontPx(fit, 14);
     const pinTop = drumRimY(pinX, fit, true) - overTop;
-    const pinBot = drumRimY(pinX, fit, false) + overBottom;
+    const pinBot = drumRimY(pinX, fit, false);
     ctx.fillRect(pinX - (fontPx(fit, 10) * cosPin) / 2, pinTop, Math.max(3, fontPx(fit, 10) * cosPin), pinBot - pinTop);
     // 竿の上の帯の位置は、弧に沿った胴の面の中の割合で決める (中央で弓なりに上がる。T2-16 その3-4)
     const spanTop = drumRimY(pinX, fit, true);
