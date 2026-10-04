@@ -1481,3 +1481,7 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - drag.ts(引っぱりの判定: 8px で moved・箱の糸→口 = mount・口→箱 = unmount・押すだけ = tap・laneAt/coneAt の当たり判定)を追加。renderer.ts に drawLifted(引っぱっている糸を指の 24px 上に描く)+ 円すい台の描画を cone() に共通化(296行)。
 - controller.ts に pointerdown/move/up を追加: setup のあいだだけ。ドラッグでかけると、かかった口が自動で選ばれる。押すだけでは箱の糸ははかりに載り(weigh)、口は選ばれる。口の糸を箱へ戻すと外れる(継ぐ糸があるときは2つとも外れる)。
 - テスト: drag 5件 + controller 3件(RED→GREEN)。全体 935 passed/11 skipped・check 0・build OK。
+
+## 2026-10-05T12:10+09:00 T2b-03 追加修正(pointercancel と touch-action)
+- controller.ts:盤面の Canvas に touch-action: none を付けて、引っぱっているあいだに画面がスクロール・拡大しないようにした。pointercancel は「離した」と同じにしない(取り消されたら、引っぱっていた糸を箱へ戻すだけ。mount・unmount をしない)。つかんでいる指の pointerId を覚えて、ほかの指の move・up は無視する。
+- テスト: controller 3件追加(RED→GREEN)。全体 938 passed/11 skipped・check 0・build OK。

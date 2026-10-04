@@ -203,10 +203,10 @@ describe('糸割り controller T2b-03a (プレイ画面)', () => {
     return canvas;
   }
 
-  function pointer(canvas: HTMLCanvasElement, type: string, x: number, y: number): void {
+  function pointer(canvas: HTMLCanvasElement, type: string, x: number, y: number, pointerId = 1): void {
     const ev = new MouseEvent(type, { clientX: x, clientY: y, bubbles: true });
-    Object.defineProperty(ev, 'pointerId', { value: 1 });
-    (type === 'pointermove' || type === 'pointerup' ? window : canvas).dispatchEvent(ev);
+    Object.defineProperty(ev, 'pointerId', { value: pointerId });
+    (type === 'pointermove' || type === 'pointerup' || type === 'pointercancel' ? window : canvas).dispatchEvent(ev);
   }
 
   it('5. ドラッグ: 箱の糸を口まで引っぱって離すと、その口にかかる (かかった口が選ばれる)', async () => {
@@ -250,6 +250,51 @@ describe('糸割り controller T2b-03a (プレイ画面)', () => {
     pointer(canvas, 'pointerup', 41, 392);
     await vi.waitFor(() => {
       expect(container.textContent).toContain('1番の口:— m');
+    }, { timeout: 5000, interval: 50 });
+    instance.unmount();
+  }, 20000);
+
+  it('8. 引っぱりの途中で pointercancel が来ると、何もかからない。次の pointerdown から新しく引っぱれる', async () => {
+    const { instance } = await start(); // 何もかけていない状態
+    const canvas = stubStage();
+    // 箱の糸を引っぱりはじめて、途中で取り消し (ブラウザがスクロールに奪った形)
+    pointer(canvas, 'pointerdown', 41, 392);
+    pointer(canvas, 'pointermove', 300, 300);
+    pointer(canvas, 'pointercancel', 300, 300);
+    await vi.waitFor(() => {
+      // 取り消しなので何もかかっていない (口1は選ばれない。口1 = x 251〜318)
+      expect(container.textContent).not.toContain('2番の口');
+    }, { timeout: 5000, interval: 50 });
+    // 次の pointerdown から新しく引っぱって、口7 にかかる
+    pointer(canvas, 'pointerdown', 41, 392);
+    pointer(canvas, 'pointermove', 680, 300);
+    pointer(canvas, 'pointerup', 680, 300);
+    await vi.waitFor(() => {
+      expect(container.textContent).toContain('8番の口');
+    }, { timeout: 5000, interval: 50 });
+    instance.unmount();
+  }, 20000);
+
+  it('9. 盤面の Canvas は touch-action: none (引っぱりの途中で画面がスクロールしない)', async () => {
+    const { instance } = await start();
+    const canvas = container.querySelector('canvas')!;
+    expect(canvas.style.touchAction).toBe('none');
+    instance.unmount();
+  });
+
+  it('10. 2本目の指は無視する: ほかの指の move・up ではかからない', async () => {
+    const { instance } = await start(); // 何もかけていない状態
+    const canvas = stubStage();
+    // 1本目の指でつかんでから、2本目の指で動かして離す → 何も起きない
+    pointer(canvas, 'pointerdown', 41, 392);
+    pointer(canvas, 'pointermove', 300, 300, 2);
+    pointer(canvas, 'pointerup', 680, 300, 2);
+    expect(container.textContent).not.toContain('8番の口');
+    // 1本目の指で口7 に置いて離す → かかる
+    pointer(canvas, 'pointermove', 680, 300, 1);
+    pointer(canvas, 'pointerup', 680, 300, 1);
+    await vi.waitFor(() => {
+      expect(container.textContent).toContain('8番の口');
     }, { timeout: 5000, interval: 50 });
     instance.unmount();
   }, 20000);

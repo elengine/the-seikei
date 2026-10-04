@@ -59,6 +59,9 @@ export function createItowariController(
     },
   });
 
+  // 引っぱっているあいだに画面がスクロール・拡大しないようにする (T2b-03 追加修正。実機の Safari・Chrome)
+  frame.stage.style.touchAction = 'none';
+
   let failSheet: Sheet | null = null;
   const panel = createItowariPanel(frame.panel, {
     onAction: (a) => dispatch(a),
@@ -171,8 +174,10 @@ export function createItowariController(
     rafId = window.requestAnimationFrame(loop);
   }
 
-  // ドラッグで糸をかける・外す (T2b-03b)。押すだけなら口を選ぶ・はかりに載せる
+  // ドラッグで糸をかける・外す (T2b-03b)。押すだけなら口を選ぶ・はかりに載せる。
+  // つかんでいる指の id を覚えておき、ほかの指の動きは無視する (T2b-03 追加修正)
   let drag: DragState | null = null;
+  let dragPointerId: number | null = null;
 
   /** 指の画面座標 → 盤面の論理座標 */
   function stagePoint(clientX: number, clientY: number): { x: number; y: number } {
@@ -197,24 +202,27 @@ export function createItowariController(
     const lane = laneAt(p, (MACHINE.w / 12) * lastFit.scale < 64, s.spindles.length);
     if (lane !== null && s.spindles[lane]!.segments.length > 0) {
       drag = beginDrag({ kind: 'lane', spindle: lane }, { x: ev.clientX, y: ev.clientY });
+      dragPointerId = ev.pointerId;
       return;
     }
     const cone = coneAt(p, puzzle, s);
     if (cone !== null) {
       drag = beginDrag({ kind: 'cone', sourceId: cone }, { x: ev.clientX, y: ev.clientY });
+      dragPointerId = ev.pointerId;
     }
   }
 
   function onPointerMove(ev: PointerEvent): void {
-    if (drag === null) return;
+    if (drag === null || ev.pointerId !== dragPointerId) return;
     drag = moveDrag(drag, { x: ev.clientX, y: ev.clientY });
     render();
   }
 
   function onPointerUp(ev: PointerEvent): void {
-    if (drag === null) return;
+    if (drag === null || ev.pointerId !== dragPointerId) return;
     const d = drag;
     drag = null;
+    dragPointerId = null;
     const p = stagePoint(ev.clientX, ev.clientY);
     const lane = laneAt(p, (MACHINE.w / 12) * lastFit.scale < 64, s.spindles.length);
     const cone = coneAt(p, puzzle, s);
@@ -232,10 +240,17 @@ export function createItowariController(
     }
     render();
   }
+  /** 取り消し (ブラウザがスクロールに奪ったとき)。離した扱いにせず、引っぱっていた糸を箱へ戻すだけ (T2b-03 追加修正) */
+  function onPointerCancel(ev: PointerEvent): void {
+    if (drag === null || ev.pointerId !== dragPointerId) return;
+    drag = null;
+    dragPointerId = null;
+    render();
+  }
   frame.stage.addEventListener('pointerdown', onPointerDown);
   window.addEventListener('pointermove', onPointerMove);
   window.addEventListener('pointerup', onPointerUp);
-  window.addEventListener('pointercancel', onPointerUp);
+  window.addEventListener('pointercancel', onPointerCancel);
 
   refresh();
   rafId = window.requestAnimationFrame(loop);
@@ -256,7 +271,7 @@ export function createItowariController(
       frame.stage.removeEventListener('pointerdown', onPointerDown);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
-      window.removeEventListener('pointercancel', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerCancel);
       panel.destroy();
       frame.destroy();
     },

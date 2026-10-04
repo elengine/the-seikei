@@ -1,6 +1,6 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-10-05T11:30:00+09:00",
+  "updated_at": "2026-10-05T12:10:00+09:00",
   "phase": "P0",
   "current_task": "P2b T2b-04(糸割りの組み立て)を次に実施予定",
   "done": [
@@ -109,6 +109,11 @@
       "date": "2026-10-05T11:30:00+09:00",
       "task": "T2b-03b",
       "result": "テスト 935 passed/11 skipped・check 0・build OK"
+    },
+    {
+      "date": "2026-10-05T12:10:00+09:00",
+      "task": "T2b-03 追加修正",
+      "result": "テスト 938 passed/11 skipped・check 0・build OK"
     }
   ],
   "notes": [
