@@ -1586,3 +1586,19 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - テストの偽 rAF が cancelAnimationFrame を無視していたため、実装が正しくても止まって見えなかった → 偽 rAF を本物と同じ (cancel されたフレームは動かない) に直した (4 つの controller.test)。
 - テスト 1072 passed (11 skipped)・check 0・build OK。各ゲームの controller.test に 3 件ずつ (止まる・再開と時間の測り直し・開いたまま unmount)。
 - 実機確認 (?v=34 ドラム巻き): 巻いているあいだに遊び方を開くと時間が止まる。閉じると自動で再開し、止めていた時間は加算されない。ペダルの位置はそのまま。
+
+## 2026-10-04 19:29 — T2-16 その4 (a: 絵の直し・b: ハサミの作り直し)
+
+### その4a (546b471)
+- 巻き終えたあとの帯の上の黒い線を、直線でも曲線でも描かない (drawDoneSurface を削除。巻いているあいだと同じ見た目: 明るい縞と部品だけ)。
+- 帯を止める竿の下の端は、下の縁の楕円のその位置での手前の弧まで (overBottom を廃止)。竿と印は弧に沿って弓なりに動く (その3-4 のまま)。
+
+### その4b (adedf20)
+- ハサミの置き場所を帯に依存しない固定に (scissorsPos() は引数なし。クリールの右下・筬の左下・盤の下のほう = (CREEL_END_X と REED_X の中間, LOGICAL_H − 70))。
+- 絵を作り直し: 白い円の土台をやめ、銀色 (steel) の刃 2 枚 + 濃い色の輪の持つ手 2 つ + 支点のねじ。ふだんは少し開く。
+- 引っぱると指の位置より SCISSORS_LIFT (= サイズの半分 + 24) 上に浮く (クリールの糸巻きと同じ)。touch-action: none は既存のまま。
+- 切れるかどうかは刃の先 (中心 + SCISSORS_TIP = サイズの 45%) で判定。届く (cutReady) と刃が大きく開き (開き角 0.38rad)、糸の束が藍色 (COLORS.ai) に変わる。
+- 離すとすぐには切らず、閉じる動き (0.3秒・openK 1→0) をしてから cut → 結びの演出 → 次の帯。外れたら元の位置に戻る。pointercancel は切らずに戻る (今までは cancel でも切れていたのを直した)。
+- テストの偽 rAF・pedalControl は変更なし。実機では合成ポインタイベントに setPointerCapture が例外を出すため、実機確認時はページ側で無効化して確認した。
+- テスト 1081 passed (11 skipped)・check 0・build OK。geometry.test に置き場所と SCISSORS_LIFT・renderer.test に絵と cutReady の藍色・controller.test に持ち上げ/cutReady/閉じる動き/pointercancel を追加。
+- 実機確認 (?v=36): 帯 1 を巻き切る → ハサミが決まった場所にある → つかんで糸の束へ (指より上に浮く・刃が開く) → 離すと切れて結ばれ 帯 2/3 に進んだ。
