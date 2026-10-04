@@ -1,14 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { drawBoard } from './renderer';
-import { endPoint, threadY, tableY, THREAD_MARK_X, CREEL_END_X, DRUM_END_X, drumSectionY, DRUM_AREA, REED_X } from './geometry';
+import { endPoint, threadY, tableY, THREAD_MARK_X, CREEL_END_X, DRUM_END_X, drumSectionY, DRUM_AREA, REED_X, DIAL_X, DIAL_Y, DIAL_R, reedRect, setLogicalHeight } from './geometry';
 import { COLORS } from '../../core/ui/tokens';
 import type { FakeRecorder } from './renderer.test.helpers';
 
 // 偽の ctx (呼ばれた命令を記録する) は helpers に置く
 import { makeFakeCtx } from './renderer.test.helpers';
 import { SLAT_COUNT, PIN_ANGLE0, lampStateOf, lampGeometry } from './renderer.parts';
-import { WING_SIDE_MAX_RATIO, SLAT_OVER } from './params';
+import { WING_SIDE_MAX_RATIO, SLAT_OVER, SLAT_FLARE } from './params';
 import { init, reduce } from './logic';
 import type { WindingState } from './logic';
 import { loadContent } from '../../core/content/content';
@@ -830,14 +830,13 @@ describe('PU-14b: 張りのランプ (大きく・左寄り。緑・オレンジ
     }
   });
 
-  it('ランプは画面上の直径 32px 以上 (縮尺 0.4・0.5・1 のどれでも)。ドラムの上の縁の左寄り (x がドラムの左半分)', () => {
+  it('ランプは画面上の直径 32px 以上 (縮尺 0.4・0.5・1 のどれでも)。ドラムの左の外 (光る輪も含めて、ドラムの桟の開きより左。PU-14 追加修正2)', () => {
     for (const scale of [0.4, 0.5, 1]) {
       const w = windingState();
       const rec = draw({ ...w, tension: (w.range.min + w.range.max) / 2 }, { scale, offsetX: 0, offsetY: 0 });
       const lamp = lampGeometry({ scale, offsetX: 0, offsetY: 0 });
       expect(lamp.r * scale * 2).toBeGreaterThanOrEqual(32);
-      expect(lamp.x).toBeGreaterThanOrEqual(DRUM_AREA.x);
-      expect(lamp.x).toBeLessThan(DRUM_AREA.x + DRUM_AREA.w / 2);
+      expect(lamp.x + lamp.r * 1.3).toBeLessThanOrEqual(DRUM_AREA.x - SLAT_FLARE);
       const arcs = rec.ops.filter((o) => o.k === 'arc').map((o) => o.args as number[]);
       expect(arcs.some((a) => a[0] === lamp.x && a[1] === lamp.y && a[2] === lamp.r)).toBe(true);
     }
@@ -906,7 +905,7 @@ describe('PU-14c: 盤面の絵 (切れた糸・緑の竿・桟・糸の弓なり
     expect(onY.some((g) => Math.abs(g.x1 - CREEL_END_X) < 0.5 && Math.abs(g.x2 - DRUM_END_X) < 0.5)).toBe(true);
   });
 
-  it('帯を止める緑の竿は、ドラムの上と下に同じ長さだけはみ出す', () => {
+  it('帯を止める緑の竿は、下のはみ出しが上の 1.5 倍以下で、前より短い (PU-14 追加修正2。下は 16 だった)', () => {
     const rec = drawS(windingState());
     const rects = rec.ops.filter((o) => o.k === 'fillRect').map((o) => o.args as number[]);
     const poles = rects.filter((r) => r[3]! > DRUM_AREA.h + 1 && r[2]! <= 12 && r[0]! >= DRUM_AREA.x - 20);
@@ -915,7 +914,8 @@ describe('PU-14c: 盤面の絵 (切れた糸・緑の竿・桟・糸の弓なり
       const top = DRUM_AREA.y - p[1]!;
       const bottom = p[1]! + p[3]! - (DRUM_AREA.y + DRUM_AREA.h);
       expect(top).toBeGreaterThan(0);
-      expect(top).toBeCloseTo(bottom, 6);
+      expect(bottom).toBeLessThanOrEqual(top * 1.5);
+      expect(bottom).toBeLessThan(16);
     }
   });
 
@@ -946,7 +946,7 @@ describe('PU-14c: 盤面の絵 (切れた糸・緑の竿・桟・糸の弓なり
     expect(found).toBeGreaterThanOrEqual(3);
   });
 
-  it('帯の縞は弓なりの曲線 (quadraticCurveTo) で描く: 中央が両端より下がる (制御点の y が端より下)', () => {
+  it('帯の縞は弓なりの曲線 (quadraticCurveTo) で描く: 真ん中が上がる山なり (制御点の y が端より上。PU-14 追加修正2)', () => {
     let s = windingState();
     s = { ...s, phase: 'done' } as WindingState;
     const rec = drawS(s);
@@ -957,7 +957,43 @@ describe('PU-14c: 盤面の絵 (切れた糸・緑の竿・桟・糸の弓なり
       .filter((a) => Math.abs(a[0]! - cx) < 1);
     expect(curves.length).toBeGreaterThanOrEqual(10);
     for (const a of curves) {
-      expect(a[1]!).toBeGreaterThan(a[3]!); // 制御点の y が端の y より下 (中央が下がる)
+      expect(a[1]!).toBeLessThan(a[3]!); // 制御点の y が端の y より上 (真ん中が上がる ∩)
+    }
+  });
+});
+
+describe('PU-14 追加修正2: 目盛り盤・桟の上の端', () => {
+  const rectsOfArcs = (rec: FakeRecorder): Array<{ x: number; y: number; r: number }> =>
+    rec.ops.filter((o) => o.k === 'arc').map((o) => ({ x: (o.args as number[])[0]!, y: (o.args as number[])[1]!, r: (o.args as number[])[2]! }));
+
+  it('目盛り盤の円は、ドラムの胴の範囲 (x が DRUM_AREA.x 以上) に入らず、ドラムの左下 (ドラムの中ほどより下) にある', () => {
+    const { ctx, rec } = makeFakeCtx();
+    drawBoard(ctx, fit, windingState(), content, { threadCount: 8, show: 'red', timeMs: 0 });
+    const dial = rectsOfArcs(rec).find((a) => a.r === DIAL_R);
+    expect(dial).toBeDefined();
+    expect(dial!.x + DIAL_R).toBeLessThanOrEqual(DRUM_AREA.x);
+    expect(dial!.y).toBeGreaterThan(DRUM_AREA.y + DRUM_AREA.h / 2);
+    expect(dial!.y + DIAL_R).toBeLessThanOrEqual(DRUM_AREA.y + DRUM_AREA.h + 50);
+  });
+
+  it('目盛り盤は 3 つの大きさ (論理の高さ 750・1000・1400) でも、ドラムの左下で筬の四角と重ならない', () => {
+    for (const H of [750, 1000, 1400]) {
+      setLogicalHeight(H);
+      for (const sections of [3, 7]) {
+        for (let cur = 0; cur < sections; cur++) {
+          const reed = reedRect(cur, sections);
+          expect(DIAL_X - DIAL_R >= reed.x + reed.w || reed.y + reed.h <= DIAL_Y - DIAL_R || reed.y >= DIAL_Y + DIAL_R, `H${H} s${sections} c${cur}`).toBe(true);
+        }
+      }
+      expect(DIAL_X + DIAL_R).toBeLessThanOrEqual(DRUM_AREA.x);
+      expect(DIAL_Y + DIAL_R).toBeLessThanOrEqual(H);
+    }
+    setLogicalHeight(750);
+  });
+
+  it('桟の上の端 (SLAT_OVER) は、ドラムの上の縁の楕円 (半径 12px 分) より上へ出る (縮尺 0.4〜1 のどれでも。楕円の縦の半径は 12/縮尺)', () => {
+    for (const scale of [0.4, 0.5, 1]) {
+      expect(SLAT_OVER, `scale ${scale}`).toBeGreaterThan(12 / scale);
     }
   });
 });

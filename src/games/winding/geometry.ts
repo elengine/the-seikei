@@ -44,10 +44,13 @@ export const THREAD_SHEET_HALF = 30;
 /** 筬が台の上に乗る高さ (論理座標。帯の中心から上へ) */
 export const REED_RISE = 40;
 
-/** 目盛り盤の中心と半径 (論理座標。上部の余白の、筬と重ならない位置。T2-13a) */
-export const DIAL_X = 820;
-export const DIAL_Y = 45;
-export const DIAL_R = 32;
+/**
+ * 目盛り盤の中心と半径 (論理座標)。ドラムの左下の外 (筬の右、ドラムの左の縦木の左)。
+ * 中心の y は論理の高さ H に合わせて下へ動く (setLogicalHeight。PU-14 追加修正2)。
+ */
+export const DIAL_X = 568;
+export let DIAL_Y = 650;
+export const DIAL_R = 28;
 
 /**
  * 筬の四角 (論理座標。T2-13a)。縦に立った枠: 幅は狭く、高さは糸の束 (THREAD_SHEET_HALF の
@@ -300,6 +303,7 @@ export function setLogicalHeight(height: number): void {
   TABLE_AREA.h = H - 150;
   DRUM_AREA.y = 100;
   DRUM_AREA.h = H - 150;
+  DIAL_Y = H - 100;
 }
 
 /** 桟のはみ出し (SLAT_OVER)・竿のはみ出し (16) を含む、描く範囲の上と下 (論理座標) */

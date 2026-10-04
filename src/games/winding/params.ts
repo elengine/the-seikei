@@ -123,7 +123,7 @@ export const DRUM_STOP_MS = 250;
 export const WING_OUT = 14;
 
 /** ドラムの桟 (板) が、ドラムの上の縁より上へはみ出す長さ (論理座標。PU-14c) */
-export const SLAT_OVER = 30;
+export const SLAT_OVER = 44;
 /** はみ出した所が外へ開く量 (論理座標。左右の端の板ほど大きく、正面の中央の板は 0。PU-14c) */
 export const SLAT_FLARE = 14;
 

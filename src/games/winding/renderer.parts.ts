@@ -132,7 +132,7 @@ export function drawDrum(
     // 縞の濃さ: 巻いた割合で 0.15 → 1 (巻き始めは薄い。T2-08 追加修正a)
     const alpha = full ? 1 : 0.15 + 0.85 * ratio;
     // 柄の並びの色を、区画の高さの中で上から順に繰り返す (1本の高さは STRIPE_H。T2-08 追加修正2)
-    // 縞は、上の縁の楕円と同じ曲がり方の弓なり (正面の中央が下がる。ドラムの周りを回る糸に見える。PU-14c)
+    // 縞は、真ん中が上がる山なり (∩。ドラムの周りを回る糸に見える。PU-14 追加修正2 で向きを直した)
     const sag = fontPx(fit, 12);
     let k = 0;
     for (let yy = sy; yy < sy + secH; yy += STRIPE_H) {
@@ -141,9 +141,9 @@ export function drawDrum(
       ctx.fillStyle = hexes[k % hexes.length] ?? COLORS.sumiSub;
       ctx.beginPath();
       ctx.moveTo(leftX, yy);
-      ctx.quadraticCurveTo(cx, yy + 2 * sag, rightX, yy);
+      ctx.quadraticCurveTo(cx, yy - 2 * sag, rightX, yy);
       ctx.lineTo(rightX, yy + sh);
-      ctx.quadraticCurveTo(cx, yy + sh + 2 * sag, leftX, yy + sh);
+      ctx.quadraticCurveTo(cx, yy + sh - 2 * sag, leftX, yy + sh);
       ctx.closePath();
       ctx.fill();
       k++;
@@ -214,9 +214,10 @@ export function drawDrum(
   const pinX = cx + radius * Math.sin(thPin);
   if (cosPin > 0) {
     ctx.fillStyle = COLORS.machineDark;
-    // 帯を止める緑の竿は、ドラムの上と下に同じ長さだけはみ出す (PU-14c)
-    const overhang = fontPx(fit, 16);
-    ctx.fillRect(pinX - (fontPx(fit, 10) * cosPin) / 2, y - overhang, Math.max(3, fontPx(fit, 10) * cosPin), h + 2 * overhang);
+    // 帯を止める緑の竿: 上は縁の楕円より外へ出し、下は短く (PU-14 追加修正2)
+    const overTop = fontPx(fit, 24);
+    const overBottom = fontPx(fit, 14);
+    ctx.fillRect(pinX - (fontPx(fit, 10) * cosPin) / 2, y - overTop, Math.max(3, fontPx(fit, 10) * cosPin), h + overTop + overBottom);
     for (let i = 0; i < s.sections; i++) {
       const py = drumSectionPinY(i, s.sections);
       ctx.fillStyle = COLORS.steel;
@@ -344,9 +345,13 @@ export function lampStateOf(s: WindingState): LampState {
   return 'ok';
 }
 
-/** ランプの中心 (論理座標。ドラムの上の縁の左寄り) と半径 (論理)。画面上の直径が 32px 以上になる大きさ (上の余白に収まる範囲) */
+/**
+ * ランプの中心 (論理座標。ドラムの左の外、筬とドラムのあいだの上) と半径 (論理)。画面上の直径が 32px 以上になる大きさ。
+ * 光る輪 (半径 1.3 倍) の右端が、ドラムの桟の開き (SLAT_FLARE) より左に収まる (PU-14 追加修正2)。
+ */
 export function lampGeometry(fit: StageFit): { x: number; y: number; r: number } {
-  return { x: DRUM_AREA.x + 40, y: 45, r: Math.min(42, Math.max(22, fontPx(fit, 16))) };
+  const r = Math.min(42, Math.max(22, fontPx(fit, 16)));
+  return { x: DRUM_AREA.x - SLAT_FLARE - 6 - r * 1.3, y: 45, r };
 }
 
 /** 張りのランプを描く (適正=緑「○」、強すぎ=橙「▲」、弱すぎ=橙「▼」、切れた=赤「✕」、巻いていない=消灯の灰色)。光っているときは外側に薄い輪 */

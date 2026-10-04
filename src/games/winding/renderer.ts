@@ -5,7 +5,7 @@ import { COLORS } from '../../core/ui/tokens';
 import { speedOf } from '../../core/mechanics/pedal';
 import { TENSION, SECTION_LENGTH } from './params';
 import type { StageFit } from '../../core/viewport/viewport';
-import { CREEL_AREA, TABLE_AREA, DRUM_AREA, REED_X, THREAD_SHEET_HALF, REED_RISE, DIAL_X, DIAL_Y, reedRect, reedThreadY, threadY, threadPath, drumSectionY, tableY, pointOnPath, fontPx } from './geometry';
+import { CREEL_AREA, TABLE_AREA, DRUM_AREA, REED_X, THREAD_SHEET_HALF, REED_RISE, DIAL_X, DIAL_Y, DIAL_R, reedRect, reedThreadY, threadY, threadPath, drumSectionY, tableY, pointOnPath, fontPx } from './geometry';
 import { drawDrum, drawBrokenThread, drawTensionLamp } from './renderer.parts';
 
 /**
@@ -225,7 +225,7 @@ function drawTable(
 
 /** 5. 目盛り盤 (今の帯の巻いた長さを円の針で示す) */
 function drawDial(ctx: CanvasRenderingContext2D, fit: StageFit, s: WindingState): void {
-  const dialR = 32;
+  const dialR = DIAL_R;
   ctx.strokeStyle = COLORS.sumi;
   ctx.lineWidth = fontPx(fit, 3);
   ctx.beginPath();
