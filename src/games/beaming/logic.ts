@@ -3,7 +3,7 @@ import { seedFrom, nextFloat } from '../../core/clock/clock';
 import { initPedal, setPedal, speedOf, tensionOf, stepNoise, stepDrift } from '../../core/mechanics/pedal';
 import type { PedalState } from '../../core/mechanics/pedal';
 import {
-  BEAM_LENGTH, MAX_TICK_MS, STARS3, STARS2, STAR_WIDTH3, STAR_WIDTH2, WIDTH_OK_CM, CENTER_OK_CM,
+  BEAM_LENGTH, MAX_TICK_MS, STARS3, STARS2, STAR_WIDTH3, STAR_WIDTH2, WIDTH_OK_CM, CENTER_OK_CM, OVERFLOW_CLEARANCE_CM,
   NUDGE_CM, RANGE_WIDTH, RANGE_CENTER_CM, NOISE_AMP, BEAM_DRIFT, SHIFT_VEL, SHIFT_TURN_RATE, TENSION,
 } from './params';
 import type { Level } from './params';
@@ -159,9 +159,9 @@ function tick(s: BeamingState, dtMs: number): BeamingState {
   const windMs = s.windMs + dtMsC;
   const half = s.range.width / 2;
   const okMs = tension >= s.range.center - half && tension <= s.range.center + half ? s.okMs + dtMsC : s.okMs;
-  // シートの端 (中心 ± 巻き幅/2) が円盤の位置を越えると乗り上げ (朱。出来が下がるだけ)
-  const overLeft = shiftCm - s.widthCm / 2 < s.leftCm;
-  const overRight = shiftCm + s.widthCm / 2 > s.rightCm;
+  // シートの端 (中心 ± 巻き幅/2) が円盤の内側 (遊び 0.5cm) を越えると乗り上げ (朱。出来が下がるだけ)
+  const overLeft = shiftCm - s.widthCm / 2 < s.leftCm - OVERFLOW_CLEARANCE_CM;
+  const overRight = shiftCm + s.widthCm / 2 > s.rightCm + OVERFLOW_CLEARANCE_CM;
   const overflowMs = overLeft || overRight ? s.overflowMs + dtMsC : s.overflowMs;
   const centeredMs = !overLeft && !overRight && Math.abs(shiftCm) <= CENTER_OK_CM ? s.centeredMs + dtMsC : s.centeredMs;
   // 5. 巻き終わったら done (糸切れは無いので止まらない)

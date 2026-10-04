@@ -31,6 +31,10 @@ export const WIDTH_OK_CM = 1;
 
 /** シートの中心が「中央」になる範囲 (±cm) */
 export const CENTER_OK_CM = 1.5;
+/** 円盤の内側の遊び (cm)。シートの端がこの分を越えたら乗り上げ (T3-03a)。遊びが無いと
+ * 円盤を目標に合わせたとき、ほんの少しの偏りですぐ乗り上げになり、中央に保てた時間が
+ * 数えられなくなる (星3が不可能になる) ため */
+export const OVERFLOW_CLEARANCE_CM = 0.5;
 
 /** 寄せるボタン1回で動く量 (cm) */
 export const NUDGE_CM = 1;

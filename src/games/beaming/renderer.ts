@@ -6,6 +6,7 @@ import {
   DRUM_RECT, BEAM_AXIS_Y, BEAM_CORE_H, BEAM_WOUND_MAX_H, FLANGE_W, FLANGE_H, flangeTopY, TARGET_LINE_Y,
   SHEET_TOP_Y, woundTopY, cmToX, pxPerCm, TOP_TEXT, toPx,
 } from './geometry';
+import { OVERFLOW_CLEARANCE_CM } from './params';
 
 /**
  * ビーム巻きの盤面の描画 (P3 T3-02)。正面から見た絵。
@@ -28,11 +29,11 @@ export function mainHex(content: Content, patternId: string): string {
   return color?.hex ?? COLORS.sumiSub;
 }
 
-/** 乗り上げか (シートの端が円盤の位置を越える。logic と同じ決まり) */
+/** 乗り上げか (シートの端が円盤の内側 [遊び 0.5cm] を越える。logic と同じ決まり) */
 function overflowing(s: BeamingState, side: 'left' | 'right'): boolean {
   return side === 'left'
-    ? s.shiftCm - s.widthCm / 2 < s.leftCm
-    : s.shiftCm + s.widthCm / 2 > s.rightCm;
+    ? s.shiftCm - s.widthCm / 2 < s.leftCm - OVERFLOW_CLEARANCE_CM
+    : s.shiftCm + s.widthCm / 2 > s.rightCm + OVERFLOW_CLEARANCE_CM;
 }
 
 /**
