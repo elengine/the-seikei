@@ -3,8 +3,10 @@ import { COLORS } from '../../core/ui/tokens';
 import type { StageFit } from '../../core/viewport/viewport';
 import {
   BOARD, BEAM_CENTER_X, DRUM_X, DRUM_W, CORE_R, ROD_OUT, FLANGE_RX, woundRadius, woundTopY, sheetTopY, cmToX, pxPerCm, TOP_TEXT, toPx,
+  leverNotchX, leverY, lampX, lampY,
 } from './geometry';
-import { overflowSides } from './logic';
+import { overflowSides, goodSpeedOf } from './logic';
+import { GOOD_SPEED_ZONES } from './params';
 import type { BeamingState } from './logic';
 
 /**
@@ -49,6 +51,7 @@ export function drawBoard(
   s: BeamingState,
   content: Content,
   drumAngle: number,
+  leverDragX: number | null = null,
 ): void {
   const hex = mainHex(content, s.patternId);
 
@@ -75,6 +78,10 @@ export function drawBoard(
   if (s.phase === 'setup') {
     drawTarget(ctx, s);
   }
+
+  // 速さのレバー (ビームの少し上。T3-04b) と速さのランプ
+  drawSpeedLever(ctx, fit, s, leverDragX);
+  drawSpeedLamp(ctx, fit, s);
 
   ctx.restore();
 
@@ -263,3 +270,116 @@ function drawTarget(ctx: CanvasRenderingContext2D, s: BeamingState): void {
     ctx.fillRect(cmToX(s.widthCm, t.actual) - 6, y + 16, 12, 12);
   }
 }
+
+/**
+ * 速さのレバー (ビームの少し上。横に3つの止まり: 停止・50%・100%。T3-04b)。
+ * 今の巻き量で適正な止まりに藍の枠と「適正」の文字を出す (重なる区間は2つとも)。
+ * 幅合わせの段階では押せない形 (うすく描く)。leverDragX は引っぱっているあいだの指の x。
+ */
+function drawSpeedLever(ctx: CanvasRenderingContext2D, fit: StageFit, s: BeamingState, leverDragX: number | null): void {
+  if (s.phase === 'done') {
+    return;
+  }
+  const y = leverY();
+  const enabled = s.phase === 'beaming';
+  ctx.save();
+  if (!enabled) {
+    ctx.globalAlpha = 0.55;
+  }
+  // レバーの帯
+  const bandLeft = leverNotchX(0) - 46;
+  const bandRight = leverNotchX(100) + 46;
+  ctx.fillStyle = COLORS.aiTint;
+  ctx.fillRect(bandLeft, y - 26, bandRight - bandLeft, 52);
+  ctx.strokeStyle = COLORS.line;
+  ctx.lineWidth = fit.scale * 2;
+  ctx.stroke();
+  // 引っぱっているあいだの目印 (指の x に細い縦線)
+  if (leverDragX !== null) {
+    ctx.strokeStyle = COLORS.ai;
+    ctx.lineWidth = fit.scale * 3;
+    ctx.beginPath();
+    ctx.moveTo(leverDragX, y - 34);
+    ctx.lineTo(leverDragX, y + 34);
+    ctx.stroke();
+  }
+  // 止まり 3つ
+  for (const sp of [0, 50, 100] as const) {
+    const nx = leverNotchX(sp);
+    const good = enabled && goodSpeedOf(sp, s.progress);
+    if (good) {
+      // 適正の止まり: 藍の枠 + 「適正」の文字
+      ctx.strokeStyle = COLORS.ai;
+      ctx.lineWidth = fit.scale * 3;
+      ctx.strokeRect(nx - 34, y - 34, 68, 68);
+      ctx.fillStyle = COLORS.ai;
+      ctx.font = `${20 * fit.scale}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.fillText('適正', nx, y + 62);
+    }
+    // ノブ (押せる所は 64px 以上)
+    ctx.beginPath();
+    ctx.arc(nx, y, 32, 0, Math.PI * 2);
+    ctx.fillStyle = enabled && s.speed === sp ? COLORS.ai : COLORS.white;
+    ctx.fill();
+    ctx.strokeStyle = COLORS.ai;
+    ctx.lineWidth = fit.scale * 2;
+    ctx.stroke();
+    // 文字 (20px 以上)
+    ctx.fillStyle = enabled && s.speed === sp ? COLORS.white : COLORS.sumi;
+    ctx.font = `${20 * fit.scale}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(sp === 0 ? '停止' : `${sp}%`, nx, y);
+    ctx.textBaseline = 'alphabetic';
+  }
+  ctx.restore();
+}
+
+/**
+ * 速さのランプ (ビームの上の左寄り。T3-04b)。今の速さが適正なら緑の「○」、
+ * 外れていればオレンジの「▲」(速すぎ) か「▼」(遅すぎ)。停止中は消灯 (描かない)。
+ */
+function drawSpeedLamp(ctx: CanvasRenderingContext2D, fit: StageFit, s: BeamingState): void {
+  if (s.phase !== 'beaming' || s.speed === 0) {
+    return;
+  }
+  const x = lampX();
+  const y = lampY();
+  if (goodSpeedOf(s.speed, s.progress)) {
+    // 適正: 緑の丸
+    ctx.fillStyle = COLORS.lampOk;
+    ctx.beginPath();
+    ctx.arc(x, y, 22, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = COLORS.white;
+    ctx.lineWidth = fit.scale * 3;
+    ctx.beginPath();
+    ctx.arc(x, y, 12, 0, Math.PI * 2);
+    ctx.stroke();
+    return;
+  }
+  // 外れている: 速すぎ (▲) か遅すぎ (▼)。今の速さより遅い適正があれば速すぎ
+  const goodSpeeds = GOOD_SPEED_ZONES.filter((z) => s.progress * 100 >= z.from && s.progress * 100 <= z.to).map((z) => z.speed);
+  const tooFast = goodSpeeds.some((g) => g > 0 && g < s.speed);
+  const color = COLORS.lampWarn;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  const h = 30;
+  if (tooFast) {
+    ctx.moveTo(x, y - 18);
+    ctx.lineTo(x + 18, y + 12);
+    ctx.lineTo(x - 18, y + 12);
+  } else {
+    ctx.moveTo(x, y + 18);
+    ctx.lineTo(x + 18, y - 12);
+    ctx.lineTo(x - 18, y - 12);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.font = `${20 * fit.scale}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.fillStyle = color;
+  ctx.fillText(tooFast ? '速すぎ' : '遅すぎ', x, y + h + 14);
+}
+

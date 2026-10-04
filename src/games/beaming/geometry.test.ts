@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import {
   pxPerCm, cmToX, xToCm, BEAM_W_PX, BOARD_W, BEAM_CENTER_X, woundRadius, setBoardHeight, BOARD, drawnExtent, FLANGE_RX, CORE_R,
-  flangeHit, dragCm, FLANGE_HIT_MIN_PX,
+  flangeHit, dragCm, FLANGE_HIT_MIN_PX, leverY, leverNotchX, nearestNotch, hitLever, lampX, lampY, DRUM_X,
 } from './geometry';
 import { logicalHeightFor } from '../winding/geometry';
 
@@ -117,5 +117,36 @@ describe('PU-15b: 円盤を引っぱる (当たり判定・1cm 単位の吸い�
     expect(dragCm(w, 30, cmToX(w, 30), cmToX(w, 30) - perCm * 7)).toBe(23);
     // つかんだ位置が円盤の中心から 10px ずれていても、動かした量だけ変わる
     expect(dragCm(w, -30, cmToX(w, -30) + 10, cmToX(w, -30) + 10 + perCm * 2)).toBe(-28);
+  });
+});
+
+describe('T3-04b (速さのレバーとランプの座標)', () => {
+  it('1. レバーはビームの少し上 (ガイドとビームのあいだ)。止まりは3つ (左が停止・右が 100%)', () => {
+    expect(leverY()).toBeGreaterThan(BOARD.guideY);
+    expect(leverY()).toBeLessThan(BOARD.axisY);
+    expect(leverNotchX(0)).toBeLessThan(leverNotchX(50));
+    expect(leverNotchX(50)).toBeLessThan(leverNotchX(100));
+    expect(leverNotchX(50)).toBe(BOARD_W / 2);
+  });
+
+  it('2. 一番近い止まりに吸い付く (引っぱって離したとき)', () => {
+    expect(nearestNotch(leverNotchX(0) - 50)).toBe(0);
+    expect(nearestNotch(leverNotchX(0) + 80)).toBe(0);
+    expect(nearestNotch(BOARD_W / 2)).toBe(50);
+    expect(nearestNotch(leverNotchX(100) - 80)).toBe(100);
+    expect(nearestNotch(leverNotchX(100) + 50)).toBe(100);
+  });
+
+  it('3. レバーの当たり判定: 帯の上なら true・離れると false', () => {
+    expect(hitLever({ x: leverNotchX(50), y: leverY() })).toBe(true);
+    expect(hitLever({ x: leverNotchX(0), y: leverY() + 30 })).toBe(true);
+    expect(hitLever({ x: leverNotchX(50), y: leverY() + 60 })).toBe(false);
+    expect(hitLever({ x: 50, y: leverY() })).toBe(false);
+  });
+
+  it('4. ランプはビームの上の左寄り', () => {
+    expect(lampX()).toBeLessThan(BOARD_W / 2);
+    expect(lampX()).toBeGreaterThan(DRUM_X);
+    expect(lampY()).toBe(leverY());
   });
 });

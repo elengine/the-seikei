@@ -69,6 +69,43 @@ export function setBoardHeight(height: number): void {
 }
 setBoardHeight(BOARD_H);
 
+/** 速さのレバー (横に3つの止まり: 停止・50%・100%。T3-04b)。ビームの少し上に置く */
+export const LEVER_W = 360;
+export const LEVER_H = 72; // 止まりを押せる大きさ (64px 以上)
+/** レバーの中心の x (盤面の中央) */
+export const LEVER_CX = BOARD_W / 2;
+/** レバーの中心の y (論理の高さに合わせる。ガイドの棒とビームのあいだ) */
+export function leverY(): number {
+  // ビームの少し上 (巻いた糸が一番太くなった位置より上。T3-04b)
+  return BOARD.guideY + (BOARD.axisY - BOARD.guideY) * 0.25;
+}
+/** レバーの止まり (速度) の x 座標 (左が停止・右が 100%。止まりの間隔は LEVER_W/2 = 180) */
+export function leverNotchX(speed: 0 | 50 | 100): number {
+  return LEVER_CX + (speed - 50) * (LEVER_W / 100);
+}
+/** 一番近い止まり (引っぱって離したときに吸い付く。T3-04b) */
+export function nearestNotch(x: number): 0 | 50 | 100 {
+  const d0 = Math.abs(x - leverNotchX(0));
+  const d50 = Math.abs(x - leverNotchX(50));
+  const d100 = Math.abs(x - leverNotchX(100));
+  if (d50 <= d0 && d50 <= d100) return 50;
+  return d0 <= d100 ? 0 : 100;
+}
+/** レバーの当たり判定 (レバーの帯の上下 ±40。T3-04b) */
+export function hitLever(p: { x: number; y: number }): boolean {
+  return Math.abs(p.y - leverY()) <= 40 && p.x >= leverNotchX(0) - 60 && p.x <= leverNotchX(100) + 60;
+}
+/** 速さのランプ (ビームの上の左寄り。T3-04b) */
+export function lampX(): number {
+  return BOARD_W * 0.2;
+}
+export function lampY(): number {
+  return leverY();
+}
+export function hitLamp(p: { x: number; y: number }): boolean {
+  return Math.hypot(p.x - lampX(), p.y - lampY()) <= 36;
+}
+
 /** 巻いた糸の円筒の半径 (軸を中心に上下に同じだけ太る。progress 0 で芯、1 で円盤の半径の 8 割) */
 export function woundRadius(progress: number): number {
   const p = Math.min(1, Math.max(0, progress));

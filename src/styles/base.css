@@ -2089,6 +2089,46 @@ button {
   gap: var(--sp-2);
 }
 
+/* 巻き量の帯 (適正な速さの区間。T3-04b) */
+.beaming-panel__band {
+  position: relative;
+  height: 34px;
+  margin: 2px 0 8px;
+  border: 1px solid var(--c-line);
+  border-radius: 6px;
+  background: var(--c-kinari);
+  overflow: hidden;
+}
+.beaming-panel__band-zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: var(--c-sumi-sub);
+  border-left: 1px dashed var(--c-line);
+  background: var(--c-kinari-deep);
+}
+.beaming-panel__band-zone:nth-child(2n) {
+  background: var(--c-star-off);
+}
+.beaming-panel__band-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--c-sumi-sub);
+}
+.beaming-panel__band-mark {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--c-ai);
+}
+
 /* 巻き量: 操作欄の一番上に 1 か所だけ。大きな太字 (PU-15c) */
 .beaming-panel__amount {
   font-size: 32px;

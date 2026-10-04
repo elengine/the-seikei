@@ -165,3 +165,50 @@ describe('PU-15c: 操作欄の整理 (戻す・踏み込む・速さ・経過時
   });
 
 });
+
+describe('T3-04b (巻き量の帯)', () => {
+  let host: HTMLElement;
+  beforeEach(() => {
+    document.body.textContent = '';
+    host = document.createElement('div');
+    document.body.appendChild(host);
+  });
+
+  it('1. 巻き量の下に横長の帯がある。適正な速さの区間ごとに塗り分け、区間の文字 (50%・100%・50%・停止)', () => {
+    const p = createBeamingPanel(host, { terms, onAction: () => undefined });
+    p.update(beaming());
+    const band = host.querySelector('.beaming-panel__band');
+    expect(band, '巻き量の帯').not.toBeNull();
+    const zones = Array.from(band!.querySelectorAll('.beaming-panel__band-zone')) as HTMLElement[];
+    expect(zones.length).toBe(4);
+    const labels = zones.map((z) => z.textContent ?? '');
+    expect(labels[0]).toContain('50%');
+    expect(labels[1]).toContain('100%');
+    expect(labels[2]).toContain('50%');
+    expect(labels[3]).toContain('停止');
+    // 区間の位置と幅 (0〜30・25〜75・70〜99・95〜100)
+    expect(zones[0]!.style.left).toBe('0%');
+    expect(zones[0]!.style.width).toBe('30%');
+    expect(zones[1]!.style.left).toBe('25%');
+    expect(zones[1]!.style.width).toBe('50%');
+    expect(zones[2]!.style.left).toBe('70%');
+    expect(zones[2]!.style.width).toBe('29%');
+    expect(zones[3]!.style.left).toBe('95%');
+    expect(zones[3]!.style.width).toBe('5%');
+    p.destroy();
+  });
+
+  it('2. 今の巻き量の位置に縦の印。95% と 100% に目印の線があり、100% の線は朱', () => {
+    const p = createBeamingPanel(host, { terms, onAction: () => undefined });
+    p.update({ ...beaming(), progress: 0.73 });
+    const mark = host.querySelector('.beaming-panel__band-mark') as HTMLElement;
+    expect(mark).not.toBeNull();
+    expect(mark.style.left).toBe('73%');
+    const marks = Array.from(host.querySelectorAll('.beaming-panel__band-line')) as HTMLElement[];
+    expect(marks.length).toBe(2);
+    expect(marks[0]!.style.left).toBe('95%');
+    expect(marks[1]!.style.left).toBe('100%');
+    expect(marks[1]!.style.background).toBe('var(--c-shu)'); // 朱 = COLORS.shu (base.css の変数)
+    p.destroy();
+  });
+});

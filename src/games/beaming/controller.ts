@@ -1,7 +1,7 @@
 import type { GameDeps, GameInstance, GameProps, TutorialSpec } from '../../core/game/types';
 import type { StageFit } from '../../core/viewport/viewport';
 import { createGameFrame } from '../../core/ui/gameFrame';
-import { setBoardHeight, flangeHit, dragCm } from './geometry';
+import { setBoardHeight, flangeHit, dragCm, hitLever, nearestNotch } from './geometry';
 import { logicalHeightFor } from '../winding/geometry';
 import { showTutorial } from '../../core/ui/tutorialOverlay';
 import { drawBoard } from './renderer';
@@ -90,6 +90,9 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
 
   // ---- 円盤を絵の上で引っぱって合わせる (PU-15b。幅合わせの段階だけ) ----
   let flangeDrag: { side: 'left' | 'right'; startCm: number; startX: number; pointerId: number } | null = null;
+  /** 速さのレバーを引っぱっている (T3-04b)。x は指の論理座標 */
+  let leverDragX: number | null = null;
+  let leverDragId = -1;
   /** 画面の点 → 論理座標の x と y (Canvas の上の位置から、変換を戻す) */
   function logicalOf(e: PointerEvent): { x: number; y: number } {
     const rect = frame.stage.getBoundingClientRect();
@@ -97,7 +100,25 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
   }
   const currentCm = (side: 'left' | 'right'): number => (side === 'left' ? s.leftCm : s.rightCm);
   function onStageDown(e: PointerEvent): void {
-    if (s.phase !== 'setup' || flangeDrag !== null || finished || disposed || e.button !== 0 || !(lastFit.scale > 0)) {
+    if (flangeDrag !== null || leverDragX !== null || finished || disposed || e.button !== 0 || !(lastFit.scale > 0)) {
+      return;
+    }
+    // 速さのレバー (巻き返しの段階だけ動かせる。幅合わせの段階では押せない形。T3-04b)
+    if (s.phase === 'beaming') {
+      const p = logicalOf(e);
+      if (hitLever(p)) {
+        leverDragX = p.x;
+        leverDragId = e.pointerId;
+        try {
+          frame.stage.setPointerCapture(e.pointerId);
+        } catch {
+          // 対応していない環境 (テスト等) では、そのまま受け取る
+        }
+        render();
+        return;
+      }
+    }
+    if (s.phase !== 'setup') {
       return;
     }
     const p = logicalOf(e);
@@ -113,6 +134,12 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
     }
   }
   function onStageMove(e: PointerEvent): void {
+    // レバーを引っぱる (指に合わせて目印が動く。離すと一番近い止まりに吸い付く。T3-04b)
+    if (leverDragX !== null && e.pointerId === leverDragId) {
+      leverDragX = logicalOf(e).x;
+      render();
+      return;
+    }
     const d = flangeDrag;
     if (d === null || e.pointerId !== d.pointerId || s.phase !== 'setup') {
       return;
@@ -124,11 +151,29 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
     }
   }
   function onStageUp(e: PointerEvent): void {
+    // レバーを離す: 一番近い止まりに吸い付いて速さを変える (T3-04b)
+    if (leverDragX !== null && e.pointerId === leverDragId) {
+      const next = nearestNotch(leverDragX);
+      leverDragX = null;
+      leverDragId = -1;
+      if (next !== s.speed) {
+        dispatch({ type: 'setSpeed', speed: next });
+      }
+      render();
+      return;
+    }
     if (flangeDrag !== null && e.pointerId === flangeDrag.pointerId) {
       flangeDrag = null;
     }
   }
   function onStageCancel(e: PointerEvent): void {
+    if (leverDragX !== null && e.pointerId === leverDragId) {
+      // 引っぱっているのをやめる (速さは変えない)
+      leverDragX = null;
+      leverDragId = -1;
+      render();
+      return;
+    }
     const d = flangeDrag;
     if (d === null || e.pointerId !== d.pointerId) {
       return;
@@ -165,7 +210,7 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
     if (ctx === null) {
       return;
     }
-    drawBoard(ctx, lastFit, s, content, drumAngle);
+    drawBoard(ctx, lastFit, s, content, drumAngle, leverDragX);
   }
 
   // ---- 画面の更新 ----

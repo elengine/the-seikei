@@ -348,3 +348,106 @@ describe('PU-15c: メッセージ欄を無くす', () => {
     vi.unstubAllGlobals();
   });
 });
+
+describe('T3-04b (盤面の速さのレバー)', () => {
+  let raf: ReturnType<typeof installFakeRaf>;
+  let container: HTMLElement;
+
+  /** 幅を合わせた状態でマウントする */
+  async function mountAligned(resume?: BeamingState): Promise<{ instance: { unmount(): void; suspend(): unknown }; finished: unknown[] }> {
+    const { deps } = await makeDeps();
+    const props = makeProps();
+    const instance = createBeamingController(container, deps, props, {
+      level: 1,
+      widthCm: 60,
+      puzzleId: 's1',
+      patternId: 'p-muji-kon',
+      puzzleName: '無地紺',
+      bands: 3,
+      resume,
+      tutorial,
+      onBack: () => undefined,
+    });
+    return { instance, finished: (props as GameProps & { finished: unknown[] }).finished };
+  }
+
+  beforeEach(() => {
+    document.body.textContent = '';
+    raf = installFakeRaf();
+    drawBoardCalls.length = 0;
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      canvas: document.createElement('canvas'),
+    } as unknown as CanvasRenderingContext2D);
+    container = document.createElement('div');
+    document.body.appendChild(container);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  /** 盤面のカードを 600×400 に見せる (fitStage が 0 にならないように) */
+  function showBoard(): { fit: StageFit; toScreen: (x: number, y: number) => { x: number; y: number } } {
+    const stage = container.querySelector('canvas')!;
+    Object.defineProperty(stage.parentElement!, 'clientWidth', { configurable: true, value: 600 });
+    Object.defineProperty(stage.parentElement!, 'clientHeight', { configurable: true, value: 400 });
+    Object.defineProperty(stage, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({ x: 0, y: 0, left: 0, top: 0, right: 600, bottom: 400, width: 600, height: 400 }),
+    });
+    window.dispatchEvent(new Event('resize'));
+    raf.advance(3);
+    const fit = fitStage(1000, logicalHeightFor(600, 400), 600, 400);
+    return { fit, toScreen: (x: number, y: number) => ({ x: x * fit.scale + fit.offsetX, y: y * fit.scale + fit.offsetY }) };
+  }
+
+  /** 盤面にポインタ操作を送る */
+  function stagePointer(type: 'pointerdown' | 'pointermove' | 'pointerup', sx: number, sy: number): void {
+    const c = container.querySelector('canvas')!;
+    c.dispatchEvent(new PointerEvent(type, { clientX: sx, clientY: sy, bubbles: true, pointerId: 1, button: 0 }));
+  }
+
+  it('1. 止まりを押すと speed が変わる (停止 → 50% → 100%)', async () => {
+    const { instance } = await mountAligned(setupAligned());
+    Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める')!.click();
+    const { leverNotchX, leverY } = await import('./geometry');
+    const { toScreen } = showBoard();
+    const at = (sp: 0 | 50 | 100): { x: number; y: number } => toScreen(leverNotchX(sp), leverY());
+    const speed = (): number => (instance.suspend() as { speed: number }).speed;
+    expect(speed()).toBe(0);
+    stagePointer('pointerdown', at(50).x, at(50).y);
+    stagePointer('pointerup', at(50).x, at(50).y);
+    expect(speed()).toBe(50);
+    stagePointer('pointerdown', at(100).x, at(100).y);
+    stagePointer('pointerup', at(100).x, at(100).y);
+    expect(speed()).toBe(100);
+    instance.unmount();
+  });
+
+  it('2. 引っぱって離すと一番近い止まりに吸い付く', async () => {
+    const { instance } = await mountAligned(setupAligned());
+    Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める')!.click();
+    const { leverNotchX, leverY } = await import('./geometry');
+    const { toScreen } = showBoard();
+    // 停止の止まりから、100% の近くまで引っぱって離す → 100%
+    const start = toScreen(leverNotchX(0), leverY());
+    const end = toScreen(leverNotchX(100) - 40, leverY());
+    stagePointer('pointerdown', start.x, start.y);
+    stagePointer('pointermove', end.x, end.y);
+    stagePointer('pointerup', end.x, end.y);
+    expect((instance.suspend() as { speed: number }).speed).toBe(100);
+    instance.unmount();
+  });
+
+  it("3. 幅合わせの段階 ('setup') ではレバーを押しても speed は変わらない", async () => {
+    const { instance } = await mountAligned(setupAligned());
+    const { leverNotchX, leverY } = await import('./geometry');
+    const { toScreen } = showBoard();
+    const at = toScreen(leverNotchX(100), leverY());
+    stagePointer('pointerdown', at.x, at.y);
+    stagePointer('pointerup', at.x, at.y);
+    expect((instance.suspend() as { speed: number; phase: string }).phase).toBe('setup');
+    expect((instance.suspend() as { speed: number }).speed).toBe(0);
+    instance.unmount();
+  });
+});

@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { drawBoard, mainHex } from './renderer';
 import { init, reduce } from './logic';
 import type { BeamingState } from './logic';
-import { cmToX, BOARD, setBoardHeight, FLANGE_RX, DRUM_X, DRUM_W, woundRadius } from './geometry';
+import { cmToX, BOARD, setBoardHeight, FLANGE_RX, DRUM_X, DRUM_W, woundRadius, leverNotchX, leverY, lampX, lampY } from './geometry';
 import { getContent } from '../../core/content/content';
 import { COLORS } from '../../core/ui/tokens';
 import { makeFakeCtx } from '../winding/renderer.test.helpers';
@@ -195,5 +195,57 @@ describe('beaming renderer PU-15a (盤面。実物の写真に寄せた絵)', ()
       const src = readFileSync(file, 'utf8');
       expect(/#[0-9a-fA-F]{3,8}\b/.test(src), file).toBe(false);
     }
+  });
+});
+
+describe('T3-04b (盤面の速さのレバー・ランプ)', () => {
+  it("1. 'beaming' と 'setup' でレバーが描かれる (帯・3つの止まり・文字)。'done' では描かない", () => {
+    const rec = draw(beamState());
+    // レバーの帯 (丸い長方形): 止まり3つの位置に丸 (ノブ) がある
+    const arcs = rec.ops.filter((o) => o.k === 'arc').map((o) => o.args as number[]);
+    for (const sp of [0, 50, 100] as const) {
+      const hit = arcs.some((a) => Math.abs((a[0] ?? 0) - leverNotchX(sp)) < 1 && Math.abs((a[1] ?? 0) - leverY()) < 1);
+      expect(hit, `止まり ${sp} の丸`).toBe(true);
+    }
+    // 文字: 停止・50%・100% (20px 以上)
+    const texts = rec.ops.filter((o) => o.k === 'fillText').map((o) => String((o.args as unknown[])[0]));
+    expect(texts.some((x) => x.includes('停止'))).toBe(true);
+    expect(texts.some((x) => x.includes('50%'))).toBe(true);
+    expect(texts.some((x) => x.includes('100%'))).toBe(true);
+    // setup でも描かれる
+    const recSetup = draw(beamState({ phase: 'setup' as const, speed: 0 }));
+    expect(recSetup.ops.some((o) => o.k === 'arc' && Math.abs(((o.args as number[])[1] ?? 0) - leverY()) < 1)).toBe(true);
+    // done では描かない
+    const recDone = draw(beamState({ phase: 'done' as const }));
+    expect(recDone.ops.some((o) => o.k === 'arc' && Math.abs(((o.args as number[])[1] ?? 0) - leverY()) < 1)).toBe(false);
+  });
+
+  it("2. 今の巻き量で適正な止まりに藍の枠と「適正」の文字。重なる区間は2つとも", () => {
+    // 巻き量 50%: 適正は 100 だけ
+    const rec = draw(beamState({ progress: 0.5, speed: 100 }));
+    const texts = rec.ops.filter((o) => o.k === 'fillText').map((o) => String((o.args as unknown[])[0]));
+    expect(texts.filter((x) => x.includes('適正')).length).toBe(1);
+    // 巻き量 27% (重なる区間): 50 も 100 も適正 → 「適正」が2つ
+    const rec2 = draw(beamState({ progress: 0.27, speed: 50 }));
+    const texts2 = rec2.ops.filter((o) => o.k === 'fillText').map((o) => String((o.args as unknown[])[0]));
+    expect(texts2.filter((x) => x.includes('適正')).length).toBe(2);
+  });
+
+  it('3. ランプ: 適正なら緑の丸、速すぎならオレンジの上向きの記号、遅すぎならオレンジの下向き、停止では消灯', () => {
+    // 巻き量 50%・速さ 100 → 適正 → 緑の丸
+    const rec = draw(beamState({ progress: 0.5, speed: 100 }));
+    const green = rec.ops.some((o) => o.k === 'arc' && Math.abs(((o.args as number[])[0] ?? 0) - lampX()) < 1 && Math.abs(((o.args as number[])[1] ?? 0) - lampY()) < 1 && styleBefore(rec.ops, rec.ops.indexOf(o)) === COLORS.lampOk);
+    expect(green, '適正の緑のランプ').toBe(true);
+    // 速すぎ: 巻き量 10% で 100 → 上向きの三角 (オレンジ)
+    const rec2 = draw(beamState({ progress: 0.10, speed: 100 }));
+    const tri = rec2.ops.some((o) => (o.k === 'moveTo') && Math.abs(((o.args as number[])[0] ?? 0) - lampX()) < 40 && styleBefore(rec2.ops, rec2.ops.indexOf(o)) === COLORS.lampWarn);
+    expect(tri, '速すぎの記号').toBe(true);
+    // 遅すぎ: 巻き量 50% で 50 → 下向きの三角
+    const rec3 = draw(beamState({ progress: 0.50, speed: 50 }));
+    const tri3 = rec3.ops.some((o) => (o.k === 'moveTo') && Math.abs(((o.args as number[])[0] ?? 0) - lampX()) < 40 && styleBefore(rec3.ops, rec3.ops.indexOf(o)) === COLORS.lampWarn);
+    expect(tri3, '遅すぎの記号').toBe(true);
+    // 停止 → ランプは描かない
+    const rec4 = draw(beamState({ progress: 0.5, speed: 0 }));
+    expect(rec4.ops.some((o) => o.k === 'arc' && Math.abs(((o.args as number[])[0] ?? 0) - lampX()) < 1)).toBe(false);
   });
 });

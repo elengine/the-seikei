@@ -1,6 +1,7 @@
 import { createButton } from '../../core/ui/widgets';
 import { createSectionHeading } from '../../core/ui/layout';
 import type { BeamingState, BeamingAction, BeamingSpeed } from './logic';
+import { GOOD_SPEED_ZONES } from './params';
 
 /**
  * ビーム巻きの操作欄 (P3 T3-03a)。
@@ -33,6 +34,34 @@ export function createBeamingPanel(
   const amount = document.createElement('div');
   amount.className = 'beaming-panel__amount';
   root.appendChild(amount);
+
+  // 0b. 巻き量の帯 (0〜100% を適正な速さの区間で塗り分ける。T3-04b)
+  const band = document.createElement('div');
+  band.className = 'beaming-panel__band';
+  band.setAttribute('aria-label', '巻き量ごとの適正な速さ');
+  const zoneEls: HTMLElement[] = [];
+  for (const z of GOOD_SPEED_ZONES) {
+    const d = document.createElement('div');
+    d.className = 'beaming-panel__band-zone';
+    d.style.left = `${z.from}%`;
+    d.style.width = `${z.to - z.from}%`;
+    d.textContent = z.speed === 0 ? '停止' : `${z.speed}%`;
+    band.appendChild(d);
+    zoneEls.push(d);
+  }
+  // 95% と 100% の目印の線 (100% は朱: ここを超えると糸が切れる)
+  for (const [pct, color] of [[95, 'var(--c-sumi-sub)'], [100, 'var(--c-shu)']] as const) {
+    const line = document.createElement('div');
+    line.className = 'beaming-panel__band-line';
+    line.style.left = `${pct}%`;
+    line.style.background = color;
+    band.appendChild(line);
+  }
+  // 今の巻き量の縦の印
+  const bandMark = document.createElement('div');
+  bandMark.className = 'beaming-panel__band-mark';
+  band.appendChild(bandMark);
+  root.appendChild(band);
 
   // 1. 依頼書 (巻き幅・帯の数・柄の名前)
   const order = document.createElement('div');
@@ -117,6 +146,7 @@ export function createBeamingPanel(
       startBtn.style.display = isSetup ? '' : 'none';
       confirmBtn.style.display = isSetup ? 'none' : '';
       amount.textContent = `巻き量 ${Math.round(s.progress * 100)}%`;
+      bandMark.style.left = `${Math.min(100, Math.max(0, s.progress * 100))}%`;
       // 巻き返しの段階の下の行は空 (ボタンが無いので行を低くする)
       buttonRow.style.minHeight = isSetup ? '' : '0';
       // 幅合わせ: 今の幅と目標の幅
