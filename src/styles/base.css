@@ -716,7 +716,7 @@ body {
 }
 
 .creel-order-row__hinban {
-  font-size: 20px; /* 型番は雰囲気づくりなので控えめに */
+  font-size: 40px; /* 絵の直径と同じ大きさ。色は控えめ */
   font-weight: normal;
   color: var(--c-sumi-sub);
   white-space: nowrap;
@@ -752,12 +752,13 @@ body {
   color: var(--c-muted);
 }
 
-/* くりかえしの行 (「↻ 繰り返し × N」) */
+/* くりかえしの行 (「↻ N回繰り返す」) */
 .creel-order-repeat {
   display: flex;
   flex-wrap: wrap;
   column-gap: var(--sp-2);
-  font-size: var(--fs-body);
+  font-size: 32px;
+  font-weight: bold;
   line-height: 1.2;
   padding: var(--sp-1) var(--sp-2);
   color: var(--c-sumi-sub);
@@ -2403,8 +2404,8 @@ button {
 .game-frame__notice {
   position: absolute;
   left: 50%;
-  bottom: var(--sp-3);
-  transform: translateX(-50%);
+  top: 50%;
+  transform: translate(-50%, -50%); /* 盤面 (クリール) の中央 */
   max-width: calc(100% - 2 * var(--sp-3));
   box-sizing: border-box;
   margin: 0;
@@ -2418,7 +2419,7 @@ button {
 }
 
 /* 詰めた横 (低い画面。PU-12 追加修正): 「依頼書を見る」「ヒント」「完了」を 1 行に収め、依頼書の重ね表示は 2 列にして、スクロールを無くす */
-.game-frame--compact[data-layout='landscape'] .creel-actions .btn {
+.game-frame--compact .creel-actions .btn {
   flex: 1 1 0;
   min-width: 64px; /* 押せる部品は 64px 以上 */
   padding: 0 var(--sp-2);
@@ -2426,7 +2427,7 @@ button {
   white-space: nowrap;
 }
 
-.game-frame--compact[data-layout='landscape'] .creel-actions .creel-order-open {
+.game-frame--compact .creel-actions .creel-order-open {
   flex: 2 1 0; /* 「依頼書を見る」は字が長いので、ほかの 2 倍の幅 */
 }
 

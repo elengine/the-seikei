@@ -893,15 +893,16 @@ describe('PU-12d: createGameFrame の alwaysCompact・message・notify', () => {
     vi.useRealTimers();
   });
 
-  it('base.css: お知らせは盤面の下寄りの中央・白地・藍の枠・20px 以上', () => {
+  it('base.css: お知らせは盤面の中央 (上下左右)・白地・藍の枠・20px 以上', () => {
     const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
     const m = css.match(/\n\.game-frame__notice\s*\{([^}]*)\}/)![1]!;
     expect(m).toContain('position: absolute');
     expect(m).toContain('background: var(--c-white)');
     expect(m).toContain('border: 2px solid var(--c-ai)');
     expect(m).toContain('font-size: var(--fs-body)');
-    expect(m).toMatch(/bottom: /);
-    expect(m).toContain('translateX(-50%)');
+    expect(m).toContain('top: 50%');
+    expect(m).toContain('left: 50%');
+    expect(m).toContain('translate(-50%, -50%)');
     expect(css.match(/\n\.game-frame__stage\s*\{([^}]*)\}/)![1]).toContain('position: relative');
   });
 });

@@ -4,7 +4,6 @@ import type { CreelPanel } from './panel';
 import { init, reduce } from './logic';
 import type { CreelState } from './logic';
 import { getContent } from '../../core/content/content';
-import { ORDER_RANGE_MAX_STAGE } from './params';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -221,7 +220,7 @@ describe('createCreelPanel', () => {
     const panel = createCreelPanel(parent, { content, onAction, message: msg });
     panel.update(s2State());
     parent.querySelector<HTMLButtonElement>('[data-testid="creel-hint"]')!.click();
-    expect(msg.textContent).toBe('2回確認すると使えます');
+    expect(msg.textContent).toBe('あと 2 回確認に失敗すると使えます');
     expect(onAction).not.toHaveBeenCalled();
     panel.destroy();
   });
@@ -239,48 +238,16 @@ describe('createCreelPanel', () => {
     panel.destroy();
   });
 
-  describe('PU-05b: 依頼書の各行に何本目かを書き添える (段階1〜3だけ)', () => {
-    function rowsOf(id: string): { rows: string[]; repeat: string | null } {
-      const parent = document.createElement('div');
-      document.body.appendChild(parent);
-      const panel = createCreelPanel(parent, { content, onAction: () => undefined });
-      panel.update(stateOf(id));
-      const rows = Array.from(parent.querySelectorAll('[data-testid="creel-order-row"]')).map((r) => r.textContent ?? '');
-      const repeat = parent.querySelector('[data-testid="creel-order-repeat"]')?.textContent ?? null;
-      panel.destroy();
-      return { rows, repeat };
-    }
-
-    it('ORDER_RANGE_MAX_STAGE は 3', () => {
-      expect(ORDER_RANGE_MAX_STAGE).toBe(3);
-    });
-
-    it('段階1 (s1): 「(1〜6本目)」。段階2 (s2): 「(1〜7本目)」と「(8本目)」', () => {
-      expect(rowsOf('s1').rows[0]).toContain('(1〜6本目)');
-      const s2 = rowsOf('s2').rows;
-      expect(s2[0]).toContain('(1〜7本目)');
-      expect(s2[1]).toContain('(8本目)');
-      expect(s2[1]).not.toContain('〜');
-    });
-
-    it('段階3 (s3): 1リピート分の行に番号が付き、くりかえしの行に「(N本目から同じ並びを M 回)」', () => {
-      const { rows, repeat } = rowsOf('s3');
-      expect(rows).toHaveLength(2);
-      const puzzle = content.creelPuzzles.find((p) => p.id === 's3')!;
-      const unitLen = (puzzle.rows * puzzle.cols) / 2; // s3 は 2 回くりかえし
-      expect(rows[0]).toContain('(1');
-      expect(rows[rows.length - 1]).toContain(`${unitLen}本目)`);
-      expect(repeat).toContain('↻ 繰り返し × 2');
-      expect(repeat).toContain(`(${unitLen + 1}本目から同じ並びを 1 回)`);
-    });
-
-    it('段階4 (s4)・段階5 (s5) では出さない', () => {
-      for (const id of ['s4', 's5']) {
-        const { rows, repeat } = rowsOf(id);
-        for (const r of rows) {
-          expect(r, `${id} の行`).not.toContain('本目');
-        }
-        expect(repeat ?? '', `${id} のくりかえし`).not.toContain('本目');
+  describe('PU-13b: 依頼書に括弧書き「(1〜5本目)」は出さない (高さを取るだけで役に立たないため)', () => {
+    it('どのお題 (s1〜s5) でも、行にも繰り返しの行にも「本目」が無く、行の下の段 (creel-order-row__sub) も無い', () => {
+      for (const id of ['s1', 's2', 's3', 's4', 's5']) {
+        const parent = document.createElement('div');
+        document.body.appendChild(parent);
+        const panel = createCreelPanel(parent, { content, onAction: () => undefined });
+        panel.update(stateOf(id));
+        expect(parent.querySelector('[data-testid="creel-order"]')!.textContent, id).not.toContain('本目');
+        expect(parent.querySelector('.creel-order-row__sub'), id).toBeNull();
+        panel.destroy();
       }
     });
   });
@@ -303,7 +270,7 @@ describe('createCreelPanel', () => {
       const rep = parent.querySelector('[data-testid="creel-order-repeat"]');
       expect(rep).not.toBeNull();
       // 期待値を変えた理由: 確認役が文字を変えたため (「(ぜんぶで M本)」を外した)
-      expect(rep?.textContent).toBe('↻ 繰り返し × 2');
+      expect(rep?.textContent).toBe('↻ 2回繰り返す');
       panel.destroy();
     });
 
@@ -313,7 +280,7 @@ describe('createCreelPanel', () => {
       expect(rows.length).toBe(2);
       const rep = parent.querySelector('[data-testid="creel-order-repeat"]');
       // 段階3 は何本目かを書き添える (PU-05b)。文頭は今までどおり
-      expect(rep?.textContent?.startsWith('↻ 繰り返し × 2')).toBe(true);
+      expect(rep?.textContent?.startsWith('↻ 2回繰り返す')).toBe(true);
       panel.destroy();
     });
 
@@ -367,7 +334,7 @@ describe('createCreelPanel', () => {
       const rep = parent.querySelector('[data-testid="creel-order-repeat"]');
       expect(rep).not.toBeNull();
       // 期待値を変えた理由: 確認役が文字を変えたため (追加修正5)
-      expect(rep?.textContent).toBe('↻ 繰り返し × 2');
+      expect(rep?.textContent).toBe('↻ 2回繰り返す');
       panel.destroy();
     });
   });
@@ -391,7 +358,7 @@ describe('PU-11b: ボタンは「ヒント」と「完了」(どちらも 1 行)
     const hint = parent.querySelector<HTMLButtonElement>('[data-testid="creel-hint"]')!;
     const check = parent.querySelector<HTMLButtonElement>('[data-testid="creel-check"]')!;
     expect(hint.textContent).toBe('ヒント');
-    expect(check.textContent).toBe('完了');
+    expect(check.textContent).toBe('確認');
     const wrong: CreelState = { ...s, placed: ['shiro-a', 'kon-a', null, null, null, null, null, null] };
     s = reduce(wrong, { type: 'check' });
     panel.update(s);
@@ -399,7 +366,7 @@ describe('PU-11b: ボタンは「ヒント」と「完了」(どちらも 1 行)
     s = reduce(s, { type: 'check' });
     panel.update(s);
     expect(hint.textContent).toBe('ヒント');
-    expect(check.textContent).toBe('完了');
+    expect(check.textContent).toBe('確認');
     panel.destroy();
   });
 
@@ -410,12 +377,12 @@ describe('PU-11b: ボタンは「ヒント」と「完了」(どちらも 1 行)
     const hint = parent.querySelector<HTMLButtonElement>('[data-testid="creel-hint"]')!;
     expect(hint.classList.contains('btn--locked')).toBe(true);
     hint.click();
-    expect(msg.textContent).toBe('2回確認すると使えます');
+    expect(msg.textContent).toBe('あと 2 回確認に失敗すると使えます');
     const wrong: CreelState = { ...s, placed: ['shiro-a', 'kon-a', null, null, null, null, null, null] };
     s = reduce(wrong, { type: 'check' });
     panel.update(s);
     hint.click();
-    expect(msg.textContent).toBe('あと 1 回確認すると使えます');
+    expect(msg.textContent).toBe('あと 1 回確認に失敗すると使えます');
     expect(onAction).not.toHaveBeenCalled();
     s = reduce(s, { type: 'check' });
     panel.update(s);
@@ -497,9 +464,9 @@ describe('PU-12c: 依頼書の行は「コーンの絵・型番・個数」。�
     panel.destroy();
   });
 
-  it('レベル1〜3 の「(1〜7本目)」は残る (行の下の段)', () => {
+  it('レベル1〜3 でも「(1〜7本目)」は出さない (PU-13b)', () => {
     const { parent, panel } = rowsOfS2();
-    expect(parent.querySelector('[data-testid="creel-order-row"]')!.textContent).toContain('(1〜7本目)');
+    expect(parent.querySelector('[data-testid="creel-order-row"]')!.textContent).not.toContain('本目');
     panel.destroy();
   });
 });
@@ -529,20 +496,20 @@ describe('PU-09b: 詰めた形の操作欄 (依頼書を見る・箱の横送り
 
   it('詰めた形では「依頼書を見る」(secondary) が出て、依頼書の表は操作欄に出ない。詰めた形でなければ「依頼書を見る」は無く、表が操作欄にある', () => {
     const c = compactPanel();
-    const btn = Array.from(c.parent.querySelectorAll('button')).find((b) => b.textContent === '依頼書を見る')!;
+    const btn = Array.from(c.parent.querySelectorAll('button')).find((b) => b.textContent === '依頼書')!;
     expect(btn).toBeDefined();
     expect(btn.classList.contains('btn--secondary')).toBe(true);
     expect(c.parent.querySelector('[data-testid="creel-order-row"]')).toBeNull();
     c.panel.destroy();
     const n = compactPanel('landscape', false);
-    expect(Array.from(n.parent.querySelectorAll('button')).some((b) => b.textContent === '依頼書を見る')).toBe(false);
+    expect(Array.from(n.parent.querySelectorAll('button')).some((b) => b.textContent === '依頼書')).toBe(false);
     expect(n.parent.querySelectorAll('[data-testid="creel-order-row"]').length).toBeGreaterThan(0);
     n.panel.destroy();
   });
 
   it('「依頼書を見る」を押すと下から出る重ね表示が開き、依頼書の行がその中にある。× で閉じる。もう一度押しても閉じる', () => {
     const c = compactPanel();
-    const btn = Array.from(c.parent.querySelectorAll('button')).find((b) => b.textContent === '依頼書を見る')!;
+    const btn = Array.from(c.parent.querySelectorAll('button')).find((b) => b.textContent === '依頼書')!;
     btn.click();
     const sheet = c.frameEl.querySelector('.sheet')!;
     expect(sheet).not.toBeNull();
@@ -563,7 +530,7 @@ describe('PU-09b: 詰めた形の操作欄 (依頼書を見る・箱の横送り
 
   it('重ね表示を開いたまま状態が変わっても、依頼書の行はそのまま重ね表示の中にある。destroy で重ね表示も消える', () => {
     const c = compactPanel();
-    Array.from(c.parent.querySelectorAll('button')).find((b) => b.textContent === '依頼書を見る')!.click();
+    Array.from(c.parent.querySelectorAll('button')).find((b) => b.textContent === '依頼書')!.click();
     c.panel.update(s2State());
     expect(c.frameEl.querySelectorAll('.sheet [data-testid="creel-order-row"]')).toHaveLength(2);
     c.panel.destroy();
@@ -572,16 +539,16 @@ describe('PU-09b: 詰めた形の操作欄 (依頼書を見る・箱の横送り
 
   it('詰めた形から今の形に戻ると (frame のクラスが外れると)、重ね表示は閉じ、依頼書の表は操作欄に戻り、「依頼書を見る」は消える', async () => {
     const c = compactPanel();
-    Array.from(c.parent.querySelectorAll('button')).find((b) => b.textContent === '依頼書を見る')!.click();
+    Array.from(c.parent.querySelectorAll('button')).find((b) => b.textContent === '依頼書')!.click();
     c.frameEl.classList.remove('game-frame--compact');
     await tick();
     expect(c.frameEl.querySelector('.sheet')).toBeNull();
-    expect(Array.from(c.parent.querySelectorAll('button')).some((b) => b.textContent === '依頼書を見る')).toBe(false);
+    expect(Array.from(c.parent.querySelectorAll('button')).some((b) => b.textContent === '依頼書')).toBe(false);
     expect(c.parent.querySelectorAll('[data-testid="creel-order-row"]')).toHaveLength(2);
     // 戻ったら、また「依頼書を見る」になる
     c.frameEl.classList.add('game-frame--compact');
     await tick();
-    expect(Array.from(c.parent.querySelectorAll('button')).some((b) => b.textContent === '依頼書を見る')).toBe(true);
+    expect(Array.from(c.parent.querySelectorAll('button')).some((b) => b.textContent === '依頼書')).toBe(true);
     c.panel.destroy();
   });
 
@@ -619,14 +586,18 @@ describe('PU-09b: 詰めた形の操作欄 (依頼書を見る・箱の横送り
 });
 
 describe('PU-11b: 依頼書の行の文字の大きさ (PU-12c で型番を控えめに)', () => {
-  it('base.css: 絵は 40px 以上・型番は 20px のふつうの太さで薄め (sumi-sub)・個数「× N」は 32px 以上 (fs-number) の太字', () => {
+  it('base.css: 絵は 40px 以上・型番は絵の直径と同じ大きさのふつうの太さで薄め (sumi-sub)・個数「× N」は 32px 以上 (fs-number) の太字。繰り返しの行は 32px の太字', () => {
     const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
     const hinban = css.match(/\n\.creel-order-row__hinban\s*\{([^}]*)\}/)![1]!;
-    expect(hinban).toContain('font-size: 20px');
+    const cone = css.match(/\n\.creel-order-row \.cone-icon\s*\{([^}]*)\}/)![1]!;
+    const coneW = parseInt(cone.match(/width: (\d+)px/)![1]!, 10);
+    expect(coneW).toBeGreaterThanOrEqual(40);
+    expect(hinban).toContain(`font-size: ${coneW}px`); // 絵の直径と同じ大きさ
     expect(hinban).toContain('font-weight: normal');
     expect(hinban).toContain('color: var(--c-sumi-sub)');
-    const cone = css.match(/\n\.creel-order-row \.cone-icon\s*\{([^}]*)\}/)![1]!;
-    expect(parseInt(cone.match(/width: (\d+)px/)![1]!, 10)).toBeGreaterThanOrEqual(40);
+    const rep = css.match(/\n\.creel-order-repeat\s*\{([^}]*)\}/)![1]!;
+    expect(rep).toContain('font-size: 32px');
+    expect(rep).toContain('font-weight: bold');
     const count = css.match(/\n\.creel-order-row__count\s*\{([^}]*)\}/)![1]!;
     expect(count).toContain('font-size: var(--fs-number)');
     expect(count).toContain('font-weight: bold');
@@ -702,7 +673,7 @@ describe('PU-12d: 箱の並び (縦長は絵の下に型番、横長は 2 列で
     let s = s2State();
     panel.update(s);
     parent.querySelector<HTMLButtonElement>('[data-testid="creel-hint"]')!.click();
-    expect(notify).toHaveBeenLastCalledWith('2回確認すると使えます');
+    expect(notify).toHaveBeenLastCalledWith('あと 2 回確認に失敗すると使えます');
     const wrong: CreelState = { ...s, placed: ['shiro-a', 'kon-a', null, null, null, null, null, null] };
     s = reduce(reduce(wrong, { type: 'check' }), { type: 'check' });
     panel.update(s);
@@ -730,32 +701,26 @@ describe('PU-12 追加修正: 詰めた横 (915×412) でスクロールを無�
     await Promise.resolve();
   };
   const orderBtn = (root: HTMLElement): HTMLButtonElement =>
-    Array.from(root.querySelectorAll('button')).find((b) => b.textContent === '依頼書を見る')!;
+    Array.from(root.querySelectorAll('button')).find((b) => b.textContent === '依頼書')!;
 
-  it('詰めた横では「依頼書を見る」が「ヒント」「完了」と同じ行 (.creel-actions) の左端に並ぶ。縦では今までどおり依頼書の節に置く。回すと移る', async () => {
-    const c = compactPanel('landscape');
-    const actions = c.parent.querySelector('.creel-actions')!;
-    expect(orderBtn(c.parent).parentElement).toBe(actions);
-    expect(Array.from(actions.children).map((b) => b.textContent)).toEqual(['依頼書を見る', 'ヒント', '完了']);
-    c.frameEl.dataset.layout = 'portrait';
-    await tick();
-    expect(orderBtn(c.parent).parentElement).not.toBe(actions);
-    expect(Array.from(actions.children).map((b) => b.textContent)).toEqual(['ヒント', '完了']);
-    c.frameEl.dataset.layout = 'landscape';
-    await tick();
-    expect(orderBtn(c.parent).parentElement).toBe(actions);
-    // 行に移ったあとも押せて、重ね表示が開く
-    orderBtn(c.parent).click();
-    expect(c.frameEl.querySelector('.sheet')).not.toBeNull();
-    c.panel.destroy();
-    const p = compactPanel('portrait');
-    expect(orderBtn(p.parent).parentElement).not.toBe(p.parent.querySelector('.creel-actions'));
-    p.panel.destroy();
+  it('縦でも横でも「依頼書」「ヒント」「確認」の順に 1 行 (.creel-actions)。依頼書の節には置かない。回しても同じ。押すと重ね表示が開く', async () => {
+    for (const layout of ['landscape', 'portrait'] as const) {
+      const c = compactPanel(layout);
+      const actions = c.parent.querySelector('.creel-actions')!;
+      expect(orderBtn(c.parent).parentElement).toBe(actions);
+      expect(Array.from(actions.children).map((b) => b.textContent)).toEqual(['依頼書', 'ヒント', '確認']);
+      c.frameEl.dataset.layout = layout === 'landscape' ? 'portrait' : 'landscape';
+      await tick();
+      expect(Array.from(actions.children).map((b) => b.textContent)).toEqual(['依頼書', 'ヒント', '確認']);
+      orderBtn(c.parent).click();
+      expect(c.frameEl.querySelector('.sheet')).not.toBeNull();
+      c.panel.destroy();
+    }
   });
 
-  it('base.css: 詰めた横の 3 つのボタンは 1 行に収まる (最小幅 64px・字は 20px・折り返さない)。依頼書の重ね表示は 2 列の格子 (繰り返しの行は全幅)', () => {
+  it('base.css: 詰めた形の 3 つのボタンは 1 行に収まる (最小幅 64px・字は 20px・折り返さない)。依頼書の重ね表示は 2 列の格子 (繰り返しの行は全幅)', () => {
     const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
-    const btn = css.match(/\.game-frame--compact\[data-layout='landscape'\] \.creel-actions \.btn\s*\{([^}]*)\}/)![1]!;
+    const btn = css.match(/\.game-frame--compact \.creel-actions \.btn\s*\{([^}]*)\}/)![1]!;
     expect(btn).toContain('min-width: 64px'); // 押せる部品は 64px 以上
     expect(btn).toContain('font-size: 20px');
     expect(btn).toContain('white-space: nowrap');

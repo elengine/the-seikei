@@ -1,7 +1,7 @@
 import type { Content } from '../../core/content/content';
 import type { CreelState, CreelAction } from './logic';
 import { canHint } from './logic';
-import { HINT_MIN_CHECKS, ORDER_RANGE_MAX_STAGE } from './params';
+import { HINT_MIN_CHECKS } from './params';
 import { toRuns, splitRepeat } from '../../core/domain/stripe';
 import { createButton, setLockedReason } from '../../core/ui/widgets';
 import { createConeIcon } from './coneIcon';
@@ -22,7 +22,7 @@ function hintLockedReason(s: CreelState): string | null {
   }
   const rest = HINT_MIN_CHECKS - s.checks;
   if (rest > 0) {
-    return rest === HINT_MIN_CHECKS ? `${rest}回確認すると使えます` : `あと ${rest} 回確認すると使えます`;
+    return `あと ${rest} 回確認に失敗すると使えます`;
   }
   return '確認して ✕ が出ると使えます';
 }
@@ -83,7 +83,7 @@ export function createCreelPanel(parent: HTMLElement, opts: {
   boxes.dataset.testid = 'creel-boxes';
   boxesBox.appendChild(boxes);
 
-  // ---- 3. 一番下: ヒント (左) と 完了 (右・主) ----
+  // ---- 3. 一番下: 依頼書 (左・詰めた形)・ヒント・確認 (右・主) ----
   const actions = document.createElement('div');
   actions.classList.add('creel-actions');
   // 最後に update で受けた状態 (ヒントを使ったあとのメッセージに、残りの ✕ の数を出すため)
@@ -92,7 +92,7 @@ export function createCreelPanel(parent: HTMLElement, opts: {
     label: 'ヒント',
     variant: 'secondary',
     testId: 'creel-hint',
-    lockedReason: '2回確認すると使えます',
+    lockedReason: 'あと 2 回確認に失敗すると使えます',
     onLocked: (reason) => {
       say(reason);
     },
@@ -107,7 +107,7 @@ export function createCreelPanel(parent: HTMLElement, opts: {
     },
   });
   const checkBtn = createButton({
-    label: '完了',
+    label: '確認',
     variant: 'primary',
     testId: 'creel-check',
     onClick: () => opts.onAction({ type: 'check' }),
@@ -159,22 +159,17 @@ export function createCreelPanel(parent: HTMLElement, opts: {
     boxes.dataset.scroll = compact ? (frameEl?.dataset.layout === 'landscape' ? 'y' : 'x') : '';
     if (compact) {
       if (orderBtn === null) {
-        orderBtn = createButton({ label: '依頼書を見る', variant: 'secondary', onClick: toggleSheet });
+        orderBtn = createButton({ label: '依頼書', variant: 'secondary', onClick: toggleSheet });
         orderBtn.classList.add('creel-order-open');
         if (sheet === null) {
           orderTable.remove();
         }
       }
-      // 詰めた横 (低い画面) では、「依頼書を見る」を「ヒント」「完了」と同じ行の左端に置く (操作欄が縦に収まる)。縦は依頼書の節に置く
-      const landscape = frameEl?.dataset.layout === 'landscape';
-      if (landscape) {
-        if (orderBtn.parentElement !== actions) {
-          actions.insertBefore(orderBtn, hintBtn);
-        }
-      } else if (orderBtn.parentElement !== orderBox) {
-        orderBox.appendChild(orderBtn);
+      // 「依頼書」は、縦でも横でも「ヒント」「確認」と同じ行の左端に置く (操作欄が縦に収まる)
+      if (orderBtn.parentElement !== actions) {
+        actions.insertBefore(orderBtn, hintBtn);
       }
-      orderBox.hidden = landscape; // 空になる節を隠す (操作欄の隙間が余らない)
+      orderBox.hidden = true; // 空になる節を隠す (操作欄の隙間が余らない)
     } else {
       closeSheet();
       orderBtn?.remove();
@@ -192,11 +187,6 @@ export function createCreelPanel(parent: HTMLElement, opts: {
     modeObserver?.observe(frameEl, { attributes: true, attributeFilter: ['class', 'data-layout'] });
   }
 
-  /** 何本目から何本目か (例「(1〜4本目)」「(5本目)」) */
-  function rangeText(start: number, count: number): string {
-    return count === 1 ? `(${start}本目)` : `(${start}〜${start + count - 1}本目)`;
-  }
-
   /** 状態に合わせて表示を更新する */
   function render(s: CreelState): void {
     // ヒント: 押せないときは点線の枠にして、押すと理由を出す
@@ -205,13 +195,11 @@ export function createCreelPanel(parent: HTMLElement, opts: {
     setLockedReason(hintBtn, reason);
 
     // 1. 依頼書。くりかえし (times>=2 かつ unit.length>=2) なら「1リピート分」の表にして、
-    //    その下に「↻ 繰り返し × N」の1行を足す。段階1〜3 だけ、何本目かを書き添える
-    const showRange = s.stage <= ORDER_RANGE_MAX_STAGE;
+    //    その下に「↻ N回繰り返す」の1行を足す (何本目かの括弧書きは出さない)
     orderTable.textContent = '';
     const { unit, times } = splitRepeat(s.answer);
     const useRepeat = times >= 2 && unit.length >= 2;
     const runs = toRuns(useRepeat ? unit : s.answer);
-    let start = 1;
     for (const run of runs) {
       const yarn = content.yarns.get(run.yarn);
       const color = yarn !== undefined ? content.colors.get(yarn.color) : undefined;
@@ -235,32 +223,13 @@ export function createCreelPanel(parent: HTMLElement, opts: {
       count.textContent = `× ${run.count}`;
       row.appendChild(hinban);
       row.appendChild(count);
-      // 下の段: 何本目か (段階1〜3)
-      const sub = document.createElement('div');
-      sub.classList.add('creel-order-row__sub');
-      if (showRange) {
-        const range = document.createElement('span');
-        range.classList.add('creel-order-row__range');
-        range.textContent = rangeText(start, run.count);
-        sub.appendChild(range);
-      }
-      if (sub.childElementCount > 0) {
-        row.appendChild(sub);
-      }
-      start += run.count;
       orderTable.appendChild(row);
     }
     if (useRepeat) {
       const rep = document.createElement('div');
       rep.classList.add('creel-order-repeat');
       rep.dataset.testid = 'creel-order-repeat';
-      rep.textContent = `↻ 繰り返し × ${times}`;
-      if (showRange) {
-        const range = document.createElement('span');
-        range.classList.add('creel-order-row__range');
-        range.textContent = `(${unit.length + 1}本目から同じ並びを ${times - 1} 回)`;
-        rep.appendChild(range);
-      }
+      rep.textContent = `↻ ${times}回繰り返す`;
       orderTable.appendChild(rep);
     }
 

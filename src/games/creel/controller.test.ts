@@ -427,7 +427,7 @@ describe('T1-16: 追加したお題の箱と依頼書', () => {
     expect(boxes.join(' ')).toContain('W-7040'); // enji-a
     expect(boxes.join(' ')).toContain('W-8260'); // beige-a
     // 依頼書に3行ある (クリール立ては詰めた形なので、「依頼書を見る」のポップアップの中)
-    Array.from(parent.querySelectorAll('button')).find((b) => b.textContent === '依頼書を見る')!.click();
+    Array.from(parent.querySelectorAll('button')).find((b) => b.textContent === '依頼書')!.click();
     const orderText = parent.querySelector('.sheet [data-testid="creel-order"]')?.textContent ?? '';
     expect(orderText).toContain('W-7520');
     expect(orderText).toContain('W-7040');
@@ -852,7 +852,7 @@ describe('PU-09b: 詰めた形で、箱の横送りと引っぱるを見分け�
   it('縦の詰めた形: 操作欄に「依頼書を見る」があり、箱は横に送る (data-scroll=x)。メッセージ欄は盤面のカードのすぐ上 (外)', () => {
     const { parent } = openCompact(412, 915);
     expect(parent.querySelector('.game-frame--compact')).not.toBeNull();
-    expect(Array.from(parent.querySelectorAll('button')).some((b) => b.textContent === '依頼書を見る')).toBe(true);
+    expect(Array.from(parent.querySelectorAll('button')).some((b) => b.textContent === '依頼書')).toBe(true);
     expect(parent.querySelector<HTMLElement>('.creel-boxes')!.dataset.scroll).toBe('x');
     expect(parent.querySelector('.game-frame__message')).toBeNull(); // メッセージ欄は無い (PU-12d)
   });
@@ -894,7 +894,7 @@ describe('PU-09b: 詰めた形で、箱の横送りと引っぱるを見分け�
     expect(parent.querySelector('.game-frame--compact')).not.toBeNull();
     expect(parent.querySelector('.game-frame__message')).toBeNull();
     expect(parent.querySelector('.creel-panel__message')).toBeNull();
-    expect(Array.from(parent.querySelectorAll('button')).some((b) => b.textContent === '依頼書を見る')).toBe(true);
+    expect(Array.from(parent.querySelectorAll('button')).some((b) => b.textContent === '依頼書')).toBe(true);
     expect(parent.querySelector<HTMLElement>('.creel-boxes')!.dataset.scroll).toBe('y');
   });
 
@@ -902,6 +902,6 @@ describe('PU-09b: 詰めた形で、箱の横送りと引っぱるを見分け�
     const { parent } = openCompact(412, 915);
     expect(parent.textContent).not.toContain('依頼書どおりに');
     parent.querySelector<HTMLButtonElement>('[data-testid="creel-hint"]')!.click();
-    expect(parent.querySelector('.game-frame__notice')!.textContent).toBe('2回確認すると使えます');
+    expect(parent.querySelector('.game-frame__notice')!.textContent).toBe('あと 2 回確認に失敗すると使えます');
   });
 });
