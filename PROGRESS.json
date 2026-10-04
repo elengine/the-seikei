@@ -1,8 +1,8 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-10-04T15:00:00+09:00",
+  "updated_at": "2026-10-04T18:00:00+09:00",
   "phase": "P0",
-  "current_task": "T3-02 完了 (報告待ち)。次は T3-03 (操作欄・一覧・遊び方・組み立て)",
+  "current_task": "T3-03a 完了 (報告待ち)。次は T3-03b (一覧・遊び方・組み立て・ホーム・version minor)",
   "done": [
     "T0-00",
     "T0-01",
@@ -91,7 +91,8 @@
     "T2c-04b: 電卓を大きなポップアップに (d00ce54)",
     "T2-15: winding controller.test の時間切れ対策 (51c6537)",
     "T3-01",
-    "T3-02"
+    "T3-02",
+    "T3-03a"
   ],
   "checks": {
     "T2c-02": "10 passed (geometry 3 + renderer 7), 全体 714 passed/11 skipped, check 0, CI success (52eb34a)",

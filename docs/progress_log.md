@@ -1427,3 +1427,12 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - renderer: ドラム (帯の縞が drumAngle で流れる)・シート (縦縞・shiftCm で中心が動く)・巻き太り (machineLight)・円盤 (machine+穴)。乗り上げは円盤の縁を朱+「乗り上げ」24px。幅合わせは点線+10cm目盛り+内側の印 (藍=合う・朱=外れ)。
 - 偽の Canvas に setLineDash が無いため、点線は線分の並びで描く (helpers は変更しない)。
 - 見た目の確認は T3-03 でホームに出してから行う (ゲームがまだ route に無い)。テスト 833 passed・check・build エラー0。
+
+## 2026-10-04 T3-03a (ルビー)
+- 操作欄とプレイ画面 (panel.ts・controller.ts・messages.ts 新規。テスト11件)。
+- 操作欄: 依頼書 (巻き幅・帯の数・柄の名前)、幅合わせ (◀ 左/左 ▶/◀ 右/右 ▶ の1行4つ+今と目標の幅)、巻き返し (張りのメーター・横ペダル・寄せる2つ1行+巻いた割合と時間)、主な操作 (幅合わせは「巻き始める」)。
+- controller: ドラム巻きと同じ形 (rAF・裏でペダル0・1秒ごと途中保存)。tick で done になったら handleDone (巻き終わりは tick だけが入り口)。drumAngle を renderer に渡す。
+- メッセージ: 乗り上げ > 偏り > 張り の優先度。張りの文だけ MESSAGE_HOLD_MS 待つ (winding から流用)。
+- 修正1: 乗り上げに円盤の内側 0.5cm の遊び (OVERFLOW_CLEARANCE_CM)。遊びが無いと目標どおりに合わせたとき、わずかな偏りで常に乗り上げになり centeredMs が数えられず星3が不可能になるため。logic・messages・renderer で同じ決まり。
+- 修正2: 巻き終わりは tick で起こるので、ループの tick 経路でも handleDone を呼ぶ (当初 actions 経路だけだった)。
+- テスト 844 passed・check・build エラー0。
