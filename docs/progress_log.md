@@ -1436,3 +1436,10 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - 修正1: 乗り上げに円盤の内側 0.5cm の遊び (OVERFLOW_CLEARANCE_CM)。遊びが無いと目標どおりに合わせたとき、わずかな偏りで常に乗り上げになり centeredMs が数えられず星3が不可能になるため。logic・messages・renderer で同じ決まり。
 - 修正2: 巻き終わりは tick で起こるので、ループの tick 経路でも handleDone を呼ぶ (当初 actions 経路だけだった)。
 - テスト 844 passed・check・build エラー0。
+
+## 2026-10-04 T3-03a 追加修正 (ルビー)
+- 乗り上げの判定を logic.ts の overflowSides(s) 1か所にまとめた (renderer・messages はそれを使う。式の二重持ち解消)。
+- 遊び OVERFLOW_CLEARANCE_CM を CENTER_OK_CM (1.5cm) と同じにした (= CENTER_OK_CM)。幅ぴったりのとき、ずれ ±1.5cm までは中央に数えられ、寄せる1回 (1cm) とも合う。
+- テストを先に追加 (RED→GREEN): ずれ 1.2cm は中央に数えられる、1.6cm は乗り上げ、遊び=中央の範囲、renderer と messages が overflowSides と一致。
+- 既存のテスト5を新しい遊びに合わせて書き直し (ずれ 1cm は中央・4cm は乗り上げ)。
+- テスト 866 passed / 11 skipped・check・build エラー0。

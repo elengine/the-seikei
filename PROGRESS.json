@@ -1,8 +1,8 @@
 {
   "project": "整経ゲーム",
-  "updated_at": "2026-10-04T18:00:00+09:00",
+  "updated_at": "2026-10-04T19:30:00+09:00",
   "phase": "P0",
-  "current_task": "T3-03a 完了 (報告待ち)。次は T3-03b (一覧・遊び方・組み立て・ホーム・version minor)",
+  "current_task": "T3-03a 追加修正完了 (報告待ち)。次は T3-03b (最後に version minor)",
   "done": [
     "T0-00",
     "T0-01",
