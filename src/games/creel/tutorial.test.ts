@@ -53,12 +53,12 @@ function record(draw: (ctx: CanvasRenderingContext2D, w: number, h: number) => v
 
 /** クリール立ての遊び方 (T1-20 → PU-11c) */
 describe('creel tutorial (T1-20)', () => {
-  it('4ページで、4ページ目の文に「ヒント」と「完了」が含まれる (PU-11b でボタン名が「完了」になった)', () => {
+  it('4ページで、4ページ目の文に「ヒント」と「確認」が含まれる (PU-13b でボタン名が「確認」になった)', () => {
     expect(creelTutorial.pages).toHaveLength(4);
     const last = creelTutorial.pages[3]!;
     expect(last.text).toContain('ヒント');
-    expect(last.text).toContain('完了');
-    expect(last.text).not.toContain('確認する');
+    expect(last.text).toContain('確認');
+    expect(last.text).not.toContain('完了');
     // 星の決まり (starsOf: ヒントを1回でも使うと星1) と食い違わない
     expect(last.text).toContain('星は1つ');
   });
@@ -85,6 +85,8 @@ describe('creel tutorial (PU-11c: 今の画面に合わせる)', () => {
       expect(p.text).not.toContain('押してから');
       expect(p.text).not.toContain('押しても置け');
       expect(p.text).not.toContain('確認する');
+      expect(p.text).not.toContain('完了');
+      expect(p.text).not.toContain('依頼書を見る');
     }
     const second = creelTutorial.pages[1]!.text;
     expect(second).toContain('引っぱ');
@@ -116,7 +118,9 @@ describe('creel tutorial (PU-11c: 今の画面に合わせる)', () => {
     const r = record(creelTutorial.pages[0]!.draw);
     expect(r.texts).toContain('W-4812');
     expect(r.texts.some((t) => t.includes('× 5'))).toBe(true);
-    expect(r.texts.some((t) => t.includes('繰り返し'))).toBe(true);
+    expect(r.texts.some((t) => t.includes('2回繰り返す'))).toBe(true);
+    expect(r.texts.some((t) => t.includes('繰り返し ×'))).toBe(false);
+    expect(r.texts.filter((t) => t === '依頼書').length).toBeGreaterThanOrEqual(2); // 見出しと「依頼書」のボタン
     // 箱の品番は依頼書の行と同じ (2 回出る)
     expect(r.texts.filter((t) => t === 'W-4812').length).toBeGreaterThanOrEqual(2);
   });
@@ -132,8 +136,20 @@ describe('creel tutorial (PU-11c: 今の画面に合わせる)', () => {
     expect(r.texts).toContain('外す');
   });
 
-  it('3ページ目に「完了」のボタン、4ページ目に「ヒント」のボタンの絵がある', () => {
-    expect(record(creelTutorial.pages[2]!.draw).texts).toContain('完了');
+  it('3ページ目に「確認」のボタン、4ページ目に「ヒント」のボタンの絵がある', () => {
+    expect(record(creelTutorial.pages[2]!.draw).texts).toContain('確認');
     expect(record(creelTutorial.pages[3]!.draw).texts).toContain('ヒント');
+  });
+});
+
+describe('creel tutorial (PU-13d: 今の画面の文)', () => {
+  it('ページの文に「依頼書」「確認」があり、1 ページ目は「依頼書」を押す説明、4 ページ目は「確認に2回失敗すると『ヒント』」', () => {
+    const all = creelTutorial.pages.map((p) => p.text).join('\n');
+    expect(all).toContain('依頼書');
+    expect(all).toContain('確認');
+    expect(creelTutorial.pages[0]!.text).toContain('「依頼書」を押すと');
+    expect(creelTutorial.pages[2]!.text).toContain('「確認」を押します');
+    expect(creelTutorial.pages[3]!.text).toContain('確認に2回失敗すると「ヒント」が使えます');
+    expect(creelTutorial.pages[3]!.text).toContain('星は1つ');
   });
 });

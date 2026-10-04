@@ -116,18 +116,22 @@ function drawOrder(ctx: Ctx, w: number, h: number): void {
   const rows: [Sample, string][] = [[SAMPLE_A, '× 5'], [SAMPLE_B, '× 1']];
   rows.forEach(([s, count], i) => {
     const y = py + ph * (0.34 + i * 0.26);
-    text(ctx, s.hinban, px + pw * 0.06, y, h * 0.1, COLORS.sumi, { bold: true });
-    drawCheese(ctx, px + pw * 0.62, y, h * 0.065, s.body, s.core);
+    // 左から コーンの絵 → 型番 → 個数 (今の依頼書と同じ並び)
+    drawCheese(ctx, px + pw * 0.14, y, h * 0.065, s.body, s.core);
+    text(ctx, s.hinban, px + pw * 0.27, y, h * 0.085, COLORS.sumiSub);
     text(ctx, count, px + pw * 0.94, y, h * 0.1, COLORS.sumi, { align: 'right', bold: true });
   });
-  text(ctx, '↻ 繰り返し × 2', px + pw * 0.06, py + ph * 0.88, h * 0.075, COLORS.sumiSub);
+  text(ctx, '↻ 2回繰り返す', px + pw * 0.06, py + ph * 0.88, h * 0.085, COLORS.sumiSub, { bold: true });
   // 同じ品番の箱 (依頼書の1行目と同じ)
   const bx = w * 0.7;
-  const by = h * 0.3;
+  const by = h * 0.06;
   const bw = w * 0.26;
-  const bh = h * 0.42;
+  const bh = h * 0.5;
   drawBox(ctx, bx, by, bw, bh, SAMPLE_A);
-  arrow(ctx, bx - 6, by + bh * 0.45, px + pw * 0.78, py + ph * 0.34 + h * 0.05, COLORS.ai, 4);
+  arrow(ctx, bx - 6, by + bh * 0.45, px + pw * 0.9, py + ph * 0.34 + h * 0.05, COLORS.ai, 4);
+  // 「依頼書」のボタン (押すとこの表が出る)
+  drawButton(ctx, bx - w * 0.02, h * 0.7, bw + w * 0.04, h * 0.2, '依頼書', false, h * 0.085);
+  arrow(ctx, bx - w * 0.04, h * 0.8, px + pw + 6, h * 0.8, COLORS.ai, 4);
 }
 
 /** 2ページ目: クリールを正面から見た図。箱から軸へ引っぱる (置く) 矢印と、クリールの外へ引っぱる (外す) 矢印 */
@@ -150,7 +154,7 @@ function drawPlace(ctx: Ctx, w: number, h: number): void {
   text(ctx, '置く', bx + bw + w * 0.04, h * 0.76, h * 0.085, COLORS.ai, { bold: true });
 }
 
-/** 3ページ目: 「完了」を押すと、違う軸と空の軸に ✕ が付く。箱から引っぱり直す */
+/** 3ページ目: 「確認」を押すと、違う軸と空の軸に ✕ が付く。箱から引っぱり直す */
 function drawDone(ctx: Ctx, w: number, h: number): void {
   const row = drawCreelRow(ctx, w * 0.1, h * 0.1, w * 0.8, h * 0.4, 3);
   drawCheese(ctx, row.xs[0]!, row.cy, row.r, SAMPLE_A.body, SAMPLE_A.core); // 合っている
@@ -158,14 +162,14 @@ function drawDone(ctx: Ctx, w: number, h: number): void {
   drawCross(ctx, FIT1, row.xs[1]!, row.cy, row.r * 0.6);
   drawEmptyPeg(ctx, FIT1, row.xs[2]!, row.cy, row.r); // まだ立てていない軸
   drawCross(ctx, FIT1, row.xs[2]!, row.cy, row.r * 0.6);
-  // 箱 (引っぱり直す元) と、「完了」のボタン
+  // 箱 (引っぱり直す元) と、「確認」のボタン
   const bx = w * 0.1;
   const by = h * 0.6;
   const bw = w * 0.26;
   const bh = h * 0.36;
   drawBox(ctx, bx, by, bw, bh, SAMPLE_A);
   arrow(ctx, bx + bw * 0.8, by - 4, row.xs[2]! - row.r * 0.5, row.cy + row.r * 1.05, COLORS.ai, 4);
-  drawButton(ctx, w * 0.56, h * 0.7, w * 0.34, h * 0.2, '完了', true, h * 0.09);
+  drawButton(ctx, w * 0.56, h * 0.7, w * 0.34, h * 0.2, '確認', true, h * 0.09);
 }
 
 /** 4ページ目: ✕ の軸 →「ヒント」→ 正しいチーズが立つ。正しい糸は箱にある */
@@ -189,12 +193,12 @@ function drawHint(ctx: Ctx, w: number, h: number): void {
 
 export const creelTutorial: TutorialSpec = {
   pages: [
-    { draw: (ctx, w, h) => drawOrder(ctx, w, h), text: '依頼書には、品番と本数が並んでいます。同じ品番の箱から{{cone}}を取ります' },
-    { draw: (ctx, w, h) => drawPlace(ctx, w, h), text: '箱から{{cone}}を引っぱって、{{spindle}}の丸に嵌めます。外すときは、{{cone}}を{{creel}}の外へ引っぱります' },
-    { draw: (ctx, w, h) => drawDone(ctx, w, h), text: '全部立てたら「完了」を押します。間違いは ✕ で示されるので、箱から引っぱり直します' },
+    { draw: (ctx, w, h) => drawOrder(ctx, w, h), text: '「依頼書」を押すと、立てる{{cone}}の絵と型番と本数が出ます' },
+    { draw: (ctx, w, h) => drawPlace(ctx, w, h), text: '段ボールの箱から{{cone}}を引っぱって、{{spindle}}の丸に嵌めます。外すときは、{{cone}}を{{creel}}の外へ引っぱります' },
+    { draw: (ctx, w, h) => drawDone(ctx, w, h), text: '全部立てたら「確認」を押します。間違いは ✕ で示されるので、引っぱり直します' },
     {
       draw: (ctx, w, h) => drawHint(ctx, w, h),
-      text: '「完了」を2回押しても ✕ が残るときは、「ヒント」で1か所を直せます(ヒントを使うと星は1つになります)',
+      text: '確認に2回失敗すると「ヒント」が使えます(ヒントを使うと星は1つになります)',
     },
   ],
 };
