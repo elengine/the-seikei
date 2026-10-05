@@ -40,8 +40,8 @@ export function RANGE_REACHABLE(): { min: number; max: number } {
   return { min: 10, max: 100 };
 }
 
-/** 制限時間の計算で使う、範囲の中の位置 (0.5 = 中心。あとで 0.6・0.7 に変えられる。T2-16 その6) */
-export const TIME_ANCHOR = 0.5;
+/** 制限時間の計算で使う、範囲の中の位置 (0 = 下の端・1 = 上の端。管理者の指定で 0.6。T2-16 その7) */
+export const TIME_ANCHOR = 0.6;
 
 /** 張りの流れ・引っかかりのパラメータ (T2-09a・T2-16a・T2-16 その3)。引っかかりは +15〜25・0.5秒で上がり 2〜3秒で戻る (起きやすさはレベルで変わる) */
 export function DRIFT(level: Level): DriftParams {

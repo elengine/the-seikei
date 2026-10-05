@@ -31,6 +31,15 @@ function pedalReason(phase: WindingState['phase']): string {
   }
 }
 
+/** 時計の文字の大きさ (px)。40px での文字の幅 widthAt40 をもとに、「0:00/0:00 超過」が
+ * 内側の幅 innerW の 85% 以下に収まる大きさを求める (40px を上限・20px 未満にしない)。
+ * 測れないとき (widthAt40 が 0 など) は上限の 40px (T2-16 その7) */
+export function clockFontSize(innerW: number, widthAt40: number): number {
+  if (!(innerW > 0) || !(widthAt40 > 0)) return 40;
+  const fit = Math.floor((innerW * 0.85) * (40 / widthAt40));
+  return Math.max(20, Math.min(40, fit));
+}
+
 export function createWindingPanel(
   parent: HTMLElement,
   opts: {
@@ -109,13 +118,30 @@ export function createWindingPanel(
     return span;
   }
 
+  function div(className: string): HTMLDivElement {
+    const div = document.createElement('div');
+    div.className = className;
+    return div;
+  }
+
+  let clockWidthCache = -1;
+  let clockSizeCache = 40;
   return {
     update(s: WindingState): void {
       section.textContent = '';
       const len = s.lengths[s.current] ?? 0;
       const pct = Math.floor((len / SECTION_LENGTH) * 100);
       section.appendChild(part(`帯 ${s.current + 1}/${s.sections}`));
-      section.appendChild(part(`巻き量 ${pct}%`));
+      // 巻き量は操作欄の中でいちばん目立つ表示 (大きく太字。100% は藍の地に白の文字 + 「巻き終えました」)。T2-16 その7
+      const amount = div(pct >= 100 ? 'winding-panel__amount winding-panel__amount--done' : 'winding-panel__amount');
+      amount.textContent = pct >= 100 ? '巻き量 100% 巻き終えました' : `巻き量 ${pct}%`;
+      // 巻き量の横長の帯 (0〜100%)
+      const bar = div('winding-panel__amount-bar');
+      const fill = div('winding-panel__amount-fill');
+      fill.style.width = `${Math.max(0, Math.min(100, pct))}%`;
+      bar.appendChild(fill);
+      amount.appendChild(bar);
+      section.appendChild(amount);
       const target = targetMsOf(s);
       const over = s.elapsedMs > target;
       // 制限時間は大きく見せる。目標を超えたら朱の文字にして「超過」を添える (色だけに頼らない)。
@@ -123,10 +149,18 @@ export function createWindingPanel(
       const time = part(`${clockText(s.elapsedMs)}/${clockText(target)}${over ? ' 超過' : ''}`);
       time.className = over ? 'winding-panel__clock winding-panel__clock--over' : 'winding-panel__clock';
       section.appendChild(time);
-      // 文字の大きさは、操作欄の幅に「0:00/0:00 超過」が1行で入る大きさ (40px を上限・20px 未満にしない。T2-16 その6)
+      // 文字の大きさは、内側の幅の 85% 以下に「0:00/0:00 超過」が収まる大きさ (40px を上限・20px 未満にしない。T2-16 その7)。
+      // 実際の文字の幅を 40px で測って (jsdom では測れないので 0 → 上限)、幅が変わったときだけ計算し直す
       const w = section.clientWidth;
-      const size = Math.max(20, Math.min(40, Math.floor(w / 7)));
-      if (time.style.fontSize !== `${size}px`) time.style.fontSize = `${size}px`;
+      if (w !== clockWidthCache) {
+        time.style.fontSize = '40px';
+        const prevText = time.textContent;
+        time.textContent = '0:00/0:00 超過'; // いちばん幅が広がる形で測る
+        clockSizeCache = clockFontSize(w, time.offsetWidth);
+        time.textContent = prevText;
+        clockWidthCache = w;
+      }
+      if (time.style.fontSize !== `${clockSizeCache}px`) time.style.fontSize = `${clockSizeCache}px`;
       meter.update(s.tension, s.range);
       pedal.setEnabled(s.phase === 'winding', pedalReason(s.phase));
       // 横木の位置を状態に合わせる (setValue は onChange を呼ばないので、繰り返しにはならない)

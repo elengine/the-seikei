@@ -690,6 +690,12 @@ describe('T2-16 その3: 張り≒ペダルの位置・引っかかりで切れ�
   });
 });
 
+describe('winding logic T2-16 その7 (制限時間の割合を 0.6 に)', () => {
+  it('割合は 0.6 (範囲の下の端から 60% の所の張りで計算する。管理者「50% だと簡単すぎた」)', () => {
+    expect(TIME_ANCHOR).toBe(0.6);
+  });
+});
+
 describe('winding logic T2-16 その6 (制限時間: 各帯の範囲の中心の張りで巻いた時間の合計)', () => {
   /** 張り tension になるペダルの値 (張り = base + perPedal × pedal) */
   const pedalFor = (tension: number): number => (tension - TENSION.base) / TENSION.perPedal;
@@ -738,18 +744,20 @@ describe('winding logic T2-16 その6 (制限時間: 各帯の範囲の中心の
     return s.phase === 'done' ? s.elapsedMs : -1;
   };
 
-  it('3. 中心の張りちょうどで巻くと、制限時間ちょうどで終わる', () => {
+  it('3. 制限時間の計算の位置 (範囲の下の端から 60%) の張りちょうどで巻くと、制限時間ちょうどで終わる', () => {
     const s0 = init({ level: 1, patternId: 'x', sections: 3, seed: 1 });
-    const pedal = pedalFor(s0.ranges[0]!.center);
+    const anchor = s0.ranges[0]!.min + (s0.ranges[0]!.max - s0.ranges[0]!.min) * TIME_ANCHOR;
+    const pedal = pedalFor(anchor);
     let ms = -1;
     for (let seed = 1; seed <= 60 && ms < 0; seed++) ms = windAll(1, seed, pedal);
     expect(ms, '切れずに巻き切れる種').toBeGreaterThan(0);
-    expect(ms, '制限時間ちょうど').toBeCloseTo(s0.targetMs, 0);
+    expect(Math.abs(ms - s0.targetMs), '制限時間ちょうど (タイマーの刻みの誤差をのぞく)').toBeLessThanOrEqual(200);
   });
 
-  it('4. 中心より強めに巻けば制限時間より早く終わる', () => {
+  it('4. 制限時間の計算の位置より強めに巻けば制限時間より早く終わる', () => {
     const s0 = init({ level: 1, patternId: 'x', sections: 3, seed: 1 });
-    const pedal = pedalFor(s0.ranges[0]!.center) + 5;
+    const anchor = s0.ranges[0]!.min + (s0.ranges[0]!.max - s0.ranges[0]!.min) * TIME_ANCHOR;
+    const pedal = pedalFor(anchor) + 5;
     let ms = -1;
     for (let seed = 1; seed <= 60 && ms < 0; seed++) ms = windAll(1, seed, pedal);
     expect(ms, '切れずに巻き切れる種').toBeGreaterThan(0);

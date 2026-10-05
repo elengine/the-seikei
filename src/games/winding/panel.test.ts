@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createWindingPanel } from './panel';
+import { createWindingPanel, clockFontSize } from './panel';
 import type { WindingAction } from './logic';
 import { init, reduce } from './logic';
 
@@ -215,6 +215,31 @@ describe('PU-14a: ドラム巻きの操作欄 (戻す・踏み込む・速さ・
     p.destroy();
   });
 
+  it('巻き量 100% で表示が藍の地に変わり (winding-panel__amount--done)「巻き終えました」の文字が添えられる (色だけに頼らない。T2-16 その7)。100% 未満では出ない', () => {
+    const { host, p } = mount();
+    const base = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 1 });
+    p.update({ ...base, lengths: [200, 0, 0] });
+    let amount = host.querySelector('.winding-panel__amount')!;
+    expect(amount.className).not.toContain('winding-panel__amount--done');
+    expect(amount.textContent).not.toContain('巻き終えました');
+    p.update({ ...base, lengths: [400, 0, 0] });
+    amount = host.querySelector('.winding-panel__amount')!;
+    expect(amount.className).toContain('winding-panel__amount--done');
+    expect(amount.textContent).toContain('巻き量 100%');
+    expect(amount.textContent).toContain('巻き終えました');
+    p.destroy();
+  });
+
+  it('base.css: 巻き量は 32px 以上の太字。100% は藍の地に白の文字', () => {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
+    const amount = css.match(/\n\.winding-panel__amount\s*\{([^}]*)\}/)![1]!;
+    expect(parseInt(amount.match(/font-size: (\d+)px/)![1]!, 10)).toBeGreaterThanOrEqual(32);
+    expect(amount).toContain('font-weight: bold');
+    const done = css.match(/\n\.winding-panel__amount--done\s*\{([^}]*)\}/)![1]!;
+    expect(done).toContain('var(--c-ai)');
+    expect(done).toContain('color: #fff');
+  });
+
   it('制限時間の表記は「0:49/0:33」とスラッシュの前後の隙間なし (見切れないように。T2-16 その6)。目標以内は超過の印なし。超えたら --over と「超過」', () => {
     const { host, p } = mount();
     const base = init({ level: 1, patternId: 'p-pin-kon', sections: 5, seed: 1 });
@@ -230,23 +255,30 @@ describe('PU-14a: ドラム巻きの操作欄 (戻す・踏み込む・速さ・
     p.destroy();
   });
 
-  it('時計の文字の大きさは、操作欄の幅に「0:00/0:00 超過」が1行で入る大きさ (40px を上限・20px 未満にしない。T2-16 その6)', () => {
+  it('時計の文字の大きさは、内側の幅の 85% 以下に「0:00/0:00 超過」が収まる大きさ (40px を上限・20px 未満にしない。T2-16 その7)。jsdom では測れないので上限の 40px', () => {
     document.body.innerHTML = '';
     const host = document.createElement('div');
     document.body.appendChild(host);
     const p = createWindingPanel(host, { terms, onAction: () => undefined, onNotice: () => undefined });
     const base = init({ level: 1, patternId: 'p-pin-kon', sections: 5, seed: 1 });
-    // 幅 280px → 280/7 = 40 → 40px。幅 140px → 20px (下限)
     Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, value: 280 });
     p.update({ ...base, elapsedMs: 1000 });
-    let clock = host.querySelector('.winding-panel__clock') as HTMLElement;
-    expect(clock.style.fontSize).toBe('40px');
-    Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, value: 140 });
-    p.update({ ...base, elapsedMs: 1000 });
-    clock = host.querySelector('.winding-panel__clock') as HTMLElement;
-    expect(clock.style.fontSize).toBe('20px');
+    const clock = host.querySelector('.winding-panel__clock') as HTMLElement;
+    expect(clock.style.fontSize).toBe('40px'); // 測れないときは上限
     Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, value: 0 });
     p.destroy();
+  });
+
+  it('clockFontSize: 内側の幅の 85% に「0:00/0:00 超過」が収まる大きさ (40px を上限・20px 未満にしない)。測れないときは 40', () => {
+    // 40px で 320px の文字のとき: 幅 280 → 280×0.85×40/320 = 29.75 → 29px (収まる)
+    expect(clockFontSize(280, 320)).toBe(29);
+    // 幅 140 → 14.9 → 20px (下限)
+    expect(clockFontSize(140, 320)).toBe(20);
+    // 幅が十分 → 40px (上限)
+    expect(clockFontSize(1200, 320)).toBe(40);
+    // 測れない (0) ときは上限の 40px
+    expect(clockFontSize(280, 0)).toBe(40);
+    expect(clockFontSize(0, 320)).toBe(40);
   });
 
   it('巻いていない (ペダル 0) 状態で溝を押すと、理由が onNotice に出る (戻す・踏み込むの代わり)', () => {

@@ -11,7 +11,7 @@ import { init, reduce, seedFromText } from './logic';
 import { speedOf } from '../../core/mechanics/pedal';
 import { guideFor, soundFor, resultOf } from './messages';
 import type { WindingState, WindingAction, Level } from './logic';
-import { DRUM_TURN_PER_SPEED, DRUM_EASE_UP_MS, DRUM_EASE_DOWN_MS, DRUM_STOP_MS, TENSION } from './params';
+import { DRUM_TURN_PER_SPEED, DRUM_EASE_UP_MS, DRUM_EASE_DOWN_MS, DRUM_STOP_MS, TENSION, SECTION_LENGTH } from './params';
 
 const LEVEL_NAMES: Record<Level, string> = { 1: '初級', 2: '中級', 3: '上級' };
 import { feelLabel } from './puzzles';
@@ -332,6 +332,12 @@ let pinTurnPrevEased = 0; // 前フレームの ease の値 (角速度を決め�
       const next = reduce(s, { type: 'tick', dtMs });
       if (next !== prev) {
         s = next;
+        // 帯を巻き終えた瞬間 (巻き量が 100% になった瞬間) にブザーを1回鳴らす (同じ帯で2回鳴らさない。T2-16 その7)
+        const before = prev.lengths[prev.current] ?? 0;
+        const after = next.lengths[next.current] ?? 0;
+        if (before < SECTION_LENGTH && after >= SECTION_LENGTH) {
+          deps.audio.play('buzzer');
+        }
         if (s.phase === 'broken' && prev.phase !== 'broken') {
           // 糸が切れた: 機械の止まる音 ('broken' に変わった瞬間の1回だけ)。ドラムは急停止
           drumStopping = true;

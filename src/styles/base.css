@@ -1261,6 +1261,35 @@ button {
   color: var(--c-sumi-sub);
 }
 
+.winding-panel__amount {
+  font-size: 32px;
+  font-weight: bold;
+  line-height: 1.2;
+  color: var(--c-ai);
+}
+
+/* 巻き量が 100%: 藍の地に白の文字 (色だけに頼らず「巻き終えました」の文字を添える。T2-16 その7) */
+.winding-panel__amount--done {
+  background: var(--c-ai);
+  color: #fff;
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: 4px;
+}
+
+/* 巻き量の横長の帯 (0〜100%。T2-16 その7) */
+.winding-panel__amount-bar {
+  margin-top: var(--sp-1);
+  height: 10px;
+  background: var(--c-kinari-dark, #ddd);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.winding-panel__amount-fill {
+  height: 100%;
+  background: var(--c-ai);
+}
+
 .winding-panel__clock--over {
   color: var(--c-shu); /* 目標を超えたら朱。「超過」の文字も添える */
 }

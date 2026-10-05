@@ -728,6 +728,29 @@ describe('winding module T2-09 追加修正a (+4・止まる音。引っかか�
     expect(plays2.filter((n) => n === 'stop').length).toBe(count);
     expect(count).toBe(1);
   });
+
+  it('T2-16 その7: 帯を巻き終えた瞬間 (巻き量 100%) にブザーが1回鳴る (同じ帯で2回鳴らない)', async () => {
+    const { btn, deps, container } = await setup();
+    const plays2: string[] = [];
+    const orig = deps.audio.play.bind(deps.audio);
+    deps.audio.play = (n: Parameters<typeof deps.audio.play>[0]) => { plays2.push(n); return orig(n); };
+    btn('紺の無地帯 3本次はこれ');
+    raf.advance(2);
+    btn('巻き始める');
+    raf.advance(2);
+    // pedal 50 で安全に巻く (範囲 35〜65 の中心)。巻き量 100% まで進める
+    for (let k = 0; k < 5; k++) stepPedal(container, 10);
+    let buzzed = false;
+    for (let i = 0; i < 600 && !buzzed; i++) {
+      raf.advance(500);
+      buzzed = plays2.includes('buzzer');
+    }
+    expect(buzzed, '巻き終わりにブザー').toBe(true);
+    const count = plays2.filter((n) => n === 'buzzer').length;
+    for (let i = 0; i < 120; i++) raf.advance(500);
+    expect(plays2.filter((n) => n === 'buzzer').length, '同じ帯で2回鳴らさない').toBe(count);
+    expect(count).toBe(1);
+  });
 });
 
 describe('winding module T2-10 追加修正 a (ドラムの回る速さ・drumAngle)', () => {

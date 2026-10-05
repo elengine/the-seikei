@@ -3,6 +3,16 @@ import { SOUNDS } from './sounds';
 import type { SoundName } from './sounds';
 import { createAudioPlayer } from './audio';
 
+describe('sounds T2-16 その7 (巻き終わりのブザー)', () => {
+  it('buzzer がある。長さは約 0.6 秒 (0.5〜0.7 秒) のはっきりした1音', () => {
+    const notes = SOUNDS.buzzer!;
+    expect(notes.length).toBeGreaterThan(0);
+    const total = Math.max(...notes.map((n) => n.startMs + n.durMs));
+    expect(total).toBeGreaterThanOrEqual(500);
+    expect(total).toBeLessThanOrEqual(700);
+  });
+});
+
 describe('sounds', () => {
   it('1. すべての名前に1つ以上の Note があり、周波数・gain・長さが範囲内', () => {
     const names: SoundName[] = ['tap', 'ok', 'gentleNo', 'knot', 'page', 'fanfare', 'stop'];
