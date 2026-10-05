@@ -423,6 +423,7 @@ body {
 
 .home__header {
   display: flex;
+  flex-wrap: wrap; /* 版の行を画面の幅いっぱいに折り返す (T1-21b) */
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--sp-4);
@@ -447,9 +448,15 @@ body {
 }
 
 .home__version {
+  flex-basis: 100%; /* 題名の列から出して、画面の幅いっぱいの行にする (T1-21b) */
   font-size: 20px;
   color: var(--c-muted);
   margin: var(--sp-1) 0 0;
+}
+
+.home__version-num,
+.home__version-date {
+  white-space: nowrap; /* 版の番号と日付はそれぞれ途中で折り返さない (「(」の前でだけ折り返す。T1-21b) */
 }
 
 

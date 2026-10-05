@@ -67,15 +67,20 @@ export function createHomeScreen(ctx: AppContext): Screen {
       const app = el('h1', 'home__app', 'font-heading');
       app.textContent = '整経屋の一日';
       titles.appendChild(app);
-      // 題名の下に、版の番号を小さく (アプリの版とビルドの日付)
+      // 版の番号は題名の列から出して、見出しの下に画面の幅いっぱいの行で出す (T1-21b)。
+      // 版の番号の部分と日付の部分はそれぞれ折り返さない (「(」の前でだけ折り返す)
       const version = el('p', 'home__version');
       const built = new Date(__BUILD_ID__); // ビルドの時刻 (ISO)。日付はこの端末の時刻で出す (時刻は出さない)
       const pad2 = (n: number): string => String(n).padStart(2, '0');
       const day = Number.isNaN(built.getTime())
         ? __BUILD_ID__.slice(0, 10)
         : `${built.getFullYear()}-${pad2(built.getMonth() + 1)}-${pad2(built.getDate())}`;
-      version.textContent = `バージョン ${__APP_VERSION__} (${day})`;
-      titles.appendChild(version);
+      const vNum = el('span', 'home__version-num');
+      vNum.textContent = `バージョン ${__APP_VERSION__}`;
+      const vDate = el('span', 'home__version-date');
+      vDate.textContent = ` (${day})`;
+      version.appendChild(vNum);
+      version.appendChild(vDate);
       const playerName = ctx.settings.get().playerName;
       if (playerName !== '') {
         const greeting = el('p', 'home__greeting');
@@ -91,6 +96,7 @@ export function createHomeScreen(ctx: AppContext): Screen {
         onClick: () => ctx.navigate('/settings'),
       });
       header.appendChild(settingsBtn);
+      header.appendChild(version); // 版の行は幅いっぱい (flex-wrap で題名の下の行になる。T1-21b)
       // 新しい版が届いていれば、「設定」に朱の小さな丸 (バッジ) を付ける (設定の画面で「アップデートがあります。」を出す)
       const applyBadge = (ready: boolean): void => {
         settingsBtn.querySelector('.btn__badge')?.remove();

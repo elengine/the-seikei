@@ -201,12 +201,21 @@ describe('PU-10e: 版の番号とアプリ名', () => {
     const p2 = (n: number): string => String(n).padStart(2, '0');
     expect(v.textContent).toBe(`バージョン 0.1.0 (${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())})`);
     expect(v.textContent).toMatch(/^バージョン \d+\.\d+\.\d+ \(\d{4}-\d{2}-\d{2}\)$/);
-    const app = root.querySelector('.home__app')!;
-    expect(app.nextElementSibling).toBe(v);
+    // 版の行は、版の番号の部分と日付の部分の2つの要素 (それぞれ途中で折り返さない。T1-21b)
+    const num = v.querySelector('.home__version-num')!;
+    const date = v.querySelector('.home__version-date')!;
+    expect(num.textContent).toMatch(/^バージョン \d+\.\d+\.\d+$/);
+    expect(date.textContent).toBe(` (${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())})`); // 先頭の空白が折り返しの位置
+    // 見出しの下に置く (題名の列から出して画面の幅いっぱい)。題名と挨拶のあいだではなく題名のブロックのあと
+    const header = v.parentElement!;
+    expect(header.className).toContain('home__header');
     const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
     const m = css.match(/\n\.home__version\s*\{([^}]*)\}/)![1]!;
     expect(m).toContain('color: var(--c-muted)');
     expect(parseInt(m.match(/font-size: (\d+)px/)![1]!, 10)).toBeGreaterThanOrEqual(20);
+    expect(m).toContain('flex-basis: 100%'); // 画面の幅いっぱいの行
+    const numCss = css.match(/\n\.home__version-num,\s*\n\.home__version-date\s*\{([^}]*)\}/)![1]!;
+    expect(numCss).toContain('white-space: nowrap');
   });
 
   it('アプリ名: マニフェストの name・short_name とタブの <title> が「整経屋の一日」。id・start_url・scope は変わらない', () => {
