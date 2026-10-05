@@ -91,6 +91,18 @@ export function onViewportChange(cb: (size: ViewportSize, layout: Layout) => voi
   };
 }
 
+/** 文書のずれ (意図しないスクロール) を戻す。通知のフレーム・1フレーム後・300ms 後の3回 (T1-21a-2) */
+export function resetDocumentScroll(): void {
+  window.scrollTo(0, 0);
+  requestAnimationFrame(() => window.scrollTo(0, 0));
+  setTimeout(() => window.scrollTo(0, 0), 300);
+}
+
+/** 大きさの変化 (回転を含む) のたびに resetDocumentScroll を行う。戻り値は解除の関数 */
+export function installScrollReset(): () => void {
+  return onViewportChange(() => resetDocumentScroll());
+}
+
 /**
  * Canvas を CSS サイズ cssW×cssH で表示し、内部解像度を devicePixelRatio 倍にする。
  * 戻り値の ctx は、CSS px の座標で描けるよう setTransform 済み。

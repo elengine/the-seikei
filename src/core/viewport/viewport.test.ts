@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { isCompact, layoutOf, fitStage, currentSize, onViewportChange, setupCanvas } from './viewport';
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { isCompact, layoutOf, fitStage, currentSize, onViewportChange, setupCanvas, installScrollReset } from './viewport';
 
 describe('layoutOf', () => {
   it('1. 1180×820 は landscape、393×873 は portrait、800×800 は landscape', () => {
@@ -216,5 +219,56 @@ describe('isCompact (PU-09a)', () => {
     expect(isCompact(915, 412)).toBe(true); // 同 (横)
     expect(isCompact(1180, 820)).toBe(false);
     expect(isCompact(960, 720)).toBe(false);
+  });
+});
+
+describe('T1-21a-2: 大きさの変化のあとに文書のずれを戻す (window.scrollTo(0, 0))', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('resize の通知が来ると scrollTo(0, 0) が呼ばれ、1フレーム後と 300ms 後にももう一度呼ばれる', () => {
+    vi.useFakeTimers();
+    const scrolls: Array<[number, number]> = [];
+    vi.stubGlobal('scrollTo', (x: number, y: number) => scrolls.push([x, y]));
+    // rAF をタイマーで動かす (jsdom には fake rAF が無い)
+    vi.stubGlobal('requestAnimationFrame', (cb: (t: number) => void) => setTimeout(() => cb(0), 16));
+    const off = installScrollReset();
+    window.dispatchEvent(new Event('resize'));
+    vi.advanceTimersByTime(20); // 通知のフレーム → 1回目の scrollTo
+    expect(scrolls.length, '1回目 (通知のフレーム)').toBe(1);
+    vi.advanceTimersByTime(20); // 1フレーム後 → 2回目
+    expect(scrolls.length, '2回目 (1フレーム後)').toBe(2);
+    vi.advanceTimersByTime(300); // 300ms 後 → 3回目
+    expect(scrolls.length, '3回目 (300ms後)').toBe(3);
+    expect(scrolls.every(([x, y]) => x === 0 && y === 0)).toBe(true);
+    off();
+    window.dispatchEvent(new Event('resize'));
+    vi.advanceTimersByTime(400);
+    expect(scrolls.length, '解除後は呼ばれない').toBe(3);
+  });
+});
+
+describe('T1-21a: iPhone・iPad の上端のにじみと回転のずれへの備え (html・#app の形)', () => {
+  it('index.html に apple-mobile-web-app-capable と status-bar-style default がある (時計の帯を不透明に)', () => {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../../index.html'), 'utf-8');
+    expect(css).toContain('apple-mobile-web-app-capable');
+    expect(css).toMatch(/apple-mobile-web-app-status-bar-style" content="default"/);
+  });
+
+  it('base.css: html・body は overflow hidden。#app は position fixed・inset 0。上端に地の色の無地の帯 (#app::before) と 4px の余白', () => {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
+    const htmlBody = css.match(/\nhtml,\s*\nbody\s*\{([^}]*)\}/)![1]!;
+    expect(htmlBody).toContain('overflow: hidden');
+    const app = css.match(/\n#app\s*\{([^}]*)\}/)![1]!;
+    expect(app).toContain('position: fixed');
+    expect(app).toContain('inset: 0');
+    const before = css.match(/\n#app::before\s*\{([^}]*)\}/)![1]!;
+    expect(before).toContain('position: fixed');
+    expect(before).toContain('env(safe-area-inset-top)');
+    expect(before).toContain('background: var(--c-kinari)');
+    expect(before).toContain('pointer-events: none');
+    expect(app).toContain('4px');
   });
 });
