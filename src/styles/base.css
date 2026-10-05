@@ -1259,6 +1259,7 @@ button {
   line-height: 1.2;
   white-space: nowrap;
   color: var(--c-sumi-sub);
+  white-space: nowrap; /* 時計は1行。折り返すと大きさの計算が合わなくなる (T2-16 その7) */
 }
 
 .winding-panel__amount {

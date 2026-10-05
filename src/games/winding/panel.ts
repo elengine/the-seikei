@@ -153,7 +153,14 @@ export function createWindingPanel(
       time.style.fontSize = '40px';
       const prevText = time.textContent;
       time.textContent = '0:00/0:00 超過'; // いちばん幅が広がる形で測る
-      const size = clockFontSize(w, time.offsetWidth);
+      // 時計は flex で幅いっぱいに伸びるので、offsetWidth ではなく文字自体の幅を Range で測る (jsdom では測れないので 0 → 上限)
+      const range = document.createRange();
+      let textW = 0;
+      if (typeof range.getBoundingClientRect === 'function') {
+        range.selectNodeContents(time);
+        textW = range.getBoundingClientRect().width;
+      }
+      const size = clockFontSize(w, textW);
       time.textContent = prevText;
       time.style.fontSize = `${size}px`;
       meter.update(s.tension, s.range);
