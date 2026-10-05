@@ -2,13 +2,13 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { drawBoard } from './renderer';
 import { drawScissors } from './renderer.parts';
-import { endPoint, threadY, tableY, THREAD_MARK_X, CREEL_END_X, DRUM_END_X, drumSectionY, DRUM_AREA, REED_X, DIAL_X, DIAL_Y, DIAL_R, reedRect, setLogicalHeight, fontPx } from './geometry';
+import { endPoint, threadY, tableY, THREAD_MARK_X, CREEL_END_X, DRUM_END_X, drumSectionY, DRUM_AREA, REED_X, DIAL_X, DIAL_Y, DIAL_R, reedRect, setLogicalHeight, fontPx, surfaceY, ARC_RISE } from './geometry';
 import { COLORS } from '../../core/ui/tokens';
 import type { FakeRecorder } from './renderer.test.helpers';
 
 // 偽の ctx (呼ばれた命令を記録する) は helpers に置く
 import { makeFakeCtx } from './renderer.test.helpers';
-import { SLAT_COUNT, PIN_ANGLE0, lampStateOf, lampGeometry, drumRimY, DRUM_BULGE } from './renderer.parts';
+import { SLAT_COUNT, PIN_ANGLE0, lampStateOf, lampGeometry, DRUM_BULGE, drumSectionPinY } from './renderer.parts';
 import { WING_SIDE_MAX_RATIO, SLAT_OVER, SLAT_FLARE, STRIPE_H } from './params';
 import { init, reduce } from './logic';
 import type { WindingState } from './logic';
@@ -935,7 +935,7 @@ describe('PU-14c: 盤面の絵 (切れた糸・緑の竿・桟・糸の弓なり
     let found = 0;
     for (let i = 0; i + 3 < pts.length; i++) {
       const [p0, p1, p2, p3] = [pts[i]!, pts[i + 1]!, pts[i + 2]!, pts[i + 3]!];
-      const baseY = drumRimY((p0.x + p1.x) / 2, fit, true); // 底辺は上の縁の弧の上 (T2-16 その3-4)
+      const baseY = surfaceY((p0.x + p1.x) / 2, DRUM_AREA.y); // 底辺は上の縁の弧の上 (T2-16 その3-4・その5)
       if (
         p0.op === 'moveTo' && Math.abs(p0.y - baseY) < 1 && Math.abs(p1.y - baseY) < 1 &&
         Math.abs(p2.y - (baseY - SLAT_OVER)) < 1 && Math.abs(p3.y - (baseY - SLAT_OVER)) < 1
@@ -950,20 +950,27 @@ describe('PU-14c: 盤面の絵 (切れた糸・緑の竿・桟・糸の弓なり
     expect(found).toBeGreaterThanOrEqual(3);
   });
 
-  it('帯の縞の弧は、上の縁の楕円と同じ形 (同じ横半径・縦半径) を帯の高さに置いたもの。真ん中が上がる ∩ (T2-16 前2)', () => {
+  const cx2 = DRUM_AREA.x + DRUM_AREA.w / 2;
+  const radius2 = (DRUM_AREA.w + DRUM_BULGE * 2) / 2;
+  it('帯の縞は surfaceY を左から右へなぞる折れ線 (∩。T2-16 その5 で楕円から置き換え)', () => {
     let s = windingState();
     s = { ...s, phase: 'done' } as WindingState;
     const rec = drawS(s);
-    const cx = DRUM_AREA.x + DRUM_AREA.w / 2;
-    const rx = DRUM_AREA.w / 2 + 10;
-    const arcs = rec.ops
-      .filter((o) => o.k === 'ellipse')
-      .map((o) => o.args as number[])
-      .filter((a) => Math.abs(a[0]! - cx) < 1 && Math.abs(a[2]! - rx) < 1 && Math.abs(a[3]! - 12) < 1);
-    expect(arcs.length).toBeGreaterThanOrEqual(10);
-    for (const a of arcs) {
-      expect(a[1]!).toBeGreaterThanOrEqual(DRUM_AREA.y - 1); // 中心は帯の高さ (弧の山は中心の上)
-    }
+    const pts = rec.ops.filter((o) => o.k === 'lineTo').map((o) => o.args as number[]);
+    // 縞の上の端の点は surfaceY(x, yy) の弧の上に乗る (yy は区画内の縞の高さ)
+    // 弧の上にある点から基準の高さ (base = y + ARC_RISE・f(x)) を逆算し、それが縞の並び (STRIPE_H の倍数)
+    // または区画のさかい (drumSectionY) に乗っている点を数える (縞と境目が surfaceY で描かれている証拠)
+    const onCurve = pts.filter((a) => {
+      const px = a[0] ?? 0;
+      const yy = a[1] ?? 0;
+      if (yy < DRUM_AREA.y - 1 || yy > DRUM_AREA.y + DRUM_AREA.h + 1) return false;
+      const f = Math.sqrt(Math.max(0, 1 - ((px - cx2) / radius2) ** 2));
+      const baseY = yy + ARC_RISE * f;
+      const isStripe = Math.abs(baseY - DRUM_AREA.y) < 1.2 || Math.abs(((baseY - DRUM_AREA.y) % STRIPE_H)) < 1.2 || Math.abs(((baseY - DRUM_AREA.y) % STRIPE_H) - STRIPE_H) < 1.2;
+      const isDivider = [0, 1, 2, 3].some((i) => Math.abs(baseY - drumSectionY(i, 3)) < 1.2);
+      return isStripe || isDivider;
+    });
+    expect(onCurve.length, 'surfaceY の弧の上にある縞・境目の点').toBeGreaterThanOrEqual(10);
   });
 });
 
@@ -1035,20 +1042,18 @@ describe('T2-16 前: ドラムの絵の直し (上の縁・帯の下の端。管
   it('2. 帯と板は上の縁まで描かれる (いちばん上の帯の上の端の弧は縁の楕円と同じ。板の上端の y は縁と同じ)', () => {
     const s = { ...windingState(), lengths: windingState().lengths.map((v, i) => (i === 0 ? 1500 : v)) };
     const rec = drum(s);
-    const cx = DRUM_AREA.x + DRUM_AREA.w / 2;
-    const rx = DRUM_AREA.w / 2 + 10;
-    // 帯: 区画の上端 (DRUM_AREA.y) を中心とする楕円の弧 (縦の半径 12)。同じ種なら同じ
-    const arcs = rec.ops
-      .filter((o) => o.k === 'ellipse')
+    // 帯の上の端: surfaceY の折れ線 (surfaceY(x, DRUM_AREA.y) を 左から右までなぞる)。同じ種なら同じ
+    const pts = rec.ops
+      .filter((o) => o.k === 'lineTo' || o.k === 'moveTo')
       .map((o) => o.args as number[]);
-    const topArc = arcs.find((a) => Math.abs((a[0] ?? 0) - cx) < 1 && Math.abs((a[1] ?? 0) - DRUM_AREA.y) < 1 && Math.abs((a[2] ?? 0) - rx) < 1 && Math.abs((a[3] ?? 0) - 12) < 1);
-    expect(topArc, 'いちばん上の帯の上の端の弧が上の縁の楕円と同じ').toBeDefined();
+    const onTopEdge = pts.filter((a) => Math.abs((a[1] ?? 0) - surfaceY((a[0] ?? 0), DRUM_AREA.y)) < 1);
+    expect(onTopEdge.length, '帯の上の端が surfaceY の弧の上にある点').toBeGreaterThanOrEqual(5);
     // 板: 上端の y が縁の y と同じ (差 0)
     const boards = fillRectsWithColor(rec).filter((f) => f.v === COLORS.wood && f.h > DRUM_AREA.h - 4);
     expect(boards.length).toBeGreaterThan(0);
     for (const b of boards) {
       // 板の上端は、その x での上の縁の弧の y (T2-16 その3-4)
-      expect(Math.abs(b.y - drumRimY(b.x + b.w / 2, fit, true)), `板の上端 ${b.y}`).toBeLessThan(1);
+      expect(Math.abs(b.y - surfaceY(b.x + b.w / 2, DRUM_AREA.y)), `板の上端 ${b.y}`).toBeLessThan(1);
     }
   });
 
@@ -1131,20 +1136,15 @@ describe('T2-16 前2: ドラムの絵の直し (描く順と帯の上の端の�
     expect(pole, '帯を止める竿 (深緑) は丸い印のあと').toBeGreaterThan(firstHole);
   });
 
-  it('2. 帯の境目の曲線も、上の縁の楕円と同じ形を下へずらしたもの (縦の半径は同じ)', () => {
+  it('2. 帯の境目の線も surfaceY の ∩ に沿う (区画の上端の高さをなぞる。T2-16 その5 で楕円から置き換え)', () => {
     let s = windingState();
     s = { ...s, lengths: s.lengths.map((v, i) => (i === 0 ? 1500 : v)) };
     const rec = drum(s);
-    const rx = DRUM_AREA.w / 2 + 10;
-    const cx = DRUM_AREA.x + DRUM_AREA.w / 2;
-    const arcs = rec.ops
-      .filter((o) => o.k === 'ellipse')
-      .map((o) => o.args as number[])
-      .filter((a) => Math.abs((a[0] ?? 0) - cx) < 1 && Math.abs((a[2] ?? 0) - rx) < 1 && Math.abs((a[3] ?? 0) - 12) < 1)
-      .map((a) => a[1] ?? 0);
-    // 区画の上端から STRIPE_H ごとに、同じ形の弧が並ぶ (上の端の弧と境目の弧)
-    expect(arcs).toContain(DRUM_AREA.y);
-    expect(arcs).toContain(DRUM_AREA.y + STRIPE_H);
+    const pts = rec.ops.filter((o) => o.k === 'lineTo').map((o) => o.args as number[]);
+    // 境目 (区画 0 と 1 のさかい = drumSectionY(1)) の点が surfaceY の弧の上にある
+    const by = drumSectionY(1, 3);
+    const onDiv = pts.filter((a) => Math.abs((a[1] ?? 0) - surfaceY(a[0] ?? 0, by)) < 1);
+    expect(onDiv.length, '境目の線が surfaceY の上にある点').toBeGreaterThanOrEqual(5);
   });
 });
 
@@ -1203,7 +1203,7 @@ describe('T2-16 前2 (3): 巻き量の目盛り盤 (白の内側・糸の束と�
   });
 });
 
-describe('T2-16 その4b (ハサミの絵の作り直し)', () => {
+describe('T2-16 その4b・その5 (ハサミの絵: 写真と同じ形・向き)', () => {
   const draw = (s: WindingState, scissors?: { x: number; y: number; cutReady: boolean; openK: number }): FakeRecorder => {
     const { ctx, rec } = makeFakeCtx();
     drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0, scissors });
@@ -1217,64 +1217,82 @@ describe('T2-16 その4b (ハサミの絵の作り直し)', () => {
     }
     return style;
   };
+  /** ハサミだけを直接描く (drawBoard を通さない) */
+  const drawS = (cutReady: boolean, openK = 0): FakeRecorder => {
+    const { ctx, rec } = makeFakeCtx();
+    drawScissors(ctx, fit, { x: 570, y: 300 }, cutReady, openK);
+    return rec;
+  };
 
-  it("1. 'cutting' で本物らしいハサミを描く: 白い円の土台は無く・銀色の刃 (steel の塗り) と・太い線の輪 (持つ手) が 2 つ", () => {
+  it("1. 'cutting' で本物らしいハサミ: 白い円の土台は無く・銀色の刃 (steel の塗り)・赤いねじ (shu の塗り)・黒い輪の持つ手 2 つ", () => {
     const s = { ...windingState(), phase: 'cutting' } as WindingState;
     const rec = draw(s, { x: 570, y: 120, cutReady: false, openK: 1 });
-    // 白い円の土台はもう描かない
-    const whiteBase = rec.ops.some((o) => {
-      if (o.k !== 'arc') return false;
-      const a = o.args as number[];
-      return Math.abs((a[0] ?? 0) - 570) < 1 && Math.abs((a[1] ?? 0) - 120) < 1 && (a[2] ?? 0) > 30;
-    }) && rec.ops.some((o) => o.k === 'fill' && styleBefore(rec, rec.ops.indexOf(o)) === COLORS.white);
-    expect(whiteBase, '白い円の土台').toBe(false);
-    // 銀色の刃 (steel の塗りがある)
     expect(rec.ops.some((o) => o.k === 'fill' && styleBefore(rec, rec.ops.indexOf(o)) === COLORS.steel), '銀色の刃').toBe(true);
-    // 濃い色で線を引いた輪 (arc + stroke、lineWidth 8 以上) が 2 つ
+    expect(rec.ops.some((o) => o.k === 'fill' && styleBefore(rec, rec.ops.indexOf(o)) === COLORS.shu), '赤いねじ').toBe(true);
+    // 濃い色で線を引いた輪 (arc + stroke) が 2 つ
     let rings = 0;
     for (let i = 0; i < rec.ops.length; i++) {
       const o = rec.ops[i];
-      if (o === undefined || o.k !== 'arc') continue;
+      if (o === undefined || o.k !== 'ellipse') continue;
       const a = o.args as number[];
       if ((a[2] ?? 0) < 8 || (a[2] ?? 0) > 20) continue;
       for (let j = i + 1; j < Math.min(i + 4, rec.ops.length); j++) {
         const st = rec.ops[j];
-        if (st !== undefined && st.k === 'stroke' && [COLORS.sumi, COLORS.machineDark].includes(styleBefore(rec, j) as never)) {
+        if (st !== undefined && st.k === 'stroke' && styleBefore(rec, j) === COLORS.sumi) {
           rings += 1;
           break;
         }
       }
     }
-    expect(rings, '持つ手の輪').toBe(2);
+    expect(rings, '黒い輪の持つ手').toBe(2);
   });
 
-  it('2. 切る所 (cutReady) では刃が大きく開く (刃の銀色の塗りの範囲が広がる)', () => {
-    // drawScissors を直接描いて、刃の線 (lineTo) の x の広がりを比べる
-    const span = (cutReady: boolean): number => {
-      const { ctx, rec } = makeFakeCtx();
-      drawScissors(ctx, fit, { x: 570, y: 300 }, cutReady, 1);
-      const xs = rec.ops.filter((o) => o.k === 'lineTo').map((o) => (o.args as number[])[0] ?? 0);
-      return xs.length ? Math.max(...xs) - Math.min(...xs) : -1;
-    };
-    expect(span(false)).toBeGreaterThan(0);
-    expect(span(true)).toBeGreaterThan(span(false) * 1.3);
+  it('2. 縦向き: 刃の先は持ち手の輪より上 (y が小さい)。閉じた形では 2 枚の刃が重なって 1 本に見える', () => {
+    const rec = drawS(false);
+    const pts = rec.ops.filter((o) => o.k === 'lineTo').map((o) => o.args as number[]);
+    expect(pts.length).toBeGreaterThan(0);
+    const minY = Math.min(...pts.map((a) => a[1] ?? 0)); // 刃の先 (いちばん上)
+    const ringArcs = rec.ops.filter((o) => {
+      if (o.k !== 'ellipse') return false;
+      const a = o.args as number[];
+      return (a[2] ?? 0) >= 8 && (a[2] ?? 0) <= 20;
+    });
+    expect(ringArcs.length, '輪の弧').toBe(2);
+    const ringY = Math.min(...ringArcs.map((o) => (o.args as number[])[1] ?? 0));
+    expect(minY, '刃の先は輪より上').toBeLessThan(ringY);
+    // 閉じた形: 刃の先の x がそろっている (重なって 1 本)
+    const tipXs = pts.filter((a) => Math.abs((a[1] ?? 0) - minY) < 1).map((a) => a[0] ?? 0);
+    expect(Math.max(...tipXs) - Math.min(...tipXs), '閉じた形の刃の先の横のずれ').toBeLessThanOrEqual(2);
   });
 
-  it('3. cutReady のとき、糸の束 (筬からドラムの糸) が藍色になる', () => {
-    const s = { ...windingState(), phase: 'cutting' } as WindingState;
-    const rec = draw(s, { x: 570, y: 300, cutReady: true, openK: 1 });
-    expect(rec.ops.some((o) => o.k === 'stroke' && styleBefore(rec, rec.ops.indexOf(o)) === COLORS.ai), '藍色の糸の束').toBe(true);
-    const rec2 = draw(s, { x: 570, y: 300, cutReady: false, openK: 1 });
-    expect(rec2.ops.some((o) => o.k === 'stroke' && styleBefore(rec2, rec2.ops.indexOf(o)) === COLORS.ai)).toBe(false);
+  it('3. 切る所 (cutReady) では 2 枚の刃が X の形に開く (刃の開きは 30〜40 度)', () => {
+    const rec = drawS(true);
+    const pts = rec.ops.filter((o) => o.k === 'lineTo').map((o) => o.args as number[]);
+    const minY = Math.min(...pts.map((a) => a[1] ?? 0));
+    const tipXs = pts.filter((a) => Math.abs((a[1] ?? 0) - minY) < 1).map((a) => a[0] ?? 0);
+    expect(tipXs.length).toBeGreaterThanOrEqual(2);
+    // drawScissors の局所座標 (偽 ctx は translate を無視するので支点=ねじは原点)
+    const pivotY = 0;
+    const angleOf = (x: number): number => Math.atan2(Math.abs(x), pivotY - minY); // 上向きからの開き角
+    const openDeg = (angleOf(Math.max(...tipXs)) + angleOf(Math.min(...tipXs))) * 180 / Math.PI;
+    expect(openDeg, '刃の開き (度)').toBeGreaterThanOrEqual(30);
+    expect(openDeg, '刃の開き (度)').toBeLessThanOrEqual(40);
   });
 
-  it("4. 'winding' ではハサミは描かない。scissors を渡さなければ描かない", () => {
-    // ハサミの刃は、支点 (pos) のまわりに銀色の塗りがある形。その場所の近くに銀の塗りが無ければ描かれていない
+  it('4. 閉じる動き (openK 0→1) で刃の開きが 0 度に戻る', () => {
+    const closed = drawS(false, 0);
+    const pts = closed.ops.filter((o) => o.k === 'lineTo').map((o) => o.args as number[]);
+    const minY = Math.min(...pts.map((a) => a[1] ?? 0));
+    const tipXs = pts.filter((a) => Math.abs((a[1] ?? 0) - minY) < 1).map((a) => a[0] ?? 0);
+    expect(Math.max(...tipXs) - Math.min(...tipXs), '閉じきった刃の横のずれ').toBeLessThanOrEqual(2);
+  });
+
+  it("5. 'winding' ではハサミは描かない。scissors を渡さなければ描かない", () => {
+    // ハサミの刃 (銀の塗り) が、指定した場所 (570, 120) の近くに無ければ描かれていない
     const hasBladesNear = (rec: FakeRecorder, x: number, y: number): boolean =>
       rec.ops.some((o, i) => {
         if (o.k !== 'fill') return false;
         if (styleBefore(rec, i) !== COLORS.steel) return false;
-        // 直前の刃の線 (lineTo) が pos の近くにある
         for (let j = i - 1; j >= 0 && j >= i - 8; j--) {
           const p = rec.ops[j];
           if (p !== undefined && p.k === 'lineTo') {
@@ -1284,7 +1302,7 @@ describe('T2-16 その4b (ハサミの絵の作り直し)', () => {
         }
         return false;
       });
-    const rec1 = draw(windingState(), { x: 570, y: 120, cutReady: false, openK: 1 });
+    const rec1 = draw(windingState(), { x: 570, y: 120, cutReady: false, openK: 0 });
     expect(hasBladesNear(rec1, 570, 120), 'winding でハサミを描いていない').toBe(false);
     const s = { ...windingState(), phase: 'cutting' } as WindingState;
     const rec2 = draw(s);
@@ -1292,21 +1310,104 @@ describe('T2-16 その4b (ハサミの絵の作り直し)', () => {
   });
 });
 
+describe('T2-16 その5 (帯・板・竿・印・結び目が surfaceY の ∩ で動く)', () => {
+  const cx = DRUM_AREA.x + DRUM_AREA.w / 2;
+  const radius = (DRUM_AREA.w + DRUM_BULGE * 2) / 2;
+
+  /** drumAngle を与えて描く */
+  const drawAt = (th: number, phase = 'winding'): FakeRecorder => {
+    const full = windingState();
+    const { ctx, rec } = makeFakeCtx();
+    drawBoard(ctx, fit, phase === 'done' ? ({ ...full, phase: 'done', current: full.sections, lengths: Array(full.sections).fill(400), windMs: Array(full.sections).fill(40000), okMs: Array(full.sections).fill(40000) } as unknown as WindingState) : full, content, { threadCount: 8, show: 'red', timeMs: 0, drumAngle: th });
+    return rec;
+  };
+  /** 竿の fillRect (machineDark・ドラムの高さにまたがる縦の棒) を探す */
+  const rodOf = (rec: FakeRecorder, pinX: number): number[] => {
+    const o = rec.ops.find((o) => {
+      if (o.k !== 'fillRect') return false;
+      const a = o.args as number[];
+      const prevStyle = rec.ops.slice(0, rec.ops.indexOf(o)).reverse().find((p) => p.k === 'style');
+      return String(prevStyle?.v) === COLORS.machineDark && Math.abs((a[0] ?? 0) + (a[2] ?? 0) / 2 - pinX) < 2 && (a[3] ?? 0) > DRUM_AREA.h * 0.8;
+    });
+    return o ? (o.args as number[]) : [];
+  };
+  /** 鋼の印 (steel の横長 fillRect) を探す */
+  const marksOf = (rec: FakeRecorder, pinX: number): number[][] =>
+    rec.ops
+      .filter((o) => {
+        if (o.k !== 'fillRect') return false;
+        const a = o.args as number[];
+        const prevStyle = rec.ops.slice(0, rec.ops.indexOf(o)).reverse().find((p) => p.k === 'style');
+        return String(prevStyle?.v) === COLORS.steel && Math.abs((a[0] ?? 0) + (a[2] ?? 0) / 2 - pinX) < 6;
+      })
+      .map((o) => o.args as number[]);
+
+  it('1. 竿の上の端・下の端とも surfaceY と一致し (∩)。下の端は x が中央のときいちばん高い', () => {
+    for (const [th, label] of [[-0.5, '左寄り'], [0, '中央'], [0.5, '右寄り']] as Array<[number, string]>) {
+      const thPin = th + PIN_ANGLE0;
+      const pinX = cx + radius * Math.sin(thPin);
+      const rec = drawAt(th);
+      const rod = rodOf(rec, pinX);
+      expect(rod.length, `竿 (th=${label})`).toBeGreaterThan(0);
+      const top = rod[1] ?? 0;
+      const bottom = (rod[1] ?? 0) + (rod[3] ?? 0);
+      expect(Math.abs(top - (surfaceY(pinX, DRUM_AREA.y) - 24)), `竿の上の端 (${label})`).toBeLessThanOrEqual(1);
+      expect(Math.abs(bottom - surfaceY(pinX, DRUM_AREA.y + DRUM_AREA.h)), `竿の下の端 (${label})`).toBeLessThanOrEqual(1);
+    }
+    // ∩: 中央の竿の下の端は、左右より小さい (高い)
+    const pinC = cx + radius * Math.sin(PIN_ANGLE0);
+    const pinL = cx + radius * Math.sin(PIN_ANGLE0 - 0.5);
+    expect(surfaceY(pinC, DRUM_AREA.y + DRUM_AREA.h)).toBeLessThan(surfaceY(pinL, DRUM_AREA.y + DRUM_AREA.h));
+  });
+
+  it('2. 灰色の印 (鋼のピン) は surfaceY (drumSectionPinY) の高さにある (∩ の弓なり)', () => {
+    const th = 0.3;
+    const thPin = th + PIN_ANGLE0;
+    const pinX = cx + radius * Math.sin(thPin);
+    const rec = drawAt(th);
+    const marks = marksOf(rec, pinX);
+    expect(marks.length, '印の数').toBeGreaterThan(0);
+    for (const a of marks) {
+      const cy = (a[1] ?? 0) + (a[3] ?? 0) / 2;
+      expect(Math.abs(cy - surfaceY(pinX, drumSectionPinY(marks.indexOf(a), 3))), `印 ${marks.indexOf(a)}`).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('3. 結び目は surfaceY (区画の中心) の高さにある (∩)', () => {
+    const th = 0.2;
+    const thPin = th + PIN_ANGLE0;
+    const pinX = cx + radius * Math.sin(thPin);
+    const rec = drawAt(th, 'done');
+    // 結び目 (kinari の縁取りの輪。arc が pinX の近くにある)
+    const arcs = rec.ops.filter((o) => {
+      if (o.k !== 'arc') return false;
+      const a = o.args as number[];
+      return Math.abs((a[0] ?? 0) - pinX) < 2 && (a[2] ?? 0) > 5 && (a[2] ?? 0) < 20;
+    });
+    expect(arcs.length, '結び目の輪').toBeGreaterThan(0);
+    // 結び目は 5 つの輪を縦に重ねる (中心の輪が区画の中心= surfaceY の高さ)。区画ごとに中心の輪を確かめる
+    for (let idx = 0; idx < 3; idx++) {
+      const goal = surfaceY(pinX, drumSectionPinY(idx, 3));
+      const best = Math.min(...arcs.map((o) => Math.abs(((o.args as number[])[1] ?? 0) - goal)));
+      expect(best, `結び目の中心の輪 (区画 ${idx})`).toBeLessThanOrEqual(1);
+    }
+  });
+});
+
 describe('T2-16 その3 追加 (4)(5) (ドラムの板・竿・結び目が弧の上を動く・巻き終えの黒い横線を消す)', () => {
   const fit = { scale: 1, offsetX: 0, offsetY: 0 };
 
-  it('4. 板の上の端の y は上の縁の楕円の弧の上 (x が中央に近いほど小さい。差 1 以下)。下の端は下の縁の弧', () => {
+  it('4. 板の上の端の y は surfaceY の弧の上 (x が中央に近いほど小さい。差 1 以下)。下の端も同じ ∩ の向き', () => {
     const cx = DRUM_AREA.x + DRUM_AREA.w / 2;
     const radius = (DRUM_AREA.w + DRUM_BULGE * 2) / 2;
-    const topRy = fontPx(fit, 12);
     // 中央に近いほど上の端は小さい (高い)
-    expect(drumRimY(cx, fit, true)).toBeLessThan(drumRimY(cx + radius * 0.8, fit, true));
-    // 弧の式: 楕円の上の半分の弧の y と一致 (下は下の半分)
+    expect(surfaceY(cx, DRUM_AREA.y)).toBeLessThan(surfaceY(cx + radius * 0.8, DRUM_AREA.y));
+    // 弧の式: surfaceY (中央で ARC_RISE 高い ∩。下の端も同じ向き)
     for (const k of [-0.8, -0.4, 0, 0.4, 0.8]) {
       const x = cx + radius * k;
       const f = Math.sqrt(Math.max(0, 1 - k * k));
-      expect(Math.abs(drumRimY(x, fit, true) - (DRUM_AREA.y - topRy * f))).toBeLessThanOrEqual(1);
-      expect(Math.abs(drumRimY(x, fit, false) - (DRUM_AREA.y + DRUM_AREA.h + topRy * f))).toBeLessThanOrEqual(1);
+      expect(Math.abs(surfaceY(x, DRUM_AREA.y) - (DRUM_AREA.y - ARC_RISE * f))).toBeLessThanOrEqual(1);
+      expect(Math.abs(surfaceY(x, DRUM_AREA.y + DRUM_AREA.h) - (DRUM_AREA.y + DRUM_AREA.h - ARC_RISE * f))).toBeLessThanOrEqual(1);
     }
     // 描いた板の上端が弧の上にある: drumAngle 0.5 の板の頂点を探す
     const th = 0.5;
@@ -1322,7 +1423,7 @@ describe('T2-16 その3 追加 (4)(5) (ドラムの板・竿・結び目が弧�
     });
     expect(boards.length, '板の面').toBeGreaterThan(0);
     const y0 = (boards[0]!.args as number[])[1] ?? 0;
-    expect(Math.abs(y0 - drumRimY(sx, fit, true))).toBeLessThanOrEqual(1);
+    expect(Math.abs(y0 - surfaceY(sx, DRUM_AREA.y))).toBeLessThanOrEqual(1);
   });
 
   it("5. 全部巻き終えた状態 ('done') に、同じ y が続く横の直線の命令が無い (質の波は上の縁と同じ弓なりに乗る)", () => {
@@ -1422,7 +1523,7 @@ describe('T2-16 その4a (巻き終えの黒い線を全部消す・竿の下の
       expect(rod, `竿 (th=${th})`).toBeDefined();
       const a = (rod as { args: number[] }).args;
       const bottom = (a[1] ?? 0) + (a[3] ?? 0);
-      expect(Math.abs(bottom - drumRimY(pinX, fit, false)), `竿の下の端 (th=${th})`).toBeLessThanOrEqual(1);
+      expect(Math.abs(bottom - surfaceY(pinX, DRUM_AREA.y + DRUM_AREA.h)), `竿の下の端 (th=${th})`).toBeLessThanOrEqual(1);
     }
   });
 
@@ -1443,7 +1544,9 @@ describe('T2-16 その4a (巻き終えの黒い線を全部消す・竿の下の
       const a = (rod as { args: number[] }).args;
       return (a[3] ?? 0);
     };
-    // 中央の竿のほうが、はずれの竿より上下に長い (th は thPin = th + PIN_ANGLE0 が 0 と 0.9 になるように)
-    expect(rodHeight(-PIN_ANGLE0)).toBeGreaterThan(rodHeight(-PIN_ANGLE0 + 0.9));
+    // T2-16 その5: 竿の長さは x によらず一定 (上下の端とも surfaceY。中央は全体が上がるだけ)
+    const center = rodHeight(-PIN_ANGLE0);
+    const off = rodHeight(-PIN_ANGLE0 + 0.9);
+    expect(Math.abs(center - off), '竿の長さの差').toBeLessThanOrEqual(1);
   });
 });

@@ -5,7 +5,7 @@ import { showTutorial } from '../../core/ui/tutorialOverlay';
 import { drawBoard } from './renderer';
 import { PIN_ANGLE0 } from './renderer.parts';
 import { createWindingPanel } from './panel';
-import { fromPx, hitBrokenThread, logicalHeightFor, setLogicalHeight, SCISSORS_SIZE, SCISSORS_LIFT, SCISSORS_TIP, scissorsPos, scissorsHitsThread } from './geometry';
+import { fromPx, hitBrokenThread, logicalHeightFor, setLogicalHeight, SCISSORS_SIZE, SCISSORS_LIFT, scissorsPos, scissorsHitsThread } from './geometry';
 import { getContent, type Content } from '../../core/content/content';
 import { init, reduce, seedFromText } from './logic';
 import { speedOf } from '../../core/mechanics/pedal';
@@ -140,9 +140,8 @@ let pinTurnPrevEased = 0; // 前フレームの ease の値 (角速度を決め�
   function scissorsNow(): { x: number; y: number; cutReady: boolean; openK: number } {
     if (scissorsDragAt !== null) {
       const pos = { x: scissorsDragAt.x, y: scissorsDragAt.y - SCISSORS_LIFT };
-      // 切れるかどうかは、刃の先 (中心より下) が糸の束に届くかで決める
-      const tip = { x: pos.x, y: pos.y + SCISSORS_TIP };
-      return { ...pos, cutReady: scissorsHitsThread(tip, s.current, s.sections), openK: 1 };
+      // 切れるかどうかは、支点 (赤いねじ・刃が交わる所) が糸の束に届くかで決める
+      return { ...pos, cutReady: scissorsHitsThread(pos, s.current, s.sections), openK: 0 };
     }
     if (scissorsCloseAt !== null) {
       return {
@@ -153,7 +152,7 @@ let pinTurnPrevEased = 0; // 前フレームの ease の値 (角速度を決め�
       };
     }
     const base = scissorsPos();
-    return { ...base, y: base.y + Math.sin(nowMs / 300) * 4, cutReady: false, openK: 1 };
+    return { ...base, y: base.y + Math.sin(nowMs / 300) * 4, cutReady: false, openK: 0 };
   }
 
   // ---- 描画 ----
@@ -465,8 +464,8 @@ let pinTurnPrevEased = 0; // 前フレームの ease の値 (角速度を決め�
     frame.stage.style.touchAction = '';
     if (s.phase === 'cutting' && !tieRunning) {
       const pos = { x: p.x, y: p.y - SCISSORS_LIFT };
-      const tip = { x: pos.x, y: pos.y + SCISSORS_TIP };
-      if (scissorsHitsThread(tip, s.current, s.sections)) {
+      // 支点 (ねじ) が糸の束に届いていれば切る
+      if (scissorsHitsThread(pos, s.current, s.sections)) {
         // すぐには切らず、閉じる動き (0.3秒) をしてから切る (T2-16 その4b)
         scissorsCloseMs = SCISSORS_CLOSE_MS;
         scissorsCloseAt = pos;

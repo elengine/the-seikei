@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { setLogicalHeight, logicalHeightFor, machineExtent, CREEL_AREA, CREEL_END_X, LOGICAL_W, LOGICAL_H, endPoint, hitEnd, toPx, fromPx, threadY, drumSectionY, tableY, TABLE_AREA, REED_X, DRUM_END_X, DRUM_AREA, pointOnPath, threadPath, PIN_RAIL_X, DIAL_X, DIAL_Y, DIAL_R, reedRect, reedThreadY, THREAD_SHEET_HALF, hitBrokenThread, THREAD_MARK_X, SCISSORS_SIZE, SCISSORS_LIFT, scissorsPos, scissorsHitsThread, REED_RISE } from './geometry';
+import { setLogicalHeight, logicalHeightFor, machineExtent, CREEL_AREA, CREEL_END_X, LOGICAL_W, LOGICAL_H, endPoint, hitEnd, toPx, fromPx, threadY, drumSectionY, tableY, TABLE_AREA, REED_X, DRUM_END_X, DRUM_AREA, pointOnPath, threadPath, PIN_RAIL_X, DIAL_X, DIAL_Y, DIAL_R, reedRect, reedThreadY, THREAD_SHEET_HALF, hitBrokenThread, THREAD_MARK_X, SCISSORS_SIZE, SCISSORS_LIFT, scissorsPos, scissorsHitsThread, REED_RISE, surfaceY, ARC_RISE, DRUM_BULGE } from './geometry';
 
 const fit = { scale: 1, offsetX: 0, offsetY: 0 };
 
@@ -417,5 +417,26 @@ describe('T2-16 その4b (ハサミの置き場所と持ち上げ)', () => {
     expect(scissorsHitsThread({ x: REED_X, y: tableY(0, 3) - REED_RISE }, 0, 3)).toBe(true);
     expect(scissorsHitsThread({ x: mid, y: tableY(0, 3) - 150 }, 0, 3)).toBe(false);
     expect(scissorsHitsThread({ x: 100, y: tableY(0, 3) }, 0, 3)).toBe(false);
+  });
+});
+
+describe('T2-16 その5 (surfaceY ひとつの弧で表面の高さを決める)', () => {
+  const cx = DRUM_AREA.x + DRUM_AREA.w / 2;
+
+  it('1. surfaceY: 中央で baseY − ARC_RISE (いちばん高い)・ドラムの左右の端で baseY (∩ の山なり)', () => {
+    const radius = (DRUM_AREA.w + DRUM_BULGE * 2) / 2;
+    expect(surfaceY(cx, 400)).toBe(400 - ARC_RISE);
+    expect(surfaceY(cx - radius, 400)).toBe(400); // 左の端 (ふくらみを含めたドラムの端)
+    expect(surfaceY(cx + radius, 400)).toBe(400); // 右の端
+    // 中央のほうが、はずれより小さい (高い)
+    expect(surfaceY(cx, 400)).toBeLessThan(surfaceY(cx + radius * 0.6, 400));
+    // 下の端の基準でも同じ向き (∩。∪ にならない)
+    expect(surfaceY(cx, DRUM_AREA.y + DRUM_AREA.h)).toBe(DRUM_AREA.y + DRUM_AREA.h - ARC_RISE);
+    expect(surfaceY(cx, DRUM_AREA.y + DRUM_AREA.h)).toBeLessThan(surfaceY(cx - radius, DRUM_AREA.y + DRUM_AREA.h));
+  });
+
+  it('2. ハサミの大きさは画面上 96 以上。持ち上げは半分の大きさ + 24', () => {
+    expect(SCISSORS_SIZE).toBeGreaterThanOrEqual(96);
+    expect(SCISSORS_LIFT).toBe(SCISSORS_SIZE / 2 + 24);
   });
 });

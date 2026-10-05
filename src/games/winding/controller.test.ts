@@ -216,8 +216,8 @@ describe('winding module (T2-07)', () => {
         // ハサミをつかんで糸の束の上で離す (糸が切れて結びの演出へ)
         const sp = scissorsPos();
         stagePointer(container, rect, 'pointerdown', sp.x, sp.y);
-        stagePointer(container, rect, 'pointermove', 570, tableY(i, 3) + 28);
-        stagePointer(container, rect, 'pointerup', 570, tableY(i, 3) + 28);
+        stagePointer(container, rect, 'pointermove', 570, tableY(i, 3) + 42);
+        stagePointer(container, rect, 'pointerup', 570, tableY(i, 3) + 42);
         // 結びの演出 (1秒) が終わって次の帯 (または結果) に進むまで rAF を進める
         await vi.waitFor(
           () => {
@@ -458,8 +458,8 @@ describe('winding module (T2-07)', () => {
       const rect7 = stageRect(container);
       const sp = scissorsPos();
       stagePointer(container, rect7, 'pointerdown', sp.x, sp.y);
-      stagePointer(container, rect7, 'pointermove', 570, tableY(0, p1.sections) + 28);
-      stagePointer(container, rect7, 'pointerup', 570, tableY(0, p1.sections) + 28);
+      stagePointer(container, rect7, 'pointermove', 570, tableY(0, p1.sections) + 42);
+      stagePointer(container, rect7, 'pointerup', 570, tableY(0, p1.sections) + 42);
       // 演出中は次の帯に進んでいない
       expect(jsPanelText(container)).not.toContain('帯 2');
       // rAF で閉じる動き (0.3秒) + 結びの演出 (1秒) 以上進める (16ms × 100 = 1600ms)
@@ -977,11 +977,12 @@ describe('PU-05c: ドラム巻きの結果のつなぎ', () => {
         },
         { timeout: 30000, interval: 100 },
       );
-      // ハサミを糸の束まで引っぱって離す
+      // ハサミを糸の束まで引っぱって離す (指 = 束の中心より持ち上げ分だけ下)
+      const { SCISSORS_LIFT, REED_RISE } = await import('./geometry');
       const sp = scissorsPos();
       stagePointer(container, rectCut, 'pointerdown', sp.x, sp.y);
-      stagePointer(container, rectCut, 'pointermove', 570, tableY(i, 3));
-      stagePointer(container, rectCut, 'pointerup', 570, tableY(i, 3));
+      stagePointer(container, rectCut, 'pointermove', 570, tableY(i, 3) - REED_RISE / 2 + SCISSORS_LIFT);
+      stagePointer(container, rectCut, 'pointerup', 570, tableY(i, 3) - REED_RISE / 2 + SCISSORS_LIFT);
       await vi.waitFor(
         () => {
           raf.advance(8);
@@ -1267,11 +1268,11 @@ describe('winding module T2-16 その4b (ハサミの持ち上げと閉じる動
   it('3. 糸の束の上で離すと、すぐには切れず閉じる動き (0.3秒) のあとで結ばれる', async () => {
     const { container, instance, restore } = await setupToCutting();
     const rect = stageRect(container);
-    const { scissorsPos, tableY } = await import('./geometry');
+    const { scissorsPos, tableY, SCISSORS_LIFT, REED_RISE } = await import('./geometry');
     const sp = scissorsPos();
     stagePointer(container, rect, 'pointerdown', sp.x, sp.y);
-    stagePointer(container, rect, 'pointermove', 570, tableY(0, 3) + 28);
-    stagePointer(container, rect, 'pointerup', 570, tableY(0, 3) + 28);
+    stagePointer(container, rect, 'pointermove', 570, tableY(0, 3) - REED_RISE / 2 + SCISSORS_LIFT);
+    stagePointer(container, rect, 'pointerup', 570, tableY(0, 3) - REED_RISE / 2 + SCISSORS_LIFT);
     // すぐ後: まだ winding に戻っていない (閉じる動きのあいだ)
     raf.advance(2);
     expect((instance.suspend() as { phase: string }).phase).toBe('cutting');
@@ -1291,11 +1292,11 @@ describe('winding module T2-16 その4b (ハサミの持ち上げと閉じる動
   it('4. pointercancel では切らずにハサミが元の位置に戻る', async () => {
     const { container, instance, restore } = await setupToCutting();
     const rect = stageRect(container);
-    const { scissorsPos, tableY } = await import('./geometry');
+    const { scissorsPos, tableY, SCISSORS_LIFT, REED_RISE } = await import('./geometry');
     const sp = scissorsPos();
     stagePointer(container, rect, 'pointerdown', sp.x, sp.y);
-    stagePointer(container, rect, 'pointermove', 570, tableY(0, 3) + 28);
-    stagePointer(container, rect, 'pointercancel', 570, tableY(0, 3) + 28);
+    stagePointer(container, rect, 'pointermove', 570, tableY(0, 3) - REED_RISE / 2 + SCISSORS_LIFT);
+    stagePointer(container, rect, 'pointercancel', 570, tableY(0, 3) - REED_RISE / 2 + SCISSORS_LIFT);
     raf.advance(2);
     expect((instance.suspend() as { phase: string }).phase).toBe('cutting');
     const opts = lastDrawOpts() as { scissors?: { x: number; y: number } };

@@ -53,13 +53,23 @@ export let DIAL_Y = 690;
 export const DIAL_R = 28;
 
 /** ハサミのアイコンの大きさ (論理座標。64px 以上。T2-16c) */
-export const SCISSORS_SIZE = 68;
+export const SCISSORS_SIZE = 96;
 
 /** 引っぱっているあいだ、ハサミは指の位置よりこれだけ上に出る (クリールの糸巻きと同じ。T2-16 その4b) */
 export const SCISSORS_LIFT = SCISSORS_SIZE / 2 + 24;
 
-/** ハサミの中心から刃の先までの距離 (当たり判定は刃の先で行う) */
-export const SCISSORS_TIP = SCISSORS_SIZE * 0.45;
+/** ドラムの楕円の横ふくらみ (左右の端からはみ出す量・論理 px。T2-16 その3-4) */
+export const DRUM_BULGE = 10;
+
+/** ドラムの表面の弓なりの高さ (T2-16 その5)。中央が ARC_RISE だけ高い ∩ の山なり。x は論理座標・baseY はその部品の基準の高さ (ドラムの左右の端での高さ)。上の縁でも胴の途中でも下の端でも同じ向き。 */
+export const ARC_RISE = 12;
+
+export function surfaceY(x: number, baseY: number): number {
+  const cx = DRUM_AREA.x + DRUM_AREA.w / 2;
+  const radius = (DRUM_AREA.w + DRUM_BULGE * 2) / 2;
+  const f = Math.sqrt(Math.max(0, 1 - ((x - cx) / radius) ** 2));
+  return baseY - ARC_RISE * f;
+}
 
 /**
  * ハサミの置き場所 (T2-16 その4b)。いつもクリールの右下・筬の左下・盤の下のほう。

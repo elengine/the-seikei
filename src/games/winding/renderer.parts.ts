@@ -2,7 +2,8 @@ import type { WindingState } from './logic';
 import { COLORS, FONT_FAMILY } from '../../core/ui/tokens';
 import { SECTION_LENGTH, STRIPE_H, WING_OUT, WING_SIDE_MAX_RATIO, SLAT_OVER, SLAT_FLARE } from './params';
 import type { StageFit } from '../../core/viewport/viewport';
-import { DRUM_AREA, fontPx, drumSectionY, threadY, CREEL_END_X, DRUM_END_X, SCISSORS_TIP } from './geometry';
+import { DRUM_AREA, fontPx, drumSectionY, threadY, CREEL_END_X, DRUM_END_X, surfaceY, DRUM_BULGE } from './geometry';
+export { DRUM_BULGE };
 
 /**
  * ドラム巻きの盤面のうち、ドラム (円筒) と結び目を描く部品。
@@ -14,10 +15,6 @@ import { DRUM_AREA, fontPx, drumSectionY, threadY, CREEL_END_X, DRUM_END_X, SCIS
 
 /** 結び目の束の大きさ (論理座標) */
 const KNOT = { w: 24, h: 30 } as const; // 幅はピンの横木に少し重なる程度 (T2-08 追加修正2)
-
-/** ドラムの円筒の見た目の半分の厚み (帯の面の左右のふくらみ) */
-/** ドラムの胴の面の左右のふくらみ (論理座標) */
-export const DRUM_BULGE = 10;
 
 /** ドラムの桟の数 (円筒の周りに等間隔に並ぶ。正面に 10〜12 本見える。T2-10 追加修正) */
 export const SLAT_COUNT = 16;
@@ -65,7 +62,7 @@ export function drawDrum(
   // 上の縁の内側 (見えている上の面) も胴と同じ薄緑で塗る (T2-16 前2:
   // 楕円の内側と胴の上の端のあいだが背景色にならないようにする)
   const topCy = y;
-  const topRy = fontPx(fit, 12);
+  const topRy = 12; // ARC_RISE と同じ (surfaceY の ∩ とぴったり合う。T2-16 その5)
   ctx.beginPath();
   ctx.ellipse(cx, topCy, radius, topRy, 0, Math.PI, Math.PI * 2);
   ctx.fill();
@@ -77,8 +74,13 @@ export function drawDrum(
     ctx.strokeStyle = COLORS.machine;
     ctx.lineWidth = fontPx(fit, 2.5);
     ctx.beginPath();
-    ctx.moveTo(leftX, by);
-    ctx.lineTo(rightX, by);
+    // 境目の線も surfaceY の ∩ に沿う (T2-16 その5)
+    for (let st = 0; st <= 20; st++) {
+      const px = DRUM_AREA.x + (DRUM_AREA.w * st) / 20;
+      const py = surfaceY(px, by);
+      if (st === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
     ctx.stroke();
     ctx.globalAlpha = 1;
   }
@@ -105,13 +107,13 @@ export function drawDrum(
     const sw = Math.max(2, slatW0 * cosT);
     // 羽の側面 (少し薄い木の色。|sin θ| に比例し、板の幅の 40% が上限。T2-13a・T2-13 追加修正)
     const sideW = Math.min(WING_OUT, slatW0 * WING_SIDE_MAX_RATIO) * Math.abs(Math.sin(th));
-    // 板の上端・下端の y は、その x での上の縁・下の縁の楕円の弧の高さ (帯の弓なりと同じ曲線。T2-16 その3-4)
-    const topC = drumRimY(sx, fit, true);
-    const botC = drumRimY(sx, fit, false);
+    // 板の上端・下端の y は surfaceY (中央が高い ∩。上下とも同じ向き。T2-16 その5)
+    const topC = surfaceY(sx, y);
+    const botC = surfaceY(sx, y + h);
     if (sideW > 1) {
       const sideX = sx + sw / 2 + sideW / 2;
       ctx.globalAlpha = 0.8;
-      ctx.fillRect(sx + sw / 2, drumRimY(sideX, fit, true), sideW, drumRimY(sideX, fit, false) - drumRimY(sideX, fit, true));
+      ctx.fillRect(sx + sw / 2, surfaceY(sideX, y), sideW, surfaceY(sideX, y + h) - surfaceY(sideX, y));
       ctx.globalAlpha = 1;
       ctx.fillStyle = COLORS.wood;
     }
@@ -130,7 +132,7 @@ export function drawDrum(
     // 板の丸い穴 (正面に近い板だけ。暗い色の小さな丸を縦に等間隔に。T2-13a)
     if (cosT > 0.6) {
       ctx.fillStyle = COLORS.machineDark;
-      for (let hy = topC + HOLE_STEP / 2; hy < drumRimY(sx, fit, false) - fontPx(fit, 10); hy += HOLE_STEP) {
+      for (let hy = topC + HOLE_STEP / 2; hy < surfaceY(sx, y + h) - fontPx(fit, 10); hy += HOLE_STEP) {
         ctx.beginPath();
         ctx.arc(sx, hy, fontPx(fit, HOLE_R), 0, Math.PI * 2);
         ctx.fill();
@@ -159,10 +161,17 @@ export function drawDrum(
       ctx.globalAlpha = alpha;
       ctx.fillStyle = hexes[k % hexes.length] ?? COLORS.sumiSub;
       ctx.beginPath();
-      // 上の端: 左端 → 山 → 右端 (楕円の上の半分の弧)
-      ctx.ellipse(cx, yy, radius, topRy, 0, Math.PI, Math.PI * 2);
-      // 下の端: 右端 → 山 → 左端 (同じ形を sh 下へずらした弧を逆にたどる)
-      ctx.ellipse(cx, yy + sh, radius, topRy, 0, 0, Math.PI, true);
+      // 上の端・下の端とも surfaceY (中央が高い ∩。T2-16 その5)
+      for (let st = 0; st <= 20; st++) {
+        const px = DRUM_AREA.x + (DRUM_AREA.w * st) / 20;
+        const py = surfaceY(px, yy);
+        if (st === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      for (let st = 20; st >= 0; st--) {
+        const px = DRUM_AREA.x + (DRUM_AREA.w * st) / 20;
+        ctx.lineTo(px, surfaceY(px, yy + sh));
+      }
       ctx.closePath();
       ctx.fill();
       k++;
@@ -189,7 +198,7 @@ export function drawDrum(
       if (cosT <= 0) continue;
       const sx = cx + radius * Math.sin(th);
       const sw = Math.max(2, fontPx(fit, 4) * cosT);
-      ctx.fillRect(sx - sw / 2, sy, sw, secH);
+      ctx.fillRect(sx - sw / 2, surfaceY(sx, sy), sw, secH);
     }
     ctx.globalAlpha = 1;
   }
@@ -219,19 +228,15 @@ export function drawDrum(
   const pinX = cx + radius * Math.sin(thPin);
   if (cosPin > 0) {
     ctx.fillStyle = COLORS.machineDark;
-    // 帯を止める緑の竿: 上は縁の楕円より外へ出す (PU-14 追加修正2)。
-    // 下の端は、下の縁の楕円のその x での手前の弧まで (それより下へはみ出さない。T2-16 その4-2)。
-    // 上端・下端とも、その x での弧の高さに合わせるので弓なりに動く
+    // 帯を止める緑の竿: 上は上の縁の弧より外へ出す (PU-14 追加修正2)。
+    // 上端・下端とも surfaceY (中央が高い ∩。T2-16 その5)。下の端の基準はドラムの下の端の高さのまま
     const overTop = fontPx(fit, 24);
-    const pinTop = drumRimY(pinX, fit, true) - overTop;
-    const pinBot = drumRimY(pinX, fit, false);
+    const pinTop = surfaceY(pinX, y) - overTop;
+    const pinBot = surfaceY(pinX, y + h);
     ctx.fillRect(pinX - (fontPx(fit, 10) * cosPin) / 2, pinTop, Math.max(3, fontPx(fit, 10) * cosPin), pinBot - pinTop);
-    // 竿の上の帯の位置は、弧に沿った胴の面の中の割合で決める (中央で弓なりに上がる。T2-16 その3-4)
-    const spanTop = drumRimY(pinX, fit, true);
-    const spanBot = drumRimY(pinX, fit, false);
-    const onSurface = (rawY: number): number => spanTop + ((rawY - y) / h) * (spanBot - spanTop);
     for (let i = 0; i < s.sections; i++) {
-      const py = onSurface(drumSectionPinY(i, s.sections));
+      // 糸の始まりの灰色の印も surfaceY で決める (T2-16 その5)
+      const py = surfaceY(pinX, drumSectionPinY(i, s.sections));
       ctx.fillStyle = COLORS.steel;
       ctx.fillRect(pinX - fontPx(fit, 2) * cosPin, py - fontPx(fit, 3), Math.max(4, fontPx(fit, 12) * cosPin), fontPx(fit, 6));
       // 巻いている帯のピンには糸の束が掛かる
@@ -249,11 +254,10 @@ export function drawDrum(
   }
 
   // 結び目 (巻き終えた帯の区画のピンの位置) + 結ぶ演出の輪。ピンと同じ角度で回る (T2-10 追加修正 b)
-  const knotTop = cosPin > 0 ? drumRimY(pinX, fit, true) : 0;
-  const knotBot = cosPin > 0 ? drumRimY(pinX, fit, false) : 1;
   for (let i = 0; i < s.sections; i++) {
     const kx = pinX;
-    const ky = cosPin > 0 ? knotTop + ((drumSectionY(i, s.sections) + h / s.sections / 2 - y) / h) * (knotBot - knotTop) : drumSectionY(i, s.sections) + h / s.sections / 2;
+    // 結び目も surfaceY で決める (T2-16 その5)
+    const ky = cosPin > 0 ? surfaceY(pinX, drumSectionPinY(i, s.sections)) : drumSectionPinY(i, s.sections);
     const onFront = cosPin > 0;
     if ((i < s.current || s.phase === 'done') && onFront) {
       drawKnot(ctx, fit, kx, ky, base);
@@ -277,15 +281,6 @@ export function drawDrum(
   }
 }
 
-/** ドラムの縁の楕円の弧の y (正面から見た x での。top は上の縁・false は下の縁。中央がいちばん膨らむ。T2-16 その3-4) */
-export function drumRimY(x: number, fit: StageFit, top: boolean): number {
-  const { x: dx, y, w, h } = DRUM_AREA;
-  const cx = dx + w / 2;
-  const radius = (w + DRUM_BULGE * 2) / 2;
-  const ry = fontPx(fit, 12);
-  const f = Math.sqrt(Math.max(0, 1 - ((x - cx) / radius) ** 2));
-  return top ? y - ry * f : y + h + ry * f;
-}
 
 /** 帯 i のピンの y (ドラムの左の縁に、帯ごとの区画の高さ) */
 export function drumSectionPinY(i: number, sections: number): number {
@@ -411,9 +406,11 @@ export function drawTensionLamp(ctx: CanvasRenderingContext2D, fit: StageFit, s:
 }
 
 /**
- * 本物らしいハサミを描く (T2-16 その4b)。白い円の土台は無く、銀色の刃 2 枚と
- * 濃い色の輪の持つ手 2 つ。cutReady (切れる所) では刃を大きく開き、openK (0〜1) で
- * 閉じる動きを表す (0 で閉じた状態)。支点は pos、刃は下向き。
+ * 本物らしいハサミを描く (T2-16 その5・写真と同じ形と向き)。縦向きで、銀色の細長い刃 2 枚が上、
+ * 支点に赤い丸いねじ、下に黒い楕円の輪の持つ手 2 つが左右に並ぶ。
+ * 閉じた形 (置き場所と、引っぱっているが切る所の外) では 2 枚の刃が重なって 1 本に見える。
+ * cutReady (切れる所) では 2 枚の刃が X の形に開く (ねじを中心に左右へ 17.5 度ずつ)。
+ * openK (0〜1) は離したあとの閉じる動きで、開いた形から閉じた形へ戻す。
  */
 export function drawScissors(
   ctx: CanvasRenderingContext2D,
@@ -423,8 +420,9 @@ export function drawScissors(
   openK: number,
 ): void {
   const u = fontPx(fit, 1); // 論理 1px
-  // 刃の開き角 (ラジアンの半分)。ふだんは少し開く・切れる所では大きく開く
-  const open = cutReady ? 0.38 : 0.14 * openK;
+  // 刃の開き角 (ラジアン)。切れる所で X に開き、閉じる動きで 0 に戻る
+  const angle = (17.5 * Math.PI) / 180;
+  const open = cutReady ? angle : angle * Math.max(0, Math.min(1, openK));
   // 回転は rotate を使わず座標を回して計算する (テストの偽 ctx に rotate は無い)
   const rot = (x: number, y: number, a: number): { x: number; y: number } => ({
     x: x * Math.cos(a) - y * Math.sin(a),
@@ -432,38 +430,45 @@ export function drawScissors(
   });
   ctx.save();
   ctx.translate(pos.x, pos.y);
-  // 刃 2 枚 (支点から下外へ。銀色の細長い形)
+  // 刃 2 枚 (支点から上へ。細長く先がとがる。閉じた形は重なる)
   for (const side of [-1, 1]) {
     const a = side * open;
-    const p1 = rot(-3.5 * u, 0, a);
-    const p2 = rot(3.5 * u, 0, a);
-    const p3 = rot(0.8 * u, SCISSORS_TIP, a);
-    const p4 = rot(-0.8 * u, SCISSORS_TIP, a);
+    const p = (x: number, y: number): { x: number; y: number } => rot(x * u, y * u, a);
+    const b1 = p(-3.5, 0);
+    const w1 = p(-1.8, -27);
+    const tip = p(0, -53);
+    const w2 = p(1.8, -27);
+    const b2 = p(3.5, 0);
     ctx.fillStyle = COLORS.steel;
     ctx.strokeStyle = COLORS.sumiSub;
-    ctx.lineWidth = 1.5 * u;
+    ctx.lineWidth = 1.2 * u;
     ctx.beginPath();
-    ctx.moveTo(p1.x, p1.y);
-    ctx.lineTo(p2.x, p2.y);
-    ctx.lineTo(p3.x, p3.y);
-    ctx.lineTo(p4.x, p4.y);
+    ctx.moveTo(b1.x, b1.y);
+    ctx.lineTo(w1.x, w1.y);
+    ctx.lineTo(tip.x, tip.y);
+    ctx.lineTo(w2.x, w2.y);
+    ctx.lineTo(b2.x, b2.y);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
   }
-  // 支点のねじ
-  ctx.beginPath();
-  ctx.arc(0, 0, 3.5 * u, 0, Math.PI * 2);
-  ctx.fillStyle = COLORS.sumiSub;
-  ctx.fill();
-  // 持つ手の輪 2 つ (支点の上・左右に開く)
+  // 持ち手: 支点から下へ黒い短い軸と、楕円の輪 2 つ (左右に並ぶ。開くとさらに左右へ開く)
+  const ringX = (10 + 5 * (open / angle)) * u;
   for (const side of [-1, 1]) {
-    const c = rot(side * 9 * u, -26 * u, side * open * 0.8);
-    ctx.beginPath();
-    ctx.arc(c.x, c.y, 9 * u, 0, Math.PI * 2);
     ctx.strokeStyle = COLORS.sumi;
-    ctx.lineWidth = 5 * u;
+    ctx.lineWidth = 4.5 * u;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(side * ringX, 15 * u);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse(side * ringX, 26 * u, 9.5 * u, 12.5 * u, 0, 0, Math.PI * 2);
     ctx.stroke();
   }
+  // 支点の赤い丸いねじ (いちばん上に重ねる)
+  ctx.beginPath();
+  ctx.arc(0, 0, 4 * u, 0, Math.PI * 2);
+  ctx.fillStyle = COLORS.shu;
+  ctx.fill();
   ctx.restore();
 }
