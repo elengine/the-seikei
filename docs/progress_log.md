@@ -1613,3 +1613,8 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - 時計の表記「0:49/0:33」(隙間なし) + 操作欄の幅に「0:00/0:00 超過」が1行で入る大きさ (min(40, 幅/7)・下限 20)。base.css の font-size は削除 (JS が設定)。
 - 制限時間: お題開始時に全帯の範囲を決める (1本目は中心 50・レベル2/3 は帯ごとに移動・20〜80 に収める)。制限時間 = 各帯を範囲の TIME_ANCHOR (params・今は 0.5 = 中心) の速さで巻いた時間の合計。TIME_MARGIN の掛け算は廃止。isValidResume は ranges を必須に。
 - テスト 1089 件 (check 0・build OK)。実機で時計の新表記・1分00秒の制限時間・ハサミの浮き上げと刃先での切断→結び→次の帯を確認。
+
+## 2026-10-05 T1-21 (v0.3.17)
+- T1-21a (e703989): 上の縞のにじみ = #app::before (position fixed) で safe area の高さ+4px を地の色 (kinari) の無地で埋め、縞はその下に。index.html に apple-mobile-web-app-capable と status-bar-style default を追加。回転のずれ = html・body を overflow hidden + 100dvh、#app を position fixed inset 0 にし、大きさの変化のたびに resetDocumentScroll (通知のフレーム・1フレーム後・300ms 後の scrollTo(0,0))。installScrollReset を main.ts で登録。Android・PC は safe area が 0 のため見た目はほぼ変わらない (縞が 4px 下がるのみ)。
+- T1-21b (80af280): 版の行を .home__titles の外 (見出しの下) に出して flex-basis: 100% の幅いっぱいの行に。版の番号 (.home__version-num) と日付 (.home__version-date) の2つの nowrap 要素に分け、「(」の前でだけ折り返す。
+- テスト 1092 件 (check 0・build OK)。実機 (ビルド 0.3.17) で版の行・#app fixed・::before・resize で scrollTo 3回を確認。iPhone 実機での確認は管理者。
