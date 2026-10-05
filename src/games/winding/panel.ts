@@ -163,14 +163,15 @@ export function createWindingPanel(
       }
       let size = clockFontSize(w, textW);
       time.style.fontSize = `${size}px`;
-      // 念のため、「0:00/0:00 超過」の形そのもので収まりを測り、85% を超えていたら 1px ずつ縮める
-      // (文字の大きさごとに描画の幅が比例しないため、換算ではなく実測で決める。T2-16 その7)
+      // 念のため、「0:00/0:00 超過」の形そのもので収まりを測り、内側の幅の 82% を超えていたら 1px ずつ縮める
+      // (文字の大きさごとに描画の幅が比例しない + 枠の拡縮で幅が少し揺れるため、85% より狭い 82% を目標にして
+      //  どんなときも 85% 以下・右に 15% 以上の余白を守る。T2-16 その7)
       if (typeof range.getBoundingClientRect === 'function') {
         time.textContent = '0:00/0:00 超過';
         range.selectNodeContents(time);
         let actual = range.getBoundingClientRect().width;
         let guard = 0;
-        while (actual > w * 0.85 && size > 20 && guard < 21) {
+        while (actual > w * 0.82 && size > 20 && guard < 21) {
           size -= 1;
           time.style.fontSize = `${size}px`;
           range.selectNodeContents(time);
