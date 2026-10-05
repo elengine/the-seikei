@@ -1618,3 +1618,9 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - T1-21a (e703989): 上の縞のにじみ = #app::before (position fixed) で safe area の高さ+4px を地の色 (kinari) の無地で埋め、縞はその下に。index.html に apple-mobile-web-app-capable と status-bar-style default を追加。回転のずれ = html・body を overflow hidden + 100dvh、#app を position fixed inset 0 にし、大きさの変化のたびに resetDocumentScroll (通知のフレーム・1フレーム後・300ms 後の scrollTo(0,0))。installScrollReset を main.ts で登録。Android・PC は safe area が 0 のため見た目はほぼ変わらない (縞が 4px 下がるのみ)。
 - T1-21b (80af280): 版の行を .home__titles の外 (見出しの下) に出して flex-basis: 100% の幅いっぱいの行に。版の番号 (.home__version-num) と日付 (.home__version-date) の2つの nowrap 要素に分け、「(」の前でだけ折り返す。
 - テスト 1092 件 (check 0・build OK)。実機 (ビルド 0.3.17) で版の行・#app fixed・::before・resize で scrollTo 3回を確認。iPhone 実機での確認は管理者。
+
+## 2026-10-06 T2-16 その7 (v0.3.18)
+- メイン (03d5cb6): ①時計の大きさ = 内側の幅の 85% 以下に「0:00/0:00 超過」が収まる大きさ (20px 以上・40px 以下)。②TIME_ANCHOR 0.5→0.6 (管理者の指定)。③巻き量 = 操作欄でいちばん目立つ表示 (32px 太字 + 0〜100% の横長の帯)。100% は藍の地に白の文字 + 「巻き終えました」。④buzzer (440Hz・600ms) を巻き量 100% の瞬間に1回鳴らす (同じ帯で2回鳴らさない・音を切る設定に従う)。
+- 時計の実測への変更 (f123aca〜67cd5a2): 最初の測定でフォント未読込→85%超えが残る / flex で offsetWidth が常にコンテナ幅 / ゲーム枠の transform で clientWidth が実寸より大きい / 文字サイズごとに描画の幅が比例しない — の4点を修正し、最終形は「見た目の幅 (getBoundingClientRect) で 40px のサンプル文字を測って換算 → 実測で内側の幅の 82% を超えたら 1px ずつ縮める」。
+- 実機測定 (915×412 を含む5つの大きさ・超過の形): はみ出し 0・右の余白 16.4% / 19.2% / 15.8% / 18.2% / 20.9% (すべて 15% 以上)。巻き量 100% の表示 (藍の地に白 + 巻き終えました + 白い帯) とブザー 1 回を確認 (発振器 1 個・追加なし = 2 回鳴らない)。
+- テスト 1098 件 (check 0・build OK)。
