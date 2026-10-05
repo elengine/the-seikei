@@ -124,8 +124,6 @@ export function createWindingPanel(
     return div;
   }
 
-  let clockWidthCache = -1;
-  let clockSizeCache = 40;
   return {
     update(s: WindingState): void {
       section.textContent = '';
@@ -150,17 +148,14 @@ export function createWindingPanel(
       time.className = over ? 'winding-panel__clock winding-panel__clock--over' : 'winding-panel__clock';
       section.appendChild(time);
       // 文字の大きさは、内側の幅の 85% 以下に「0:00/0:00 超過」が収まる大きさ (40px を上限・20px 未満にしない。T2-16 その7)。
-      // 実際の文字の幅を 40px で測って (jsdom では測れないので 0 → 上限)、幅が変わったときだけ計算し直す
+      // 実際の文字の幅を 40px で毎回測る (フォントの読み込み後も正しくなる。jsdom では測れないので 0 → 上限)
       const w = section.clientWidth;
-      if (w !== clockWidthCache) {
-        time.style.fontSize = '40px';
-        const prevText = time.textContent;
-        time.textContent = '0:00/0:00 超過'; // いちばん幅が広がる形で測る
-        clockSizeCache = clockFontSize(w, time.offsetWidth);
-        time.textContent = prevText;
-        clockWidthCache = w;
-      }
-      if (time.style.fontSize !== `${clockSizeCache}px`) time.style.fontSize = `${clockSizeCache}px`;
+      time.style.fontSize = '40px';
+      const prevText = time.textContent;
+      time.textContent = '0:00/0:00 超過'; // いちばん幅が広がる形で測る
+      const size = clockFontSize(w, time.offsetWidth);
+      time.textContent = prevText;
+      time.style.fontSize = `${size}px`;
       meter.update(s.tension, s.range);
       pedal.setEnabled(s.phase === 'winding', pedalReason(s.phase));
       // 横木の位置を状態に合わせる (setValue は onChange を呼ばないので、繰り返しにはならない)
