@@ -40,6 +40,9 @@ export function RANGE_REACHABLE(): { min: number; max: number } {
   return { min: 10, max: 100 };
 }
 
+/** 制限時間の計算で使う、範囲の中の位置 (0.5 = 中心。あとで 0.6・0.7 に変えられる。T2-16 その6) */
+export const TIME_ANCHOR = 0.5;
+
 /** 張りの流れ・引っかかりのパラメータ (T2-09a・T2-16a・T2-16 その3)。引っかかりは +15〜25・0.5秒で上がり 2〜3秒で戻る (起きやすさはレベルで変わる) */
 export function DRIFT(level: Level): DriftParams {
   const common = { snagSizeMin: 15, snagSizeMax: 25, snagRiseMs: 500, snagRecoverMinMs: 2000, snagRecoverMaxMs: 3000 }; // 0.5秒で上がり 2〜3秒で戻る (T2-16 その3)
@@ -54,7 +57,6 @@ export function NOISE_AMP(level: Level): number {
 }
 
 /** 目標の時間の余裕 (適正の上端で巻くときの速さに掛ける。T2-16b) */
-export const TIME_MARGIN = 1.1;
 
 /** 引っかかりで上の端を超えても切れない猶予の量 (張りが上の端 + この値を超えたら数える。T2-16 その3) */
 export const SNAG_BREAK_MARGIN = 8;

@@ -55,8 +55,11 @@ export const DIAL_R = 28;
 /** ハサミのアイコンの大きさ (論理座標。64px 以上。T2-16c) */
 export const SCISSORS_SIZE = 96;
 
-/** 引っぱっているあいだ、ハサミは指の位置よりこれだけ上に出る (クリールの糸巻きと同じ。T2-16 その4b) */
-export const SCISSORS_LIFT = SCISSORS_SIZE / 2 + 24;
+/** 引っぱっているあいだ、ハサミは指の位置よりこれだけ上に出る (ハサミの高さぶん + 24。持ち手の輪まで指の上に出る。T2-16 その6) */
+export const SCISSORS_LIFT = SCISSORS_SIZE + 24;
+
+/** 支点 (ねじ) から刃の先 (ハサミの上の端) までの高さ。切るかどうかの判定はこの刃先の位置で行う (T2-16 その6) */
+export const SCISSORS_TIP = 53;
 
 /** ドラムの楕円の横ふくらみ (左右の端からはみ出す量・論理 px。T2-16 その3-4) */
 export const DRUM_BULGE = 10;

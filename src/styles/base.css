@@ -1241,7 +1241,7 @@ button {
 
 .winding-panel__clock {
   flex: 1 1 100%; /* 制限時間は 1 行を使って大きく見せる (PU-14a) */
-  font-size: 40px;
+  /* 文字の大きさは JS が操作欄の幅に合わせて入れる (40px を上限・20px 未満にしない。T2-16 その6) */
   font-weight: bold;
   line-height: 1.2;
   white-space: nowrap;

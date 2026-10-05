@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { init, reduce, qualities, starsOf, isValidResume, lastTapResult, bandTargetMs, targetMsOf } from './logic';
+import { TIME_ANCHOR } from './params';
 import { resultOf, guideFor } from './messages';
 import type { WindingState, Level } from './logic';
 import { paramsOf, SECTION_LENGTH, MAX_SPEED, TENSION, DRIFT, NOISE_AMP, RANGE_CENTER, RANGE_WIDTH, RANGE_REACHABLE, YARN_FEEL } from './params';
@@ -317,11 +318,11 @@ describe('winding logic T2-09a B (目標の時間と星)', () => {
     expect(starsOf(mk(0.5, 10000))).toBe(1);
   });
 
-  it('16. 目標の時間は、帯ごとに足した合計 (T2-16b で「1本あたりの秒数 × 帯の数」から変わった)。summary に出る', () => {
+  it('16. 目標の時間は、はじめに全帯ぶん決まっている (T2-16 その6)。summary に出る', () => {
     let s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 1 });
-    // 最初は1帯ぶん。結んで次の帯へ行くごとに足す (初級は位置が動かないので同じ値)
-    const one = bandTargetMs(1, { max: s.range.max });
-    expect(targetMsOf(s)).toBeCloseTo(one, 6);
+    // 始めるときに全帯ぶんの合計 (レベル1 は全帯が同じ範囲なので 3帯ぶん同じ値)
+    const one = bandTargetMs(s.ranges[0]!);
+    expect(targetMsOf(s)).toBeCloseTo(one * 3, 6);
     s = { ...s, phase: 'cutting' };
     s = reduce(s, { type: 'cut' });
     s = { ...s, phase: 'cutting' };
@@ -689,70 +690,97 @@ describe('T2-16 その3: 張り≒ペダルの位置・引っかかりで切れ�
   });
 });
 
-describe('winding logic T2-16b (制限時間: 適正の上端で達成できる時間・T2-16 その3 の張りの式)', () => {
+describe('winding logic T2-16 その6 (制限時間: 各帯の範囲の中心の張りで巻いた時間の合計)', () => {
   /** 張り tension になるペダルの値 (張り = base + perPedal × pedal) */
   const pedalFor = (tension: number): number => (tension - TENSION.base) / TENSION.perPedal;
-
-  /** 1本目の帯を pedal で巻き切るまでの時間 (ms)。糸が切れて巻き切れなければ -1 */
-  const windOneBand = (level: Level, seed: number, pedal: number): number => {
-    let s = init({ level, patternId: 'x', sections: 3, seed });
-    s = reduce(s, { type: 'start' });
-    s = reduce(s, { type: 'setPedal', value: pedal });
-    for (let i = 0; i < 800 && s.phase === 'winding'; i++) {
-      s = reduce(s, { type: 'tick', dtMs: 100 });
-    }
-    return s.phase === 'cutting' ? s.elapsedMs : -1;
+  /** 帯の計算の基準になる張り (範囲の TIME_ANCHOR の位置。0.5 なら中心) */
+  const anchorOf = (range: { min: number; max: number }): number =>
+    range.min + (range.max - range.min) * TIME_ANCHOR;
+  /** その張りで最後まで巻いたときの時間 (ms) */
+  const bandTime = (range: { min: number; max: number }): number => {
+    const speed = (pedalFor(anchorOf(range)) / 100) * TENSION.maxSpeed;
+    return (SECTION_LENGTH / speed) * 1000;
   };
 
-  it('1. 範囲の上の端ちょうどの速さで巻くと、目標の時間の 91% ほどで終わる (レベル1)', () => {
-    const max = 50 + RANGE_WIDTH(1) / 2;
-    const pedal = pedalFor(max);
-    let ms = -1;
-    for (let seed = 1; seed <= 60 && ms < 0; seed++) ms = windOneBand(1, seed, pedal);
-    expect(ms, '切れずに巻き切れる種').toBeGreaterThan(0);
-    const ratio = ms / bandTargetMs(1, { max });
-    expect(ratio, `目標に対する割合 ${ratio.toFixed(3)}`).toBeGreaterThan(0.85);
-    expect(ratio).toBeLessThan(0.95); // 1 / 1.1 = 0.909 ≒ 91%
-  });
-
-  it('2. 範囲の下の端の速さでは目標の時間を超える (下の端では足りない。レベル2)', () => {
-    const min = 50 - RANGE_WIDTH(2) / 2;
-    const ms = windOneBand(2, 1, pedalFor(min)); // 下端より上には行かないぶん、切れずに巻ける
-    expect(ms, '巻き切れる').toBeGreaterThan(0);
-    expect(ms).toBeGreaterThan(bandTargetMs(2, { max: 50 + RANGE_WIDTH(2) / 2 }));
-  });
-
-  it('3. どのレベルでも、範囲の中で巻けば目標の時間内に終わる道がある', () => {
+  it('1. お題を始めるときに帯の数だけ範囲が決まっていて、どの範囲も 20〜80 に収まる (1本目は中心 50)', () => {
     for (const level of [1, 2, 3] as Level[]) {
-      const max = 50 + RANGE_WIDTH(level) / 2;
-      const pedal = pedalFor(max) - 3; // 上端の少し下 (流れのぶん) → 切れにくい
-      let ms = -1;
-      for (let seed = 1; seed <= 80 && ms < 0; seed++) ms = windOneBand(level, seed, pedal);
-      expect(ms, `レベル${level} で切れずに巻き切れる種`).toBeGreaterThan(0);
-      expect(ms, `レベル${level} の目標内`).toBeLessThanOrEqual(bandTargetMs(level, { max }));
+      const s = init({ level, patternId: 'x', sections: 3 + level, seed: 7 });
+      expect(s.ranges.length, `レベル${level} の範囲の数`).toBe(3 + level);
+      for (const r of s.ranges) {
+        expect(r.min, `レベル${level} の下の端`).toBeGreaterThanOrEqual(20);
+        expect(r.max, `レベル${level} の上の端`).toBeLessThanOrEqual(80);
+      }
+      expect(s.ranges[0]!.center, '1本目は真ん中').toBe(50);
+      expect(s.range).toEqual(s.ranges[0]);
     }
   });
 
-  it('4. 目標は帯ごとに足す (帯が始まるときに計算する)。結んで次の帯へ行くと目標が増える', () => {
-    const level = 1;
-    let s: WindingState = { ...init({ level, patternId: 'x', sections: 3, seed: 1 }), phase: 'cutting' };
-    expect(s.targetMs).toBeCloseTo(bandTargetMs(level, { max: s.range.max }), 6);
-    const before = s.targetMs;
-    s = reduce(s, { type: 'cut' });
-    expect(s.current).toBe(1);
-    expect(s.targetMs).toBeGreaterThan(before);
-    expect(s.targetMs).toBeCloseTo(before + bandTargetMs(level, { max: s.range.max }), 6);
+  it('2. 制限時間 = 各帯の(帯の長さ ÷ 中心の張りの速さ)の合計', () => {
+    const s = init({ level: 2, patternId: 'x', sections: 5, seed: 3 });
+    const sum = s.ranges.reduce((acc, r) => acc + bandTime(r), 0);
+    expect(s.targetMs).toBeCloseTo(sum, 6);
   });
 
-  it('5. isValidResume は targetMs を必須にする (足した目標を持たない古い形の保存は再開しない)', () => {
+  /** 全帯を pedal で巻き切るまでの時間 (ms)。切れたら -1 */
+  const windAll = (level: Level, seed: number, pedal: number): number => {
+    const s0 = init({ level, patternId: 'x', sections: 3, seed });
+    let s = reduce(s0, { type: 'start' });
+    s = reduce(s, { type: 'setPedal', value: pedal });
+    let guard = 0;
+    while (s.phase !== 'done' && s.phase !== 'broken' && guard < 1200) {
+      s = reduce(s, { type: 'tick', dtMs: 200 });
+      if (s.phase === 'cutting') {
+        s = reduce(s, { type: 'cut' });
+        s = reduce(s, { type: 'setPedal', value: pedal }); // 帯が変わるとペダルは 0 に戻るので、もう一度踏む
+      }
+      guard += 1;
+    }
+    return s.phase === 'done' ? s.elapsedMs : -1;
+  };
+
+  it('3. 中心の張りちょうどで巻くと、制限時間ちょうどで終わる', () => {
+    const s0 = init({ level: 1, patternId: 'x', sections: 3, seed: 1 });
+    const pedal = pedalFor(s0.ranges[0]!.center);
+    let ms = -1;
+    for (let seed = 1; seed <= 60 && ms < 0; seed++) ms = windAll(1, seed, pedal);
+    expect(ms, '切れずに巻き切れる種').toBeGreaterThan(0);
+    expect(ms, '制限時間ちょうど').toBeCloseTo(s0.targetMs, 0);
+  });
+
+  it('4. 中心より強めに巻けば制限時間より早く終わる', () => {
+    const s0 = init({ level: 1, patternId: 'x', sections: 3, seed: 1 });
+    const pedal = pedalFor(s0.ranges[0]!.center) + 5;
+    let ms = -1;
+    for (let seed = 1; seed <= 60 && ms < 0; seed++) ms = windAll(1, seed, pedal);
+    expect(ms, '切れずに巻き切れる種').toBeGreaterThan(0);
+    expect(ms, '制限時間より早い').toBeLessThan(s0.targetMs);
+  });
+
+  it('5. レベル2・3 では帯ごとに範囲の位置が動く (レベル1 は動かない)。結んで次の帯へ行くと今の範囲が切り替わる', () => {
+    const s1 = init({ level: 1, patternId: 'x', sections: 3, seed: 5 });
+    expect(s1.ranges.every((r) => r.center === 50), 'レベル1 は動かさない').toBe(true);
+    const s2 = init({ level: 2, patternId: 'x', sections: 5, seed: 5 });
+    const s = reduce({ ...s2, phase: 'cutting' }, { type: 'cut' });
+    expect(s.current).toBe(1);
+    expect(s.range).toEqual(s2.ranges[1]);
+    // レベル2 は位置が動くことがある (種によっては同じ場合もある) ので、動く種も確かめる
+    let moved = false;
+    for (let seed = 1; seed <= 40 && !moved; seed++) {
+      const st = init({ level: 2, patternId: 'x', sections: 5, seed });
+      moved = st.ranges.some((r) => r.center !== 50);
+    }
+    expect(moved, 'レベル2 で範囲が動く種がある').toBe(true);
+  });
+
+  it('6. isValidResume は ranges を必須にする (持たない古い形の保存は再開しない)', () => {
     const s = init({ level: 1, patternId: 'x', sections: 3, seed: 1 });
     expect(isValidResume(s)).toBe(true);
     const old: Record<string, unknown> = { ...s };
-    delete old.targetMs;
+    delete old.ranges;
     expect(isValidResume(old as never)).toBe(false);
   });
 
-  it('6. 結果の「目標」は、足した目標の時間 (summary と resultLines に出る)', () => {
+  it('7. 結果の「目標」は、足した目標の時間 (summary と resultLines に出る)', () => {
     const s: WindingState = { ...init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 1 }), targetMs: 90000, elapsedMs: 95000 };
     expect(targetMsOf(s)).toBe(90000);
     const r = resultOf(s, 'standalone', '2026-09-30T19:00:00+09:00');
@@ -760,4 +788,4 @@ describe('winding logic T2-16b (制限時間: 適正の上端で達成できる�
     expect(line).toContain('1分35秒'); // 巻いた時間
     expect(line).toContain('(目標 1分30秒)');
   });
-});
+})

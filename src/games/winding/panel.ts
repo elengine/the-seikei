@@ -118,10 +118,15 @@ export function createWindingPanel(
       section.appendChild(part(`巻き量 ${pct}%`));
       const target = targetMsOf(s);
       const over = s.elapsedMs > target;
-      // 制限時間は大きく見せる。目標を超えたら朱の文字にして「超過」を添える (色だけに頼らない)
-      const time = part(`${clockText(s.elapsedMs)} / ${clockText(target)}${over ? ' 超過' : ''}`);
+      // 制限時間は大きく見せる。目標を超えたら朱の文字にして「超過」を添える (色だけに頼らない)。
+      // 表記は「0:49/0:33」とスラッシュの前後の隙間なし (T2-16 その6)
+      const time = part(`${clockText(s.elapsedMs)}/${clockText(target)}${over ? ' 超過' : ''}`);
       time.className = over ? 'winding-panel__clock winding-panel__clock--over' : 'winding-panel__clock';
       section.appendChild(time);
+      // 文字の大きさは、操作欄の幅に「0:00/0:00 超過」が1行で入る大きさ (40px を上限・20px 未満にしない。T2-16 その6)
+      const w = section.clientWidth;
+      const size = Math.max(20, Math.min(40, Math.floor(w / 7)));
+      if (time.style.fontSize !== `${size}px`) time.style.fontSize = `${size}px`;
       meter.update(s.tension, s.range);
       pedal.setEnabled(s.phase === 'winding', pedalReason(s.phase));
       // 横木の位置を状態に合わせる (setValue は onChange を呼ばないので、繰り返しにはならない)

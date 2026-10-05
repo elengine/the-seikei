@@ -133,7 +133,7 @@ describe('PU-05c: ドラム巻きの操作欄の並び', () => {
     expect(line.textContent).toContain('帯 1/5');
     expect(line.textContent).toContain('巻き量');
     expect(line.textContent).not.toContain('巻いた長さ');
-    expect(line.textContent).toMatch(/\d:\d\d \/ \d:\d\d/);
+    expect(line.textContent).toMatch(/\d:\d\d\/\d:\d\d/); // 「0:49/0:33」と隙間なし (T2-16 その6)
     expect(host.querySelector('.winding-panel__time')).toBeNull();
     p.destroy();
   });
@@ -215,17 +215,37 @@ describe('PU-14a: ドラム巻きの操作欄 (戻す・踏み込む・速さ・
     p.destroy();
   });
 
-  it('制限時間 (経過 / 目標) は winding-panel__clock。目標以内は超過の印なし。超えたら winding-panel__clock--over と「超過」の文字', () => {
+  it('制限時間の表記は「0:49/0:33」とスラッシュの前後の隙間なし (見切れないように。T2-16 その6)。目標以内は超過の印なし。超えたら --over と「超過」', () => {
     const { host, p } = mount();
     const base = init({ level: 1, patternId: 'p-pin-kon', sections: 5, seed: 1 });
     p.update({ ...base, elapsedMs: 1000 });
     let clock = host.querySelector('.winding-panel__clock')!;
     expect(clock.classList.contains('winding-panel__clock--over')).toBe(false);
     expect(clock.textContent).not.toContain('超過');
+    expect(clock.textContent!.trim()).toMatch(/^\d+:\d\d\/\d+:\d\d$/);
     p.update({ ...base, elapsedMs: 99 * 60 * 1000 });
     clock = host.querySelector('.winding-panel__clock')!;
     expect(clock.classList.contains('winding-panel__clock--over')).toBe(true);
     expect(clock.textContent).toContain('超過');
+    p.destroy();
+  });
+
+  it('時計の文字の大きさは、操作欄の幅に「0:00/0:00 超過」が1行で入る大きさ (40px を上限・20px 未満にしない。T2-16 その6)', () => {
+    document.body.innerHTML = '';
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const p = createWindingPanel(host, { terms, onAction: () => undefined, onNotice: () => undefined });
+    const base = init({ level: 1, patternId: 'p-pin-kon', sections: 5, seed: 1 });
+    // 幅 280px → 280/7 = 40 → 40px。幅 140px → 20px (下限)
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, value: 280 });
+    p.update({ ...base, elapsedMs: 1000 });
+    let clock = host.querySelector('.winding-panel__clock') as HTMLElement;
+    expect(clock.style.fontSize).toBe('40px');
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, value: 140 });
+    p.update({ ...base, elapsedMs: 1000 });
+    clock = host.querySelector('.winding-panel__clock') as HTMLElement;
+    expect(clock.style.fontSize).toBe('20px');
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, value: 0 });
     p.destroy();
   });
 
@@ -242,11 +262,12 @@ describe('PU-14a: ドラム巻きの操作欄 (戻す・踏み込む・速さ・
     p.destroy();
   });
 
-  it('base.css: 制限時間は 40px 以上の太字。超過は朱 (shu)', () => {
+  it('base.css: 制限時間は太字で nowrap。超過は朱 (shu)。大きさは JS が操作欄の幅に合わせて入れる (T2-16 その6)', () => {
     const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
     const clock = css.match(/\n\.winding-panel__clock\s*\{([^}]*)\}/)![1]!;
-    expect(parseInt(clock.match(/font-size: (\d+)px/)![1]!, 10)).toBeGreaterThanOrEqual(40);
+    expect(clock).not.toContain('font-size'); // 大きさは JS が幅に合わせて設定する
     expect(clock).toContain('font-weight: bold');
+    expect(clock).toContain('white-space: nowrap');
     expect(css.match(/\n\.winding-panel__clock--over\s*\{([^}]*)\}/)![1]).toContain('color: var(--c-shu)');
   });
 

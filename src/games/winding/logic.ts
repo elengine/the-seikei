@@ -8,7 +8,7 @@ import {
   SECTION_LENGTH, RANGE_WIDTH, RANGE_CENTER, RANGE_SHIFT_ON_SECTION, RANGE_REACHABLE, MAX_SPEED,
   DRIFT, NOISE_AMP, BREAK_RATE, TENSION, BREAK,
   MAX_TICK_MS, STARS3, STARS2, BREAK_EXTRA_STEP, BREAK_MAX_THREADS,
-  YARN_FEEL, SNAG_BREAK_MARGIN, SNAG_GRACE_MS, TIME_MARGIN,
+  YARN_FEEL, SNAG_BREAK_MARGIN, SNAG_GRACE_MS, TIME_ANCHOR,
 } from './params';
 import type { Level, YarnFeel } from './params';
 
@@ -31,7 +31,8 @@ export interface WindingState {
   /** 目標の時間の合計 (ms)。帯が始まるときに、その帯のぶんを足す (T2-16b) */
   targetMs: number;
   tension: number; // 最後に計算した張り(描画用)
-  range: { center: number; width: number; min: number; max: number }; // 適正範囲。幅はレベルごとに固定・位置は帯が変わるときだけ動く (T2-16a)
+  range: { center: number; width: number; min: number; max: number }; // 今の帯の適正範囲 (ranges[current] と同じ。T2-16 その6)
+  ranges: Array<{ center: number; width: number; min: number; max: number }>; // 帯ごとの適正範囲。お題を始めるときに全部決める (制限時間を最初に出すため。T2-16 その6)
   snagRaised: boolean; // 直前の tick で引っかかった (メッセージ用。T2-09a)
   /** 引っかかりで張りが上の端 + 8 を超えている時間の合計 (ms)。下がると 0 に戻す (T2-16 その3) */
   snagOverMs: number;
@@ -71,11 +72,35 @@ export function makeRange(center: number, width: number): { center: number; widt
   return { center, width, min: center - width / 2, max: center + width / 2 };
 }
 
+/** 帯ごとの適正範囲を先に全部決める (T2-16 その6)。1本目は中心 50。レベル2・3 は帯ごとに位置が動く。
+ * 範囲は 20〜80 に収める (下の端が 20 を下回らない・上の端が 80 を超えない) */
+export function makeRanges(level: Level, sections: number, rng: number): Array<{ center: number; width: number; min: number; max: number }> {
+  const width = RANGE_WIDTH(level);
+  const shift = RANGE_SHIFT_ON_SECTION(level);
+  // 位置の移動を丸める範囲に、20〜80 の制限を足す
+  const lo = Math.max(RANGE_CENTER(level).min, RANGE_REACHABLE().min, 20 + width / 2);
+  const hi = Math.min(RANGE_CENTER(level).max, RANGE_REACHABLE().max, 80 - width / 2);
+  let r = rng;
+  let center = 50;
+  const ranges: Array<{ center: number; width: number; min: number; max: number }> = [];
+  for (let i = 0; i < sections; i++) {
+    if (i > 0 && shift > 0) {
+      const [raw, r2] = nextFloat(r);
+      r = r2;
+      center = Math.min(hi, Math.max(lo, center + (raw * 2 - 1) * shift));
+    }
+    ranges.push(makeRange(center, width));
+  }
+  return ranges;
+}
+
 /** 新しいゲームの状態。phase 'ready'、current 0、各配列は 0 で埋める */
 export function init(opts: { level: Level; patternId: string; sections: number; seed: number; puzzleId?: string; feel?: YarnFeel }): WindingState {
   const sections = opts.sections;
-  // 範囲は乱数で決めない (T2-16a): 最初の帯の中心はメーターの中央 (50)・幅はレベルごとに固定
-  const range = makeRange(50, RANGE_WIDTH(opts.level));
+  // 帯ごとの範囲をお題を始めるときに全部決める (T2-16 その6)。1本目は中心 50・幅はレベルごとに固定。
+  // レベル2・3 は帯が変わるごとに位置が動く (動く幅は今の決まりのまま)。乱数は State の種から
+  const ranges = makeRanges(opts.level, sections, seedFrom(opts.seed + 1));
+  const range = ranges[0]!;
   return {
     level: opts.level,
     patternId: opts.patternId,
@@ -89,8 +114,9 @@ export function init(opts: { level: Level; patternId: string; sections: number; 
     okMs: new Array<number>(sections).fill(0),
     pedal: initPedal(seedFrom(opts.seed)),
     tension: TENSION.base,
-    targetMs: bandTargetMs(opts.level, range),
+    targetMs: ranges.reduce((acc, r) => acc + bandTargetMs(r), 0),
     range,
+    ranges,
     snagRaised: false,
     snagOverMs: 0,
     elapsedMs: 0,
@@ -142,19 +168,10 @@ export function reduce(s: WindingState, a: WindingAction): WindingState {
       if (s.current >= s.sections - 1) {
         return { ...s, phase: 'done' };
       }
-      // 次の帯へ。ペダルは 0 のまま。帯が変わるときだけ、範囲の位置が変わることがある (T2-16a)
-      const shift = RANGE_SHIFT_ON_SECTION(s.level);
-      // 目標の時間は帯ごとに足す (帯が始まるときに計算する。T2-16b)
-      if (shift <= 0) {
-        return { ...s, current: s.current + 1, phase: 'winding', targetMs: s.targetMs + bandTargetMs(s.level, s.range) };
-      }
-      const [raw, r1] = nextFloat(s.rng);
-      // 位置は RANGE_CENTER の中・ペダル 10〜100 で届く範囲 (RANGE_REACHABLE) に丸める
-      const lo = Math.max(RANGE_CENTER(s.level).min, RANGE_REACHABLE().min);
-      const hi = Math.min(RANGE_CENTER(s.level).max, RANGE_REACHABLE().max);
-      const center = Math.min(hi, Math.max(lo, s.range.center + (raw * 2 - 1) * shift));
-      const range = makeRange(center, RANGE_WIDTH(s.level));
-      return { ...s, current: s.current + 1, phase: 'winding', range, rng: r1, targetMs: s.targetMs + bandTargetMs(s.level, range) };
+      // 次の帯へ。ペダルは 0 のまま。範囲ははじめに決めていた次の帯のもの (T2-16 その6)
+      const next = s.ranges[s.current + 1];
+      if (next === undefined) return { ...s, phase: 'done' };
+      return { ...s, current: s.current + 1, phase: 'winding', range: next };
     }
   }
 }
@@ -255,11 +272,12 @@ export function qualities(s: WindingState): number[] {
   });
 }
 
-/** 帯 1 本の目標の時間 (ms) = 帯の長さ ÷ (適正の範囲の上の端の張りになるペダルの速さ) × TIME_MARGIN (T2-16b) */
-export function bandTargetMs(_level: Level, range: { max: number }): number {
-  const pedal = (range.max - TENSION.base) / TENSION.perPedal;
+/** 帯 1 本の目標の時間 (ms) = 帯の長さ ÷ (範囲の TIME_ANCHOR の位置の張りになるペダルの速さ) (T2-16 その6。今の TIME_MARGIN の掛け算はやめた) */
+export function bandTargetMs(range: { min: number; max: number }): number {
+  const anchor = range.min + (range.max - range.min) * TIME_ANCHOR;
+  const pedal = (anchor - TENSION.base) / TENSION.perPedal;
   const speed = (pedal / 100) * MAX_SPEED;
-  return (SECTION_LENGTH / speed) * TIME_MARGIN * 1000;
+  return (SECTION_LENGTH / speed) * 1000;
 }
 
 /** お題の目標の時間 (ms)。帯が始まるごとに足した合計 (T2-16b) */
@@ -317,6 +335,8 @@ export function isValidResume(x: unknown): x is WindingState {
   if (typeof o.snagOverMs !== 'number' || !(o.snagOverMs >= 0)) return false;
   // 目標の時間の合計 (T2-16b)。足した目標を持たない古い形の保存は再開しない
   if (typeof o.targetMs !== 'number' || !(o.targetMs >= 0)) return false;
+  // 帯ごとの範囲 (T2-16 その6)。持たない古い形の保存は再開しない
+  if (!Array.isArray(o.ranges) || o.ranges.length === 0) return false;
   // T2-14a: puzzleId のキーが無い古い形の保存は再開しない (job モードなどの空文字は許す)
   if (!('puzzleId' in o) || typeof o.puzzleId !== 'string') {
     return false;

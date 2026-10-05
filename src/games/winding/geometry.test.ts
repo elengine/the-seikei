@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { setLogicalHeight, logicalHeightFor, machineExtent, CREEL_AREA, CREEL_END_X, LOGICAL_W, LOGICAL_H, endPoint, hitEnd, toPx, fromPx, threadY, drumSectionY, tableY, TABLE_AREA, REED_X, DRUM_END_X, DRUM_AREA, pointOnPath, threadPath, PIN_RAIL_X, DIAL_X, DIAL_Y, DIAL_R, reedRect, reedThreadY, THREAD_SHEET_HALF, hitBrokenThread, THREAD_MARK_X, SCISSORS_SIZE, SCISSORS_LIFT, scissorsPos, scissorsHitsThread, REED_RISE, surfaceY, ARC_RISE, DRUM_BULGE } from './geometry';
+import { setLogicalHeight, logicalHeightFor, machineExtent, CREEL_AREA, CREEL_END_X, LOGICAL_W, LOGICAL_H, endPoint, hitEnd, toPx, fromPx, threadY, drumSectionY, tableY, TABLE_AREA, REED_X, DRUM_END_X, DRUM_AREA, pointOnPath, threadPath, PIN_RAIL_X, DIAL_X, DIAL_Y, DIAL_R, reedRect, reedThreadY, THREAD_SHEET_HALF, hitBrokenThread, THREAD_MARK_X, SCISSORS_SIZE, SCISSORS_LIFT, SCISSORS_TIP, scissorsPos, scissorsHitsThread, REED_RISE, surfaceY, ARC_RISE, DRUM_BULGE } from './geometry';
 
 const fit = { scale: 1, offsetX: 0, offsetY: 0 };
 
@@ -406,8 +406,8 @@ describe('T2-16 その4b (ハサミの置き場所と持ち上げ)', () => {
     expect(p.y).toBeGreaterThan(LOGICAL_H * 0.75); // 盤の下のほう
   });
 
-  it('2. 引っぱっているあいだ、ハサミは指の位置より半分の大きさ + 24px 上に出る', () => {
-    expect(SCISSORS_LIFT).toBe(SCISSORS_SIZE / 2 + 24);
+  it('2. 引っぱっているあいだ、ハサミは指の位置よりハサミの高さ + 24px 上に出る (持ち手の輪まで指の上。T2-16 その6)', () => {
+    expect(SCISSORS_LIFT).toBe(SCISSORS_SIZE + 24);
   });
 
   it('3. 当たり判定: 糸の束の上 (または近く) で true・離れると false', () => {
@@ -435,8 +435,10 @@ describe('T2-16 その5 (surfaceY ひとつの弧で表面の高さを決める)
     expect(surfaceY(cx, DRUM_AREA.y + DRUM_AREA.h)).toBeLessThan(surfaceY(cx - radius, DRUM_AREA.y + DRUM_AREA.h));
   });
 
-  it('2. ハサミの大きさは画面上 96 以上。持ち上げは半分の大きさ + 24', () => {
+  it('2. ハサミの大きさは画面上 96 以上。持ち上げはハサミの高さ + 24・刃先は高さの 50〜60% (T2-16 その6)', () => {
     expect(SCISSORS_SIZE).toBeGreaterThanOrEqual(96);
-    expect(SCISSORS_LIFT).toBe(SCISSORS_SIZE / 2 + 24);
+    expect(SCISSORS_LIFT).toBe(SCISSORS_SIZE + 24);
+    expect(SCISSORS_TIP).toBeGreaterThanOrEqual(SCISSORS_SIZE * 0.5);
+    expect(SCISSORS_TIP).toBeLessThanOrEqual(SCISSORS_SIZE * 0.6);
   });
 });
