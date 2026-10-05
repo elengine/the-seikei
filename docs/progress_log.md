@@ -1602,3 +1602,8 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - テストの偽 rAF・pedalControl は変更なし。実機では合成ポインタイベントに setPointerCapture が例外を出すため、実機確認時はページ側で無効化して確認した。
 - テスト 1081 passed (11 skipped)・check 0・build OK。geometry.test に置き場所と SCISSORS_LIFT・renderer.test に絵と cutReady の藍色・controller.test に持ち上げ/cutReady/閉じる動き/pointercancel を追加。
 - 実機確認 (?v=36): 帯 1 を巻き切る → ハサミが決まった場所にある → つかんで糸の束へ (指より上に浮く・刃が開く) → 離すと切れて結ばれ 帯 2/3 に進んだ。
+
+## 2026-10-05 T2-16 その5 (v0.3.15)
+- geometry に surfaceY(x, baseY) を1つだけ追加。帯の縞・境目・板・竿・灰色の印・結び目はすべて surfaceY で高さを決める (中央が高い ∩ に統一)。drumRimY・onSurface は削除。
+- ハサミを作り直し: 縦向き (銀の刃が上・黒い楕円の輪2つが下に左右並び・赤い丸いねじ)。閉じた形は刃が重なる。cutReady で刃が X に開く (±17.5度)。大きさ 96。当たり判定は支点 (ねじ)。
+- テスト 1087 件 (check 0・build OK)。実機で巻き切り→ハサミ→切断→結び→次の帯を確認。
