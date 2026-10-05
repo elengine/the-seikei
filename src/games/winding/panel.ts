@@ -160,9 +160,23 @@ export function createWindingPanel(
         range.selectNodeContents(time);
         textW = range.getBoundingClientRect().width;
       }
-      const size = clockFontSize(w, textW);
+      let size = clockFontSize(w, textW);
       time.textContent = prevText;
       time.style.fontSize = `${size}px`;
+      // 念のため、実際に表示している文字の幅を測って 85% を超えていたら 1px ずつ縮める
+      // (フォントの読み込みや環境の違いで計算とずれても、内側の幅の 85% を守る。T2-16 その7)
+      if (typeof range.getBoundingClientRect === 'function') {
+        range.selectNodeContents(time);
+        let actual = range.getBoundingClientRect().width;
+        let guard = 0;
+        while (actual > w * 0.85 && size > 20 && guard < 21) {
+          size -= 1;
+          time.style.fontSize = `${size}px`;
+          range.selectNodeContents(time);
+          actual = range.getBoundingClientRect().width;
+          guard += 1;
+        }
+      }
       meter.update(s.tension, s.range);
       pedal.setEnabled(s.phase === 'winding', pedalReason(s.phase));
       // 横木の位置を状態に合わせる (setValue は onChange を呼ばないので、繰り返しにはならない)
