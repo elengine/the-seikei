@@ -149,7 +149,8 @@ export function createWindingPanel(
       section.appendChild(time);
       // 文字の大きさは、内側の幅の 85% 以下に「0:00/0:00 超過」が収まる大きさ (40px を上限・20px 未満にしない。T2-16 その7)。
       // 実際の文字の幅を 40px で毎回測る (フォントの読み込み後も正しくなる。jsdom では測れないので 0 → 上限)
-      const w = section.clientWidth;
+      // 見た目の幅で測る (ゲーム枠は transform で拡大縮小されるため clientWidth だと実寸とずれる。T2-16 その7)
+      const w = section.getBoundingClientRect().width;
       time.style.fontSize = '40px';
       const prevText = time.textContent;
       time.textContent = '0:00/0:00 超過'; // いちばん幅が広がる形で測る
