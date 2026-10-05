@@ -1277,6 +1277,11 @@ button {
   border-radius: 4px;
 }
 
+/* 100% のときは帯も白にする (藍の地に藍の帯は見えないため) */
+.winding-panel__amount--done .winding-panel__amount-fill {
+  background: #fff;
+}
+
 /* 巻き量の横長の帯 (0〜100%。T2-16 その7) */
 .winding-panel__amount-bar {
   margin-top: var(--sp-1);
