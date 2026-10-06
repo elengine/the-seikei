@@ -273,3 +273,19 @@ describe('PU-13a: ホームのドラム設定の絵 (羽の向き)', () => {
     expect(new Set(rights).size).toBe(1);
   });
 });
+
+describe('T1-22b: カードの絵の大きさを確定させる (iPhone・iPad で回転のあとにカードの下に余白が残る直し)', () => {
+  it('SVG に width・height の属性があり (縦横比 200:100)、base.css の .game-card__art にも aspect-ratio で同じ比を決めてある', () => {
+    for (const kind of ['creel', 'drumsetup', 'winding', 'beaming', 'itowari', 'soon'] as const) {
+      const art = createCardArt(kind);
+      expect(art.getAttribute('width')).toBe('200');
+      expect(art.getAttribute('height')).toBe('100');
+      expect(art.getAttribute('viewBox')).toBe('0 0 200 100');
+    }
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
+    const m = css.match(/\n\.game-card__art\s*\{([^}]*)\}/)![1]!;
+    expect(m).toMatch(/aspect-ratio:\s*200\s*\/\s*100/);
+    expect(m).toContain('width: 100%');
+    expect(m).toContain('height: auto');
+  });
+});

@@ -502,6 +502,10 @@ body {
 .game-card__art {
   width: 100%;
   height: auto;
+  /* 縦横比を CSS でも決める (width・height 属性と同じ 200:100)。
+     iPhone・iPad の Safari で回転のあとに絵の高さが古いままになり、
+     カードの下に余白が残るのを防ぐ (T1-22b) */
+  aspect-ratio: 200 / 100;
   border-radius: var(--r-small);
 }
 

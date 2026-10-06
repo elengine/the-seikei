@@ -17,6 +17,10 @@ function shape(parent: SVGElement, tag: 'rect' | 'circle' | 'line' | 'polygon', 
 export function createCardArt(kind: 'creel' | 'drumsetup' | 'winding' | 'beaming' | 'itowari' | 'soon'): SVGElement {
   const svg = document.createElementNS(NS, 'svg');
   svg.setAttribute('viewBox', '0 0 200 100');
+  // width・height の属性で縦横比を確定させる (iPhone・iPad の Safari で回転のあとに
+  // 絵の高さの計算が古いままになり、カードの下に余白が残るのを防ぐ。T1-22b)
+  svg.setAttribute('width', '200');
+  svg.setAttribute('height', '100');
   svg.setAttribute('aria-hidden', 'true');
   svg.classList.add('game-card__art');
   shape(svg, 'rect', { x: 0, y: 0, width: 200, height: 100, rx: 8, fill: COLORS.kinariDeep });
