@@ -4,6 +4,7 @@ import type { ImportReport } from '../../core/storage/types';
 import { createButton, setLockedReason } from '../../core/ui/widgets';
 import { createCard, createPage, createScreenHeader, createSectionHeading } from '../../core/ui/layout';
 import { collectDiagnostics, hasInstallPromptEvent, promptInstall } from '../diagnostics';
+import { startRotationProbe } from './rotationProbe';
 
 function pad2(n: number): string {
   return String(n).padStart(2, '0');
@@ -16,6 +17,7 @@ function backupFileName(now: Date): string {
 
 /** 管理者メニュー (#/admin)。バックアップ・データの状態・ログ */
 export function createAdminScreen(ctx: AppContext): Screen {
+  let offProbe: (() => void) | null = null; // 回転の記録の監視をやめる関数 (unmount で解除)
   return {
     mount(container: HTMLElement): void {
       const root = document.createElement('div');
@@ -48,6 +50,28 @@ export function createAdminScreen(ctx: AppContext): Screen {
       const backupCard = section('バックアップ');
       const installCard = section('インストール');
       const logCard = section('ログ');
+      const rotCard = section('回転の記録 (診断)');
+
+      // ---- 回転の記録 (診断。iPhone で回転したときに画面全体が一瞬ずれる原因を数字で確定させる) ----
+      const rotNote = document.createElement('p');
+      rotNote.classList.add('admin__notice', 'admin__rot-note');
+      rotNote.textContent = '画面を回すと記録します。回転のあと 2 秒間、フレームごとに画面の状態を測り、動いた値と時刻を出します。';
+      rotCard.appendChild(rotNote);
+      const rotList = document.createElement('ul');
+      rotList.classList.add('admin__list', 'admin__rot-list');
+      const rotFirst = document.createElement('li');
+      rotFirst.textContent = 'まだ記録がありません';
+      rotList.appendChild(rotFirst);
+      rotCard.appendChild(rotList);
+      const offProbeLocal = startRotationProbe((lines) => {
+        rotList.textContent = '';
+        for (const line of lines) {
+          const li = document.createElement('li');
+          li.textContent = line;
+          rotList.appendChild(li);
+        }
+      });
+      offProbe = offProbeLocal;
 
       // ---- バックアップを書き出す ----
       const exportBtn = createButton({
@@ -222,6 +246,7 @@ export function createAdminScreen(ctx: AppContext): Screen {
     },
 
     unmount(): void {
+      offProbe?.(); // 回転の記録の監視をやめる
       // root は container ごと取り除かれる
     },
   };
