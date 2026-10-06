@@ -91,11 +91,34 @@ export function onViewportChange(cb: (size: ViewportSize, layout: Layout) => voi
   };
 }
 
-/** 文書のずれ (意図しないスクロール) を戻す。通知のフレーム・1フレーム後・300ms 後の3回 (T1-21a-2) */
+/**
+ * 文書のずれ (意図しないスクロール) を戻す (T1-21a-2・追加修正は A案)。
+ * iPhone・iPad の standalone アプリでは、回転のときに iOS 自身が文書のスクロール位置を
+ * 動かすことがある (WebKit 不具合 153852/220908。overflow: hidden でも防げない)。
+ * - ずれていないときは動かさない (iOS が回転の再計算でページを滑り込ませる動きと競合しない)
+ * - ずれたときだけ (0, 0) に戻し、100ミリ秒ごとに確認する (回転直後は iOS が大きさを
+ *   段階的に変えるため、通知の後からずれることも見込む)
+ * - ずれが無い状態が続いたら確認をやめる
+ */
 export function resetDocumentScroll(): void {
-  window.scrollTo(0, 0);
-  requestAnimationFrame(() => window.scrollTo(0, 0));
-  setTimeout(() => window.scrollTo(0, 0), 300);
+  window.scrollTo(0, 0); // ずれていなければ何も起こらない
+  const INTERVAL_MS = 100;
+  const MAX_MS = 600;
+  let elapsedMs = 0;
+  let cleanStreak = 0;
+  const check = (): void => {
+    if (window.scrollX !== 0 || window.scrollY !== 0) {
+      window.scrollTo(0, 0); // 実際にずれたときだけ動かす
+      cleanStreak = 0;
+    } else {
+      cleanStreak += 1;
+    }
+    elapsedMs += INTERVAL_MS;
+    if (cleanStreak < 2 && elapsedMs < MAX_MS) {
+      setTimeout(check, INTERVAL_MS);
+    }
+  };
+  setTimeout(check, INTERVAL_MS);
 }
 
 /** 大きさの変化 (回転を含む) のたびに resetDocumentScroll を行う。戻り値は解除の関数 */

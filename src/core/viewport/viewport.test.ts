@@ -222,31 +222,67 @@ describe('isCompact (PU-09a)', () => {
   });
 });
 
-describe('T1-21a-2: 大きさの変化のあとに文書のずれを戻す (window.scrollTo(0, 0))', () => {
+describe('T1-21a-2 追加修正 (A案): 文書のずれは、ずれたときだけ戻す', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
-  it('resize の通知が来ると scrollTo(0, 0) が呼ばれ、1フレーム後と 300ms 後にももう一度呼ばれる', () => {
+  /** jsdom に無い scrollX・scrollY を置き換える */
+  function setScroll(x: number, y: number): void {
+    Object.defineProperty(window, 'scrollX', { value: x, configurable: true });
+    Object.defineProperty(window, 'scrollY', { value: y, configurable: true });
+  }
+
+  it('ずれていなければ scrollTo は通知のフレームの1回だけ。その後は確認はするが動かさない (iOS の回転の再計算と競合しない)', () => {
     vi.useFakeTimers();
     const scrolls: Array<[number, number]> = [];
     vi.stubGlobal('scrollTo', (x: number, y: number) => scrolls.push([x, y]));
-    // rAF をタイマーで動かす (jsdom には fake rAF が無い)
-    vi.stubGlobal('requestAnimationFrame', (cb: (t: number) => void) => setTimeout(() => cb(0), 16));
+    setScroll(0, 0);
     const off = installScrollReset();
     window.dispatchEvent(new Event('resize'));
-    vi.advanceTimersByTime(20); // 通知のフレーム → 1回目の scrollTo
-    expect(scrolls.length, '1回目 (通知のフレーム)').toBe(1);
-    vi.advanceTimersByTime(20); // 1フレーム後 → 2回目
-    expect(scrolls.length, '2回目 (1フレーム後)').toBe(2);
-    vi.advanceTimersByTime(300); // 300ms 後 → 3回目
-    expect(scrolls.length, '3回目 (300ms後)').toBe(3);
-    expect(scrolls.every(([x, y]) => x === 0 && y === 0)).toBe(true);
+    vi.advanceTimersByTime(20);
+    expect(scrolls.length, '通知のフレームで1回').toBe(1);
+    vi.advanceTimersByTime(700); // 600ms の確認期間が終わるまで進める
+    expect(scrolls.length, 'ずれていないので動かさない').toBe(1);
     off();
     window.dispatchEvent(new Event('resize'));
-    vi.advanceTimersByTime(400);
-    expect(scrolls.length, '解除後は呼ばれない').toBe(3);
+    vi.advanceTimersByTime(700);
+    expect(scrolls.length, '解除後は呼ばれない').toBe(1);
+  });
+
+  it('ずれていたら戻し、100ms ごとに確認して、ずれが無い状態が続いたらやめる。後からずれても戻す', () => {
+    vi.useFakeTimers();
+    const scrolls: Array<[number, number]> = [];
+    vi.stubGlobal('scrollTo', (x: number, y: number) => scrolls.push([x, y]));
+    setScroll(0, 30); // 回転の通知の時点でずれている
+    const off = installScrollReset();
+    window.dispatchEvent(new Event('resize'));
+    vi.advanceTimersByTime(20); // 通知のフレームで戻す
+    expect(scrolls.length, '通知のフレームですぐ戻す').toBe(1);
+    vi.advanceTimersByTime(110); // 100ms 後の確認: まだずれている
+    expect(scrolls.length, 'ずれが残っていたら戻す').toBe(2);
+    vi.advanceTimersByTime(100); // 200ms 後の確認: まだずれている
+    expect(scrolls.length).toBe(3);
+    setScroll(0, 0); // iOS 自身が戻った
+    vi.advanceTimersByTime(100); // 300ms 後の確認: ずれ無し (1回目)
+    expect(scrolls.length, 'ずれていなければ動かさない').toBe(3);
+    vi.advanceTimersByTime(100); // 400ms 後の確認: ずれ無し 2回続いたのでやめる
+    vi.advanceTimersByTime(700); // それ以降も動かない
+    expect(scrolls.length, '収束したら確認もやめる').toBe(3);
+    // 別の回転: 後から iOS がずらした
+    window.dispatchEvent(new Event('resize'));
+    vi.advanceTimersByTime(20);
+    expect(scrolls.length, '通知のフレーム (この時点ではずれていない)').toBe(4);
+    vi.advanceTimersByTime(100); // 100ms 後の確認: まだずれていない
+    expect(scrolls.length).toBe(4);
+    setScroll(0, 25); // 250ms ごろにずれた
+    vi.advanceTimersByTime(110); // 200ms ごろの確認でずれを検知して戻す
+    expect(scrolls.length, '後からずれた場合も戻す').toBe(5);
+    setScroll(0, 0);
+    vi.advanceTimersByTime(700);
+    expect(scrolls.length, '収束したらやめる').toBe(5);
+    off();
   });
 });
 
