@@ -44,14 +44,6 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-body {
-  /* iOS が回転の瞬間に文書全体 (position fixed の #app を含む) をパンしてチラつくのを
-     禁じる (案2・T1-21a-2)。中身は position fixed の #app だけで流れの要素が無いため、
-     見た目は変わらない */
-  position: fixed;
-  inset: 0;
-}
-
 :root {
   /* 色 (03_basic_design 2.1) */
   --c-kinari: #f7f3e8;
