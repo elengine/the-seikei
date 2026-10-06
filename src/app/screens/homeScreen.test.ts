@@ -289,3 +289,38 @@ describe('T1-22b: カードの絵の大きさを確定させる (iPhone・iPad �
     expect(m).toContain('height: auto');
   });
 });
+
+describe('T1-22c: 回転のあとにカードの並びの行の高さを計算し直させる', () => {
+  it('大きさが変わるたびに、カードの並び (grid) を一瞬隠して戻し、少し後にもう1回行う (iPhone・iPad の Safari が行の高さを再計算しない対策)。画面を閉じたら監視をやめる', async () => {
+    // onViewportChange は requestAnimationFrame で1回にまとめる。テストではすぐ実行させる
+    const realRaf = globalThis.requestAnimationFrame;
+    globalThis.requestAnimationFrame = ((cb: FrameRequestCallback) => {
+      cb(performance.now());
+      return 0;
+    }) as typeof requestAnimationFrame;
+    try {
+      const { root, unmount } = mountHome();
+      const games = root.querySelector<HTMLElement>('.home__games')!;
+      let reflowRead = 0;
+      Object.defineProperty(games, 'offsetHeight', {
+        get: () => {
+          reflowRead += 1;
+          return 100;
+        },
+        configurable: true,
+      });
+      expect(games.style.display).toBe(''); // 普段は隠していない
+      window.dispatchEvent(new Event('resize'));
+      expect(reflowRead).toBeGreaterThanOrEqual(1); // 大きさが変わったら高さを読んで強制的に計算させる
+      expect(games.style.display).toBe(''); // 一瞬隠して戻すので、終わったあとは見えている
+      await new Promise((r) => setTimeout(r, 250));
+      expect(reflowRead).toBeGreaterThanOrEqual(2); // 回転直後の反映の遅れに備えて、少し後にもう1回
+      unmount();
+      reflowRead = 0;
+      window.dispatchEvent(new Event('resize'));
+      expect(reflowRead).toBe(0); // 画面を閉じたら監視をやめる
+    } finally {
+      globalThis.requestAnimationFrame = realRaf;
+    }
+  });
+});

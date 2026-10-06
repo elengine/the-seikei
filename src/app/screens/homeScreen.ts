@@ -4,6 +4,7 @@ import { createButton } from '../../core/ui/widgets';
 import { listGames } from '../../core/game/registry';
 import { createCardArt, gameStatusText } from './homeCards';
 import { isUpdateReady, onUpdateState } from '../updater';
+import { onViewportChange } from '../../core/viewport/viewport';
 
 /** 準備中のゲーム (名前は用語辞書の項目。無いものは固定の文字) */
 const COMING_SOON: { termKey?: string; fixedName?: string; summary: string }[] = [
@@ -12,6 +13,22 @@ const COMING_SOON: { termKey?: string; fixedName?: string; summary: string }[] =
 
 /** 「準備中です」を出しておく時間 (ミリ秒) */
 const NOTICE_MS = 2000;
+
+/** 回転のあと、もう一度行の高さを計算し直すまでの待ち時間 (ミリ秒)。iPhone・iPad の
+ *  Safari は回転直後の大きさの反映が遅れることがあるため、後から念のためもう1回行う */
+const RELAYOUT_DELAY_MS = 150;
+
+/**
+ * カードの並び (grid) を一瞬隠して戻し、行の高さを強制的に計算し直させる。
+ * iPhone・iPad の Safari は回転のあとにグリッドの行の高さを計算し直さないことがあり、
+ * カードの下に余白が残る (T1-22c)。隠すと戻すは同じ処理の中で行うので、
+ * 画面に描かれる間の状態は無い。
+ */
+export function relayoutGrid(grid: HTMLElement): void {
+  grid.style.display = 'none';
+  void grid.offsetHeight; // 高さを読むことで、この時点で強制的に計算させる
+  grid.style.display = '';
+}
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, ...classes: string[]): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -23,6 +40,8 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, ...classes: string[])
 export function createHomeScreen(ctx: AppContext): Screen {
   const timers = new Set<ReturnType<typeof setTimeout>>();
   let offUpdate: (() => void) | null = null;
+  let offViewport: (() => void) | null = null;
+  let gamesEl: HTMLElement | null = null;
 
   function card(opts: {
     kind: 'creel' | 'drumsetup' | 'winding' | 'beaming' | 'itowari' | 'soon';
@@ -160,6 +179,23 @@ export function createHomeScreen(ctx: AppContext): Screen {
         games.appendChild(btn);
       }
       root.appendChild(games);
+      gamesEl = games;
+      // 大きさが変わるたび (回転を含む) に、行の高さを強制的に計算し直させる (T1-22c)。
+      // 回転直後は大きさの反映が遅れることがあるので、少し後にもう1回行う
+      offViewport?.();
+      offViewport = onViewportChange(() => {
+        if (gamesEl === null) {
+          return;
+        }
+        relayoutGrid(gamesEl);
+        const t = setTimeout(() => {
+          timers.delete(t);
+          if (gamesEl !== null) {
+            relayoutGrid(gamesEl);
+          }
+        }, RELAYOUT_DELAY_MS);
+        timers.add(t);
+      });
 
       container.textContent = '';
       container.appendChild(root);
@@ -168,6 +204,9 @@ export function createHomeScreen(ctx: AppContext): Screen {
     unmount(): void {
       offUpdate?.();
       offUpdate = null;
+      offViewport?.();
+      offViewport = null;
+      gamesEl = null;
       for (const t of timers) {
         clearTimeout(t);
       }
