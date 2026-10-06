@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { isCompact, layoutOf, fitStage, currentSize, onViewportChange, setupCanvas, installScrollReset } from './viewport';
+import { isCompact, layoutOf, fitStage, currentSize, onViewportChange, setupCanvas, installScrollReset, installScrollGuard } from './viewport';
 
 describe('layoutOf', () => {
   it('1. 1180×820 は landscape、393×873 は portrait、800×800 は landscape', () => {
@@ -219,6 +219,38 @@ describe('isCompact (PU-09a)', () => {
     expect(isCompact(915, 412)).toBe(true); // 同 (横)
     expect(isCompact(1180, 820)).toBe(false);
     expect(isCompact(960, 720)).toBe(false);
+  });
+});
+
+describe('T1-21a-2 案1: 文書のずれを、描画される前に戻す (scroll イベントの番人)', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  function setScroll(x: number, y: number): void {
+    Object.defineProperty(window, 'scrollX', { value: x, configurable: true });
+    Object.defineProperty(window, 'scrollY', { value: y, configurable: true });
+  }
+
+  it('scroll イベントでずれを検知したら、すぐに (0, 0) に戻す。ずれていなければ何もしない。解除できる', () => {
+    const scrolls: Array<[number, number]> = [];
+    vi.stubGlobal('scrollTo', (x: number, y: number) => scrolls.push([x, y]));
+    setScroll(0, 0);
+    const off = installScrollGuard();
+    window.dispatchEvent(new Event('scroll'));
+    expect(scrolls.length, 'ずれていなければ何もしない').toBe(0);
+    setScroll(0, 68); // iOS が回転の瞬間にずらした
+    window.dispatchEvent(new Event('scroll'));
+    expect(scrolls.length, 'ずれた瞬間に戻す').toBe(1);
+    expect(scrolls[0]).toEqual([0, 0]);
+    setScroll(30, 0); // 横へのずれも戻す
+    window.dispatchEvent(new Event('scroll'));
+    expect(scrolls.length).toBe(2);
+    off();
+    setScroll(0, 68);
+    window.dispatchEvent(new Event('scroll'));
+    expect(scrolls.length, '解除後は呼ばれない').toBe(2);
   });
 });
 

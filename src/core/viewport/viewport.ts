@@ -127,6 +127,25 @@ export function installScrollReset(): () => void {
 }
 
 /**
+ * 文書のずれを、ずれた瞬間に同じフレームで戻す (案1・T1-21a-2)。
+ * iPhone の standalone アプリでは、回転の瞬間に iOS 自身がページ全体を 68px ほど
+ * パンして戻す (実測。レイアウトは変わらず、見えている窓だけ動く)。
+ * scroll イベントで検知してすぐ戻せば、ずれた状態が画面に描画される前に戻せる。
+ * 戻し自体が起こす scroll イベントでは、ずれが無いため何もしない (繰り返しにならない)。
+ */
+export function installScrollGuard(): () => void {
+  const onScroll = (): void => {
+    if (window.scrollX !== 0 || window.scrollY !== 0) {
+      window.scrollTo(0, 0);
+    }
+  };
+  window.addEventListener('scroll', onScroll, { passive: true });
+  return () => {
+    window.removeEventListener('scroll', onScroll);
+  };
+}
+
+/**
  * Canvas を CSS サイズ cssW×cssH で表示し、内部解像度を devicePixelRatio 倍にする。
  * 戻り値の ctx は、CSS px の座標で描けるよう setTransform 済み。
  * devicePixelRatio は 1〜3 の範囲に丸める。

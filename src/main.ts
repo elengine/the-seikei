@@ -5,7 +5,7 @@ import { boot } from './app/boot';
 import { setInstallPromptRecorded } from './app/diagnostics';
 import { checkForUpdate, markUpdateAvailable } from './app/updater';
 import { createScreenManager } from './app/screenManager';
-import { installScrollReset } from './core/viewport/viewport'; // 回転のあとの文書のずれを戻す (T1-21a-2)
+import { installScrollReset, installScrollGuard } from './core/viewport/viewport'; // 回転のあとの文書のずれを戻す (T1-21a-2)
 import type { Route } from './app/screenManager';
 import { createHomeScreen } from './app/screens/homeScreen';
 import { createSettingsScreen } from './app/screens/settingsScreen';
@@ -106,6 +106,7 @@ async function main(): Promise<void> {
   ];
   const screens = createScreenManager(app, routes);
 installScrollReset(); // 大きさの変化 (回転) のたびに window.scrollTo(0, 0) (T1-21a-2)
+installScrollGuard(); // ずれた瞬間に描画される前に戻す (T1-21a-2 案1)
   screens.start();
 
   // 起動の 3 秒後に 1 回、新しい版を自動で確認する (待ち受けの間は確認しない)。届いていれば、ホームの「設定」にバッジが付く
