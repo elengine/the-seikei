@@ -222,6 +222,16 @@ describe('isCompact (PU-09a)', () => {
   });
 });
 
+describe('T1-21a-2 案2: body を position fixed にして iOS のパンを不可能にする', () => {
+  it('base.css: body だけの指定で position fixed・inset 0 がある (html は fixed にしない)。中身は #app (fixed) だけで流れの要素が無いので見た目は変わらない', () => {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
+    const blocks = css.match(/\nbody\s*\{[^}]*\}/g) ?? [];
+    const bodyFixed = blocks.find((b) => b.includes('position: fixed'));
+    expect(bodyFixed, 'body だけの position: fixed の指定').toBeDefined();
+    expect(bodyFixed).toContain('inset: 0');
+  });
+});
+
 describe('T1-21a-2 案1: 文書のずれを、描画される前に戻す (scroll イベントの番人)', () => {
   afterEach(() => {
     vi.useRealTimers();

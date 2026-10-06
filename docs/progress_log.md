@@ -1807,3 +1807,18 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 ### 確かめたこと
 - テストは RED 確認 (案1のテストを先に書いて落とす) → GREEN。全テスト 1107 件成功。`npm run check` エラー 0。`npm run build` 成功。
 - 効き目の最終確認は iPhone Air の standalone で行う。まだ見える場合は案2 (body を position: fixed にして iOS のパン自体を不可能にする) に進む。
+
+## 2026-10-06 T1-21a-2 案2: body を position fixed にして iOS のパン自体を禁じる(version 0.3.24)
+
+### 経緯
+- 案1 (0.3.23) の実機確認 (管理者): まだチラつく。ただし**管理者メニューの回転の記録は全項目「ずっと」** = JS の上ではずれが起きる前にもう戻っていて、記録に残らないほど速い。
+- つまりチラつきは **iOS の描画エンジン (compositor) の段階で描かれていて、JavaScript の修正では間に合わない**ことが確定。残る手段は、iOS がパンしようもなくさせること。
+
+### 直した内容
+- `src/styles/base.css`: body に `position: fixed; inset: 0` を追加 (iOS の定番のスクロール禁止策・案2)。文書に流れの要素が無くなり、iOS が回転のときに文書をパンできなくなる。中身は position fixed の #app だけなので見た目は変わらない。
+- 案1の scroll の番人と A案の確認は、安全網として残す。
+
+### 確かめたこと
+- テストは RED 確認 (body だけの position: fixed の指定のテストを先に書いて落とす) → GREEN。全テスト 1108 件成功。`npm run check` エラー 0。`npm run build` 成功。
+- **デスクトップ (Chromium) の測定は直す前後で 1px も変わらず** (4つの大きさのホームのカードの高さ・中身・位置を全部比較。body を fixed にしても見た目が変わらないことを確認)。
+- 効き目の最終確認は iPhone Air の standalone で行う。チラつきが消えていれば完了。消えない場合は、iOS の動きに合わせる方向 (独自の見た目の妥協) を含めて管理者と相談する。
