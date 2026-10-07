@@ -5,6 +5,9 @@ import type { GameDeps, GameProps } from '../../core/game/types';
 import { createAppContext } from '../../app/context';
 import type { AppContext } from '../../app/context';
 import { createFixedClock } from '../../core/clock/clock';
+import { init } from './logic';
+import { setPedal } from '../../core/mechanics/pedal';
+import { paramsOf, SECTION_LENGTH } from './params';
 import { getContent } from '../../core/content/content';
 
 const drawBoardCalls: unknown[][] = [];
@@ -53,14 +56,25 @@ function makeProps(overrides?: Partial<GameProps>): GameProps & { finished: unkn
   return Object.assign(props, { finished, exited: false });
 }
 
-/** 偽の requestAnimationFrame (手動で進める) */
-function installFakeRaf(): { frames: Array<() => void>; advance(n: number): void } {
+/** 帯を1本巻き終えた直後の状態 (cutting) を直接作る (rAF を何千回も回さない。T2-15 と同じ考え) */
+function cuttingState(): import('./logic').WindingState {
+  const p1 = paramsOf(1);
+  return {
+    ...init({ level: 1, patternId: p1.patternId, sections: p1.sections, seed: 1 }),
+    lengths: [SECTION_LENGTH, 0, 0],
+    phase: 'cutting',
+  };
+}
+
+/** 偽の requestAnimationFrame (手動で進める)。stepMs で 1 フレームあたりの時間を変えられる
+ * (帯を巻くテストは 100ms にして、rAF を何千回も回さずに済む。T2-15 と同じ考え) */
+function installFakeRaf(stepMs = 16): { frames: Array<() => void>; advance(n: number): void } {
   const frames: Array<() => void> = [];
-  let now = 0; // 偽の時計 (1フレーム = 16ms)
+  let now = 0; // 偽の時計 (1フレーム = stepMs)
   let seq = 0;
   const cancelled = new Set<number>();
   vi.stubGlobal('requestAnimationFrame', (cb: (t: number) => void): number => {
-    const at = now + 16;
+    const at = now + stepMs;
     seq += 1;
     const id = seq;
     frames.push(() => {
@@ -125,7 +139,7 @@ describe('winding module (T2-07)', () => {
 
   beforeEach(() => {
     document.body.textContent = '';
-    raf = installFakeRaf();
+    raf = installFakeRaf(100); // 1フレーム = 100ms (帯を巻くテストを短い実時間で終わらせる。T2-15 と同じ考え)
   });
 
   afterEach(() => {
@@ -190,8 +204,8 @@ describe('winding module (T2-07)', () => {
       const st0 = instance.suspend() as { phase: string };
       expect(st0.phase).toBe('winding');
       expect(container.querySelector('.game-frame__notice'), 'ready の案内はペダルを動かした瞬間に消える (T2-18a)').toBeNull();
-      // 帯1本: pedal 40 の速さ (16/秒) で 400 論理長 → 25秒。rAF 16ms ずつ
-      raf.advance(2000);
+      // 帯1本: pedal 40 の速さ (16/秒) で 400 論理長 → 25秒。rAF 100ms ずつ
+      raf.advance(300);
       // 「帯の端を結ぶ」のボタンは無い (T2-16c)
       expect(Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '帯の端を結ぶ')).toBeUndefined();
       // 最初のお題では、ハサミの案内のお知らせが 1 回出る
@@ -269,15 +283,9 @@ describe('winding module (T2-07)', () => {
     Object.defineProperty(Element.prototype, 'clientWidth', { configurable: true, get(): number { return 1000; } });
     Object.defineProperty(Element.prototype, 'clientHeight', { configurable: true, get(): number { return 750; } });
     try {
-      const instance = module.mount(container, props);
-      const level1 = container.querySelector<HTMLButtonElement>('button[data-testid="winding-puzzle-s1"]')!;
-      level1.click();
-      beginByPedal(container);
+      // 帯を1本巻き終えた状態 (cutting) を直接 resume として渡す (rAF を回して巻かない)
+      const instance = module.mount(container, { ...props, resume: cuttingState() });
       const { scissorsPos } = await import('./geometry');
-      for (let i = 0; i < 4; i++) {
-        stepPedal(container, 10);
-      }
-      raf.advance(2000); // cutting になる
       expect((instance.suspend() as { phase: string }).phase).toBe('cutting');
       const rect = stageRect(container);
       const sp = scissorsPos();
@@ -308,14 +316,8 @@ describe('winding module (T2-07)', () => {
     Object.defineProperty(Element.prototype, 'clientWidth', { configurable: true, get(): number { return 1000; } });
     Object.defineProperty(Element.prototype, 'clientHeight', { configurable: true, get(): number { return 750; } });
     try {
-      const instance = module.mount(container, props);
-      const level1 = container.querySelector<HTMLButtonElement>('button[data-testid="winding-puzzle-s1"]')!;
-      level1.click();
-      beginByPedal(container);
-      for (let i = 0; i < 4; i++) {
-        stepPedal(container, 10);
-      }
-      raf.advance(2000); // cutting になる → ハサミの案内が出る
+      // 帯を1本巻き終えた状態 (cutting) を直接 resume として渡す (rAF を回して巻かない)
+      const instance = module.mount(container, { ...props, resume: cuttingState() });
       expect((instance.suspend() as { phase: string }).phase).toBe('cutting');
       const notice = container.querySelector('.game-frame__notice');
       expect(notice?.textContent ?? '').toContain('ハサミを糸の所まで引っぱって切ります');
@@ -341,15 +343,9 @@ describe('winding module (T2-07)', () => {
     Object.defineProperty(Element.prototype, 'clientWidth', { configurable: true, get(): number { return 1000; } });
     Object.defineProperty(Element.prototype, 'clientHeight', { configurable: true, get(): number { return 750; } });
     try {
-      const instance = module.mount(container, props);
-      const level1 = container.querySelector<HTMLButtonElement>('button[data-testid="winding-puzzle-s1"]')!;
-      level1.click();
-      beginByPedal(container);
+      // 帯を1本巻き終えた状態 (cutting) を直接 resume として渡す (rAF を回して巻かない)
+      const instance = module.mount(container, { ...props, resume: cuttingState() });
       const { tableY, REED_RISE, SCISSORS_LIFT, SCISSORS_TIP } = await import('./geometry');
-      for (let i = 0; i < 4; i++) {
-        stepPedal(container, 10);
-      }
-      raf.advance(2000); // cutting になる
       expect((instance.suspend() as { phase: string }).phase).toBe('cutting');
       const rect = stageRect(container);
       // ハサミを持ち上げ位置まで動かして (刃先が糸の束に届く) pointercancel
@@ -808,23 +804,35 @@ describe('winding module T2-09 追加修正a (+4・止まる音。引っかか�
   });
 
   it('T2-18b: 帯を巻き終えて巻き量 100% になっても音は鳴らない (ブザーはやめた)', async () => {
-    const { btn, deps, container } = await setup();
+    const { deps } = await makeDeps();
+    plays = [];
     const plays2: string[] = [];
     const orig = deps.audio.play.bind(deps.audio);
     deps.audio.play = (n: Parameters<typeof deps.audio.play>[0]) => { plays2.push(n); return orig(n); };
-    btn('紺の無地帯 3本次はこれ');
-    raf.advance(2);
-    beginByPedal(container);
-    raf.advance(2);
-    // pedal 50 で安全に巻く (範囲 35〜65 の中心)。巻き量 100% まで進める
-    for (let k = 0; k < 5; k++) stepPedal(container, 10);
-    let cut = false;
-    for (let i = 0; i < 600 && !cut; i++) {
-      raf.advance(500);
-      cut = (container.querySelector('.winding-panel__amount')?.className ?? '').includes('--full');
+    // 巻き量が 99.9% の状態を直接作って resume する (rAF を回して巻かない)
+    const p1 = paramsOf(1);
+    const base = init({ level: 1, patternId: p1.patternId, sections: p1.sections, seed: 1 });
+    const state = { ...base, pedal: setPedal(base.pedal, 50), lengths: [SECTION_LENGTH - 0.1, 0, 0] };
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    // jsdom では stage の clientWidth が 0 のため、盤面 1000×750 を返す
+    const descW = Object.getOwnPropertyDescriptor(Element.prototype, 'clientWidth');
+    const descH = Object.getOwnPropertyDescriptor(Element.prototype, 'clientHeight');
+    Object.defineProperty(Element.prototype, 'clientWidth', { configurable: true, get(): number { return 1000; } });
+    Object.defineProperty(Element.prototype, 'clientHeight', { configurable: true, get(): number { return 750; } });
+    try {
+      createWindingModule(deps).mount(container, makeProps({ resume: state }));
+      // 再開直後はペダル 0 なので踏み直してから進める
+      for (let k = 0; k < 5; k++) stepPedal(container, 10);
+      raf.advance(3); // 16ms × 3 = 巻き量 100% → cutting
+      const panel = container.querySelector('.winding-panel__amount');
+      expect(panel?.className).toContain('--full');
+      expect(panel?.textContent).toBe('巻き量 100%');
+      expect(plays2, '巻き終わりに音は鳴らさない (T2-18b)').toEqual([]);
+    } finally {
+      if (descW !== undefined) Object.defineProperty(Element.prototype, 'clientWidth', descW);
+      if (descH !== undefined) Object.defineProperty(Element.prototype, 'clientHeight', descH);
     }
-    expect(cut, '巻き量 100% になる').toBe(true);
-    expect(plays2, '巻き終わりに音は鳴らさない (T2-18b)').toEqual([]);
   });
 });
 
@@ -1008,7 +1016,7 @@ describe('PU-05c: ドラム巻きの結果のつなぎ', () => {
 
   beforeEach(() => {
     document.body.textContent = '';
-    raf = installFakeRaf();
+    raf = installFakeRaf(100); // 1フレーム = 100ms (帯を巻くテストを短い実時間で終わらせる。T2-15 と同じ考え)
   });
 
   afterEach(() => {
@@ -1037,7 +1045,7 @@ describe('PU-05c: ドラム巻きの結果のつなぎ', () => {
       }
     };
     pedalUp();
-    raf.advance(2000);
+    raf.advance(300); // 帯1本ぶん (25秒。1フレーム = 100ms)
     const { threadY, scissorsPos, tableY } = await import('./geometry');
     const rectCut = stageRect(container);
     // 切れた糸をつなぐ (破断のあとは押してつないでからペダルを踏み直す)
@@ -1298,7 +1306,6 @@ describe('winding module T2-16 その4b (ハサミの持ち上げと閉じる動
     const container = document.createElement('div');
     document.body.appendChild(container);
     const module = createWindingModule(deps);
-    const props = makeProps();
     // jsdom では stage の clientWidth が 0 のため、盤面 1000×750 を返す
     const descW = Object.getOwnPropertyDescriptor(Element.prototype, 'clientWidth');
     const descH = Object.getOwnPropertyDescriptor(Element.prototype, 'clientHeight');
@@ -1308,11 +1315,9 @@ describe('winding module T2-16 その4b (ハサミの持ち上げと閉じる動
       if (descW !== undefined) Object.defineProperty(Element.prototype, 'clientWidth', descW);
       if (descH !== undefined) Object.defineProperty(Element.prototype, 'clientHeight', descH);
     };
+    // 帯を1本巻き終えた状態 (cutting) を直接 resume として渡す (rAF を回して巻かない)
+    const props = makeProps({ resume: cuttingState() });
     const instance = module.mount(container, props);
-    container.querySelector<HTMLButtonElement>('button[data-testid="winding-puzzle-s1"]')!.click();
-    beginByPedal(container);
-    for (let i = 0; i < 4; i++) stepPedal(container, 10);
-    raf.advance(2000); // cutting になる
     expect((instance.suspend() as { phase: string }).phase).toBe('cutting');
     return { container, instance, props, restore };
   }
