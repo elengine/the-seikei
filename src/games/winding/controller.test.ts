@@ -206,13 +206,7 @@ describe('winding module (T2-07)', () => {
       const st0 = instance.suspend() as { phase: string };
       expect(st0.phase).toBe('winding');
       expect(container.querySelector('.game-frame__notice'), 'ready の案内はペダルを動かした瞬間に消える (T2-18a)').toBeNull();
-      // 帯1本: pedal 40 の速さ (16/秒) で 400 論理長 → 25秒。rAF 100ms ずつ
-      raf.advance(300);
-      // 「帯の端を結ぶ」のボタンは無い (T2-16c)
-      expect(Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '帯の端を結ぶ')).toBeUndefined();
-      // 最初のお題では、ハサミの案内のお知らせが 1 回出る
-      expect(container.querySelector('.game-frame__notice')?.textContent ?? '').toContain('ハサミを糸の所まで引っぱって切ります');
-      // 切れたら糸を押してつなぎ、ペダルを踏み直す
+      // 切れたら糸を押してつなぎ、ペダルを踏み直す (スパイクで切れることがある。T2-20a)
       const recover = (): void => {
         const st = instance.suspend() as { phase: string; brk: { kind: string; threads: number[] } };
         if (st.phase !== 'broken') return;
@@ -222,6 +216,23 @@ describe('winding module (T2-07)', () => {
         }
         setP(); // 切れるとペダルが 0 に戻るので踏み直す
       };
+      // 帯1本: pedal 40 の速さ (16/秒) で 400 論理長 → 25秒。rAF 100ms ずつ
+      raf.advance(300);
+      // スパイクで切れることがある (T2-20a)。切れたら直して 'cutting' まで進めてから案内を確かめる
+      await vi.waitFor(
+        () => {
+          raf.advance(50);
+          recover();
+          const st = instance.suspend() as { phase: string };
+          expect(st.phase).toBe('cutting');
+        },
+        { timeout: 30000, interval: 100 },
+      );
+      // 「帯の端を結ぶ」のボタンは無い (T2-16c)
+      expect(Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '帯の端を結ぶ')).toBeUndefined();
+      // 最初のお題では、ハサミの案内のお知らせが 1 回出る
+      expect(container.querySelector('.game-frame__notice')?.textContent ?? '').toContain('ハサミを糸の所まで引っぱって切ります');
+      // 切れたら糸を押してつなぎ、ペダルを踏み直す
       const rect = stageRect(container);
       // 3回、ハサミを糸の束まで引っぱって離す
       for (let i = 0; i < 3; i++) {
@@ -760,7 +771,7 @@ describe('winding module T2-09 追加修正a (+4・止まる音。引っかか�
     vi.unstubAllGlobals();
   });
 
-  async function setup() {
+  async function setup(resume?: unknown) {
     const { deps, ctx } = await makeDeps();
     plays = [];
     const orig = ctx.audio.play.bind(ctx.audio);
@@ -771,7 +782,7 @@ describe('winding module T2-09 追加修正a (+4・止まる音。引っかか�
     const container = document.createElement('div');
     document.body.appendChild(container);
     const module = createWindingModule(deps);
-    const props = makeProps();
+    const props = resume !== undefined ? makeProps({ resume }) : makeProps();
     module.mount(container, props);
     const msg = () => (container.querySelector('.game-frame__message')?.textContent ?? '');
     const btn = (label: string) => {
@@ -783,18 +794,21 @@ describe('winding module T2-09 追加修正a (+4・止まる音。引っかか�
   }
 
   it('3. 糸が切れたとき、止まる音は1回だけ (2秒進めても1回)', async () => {
-    const { btn, deps, container } = await setup();
+    // スパイクで切れる状態で再開する (切れるのはスパイクの猶予だけ。T2-20a)
+    const base = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 5 });
+    const { deps } = await setup({
+      ...base,
+      phase: 'winding' as const,
+      pedal: setPedal(base.pedal, 30),
+      spikePlan: { left: 1, atMs: 0 },
+    });
     const plays2: string[] = [];
     const orig = deps.audio.play.bind(deps.audio);
     deps.audio.play = (n: Parameters<typeof deps.audio.play>[0]) => { plays2.push(n); return orig(n); };
-    btn('紺の無地帯 3本次はこれ'); // 一覧の行の文字 (名前・補足・状態)
     raf.advance(2);
-    beginByPedal(container);
-    raf.advance(2);
-    // pedal 100 で切れるまで進める (切れない場合は中止)
+    // スパイクが起きて 2 秒の猶予で切れるまで進める
     let broke = false;
     for (let i = 0; i < 600 && !broke; i++) {
-      stepPedal(container, 10);
       raf.advance(2);
       broke = plays2.includes('stop');
     }
@@ -1431,7 +1445,8 @@ describe('T2-19b: 100% になったとき帯留め (竿) が「手前側で左�
     const module = createWindingModule(deps);
     const p1 = paramsOf(1);
     const base = init({ level: 1, patternId: p1.patternId, sections: p1.sections, seed: 1 });
-    const state = { ...base, pedal: setPedal(base.pedal, 30), lengths: [SECTION_LENGTH - pre, 0, 0] };
+    // スパイクを起こさない (切れると 100% に届かない。T2-20a)
+    const state = { ...base, pedal: setPedal(base.pedal, 30), lengths: [SECTION_LENGTH - pre, 0, 0], spikePlan: { left: 0, atMs: 0 } };
     const descW = Object.getOwnPropertyDescriptor(Element.prototype, 'clientWidth');
     const descH = Object.getOwnPropertyDescriptor(Element.prototype, 'clientHeight');
     Object.defineProperty(Element.prototype, 'clientWidth', { configurable: true, get(): number { return 1000; } });

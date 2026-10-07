@@ -1,12 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { init, reduce, qualities, starsOf, isValidResume, lastTapResult, bandTargetMs, targetMsOf } from './logic';
-import { TIME_ANCHOR, TIME_PER_SECTION_MS } from './params';
+import { TIME_ANCHOR, TIME_PER_SECTION_MS, SPIKE_COUNT_RANGE } from './params';
+import * as params from './params';
 import { resultOf, guideFor } from './messages';
 import type { WindingState, Level } from './logic';
-import { paramsOf, SECTION_LENGTH, MAX_SPEED, TENSION, DRIFT, NOISE_AMP, RANGE_CENTER, RANGE_WIDTH, RANGE_REACHABLE, YARN_FEEL, TENSION_RISE, SECTIONS } from './params';
-import type { YarnFeel } from './params';
-import { tensionOf } from '../../core/mechanics/pedal';
-import { seedFrom } from '../../core/clock/clock';
+import { paramsOf, SECTION_LENGTH, MAX_SPEED, TENSION, RANGE_CENTER, RANGE_WIDTH, RANGE_REACHABLE } from './params';
 
 /** 20秒 + 少し の tick を送る (pedal 50 用)。pedal 40 など遅いときは、'cutting' まで続ける */
 function windToCut(s: WindingState, pedal: number): WindingState {
@@ -60,12 +58,12 @@ describe('winding logic (T2-04)', () => {
     s = reduce(s, { type: 'setPedal', value: 0 });
     expect(s.phase).toBe('ready');
     expect(s.pedal.pedal).toBe(0);
-    // broken を作る: 上級で pedal 100
+    // broken を作る: 上級でスパイクを強制する (切れるのはスパイクの猶予だけ。T2-20a)
     let b = init({ level: 3, patternId: 'p-alt-kon', sections: 7, seed: 42 });
     b = reduce(b, { type: 'setPedal', value: 30 });
+    b = { ...b, spikePlan: { left: 1, atMs: 0 } };
     for (let i = 0; i < 200; i++) {
       if (b.phase === 'broken') break;
-      if (b.phase === 'winding') b = reduce(b, { type: 'setPedal', value: 100 });
       b = reduce(b, { type: 'tick', dtMs: 100 });
     }
     expect(b.phase).toBe('broken');
@@ -127,14 +125,14 @@ describe('winding logic (T2-04)', () => {
     expect(passed).toBe(true);
   });
 
-  it("5. pedal 100 で巻くと、上級では同じ種で決まった回で 'broken'。切れた直後にペダル 0。tapThread で1回押すごとに1本つながり、全部で 'winding' に戻る。ペダル 0 のまま、breaks 1", () => {
+  it("5. スパイクの猶予 (2秒) を過ぎると同じ種で決まった回で 'broken'。切れた直後にペダル 0。tapThread で1回押すごとに1本つながり、全部で 'winding' に戻る。ペダル 0 のまま、breaks 1 (T2-20a)", () => {
     const p3 = paramsOf(3);
     const run = () => {
       let s = init({ level: 3, patternId: p3.patternId, sections: p3.sections, seed: 99 });
       s = reduce(s, { type: 'setPedal', value: 30 });
+      s = { ...s, spikePlan: { left: 1, atMs: 0 } }; // スパイクを強制する (切れるのはスパイクの猶予だけ。T2-20a)
       for (let i = 0; i < 300; i++) {
         if (s.phase === 'broken') break;
-        if (s.phase === 'winding') s = reduce(s, { type: 'setPedal', value: 100 });
         s = reduce(s, { type: 'tick', dtMs: 100 });
       }
       return s;
@@ -168,9 +166,9 @@ describe('winding logic (T2-04)', () => {
     const p3 = paramsOf(3);
     let s = init({ level: 3, patternId: p3.patternId, sections: p3.sections, seed: 99 });
     s = reduce(s, { type: 'setPedal', value: 30 });
+    s = { ...s, spikePlan: { left: 1, atMs: 0 } }; // スパイクを強制する (T2-20a)
     for (let i = 0; i < 300; i++) {
       if (s.phase === 'broken') break;
-      if (s.phase === 'winding') s = reduce(s, { type: 'setPedal', value: 100 });
       s = reduce(s, { type: 'tick', dtMs: 100 });
     }
     expect(s.phase).toBe('broken');
@@ -251,51 +249,6 @@ describe('winding logic (T2-04)', () => {
   });
 });
 
-describe('winding logic T2-09a A (範囲・流れ・引っかかり) T2-16a 改訂', () => {
-  it('11. 最初の帯の範囲: 中心はメーターの中央 (50)、幅はレベルごとに固定 (RANGE_WIDTH)', () => {
-    const widths = { 1: 30, 2: 18, 3: 10 } as const;
-    for (const level of [1, 2, 3] as const) {
-      for (let seed = 1; seed <= 12; seed++) {
-        const s = init({ level, patternId: 'x', sections: 3, seed });
-        expect(s.range.center, `level ${level} seed ${seed}`).toBe(50);
-        expect(s.range.width).toBe(widths[level]);
-        expect(s.range.min).toBe(50 - widths[level] / 2);
-        expect(s.range.max).toBe(50 + widths[level] / 2);
-      }
-    }
-  });
-
-  it('12. 範囲は同じ種なら同じ (初期化は種によらないので、どの種も同じ範囲)', () => {
-    for (let seed = 1; seed <= 12; seed++) {
-      const a = init({ level: 3, patternId: 'x', sections: 3, seed }).range;
-      const b = init({ level: 3, patternId: 'x', sections: 3, seed: 7 }).range;
-      expect(b).toEqual(a);
-    }
-  });
-
-  it('13. 引っかかりのメッセージ用に、引っかかりの発生を State から分かる (snagged フラグは tick ごとに消える)', () => {
-    let sawSnag = false;
-    let flagged: { now: boolean; next: boolean } | null = null;
-    for (let seed = 1; seed <= 20 && !sawSnag; seed++) {
-      let s = init({ level: 1, patternId: 'x', sections: 3, seed });
-      s = reduce(s, { type: 'setPedal', value: 30 });
-      s = reduce(s, { type: 'setPedal', value: 33 }); // 範囲の中央 (流れでも切れない)
-      for (let i = 0; i < 3000 && !sawSnag; i++) {
-        s = reduce(s, { type: 'tick', dtMs: 100 });
-        if (s.snagRaised) sawSnag = true;
-      }
-      if (sawSnag) {
-        // snagRaised は tick のあいだだけ立つ (前の tick の結果を消す)
-        const next = reduce(s, { type: 'tick', dtMs: 100 });
-        flagged = { now: s.snagRaised, next: next.snagRaised };
-      }
-    }
-    expect(sawSnag).toBe(true);
-    expect(flagged!.now).toBe(true);
-    expect(flagged!.next).toBe(false);
-  });
-});
-
 describe('winding logic T2-09a B (目標の時間と星)', () => {
   it('14. elapsedMs は巻いていた時間と止まっていた時間の合計。糸切れを直している時間も含む', () => {
     let s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 1 });
@@ -306,7 +259,8 @@ describe('winding logic T2-09a B (目標の時間と星)', () => {
     expect(windingMs).toBe(200);
     // 巻き切って cutting → 結ぶ → broken にする時間も数える
     let cur = s;
-    cur = reduce(cur, { type: 'setPedal', value: 40 }); // 範囲の上から十分中 (流れが強くても切れない)
+    cur = reduce(cur, { type: 'setPedal', value: 40 });
+    cur = { ...cur, spikePlan: { left: 0, atMs: 0 } }; // スパイクを起こさない (切れるのはスパイクだけ。T2-20a)
     for (let i = 0; i < 300 && cur.phase === 'winding'; i++) {
       cur = reduce(cur, { type: 'tick', dtMs: 100 });
     }
@@ -316,9 +270,9 @@ describe('winding logic T2-09a B (目標の時間と星)', () => {
     // broken のあいだも進む ('broken' でも時間は進める。糸切れを直している時間も含む)
     let b = init({ level: 3, patternId: 'p-alt-kon', sections: 7, seed: 99 });
     b = reduce(b, { type: 'setPedal', value: 30 });
+    b = { ...b, spikePlan: { left: 1, atMs: 0 } }; // スパイクを強制する (3秒で起こり、2秒の猶予で切れる。T2-20a)
     for (let i = 0; i < 300; i++) {
       if (b.phase === 'broken') break;
-      if (b.phase === 'winding') b = reduce(b, { type: 'setPedal', value: 100 });
       b = reduce(b, { type: 'tick', dtMs: 100 });
     }
     expect(b.phase).toBe('broken');
@@ -354,17 +308,6 @@ describe('winding logic T2-09a B (目標の時間と星)', () => {
     const timeLine = (r.summary ?? []).find((t: string) => t.startsWith('巻いた時間'));
     expect(timeLine).toBeDefined();
     expect(timeLine).toContain('1分'); // 巻いた時間 1分35秒
-  });
-});
-
-describe('T2-09 追加修正a (糸量の +4 をやめる)', () => {
-  it('1. ペダル・ぶれ・流れ・引っかかりが同じなら、progress 0 と progress 0.9 で張りが同じ', () => {
-    // TENSION.yarnDrift を 0 にするので、progress は張りに影響しない
-    const p = { ...TENSION, range: { min: 30, max: 70 } };
-    const s = { pedal: 50, noise: 1, drift: 3, snag: 0, rng: seedFrom(1) };
-    const t0 = tensionOf(s, p, 0);
-    const t9 = tensionOf(s, p, 0.9);
-    expect(t0).toBe(t9);
   });
 });
 
@@ -416,22 +359,17 @@ describe('T2-13c (成績欄)', () => {
 });
 
 describe('winding logic T2-11a (どの状態でも範囲に届く・範囲が動く)', () => {
-  it('1. どの難易度でも、流れ・ぶれが最大に振れたときでも、ペダル 10〜100 で範囲の中に入れられる (min と max をカバー)', () => {
-    // ペダル p の張り = base + perPedal × p + noise + drift (引っかかりは除く)。
-    // 流れとぶれが同じ向きに最大に振れたとき、
-    //   張りの最小 (p=10) ≤ 範囲の min、張りの最大 (p=100) ≥ 範囲の max
-    // であれば、どの状態でも範囲の中に入れられる (T2-11a)
+  it('1. どの難易度でも、ペダルの動く幅のどこでも範囲の中に入れられる (min と max をカバー)', () => {
+    // 張り = ペダルの位置 + 揺れの量 + スパイクの量 (T2-20a)。揺れの限界は範囲の幅の半分なので、
+    // ペダルを範囲の中心に置けば揺れても範囲の中。ここでは範囲がペダルの動ける幅 (RANGE_REACHABLE) に
+    // 入ること (範囲の中のどこにもペダルで届くこと) を確かめる
     for (const level of [1, 2, 3] as const) {
-      const dp = DRIFT(level);
-      const amp = NOISE_AMP(level);
       const c = RANGE_CENTER(level);
       const width = RANGE_WIDTH(level);
       for (const center of [c.min, c.max]) {
         const range = { min: center - width / 2, max: center + width / 2 };
-        const worstLow = TENSION.base + TENSION.perPedal * 10 - dp.max - amp;
-        const worstHigh = TENSION.base + TENSION.perPedal * 100 + dp.max + amp;
-        expect(worstLow, `level ${level} c${center}`).toBeLessThanOrEqual(range.min);
-        expect(worstHigh, `level ${level} c${center}`).toBeGreaterThanOrEqual(range.max);
+        expect(range.min, `level ${level} c${center}`).toBeGreaterThanOrEqual(RANGE_REACHABLE().min);
+        expect(range.max, `level ${level} c${center}`).toBeLessThanOrEqual(RANGE_REACHABLE().max);
       }
     }
   });
@@ -508,63 +446,6 @@ describe('winding logic T2-14a (お題15題・puzzleId)', () => {
   });
 });
 
-describe('winding logic T2-14b (糸の手応え)', () => {
-  it('1. 細い糸のお題は、同じ種・同じ外れ方で標準より早く切れる', () => {
-    const run = (feel: YarnFeel, seed: number): number => {
-      let s = init({ level: 1, patternId: 'x', sections: 3, seed, feel });
-      s = reduce(s, { type: 'setPedal', value: 30 });
-      s = reduce(s, { type: 'setPedal', value: 85 }); // 範囲の上を外れ続ける (T2-19c で揺れが大きくなったため、確率の上限 0.5 に掛からない外れ方にする)
-      for (let i = 0; i < 4000; i++) {
-        s = reduce(s, { type: 'tick', dtMs: 100 }); // 0.1 秒刻みで切れる瞬間を比べる (T2-19c で切れ方が変わったため細かく)
-        if (s.brk.kind === 'broken') return i;
-      }
-      return 4000;
-    };
-    // どの種でも、細い糸が標準より遅く切れることはない。種によっては早く切れる
-    let strictlyEarlier = 0;
-    for (let seed = 1; seed <= 12; seed++) {
-      const fine = run('fine', seed);
-      const std = run('standard', seed);
-      expect(fine, `seed ${seed}: fine ${fine} / standard ${std}`).toBeLessThanOrEqual(std);
-      if (fine < std) strictlyEarlier++;
-    }
-    expect(strictlyEarlier).toBeGreaterThanOrEqual(1);
-  });
-
-  it('2. 太い糸のお題は、同じ種で流れの動きが大きい (1フレームの流れの量を比べる)', () => {
-    const run = (feel: YarnFeel, seed: number): number => {
-      let s = init({ level: 2, patternId: 'x', sections: 3, seed, feel });
-      s = reduce(s, { type: 'setPedal', value: 30 });
-      s = reduce(s, { type: 'setPedal', value: 50 });
-      s = reduce(s, { type: 'tick', dtMs: 100 });
-      return Math.abs(s.pedal.drift);
-    };
-    for (const seed of [5, 11, 23]) {
-      expect(run('thick', seed), `seed ${seed}`).toBeGreaterThan(run('standard', seed));
-    }
-  });
-
-  it('3. どの手応え・どの難易度でも、流れ・ぶれが最大に振れたときペダル 10〜100 で範囲の中に入れられる (T2-11)', () => {
-    for (const feel of ['standard', 'fine', 'thick'] as const) {
-      const f = YARN_FEEL[feel];
-      for (const level of [1, 2, 3] as const) {
-        const dp = DRIFT(level);
-        const eff = { ...dp, perSec: dp.perSec * f.driftMul, snagRate: dp.snagRate * f.snagMul };
-        const amp = NOISE_AMP(level);
-        const c = RANGE_CENTER(level);
-        const width = RANGE_WIDTH(level);
-        for (const center of [c.min, c.max]) {
-          const range = { min: center - width / 2, max: center + width / 2 };
-          const worstLow = TENSION.base + TENSION.perPedal * 10 - eff.max - amp;
-          const worstHigh = TENSION.base + TENSION.perPedal * 100 + eff.max + amp;
-          expect(worstLow, `feel ${feel} level ${level} c${center}`).toBeLessThanOrEqual(range.min);
-          expect(worstHigh, `feel ${feel} level ${level} c${center}`).toBeGreaterThanOrEqual(range.max);
-        }
-      }
-    }
-  });
-});
-
 describe('winding logic T2-16a (張りと適正の範囲)', () => {
   /** 'cutting' に進めて cut (帯の端を結ぶ) を送る */
   function cutBand(s: WindingState): WindingState {
@@ -629,96 +510,6 @@ describe('winding logic T2-16a (張りと適正の範囲)', () => {
     }
   });
 
-  it('4. 引っかかり: 巻いているあいだに張りが急に上がり (+15〜25・0.2秒)、1〜2秒かけて戻る', () => {
-    // 引っかかりが起きて、戻りきるまで巻ける種を探す
-    let found: { seed: number; maxSnag: number; riseMs: number; recoverMs: number } | null = null;
-    for (let seed = 1; seed <= 40 && found === null; seed++) {
-      let s = init({ level: 3, patternId: 'x', sections: 3, seed });
-      s = reduce(s, { type: 'setPedal', value: 30 });
-      s = reduce(s, { type: 'setPedal', value: 33 }); // 範囲の中央付近 (引っかかり以外の張りは安定)
-      let maxSnag = 0;
-      let eventMs = -1;
-      let fullMs = -1;
-      let zeroMs = -1;
-      let t = 0;
-      for (let i = 0; i < 300 && s.phase === 'winding' && zeroMs < 0; i++) {
-        s = reduce(s, { type: 'tick', dtMs: 100 });
-        t += 100;
-        if (s.snagRaised) eventMs = t; // 引っかかった tick (上がり途中・snag は半分)
-        if (eventMs > 0) {
-          if (s.pedal.snag > maxSnag) {
-            maxSnag = s.pedal.snag;
-            fullMs = t;
-          }
-          if (maxSnag > 0 && s.pedal.snag === 0) zeroMs = t;
-        }
-      }
-      if (eventMs > 0 && maxSnag >= 15 && fullMs > eventMs && zeroMs > fullMs) {
-        found = { seed, maxSnag, riseMs: fullMs - eventMs, recoverMs: zeroMs - fullMs };
-      }
-    }
-    expect(found, '引っかかりが起きて、戻りきるまで巻ける種').not.toBeNull();
-    expect(found!.maxSnag, `上がり幅 ${found!.maxSnag}`).toBeLessThanOrEqual(25 + 1e-6);
-    expect(found!.riseMs, '0.5秒ほどで上がる (T2-16 その3)').toBeLessThanOrEqual(500 + 1e-6);
-    expect(found!.recoverMs, '2〜3秒かけて徐々に戻る (T2-16 その3)').toBeGreaterThanOrEqual(2000 - 1e-6);
-    expect(found!.recoverMs).toBeLessThanOrEqual(3000 + 1e-6);
-  });
-});
-
-describe('T2-16 その3: 張り≒ペダルの位置・引っかかりで切れる (猶予つき)', () => {
-  it('1. 揺れが 0 のとき、ペダル 0 で張り 0・ペダル 50 で張り 50 (張り≒ペダルの位置)', () => {
-    const zero = { pedal: 0, noise: 0, drift: 0, snag: 0, rng: seedFrom(1) };
-    expect(tensionOf(zero, TENSION, 0)).toBe(0);
-    const mid = { pedal: 50, noise: 0, drift: 0, snag: 0, rng: seedFrom(1) };
-    expect(tensionOf(mid, TENSION, 0)).toBe(50);
-  });
-
-  it('2. 最初の帯で、ペダル 50 の張りは範囲の中。ペダル 0 の張りは範囲の外 (下)', () => {
-    const s = init({ level: 1, patternId: 'x', sections: 3, seed: 1 });
-    expect(s.range.min).toBeLessThanOrEqual(50);
-    expect(50).toBeLessThanOrEqual(s.range.max);
-    // ペダル 0 の張り (揺れが最大でも) は範囲の下より下
-    expect(NOISE_AMP(1)).toBeLessThan(s.range.min);
-  });
-
-  it('3. RANGE_REACHABLE は新しい式に合う (ペダル 10〜100 で中心 10〜100 に届く)', () => {
-    expect(RANGE_REACHABLE()).toEqual({ min: 10, max: 100 });
-  });
-
-  it('4. 引っかかりで張りが上の端 + 8 を超えると猶予があり、レベル1 では 2 秒続くと 1 本切れる', () => {
-    // 流れでの糸切れが先に起きず、猶予の時間が溜まって 2 秒で切れる種を選ぶ
-    let s: WindingState | null = null;
-    for (let seed = 1; seed <= 60 && s === null; seed++) {
-      let st = init({ level: 1, patternId: 'x', sections: 3, seed });
-      st = reduce(st, { type: 'setPedal', value: 30 });
-      st = reduce(st, { type: 'setPedal', value: 70 }); // 範囲の上の端 (65) より上
-      // 引っかかり (+25) を手で立てる (張り 95。引っかかりが無ければ 70)
-      st = { ...st, pedal: { ...st.pedal, snag: 25, snagTarget: 25 } };
-      let over = false;
-      for (let i = 0; i < 19; i++) {
-        st = reduce(st, { type: 'tick', dtMs: 100 });
-        if (st.snagOverMs > 0) over = true; // 猶予の時間が溜まっている
-      }
-      if (st.phase !== 'winding' || !over) continue;
-      st = reduce(st, { type: 'tick', dtMs: 100 });
-      if (st.phase === 'broken' && st.breaks === 1) s = st;
-    }
-    expect(s, '猶予 (2 秒) のあとで切れる種').not.toBeNull();
-  });
-
-  it('5. 猶予のうちにペダルを戻して張りが下がると数え直すので切れない', () => {
-    let s = init({ level: 1, patternId: 'x', sections: 3, seed: 1 });
-    s = reduce(s, { type: 'setPedal', value: 30 });
-    s = reduce(s, { type: 'setPedal', value: 70 });
-    s = { ...s, pedal: { ...s.pedal, snag: 25, snagTarget: 25 } };
-    s = reduce(s, { type: 'tick', dtMs: 1500 }); // 1.5 秒超過 (猶予 2 秒の途中)
-    expect(s.phase).toBe('winding');
-    s = reduce(s, { type: 'setPedal', value: 30 }); // 張り 30 + 戻りかけの引っかかり
-    for (let i = 0; i < 40; i++) {
-      s = reduce(s, { type: 'tick', dtMs: 100 });
-    }
-    expect(s.phase, '切れない').toBe('winding');
-  });
 });
 
 describe('winding logic T2-16 その7 (制限時間の割合を 0.6 に)', () => {
@@ -763,12 +554,14 @@ describe('winding logic T2-16 その6 (制限時間: 各帯の範囲の中心の
     const s0 = init({ level, patternId: 'x', sections: 3, seed });
     let s = reduce(s0, { type: 'setPedal', value: 30 });
     s = reduce(s, { type: 'setPedal', value: pedal });
+    s = { ...s, spikePlan: { left: 0, atMs: 0 } }; // スパイクを起こさない (T2-20b: 巻いた時間だけを確かめる)
     let guard = 0;
     while (s.phase !== 'done' && s.phase !== 'broken' && guard < 1200) {
       s = reduce(s, { type: 'tick', dtMs: 200 });
       if (s.phase === 'cutting') {
         s = reduce(s, { type: 'cut' });
         s = reduce(s, { type: 'setPedal', value: pedal }); // 帯が変わるとペダルは 0 に戻るので、もう一度踏む
+        s = { ...s, spikePlan: { left: 0, atMs: 0 } };
       }
       guard += 1;
     }
@@ -910,91 +703,189 @@ describe('winding logic T2-19a (1本の帯を巻く時間を 6 割に)', () => {
   });
 });
 
-describe('T2-19c: ペダルを固定したままでは勝てないように (20 通りの種の平均で確かめる)', () => {
+describe('T2-20a: 揺れとスパイク (張り = ペダルの位置 + 揺れの量 + スパイクの量)', () => {
   const DT = 100;
-  const SEEDS = 20;
-  const LEVELS = [1, 2, 3] as Level[];
+  const LIMIT = (width: number): number => width / 2; // 揺れの限界 = 範囲の幅の半分
 
-  /** うまい追いかけ方: 張りが範囲の真ん中から外れた分だけ、次のフレームでペダルを戻す */
-  const trackerPedal = (s: WindingState): number =>
-    Math.min(100, Math.max(0, s.pedal.pedal + (s.range.center - s.tension)));
+  it('1. 揺れていないとき、張り = ペダルの位置 (帯の始まりから 3 秒は揺れない)', () => {
+    for (const seed of [1, 2, 3]) {
+      let s = init({ level: 1, patternId: 'x', sections: 3, seed });
+      s = reduce(s, { type: 'setPedal', value: 50 });
+      for (let i = 0; i < 29; i++) s = reduce(s, { type: 'tick', dtMs: DT }); // 2.9 秒 < 3 秒
+      expect(s.tension, `seed ${seed}`).toBe(50); // 揺れもスパイクも無いので ペダルどおり
+      expect(s.wobble.qty).toBe(0);
+      expect(s.spike.qty).toBe(0);
+    }
+  });
 
-  /** 1 お題を最後まで巻いたときの、範囲の中にいた時間の割合 (ΣokMs / ΣwindMs) */
-  const run = (level: Level, seed: number, mode: 'fixed' | 'tracker'): number => {
-    let s = init({ level, patternId: 'x', sections: SECTIONS(level), seed });
-    s = reduce(s, { type: 'setPedal', value: s.range.center }); // 巻き始める (T2-18a)
-    let guard = 0;
-    while (s.phase !== 'done' && guard < 60000) {
-      if (s.phase === 'cutting') {
-        s = reduce(s, { type: 'cut' });
-        if (mode === 'fixed' && s.phase === 'winding') {
-          s = reduce(s, { type: 'setPedal', value: s.range.center }); // 帯が変わったら真ん中に置き直すだけ
-        }
-      } else if (s.phase === 'broken' && s.brk.kind === 'broken') {
-        for (const th of s.brk.threads) {
-          s = reduce(s, { type: 'tapThread', thread: th });
-        }
-        if (s.phase === 'winding') {
-          const p = mode === 'fixed' ? s.range.center : trackerPedal(s);
-          s = reduce(s, { type: 'setPedal', value: p });
-        }
-      } else if (s.phase === 'winding' && mode === 'tracker') {
-        s = reduce(s, { type: 'setPedal', value: trackerPedal(s) });
-      }
+  it('2. 揺れの量は ±(範囲の幅 ÷ 2) の中。動かしているあいだも 戻る先は今のペダルの位置', () => {
+    let s = init({ level: 1, patternId: 'x', sections: 3, seed: 5 });
+    s = reduce(s, { type: 'setPedal', value: 50 });
+    const limit = LIMIT(s.range.width);
+    let prevQty = 0;
+    for (let i = 0; i < 400; i++) {
+      if (i === 150) s = reduce(s, { type: 'setPedal', value: 45 }); // 揺れの途中で動かす
+      if (i === 300) s = reduce(s, { type: 'setPedal', value: 55 });
       s = reduce(s, { type: 'tick', dtMs: DT });
-      guard += 1;
+      if (s.phase !== 'winding') { prevQty = 0; continue; } // 切れた tick は飛ぶ
+      if (s.spike.qty > 0) continue; // スパイクのあいだは 0.5 秒で上がるので別の決まり (テスト 6)
+      const qty = s.tension - s.pedal.pedal; // 張り − ペダル = 揺れの量
+      expect(Math.abs(qty), `i=${i}`).toBeLessThanOrEqual(limit + 1e-9);
+      // 揺れの量は連続に変わり、ペダルを動かしても飛ばない (戻る先は今のペダルの位置)
+      expect(Math.abs(qty - prevQty), `i=${i}`).toBeLessThanOrEqual(limit * (DT / 1000) + 1e-9);
+      prevQty = qty;
     }
-    expect(s.phase, `level ${level} seed ${seed} ${mode}`).toBe('done');
-    const wind = s.windMs.reduce((a, b) => a + b, 0);
-    const ok = s.okMs.reduce((a, b) => a + b, 0);
-    return wind > 0 ? ok / wind : 0;
-  };
-
-  const average = (level: Level, mode: 'fixed' | 'tracker'): number => {
-    let sum = 0;
-    for (let seed = 1; seed <= SEEDS; seed++) sum += run(level, seed, mode);
-    return sum / SEEDS;
-  };
-
-  it('範囲の真ん中に固定したままでは、どのレベルも範囲の中にいた時間が 6 割未満 (星3 の 8 割に届かない)', () => {
-    for (const level of LEVELS) {
-      const avg = average(level, 'fixed');
-      expect(avg, `レベル${level} 固定の平均 ${(avg * 100).toFixed(1)}%`).toBeLessThan(0.6);
-    }
-  }, 120000);
-
-  it('張りを見て追いかける (うまい追いかけ方) と、どのレベルも 9 割以上入る', () => {
-    for (const level of LEVELS) {
-      const avg = average(level, 'tracker');
-      expect(avg, `レベル${level} 追いかけるの平均 ${(avg * 100).toFixed(1)}%`).toBeGreaterThanOrEqual(0.9);
-    }
-  }, 120000);
-
-  it('巻き進むほど張りが上がる (帯の 0% → 100% で +8/+11/+14)。帯が変わると元に戻る', () => {
-    expect(TENSION_RISE(1)).toBe(8);
-    expect(TENSION_RISE(2)).toBe(11);
-    expect(TENSION_RISE(3)).toBe(14);
   });
 
-  it('流れの幅 (±16/±18/±24)・数秒ごとの向きが変わる流れ・引っかかり 1.5 倍 (T2-19c の数値は params。幅と向きが変わる間隔は 20 通りのテストに合わせて調整)', () => {
-    expect(DRIFT(1).max).toBe(16);
-    expect(DRIFT(2).max).toBe(18);
-    expect(DRIFT(3).max).toBe(24);
-    expect(DRIFT(1).flipEveryMinSec).toBe(4);
-    expect(DRIFT(1).flipEveryMaxSec).toBe(9);
-    expect(DRIFT(1).snagRate).toBeCloseTo(0.02 * 1.5);
-    expect(DRIFT(2).snagRate).toBeCloseTo(0.04 * 1.5);
-    expect(DRIFT(3).snagRate).toBeCloseTo(0.06 * 1.5);
+  it('3. ペダルを範囲の外に置くと揺れない (張り = ペダルの位置のまま)', () => {
+    // スパイクの予定が無い帯 (spikePlan.left = 0) を探す (スパイクは範囲の外でも続く別の決まり)
+    let s: WindingState | null = null;
+    for (let seed = 1; seed <= 40; seed++) {
+      const s0 = init({ level: 1, patternId: 'x', sections: 3, seed });
+      if (s0.spikePlan.left === 0) {
+        s = s0;
+        break;
+      }
+    }
+    expect(s, 'スパイクの予定が無い帯の種').not.toBeNull();
+    s = reduce(s!, { type: 'setPedal', value: 50 });
+    // いったん揺れを起こさせる (3 秒まち + 揺れの上がり)
+    for (let i = 0; i < 60; i++) s = reduce(s!, { type: 'tick', dtMs: DT });
+    // 範囲の上の外 (範囲の max より大きいペダル) へ動かす
+    s = reduce(s!, { type: 'setPedal', value: 90 });
+    for (let i = 0; i < 100; i++) {
+      s = reduce(s!, { type: 'tick', dtMs: DT });
+      expect(s.tension, `i=${i}`).toBe(90); // 揺れない (張り = ペダルの位置)
+    }
   });
 
-  it('巻き進むほど張りが上がるのは帯ごと (帯が変わると 0 に戻る)', () => {
-    // 同じペダルの状態から 1 tick ずつ進めて、長さだけ変えたときの張りの差を比べる
-    const level = 1;
-    const s0 = init({ level, patternId: 'x', sections: 3, seed: 4 });
-    const base = { ...s0, phase: 'winding' as const, lengths: [0, 0, 0] };
-    const early = reduce(base, { type: 'tick', dtMs: 100 });
-    const mid = reduce({ ...base, lengths: [SECTION_LENGTH * 0.6, 0, 0] }, { type: 'tick', dtMs: 100 });
-    const diff = mid.tension - early.tension;
-    expect(diff).toBeCloseTo(TENSION_RISE(level) * 0.6, 5);
+  it('4. 帯の始まりから 3 秒は揺れもスパイクも無い (種 20 通り・レベル 3 でも)', () => {
+    for (let seed = 1; seed <= 20; seed++) {
+      for (const level of [1, 2, 3] as Level[]) {
+        let s = init({ level, patternId: 'x', sections: 3, seed });
+        s = reduce(s, { type: 'setPedal', value: 50 });
+        for (let i = 0; i < 30; i++) {
+          s = reduce(s, { type: 'tick', dtMs: DT });
+          expect(s.wobble.qty, `L${level} seed ${seed} t=${((i + 1) * DT) / 1000}秒`).toBe(0);
+          expect(s.spike.qty, `L${level} seed ${seed} スパイク`).toBe(0);
+          expect(s.bandClockMs).toBe((i + 1) * DT);
+        }
+      }
+    }
+  });
+
+  it('5. 範囲の真ん中に固定すると、スパイクの無い時間は範囲の中に 100% (種 20 通り)', () => {
+    for (let seed = 1; seed <= 20; seed++) {
+      for (const level of [1, 2, 3] as Level[]) {
+        let s = init({ level, patternId: 'x', sections: 3, seed });
+        s = reduce(s, { type: 'setPedal', value: s.range.center });
+        let guard = 0;
+        let freeMs = 0; // スパイクの量が 0 の時間
+        let freeOkMs = 0; // そのうち範囲の中にいた時間
+        while (s.phase !== 'done' && guard < 60000) {
+          const wasWinding = s.phase === 'winding';
+          if (s.phase === 'cutting') s = reduce(s, { type: 'cut' });
+          else if (s.phase === 'broken' && s.brk.kind === 'broken') {
+            for (const th of s.brk.threads) s = reduce(s, { type: 'tapThread', thread: th });
+            if (s.phase === 'winding') s = reduce(s, { type: 'setPedal', value: s.range.center });
+          } else if (s.phase === 'winding') {
+            s = reduce(s, { type: 'setPedal', value: s.range.center });
+          }
+          s = reduce(s, { type: 'tick', dtMs: DT });
+          guard += 1;
+          if (wasWinding && (s.phase === 'winding' || s.phase === 'cutting')) {
+            if (s.spike.qty === 0) {
+              freeMs += DT;
+              if (s.tension >= s.range.min && s.tension <= s.range.max) freeOkMs += DT;
+            }
+          }
+        }
+        expect(s.phase, `L${level} seed ${seed}`).toBe('done');
+        // スパイクの無い時間はすべて範囲の中 (揺れの限界 = 範囲の幅の半分だから)
+        expect(freeOkMs / freeMs, `L${level} seed ${seed}`).toBeCloseTo(1, 6);
+      }
+    }
+  });
+
+  it('6. スパイク: 2 秒以内にペダルを 10 下げると切れずに戻る。下げないと 2 秒で切れる', () => {
+    // スパイクを起こす: 予定の時間を帯の始めすぐにして、3 秒のまちを tick で進める
+    const mk = (seed: number): WindingState => {
+      let s = init({ level: 1, patternId: 'x', sections: 3, seed });
+      s = { ...s, spikePlan: { left: 1, atMs: 0 } }; // 帯の始まりすぐに起こす (3 秒のまちのあと)
+      s = reduce(s, { type: 'setPedal', value: 50 });
+      for (let i = 0; i < 31; i++) s = reduce(s, { type: 'tick', dtMs: DT }); // 3 秒 (まち) の直後で起こす
+      return s;
+    };
+    // (a) 下げない → 2 秒で切れる
+    let a = mk(11);
+    expect(a.spike.qty).toBeGreaterThan(0); // スパイクが起きている
+    const pedalAtStart = a.spike.pedalAtStart;
+    for (let i = 0; i < 19; i++) a = reduce(a, { type: 'tick', dtMs: DT }); // 1.9 秒
+    expect(a.phase).toBe('winding'); // まだ切れない
+    a = reduce(a, { type: 'tick', dtMs: DT }); // 2 秒
+    expect(a.phase, '下げないと 2 秒で切れる').toBe('broken');
+    expect(a.breaks).toBe(1);
+    // (b) 1 秒で 10 下げる → 切れずに 0.5 秒で戻る
+    let b = mk(11);
+    for (let i = 0; i < 10; i++) b = reduce(b, { type: 'tick', dtMs: DT }); // 1 秒
+    b = reduce(b, { type: 'setPedal', value: Math.max(0, pedalAtStart - 10) });
+    for (let i = 0; i < 30; i++) b = reduce(b, { type: 'tick', dtMs: DT }); // 3 秒まつ
+    expect(b.phase, '10 下げたら切れずに戻る').toBe('winding');
+    expect(b.spike.qty).toBe(0); // 戻りきっている
+    // スパイクが無くなれば 張り = ペダルの位置 + 揺れの量 (揺れは続く)
+    expect(b.tension - b.pedal.pedal).toBe(b.wobble.qty);
+  });
+
+  it('7. スパイクの回数はレベルの決まりどおり (レベル1 は 0〜1・2 は 1・3 は 1〜2)。あいだは 5 秒以上あける', () => {
+    // 帯ごとの予定の回数 (spikePlan) を init 直後と cut の直後に集める
+    for (const level of [1, 2, 3] as Level[]) {
+      const range = SPIKE_COUNT_RANGE(level);
+      for (let seed = 1; seed <= 20; seed++) {
+        let s = init({ level, patternId: 'x', sections: 3, seed });
+        const perBand: number[] = [s.spikePlan.left];
+        const ats: number[] = [s.spikePlan.atMs];
+        for (let b = 1; b < s.sections; b++) {
+          s = { ...s, phase: 'cutting' };
+          s = reduce(s, { type: 'cut' });
+          perBand.push(s.spikePlan.left);
+          ats.push(s.spikePlan.atMs);
+        }
+        for (const c of perBand) {
+          expect(c, `L${level} seed ${seed}`).toBeGreaterThanOrEqual(range.min);
+          expect(c, `L${level} seed ${seed}`).toBeLessThanOrEqual(range.max);
+        }
+        // 最初のスパイクは帯の始まりから 3 秒以上あと (各帯とも)
+        for (const at of ats) expect(at).toBeGreaterThanOrEqual(3000);
+      }
+    }
+    // 2 回目のスパイクは 1 回目より 5 秒以上あと (レベル3 で予定を強制して確かめる)
+    for (let seed = 1; seed <= 10; seed++) {
+      let s = init({ level: 3, patternId: 'x', sections: 1, seed });
+      s = { ...s, spikePlan: { left: 2, atMs: 3000 } };
+      s = reduce(s, { type: 'setPedal', value: 50 });
+      for (let i = 0; i < 31; i++) s = reduce(s, { type: 'tick', dtMs: DT }); // 3 秒 → 1 回目
+      expect(s.spike.qty).toBeGreaterThan(0);
+      expect(s.spikePlan.left).toBe(1);
+      expect(s.spikePlan.atMs - 3000).toBeGreaterThanOrEqual(5000); // 次は 5 秒以上あける
+    }
+  });
+
+  it('8. T2-19c の流れ・巻き進むほど上がる張り・引っかかりは無い (params からも無い)', () => {
+    const p = params as unknown as Record<string, unknown>;
+    expect(p['DRIFT']).toBeUndefined();
+    expect(p['NOISE_AMP']).toBeUndefined();
+    expect(p['TENSION_RISE']).toBeUndefined();
+    expect(p['SNAG_BREAK_MARGIN']).toBeUndefined();
+    expect(p['SNAG_GRACE_MS']).toBeUndefined();
+    // 揺れの限界は範囲の幅の半分: 範囲の真ん中に固定した長時間の巻きで、張り − ペダルは限界の中
+    let s = init({ level: 2, patternId: 'x', sections: 3, seed: 9 });
+    s = reduce(s, { type: 'setPedal', value: s.range.center });
+    const limit = LIMIT(s.range.width);
+    for (let i = 0; i < 300; i++) {
+      s = reduce(s, { type: 'tick', dtMs: DT });
+      if (s.spike.qty > 0 || s.phase !== 'winding') continue; // スパイクは ±15〜25 の別の決まり (テスト 6)
+      expect(s.tension - s.pedal.pedal).toBeLessThanOrEqual(limit + 1e-9);
+      expect(s.tension - s.pedal.pedal).toBeGreaterThanOrEqual(-limit - 1e-9);
+    }
   });
 });

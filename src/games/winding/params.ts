@@ -1,4 +1,4 @@
-import type { TensionParams, DriftParams } from '../../core/mechanics/pedal';
+import type { TensionParams } from '../../core/mechanics/pedal';
 import type { BreakParams } from '../../core/mechanics/breakage';
 /** 初級・中級・上級 */
 export type Level = 1 | 2 | 3;
@@ -51,36 +51,32 @@ export const TIME_PEDAL_START_MS = 1500;
 /** 内訳: ハサミを動かして帯の端を結ぶ動きまで (ms。T2-18a) */
 export const TIME_SCISSORS_TIE_MS = 3500;
 
+/** ---- 揺れの決まり (T2-20a。管理者の仕様。数値は遊んで調整する) ---- */
+/** 帯の始まりから、揺れもスパイクも起こさない時間 */
+export const WOBBLE_START_DELAY_MS = 3000;
+/** 揺れの限界 = 適正の範囲の幅の半分 (ペダルの位置を起点に ±ここまで) */
+export const WOBBLE_RISE_MIN_MS = 1000; // 上がる時間の範囲 (1〜2 秒)
+export const WOBBLE_RISE_MAX_MS = 2000;
+export const WOBBLE_FALL_MIN_MS = 1000; // 戻る時間の範囲 (1〜2 秒)
+export const WOBBLE_FALL_MAX_MS = 2000;
+export const WOBBLE_GAP_MIN_MS = 1000; // 揺れと揺れのあいだ (1〜3 秒)
+export const WOBBLE_GAP_MAX_MS = 3000;
+export const WOBBLE_MAG_MIN = 0.4; // 揺れの大きさは限界の 40〜100% (乱数)
+
+/** ---- スパイクの決まり (T2-20a) ---- */
+export const SPIKE_RISE_MS = 500; // +15〜+25 を 0.5 秒で上げる
+export const SPIKE_FALL_MS = 500; // ペダルを下げたら 0.5 秒で今のペダルの位置へ戻る
+export const SPIKE_QTY_MIN = 15;
+export const SPIKE_QTY_MAX = 25;
+export const SPIKE_RELIEF = 10; // スパイクが起きたときのペダルより 10 以上下げたら戻る
+export const SPIKE_GRACE_MS = 2000; // 2 秒以内に下げないと糸が切れる (レベルで変えない)
+export const SPIKE_GAP_MS = 5000; // スパイクとスパイクのあいだ (5 秒以上)
+/** 1本の帯で起こすスパイクの回数の範囲 (レベル1 は 0〜1 回・2 は 1 回・3 は 1〜2 回) */
+export function SPIKE_COUNT_RANGE(level: Level): { min: number; max: number } {
+  return level === 1 ? { min: 0, max: 1 } : level === 2 ? { min: 1, max: 1 } : { min: 1, max: 2 };
+}
+
 /** 張りの流れ・引っかかりのパラメータ (T2-09a・T2-16a・T2-16 その3)。引っかかりは +15〜25・0.5秒で上がり 2〜3秒で戻る (起きやすさはレベルで変わる) */
-export function DRIFT(level: Level): DriftParams {
-  const common = { snagSizeMin: 15, snagSizeMax: 25, snagRiseMs: 500, snagRecoverMinMs: 2000, snagRecoverMaxMs: 3000 }; // 0.5秒で上がり 2〜3秒で戻る (T2-16 その3)
-  // T2-19c: 揺れを大きく (±12/±18/±24)・数秒ごとに向きが変わる流れ・引っかかりを 1.5 倍に (管理者の指定)
-  if (level === 2) return { perSec: 7, turnRate: 0.15, max: 18, snagRate: 0.04 * 1.5, snagSize: 9, flipEveryMinSec: 4, flipEveryMaxSec: 9, ...common };
-  if (level === 3) return { perSec: 8, turnRate: 0.15, max: 24, snagRate: 0.06 * 1.5, snagSize: 12, flipEveryMinSec: 4, flipEveryMaxSec: 9, ...common };
-  return { perSec: 10, turnRate: 0.15, max: 16, snagRate: 0.02 * 1.5, snagSize: 6, flipEveryMinSec: 4, flipEveryMaxSec: 9, ...common };
-}
-
-/** 巻き進むほど上がる張り (帯の 0%→100% での上がり量。帯が変わると元に戻る。T2-19c。管理者が遊んで調整する) */
-export function TENSION_RISE(level: Level): number {
-  return level === 1 ? 8 : level === 2 ? 11 : 14;
-}
-
-/** ぶれの大きさ (T2-09a は初級 ±1・中級 ±1.5・上級 ±2。T2-19c: 固定したペダルでは範囲から外れるように大きくする) */
-export function NOISE_AMP(level: Level): number {
-  return level === 1 ? 7 : level === 2 ? 7 : 8;
-}
-
-/** 目標の時間の余裕 (適正の上端で巻くときの速さに掛ける。T2-16b) */
-
-/** 引っかかりで上の端を超えても切れない猶予の量 (張りが上の端 + この値を超えたら数える。T2-16 その3) */
-export const SNAG_BREAK_MARGIN = 8;
-
-/** 引っかかりで上の端 + 8 を超えたまま切れるまでの猶予 (ms。T2-16 その3) */
-export function SNAG_GRACE_MS(level: Level): number {
-  return level === 1 ? 2000 : level === 2 ? 1500 : 1200;
-}
-
-/** 張りのメッセージを切り替えるまでの待ち時間 (ms)。新しい張りの状態が続いたときだけ変える (T2-07 追加修正2) */
 export const MESSAGE_HOLD_MS = 500;
 
 /** 糸切れのしやすさ (範囲の上を1外れるごとの確率) */

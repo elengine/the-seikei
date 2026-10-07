@@ -51,6 +51,8 @@ function windingState(seed = 1): WindingState {
   let s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed });
   s = reduce(s, { type: 'setPedal', value: 30 });
   s = reduce(s, { type: 'setPedal', value: 50 });
+  // 揺れを止める (あいだを十分長く)・スパイクを起こさない (T2-20a: ランプや絵を決定的にするため)
+  s = { ...s, wobble: { ...s.wobble, gapMs: 1e9 }, spikePlan: { left: 0, atMs: 0 } };
   return s;
 }
 
@@ -58,9 +60,9 @@ function windingState(seed = 1): WindingState {
 function brokenState(seed = 99): WindingState {
   let s = init({ level: 3, patternId: 'p-alt-kon', sections: 7, seed });
   s = reduce(s, { type: 'setPedal', value: 30 });
+  s = { ...s, spikePlan: { left: 1, atMs: 0 } }; // スパイクを強制する (3秒で起こり、2秒の猶予で切れる。T2-20a)
   for (let i = 0; i < 300; i++) {
     if (s.phase === 'broken') break;
-    if (s.phase === 'winding') s = reduce(s, { type: 'setPedal', value: 100 });
     s = reduce(s, { type: 'tick', dtMs: 100 });
   }
   return s;

@@ -1,18 +1,52 @@
 import type { RngState } from '../../core/clock/clock';
 import { seedFrom, nextFloat } from '../../core/clock/clock';
-import { initPedal, setPedal, speedOf, tensionOf, stepNoise, stepDrift, stepSnag } from '../../core/mechanics/pedal';
+import { initPedal, setPedal, speedOf } from '../../core/mechanics/pedal';
 import type { PedalState } from '../../core/mechanics/pedal';
-import { initBreak, stepBreak, tapThread } from '../../core/mechanics/breakage';
+import { initBreak, tapThread } from '../../core/mechanics/breakage';
 import type { BreakState, TapResult } from '../../core/mechanics/breakage';
 import {
   SECTION_LENGTH, RANGE_WIDTH, RANGE_CENTER, RANGE_SHIFT_ON_SECTION, RANGE_REACHABLE, MAX_SPEED,
-  DRIFT, NOISE_AMP, BREAK_RATE, TENSION, BREAK,
-  MAX_TICK_MS, STARS3, STARS2, BREAK_EXTRA_STEP, BREAK_MAX_THREADS,
-  YARN_FEEL, SNAG_BREAK_MARGIN, SNAG_GRACE_MS, TIME_ANCHOR, TIME_PER_SECTION_MS, TENSION_RISE,
+  TENSION, BREAK, MAX_TICK_MS, STARS3, STARS2,
+  TIME_ANCHOR, TIME_PER_SECTION_MS,
+  WOBBLE_START_DELAY_MS, WOBBLE_RISE_MIN_MS, WOBBLE_RISE_MAX_MS, WOBBLE_FALL_MIN_MS, WOBBLE_FALL_MAX_MS,
+  WOBBLE_GAP_MIN_MS, WOBBLE_GAP_MAX_MS, WOBBLE_MAG_MIN,
+  SPIKE_RISE_MS, SPIKE_FALL_MS, SPIKE_QTY_MIN, SPIKE_QTY_MAX, SPIKE_RELIEF, SPIKE_GRACE_MS, SPIKE_GAP_MS, SPIKE_COUNT_RANGE,
 } from './params';
 import type { Level, YarnFeel } from './params';
 
 export type { Level } from './params';
+
+/** 揺れの状態 (T2-20a)。量 (qty) は 0 から始まり、峰 (mag) まで上がって 0 に戻る */
+export interface WobbleState {
+  qty: number;
+  dir: 1 | -1;
+  /** 峰の大きさ (範囲の幅の半分 × 40〜100%) */
+  mag: number;
+  riseMs: number;
+  fallMs: number;
+  phase: 'gap' | 'up' | 'down';
+  timerMs: number;
+  /** 次の揺れまでのあいだ (1〜3 秒)。phase 'gap' で timerMs がこれを超えると揺れが始まる */
+  gapMs: number;
+}
+
+/** スパイクの状態 (T2-20a)。qty は今の量 (0 = 無し)。target まで 0.5 秒で上がる */
+export interface SpikeState {
+  qty: number;
+  target: number;
+  /** スパイクが起きたときのペダルの位置 (ここより SPIKE_RELIEF 下げると戻る) */
+  pedalAtStart: number;
+  /** スパイクが起きてからの時間 (ms)。SPIKE_GRACE_MS を過ぎると切れる */
+  elapsedMs: number;
+  /** 戻っている最後の経過時間 (ms)。-1 は戻っていない */
+  fallingMs: number;
+}
+
+/** この帯で起こすスパイクの予定 (T2-20a)。left は残り回数、atMs は帯の始まりからの予定時刻 */
+export interface SpikePlan {
+  left: number;
+  atMs: number;
+}
 
 export interface WindingState {
   level: Level;
@@ -33,9 +67,16 @@ export interface WindingState {
   tension: number; // 最後に計算した張り(描画用)
   range: { center: number; width: number; min: number; max: number }; // 今の帯の適正範囲 (ranges[current] と同じ。T2-16 その6)
   ranges: Array<{ center: number; width: number; min: number; max: number }>; // 帯ごとの適正範囲。お題を始めるときに全部決める (制限時間を最初に出すため。T2-16 その6)
-  snagRaised: boolean; // 直前の tick で引っかかった (メッセージ用。T2-09a)
-  /** 引っかかりで張りが上の端 + 8 を超えている時間の合計 (ms)。下がると 0 に戻す (T2-16 その3) */
-  snagOverMs: number;
+  /** 揺れ (T2-20a)。量は 0 → 峰 (範囲の幅の半分の 40〜100%) → 0。張り = ペダルの位置 + 量 */
+  wobble: WobbleState;
+  /** スパイク (T2-20a)。qty が 0 より大きいあいだ張りに上乗せされる。ペダルを SPIKE_RELIEF 下げると戻る */
+  spike: SpikeState;
+  /** この帯で起こすスパイクの予定 (残り回数と、帯の始まりからの時刻) */
+  spikePlan: SpikePlan;
+  /** 帯の始まりからの時間 (ms)。揺れもスパイクも WOBBLE_START_DELAY_MS のあとだけ起こす */
+  bandClockMs: number;
+  /** 帯ごとの、スパイクの量が 0 でなかった時間 (ms。テストと成績の内訳用) */
+  spikeMs: number[];
   elapsedMs: number; // 巻いていた時間と止まっていた時間の合計 (目標の時間の比較用。T2-09a)
   brk: BreakState;
   breaks: number;
@@ -50,20 +91,109 @@ export type WindingAction =
   | { type: 'cut' } // 「帯の端を結ぶ」
   | { type: 'pausePedal' }; // 裏に回ったときなど、ペダルを 0 にする
 
-/** 難易度ごとの張りの計算のパラメータ (範囲は State のものを使う) */
-function tensionParams(level: Level, range: { min: number; max: number }) {
-  return { ...TENSION, noiseAmp: NOISE_AMP(level), range };
+/** 揺れまでのあいだを乱数で決める (1〜3 秒) */
+function nextGapMs(rng: RngState): { ms: number; rng: RngState } {
+  const [raw, next] = nextFloat(rng);
+  return { ms: WOBBLE_GAP_MIN_MS + (WOBBLE_GAP_MAX_MS - WOBBLE_GAP_MIN_MS) * raw, rng: next };
 }
 
-/** 難易度と糸の手応えごとの糸切れのパラメータ (T2-14b: 細い糸は切れやすい) */
-function breakParams(level: Level, feel: YarnFeel = 'standard'): typeof BREAK {
-  const f = YARN_FEEL[feel] ?? YARN_FEEL.standard;
-  return {
-    ...BREAK,
-    rate: BREAK_RATE(level) * f.breakRateMul,
-    extraStep: Math.max(4, BREAK_EXTRA_STEP(level) + f.breakExtraStepDelta),
-    maxThreads: BREAK_MAX_THREADS(level),
-  };
+/** 揺れを初期化する (量 0・あいだを乱数で決める) */
+function resetWobble(rng: RngState): { wobble: WobbleState; rng: RngState } {
+  const g = nextGapMs(rng);
+  return { wobble: { qty: 0, dir: 1, mag: 0, riseMs: 0, fallMs: 0, phase: 'gap', timerMs: 0, gapMs: g.ms }, rng: g.rng };
+}
+
+/** スパイクを初期化する (量 0) */
+function resetSpike(): SpikeState {
+  return { qty: 0, target: 0, pedalAtStart: 0, elapsedMs: 0, fallingMs: -1 };
+}
+
+/** 帯のスパイクの予定を乱数で決める (回数はレベルの決まり。最初は 3〜5 秒のあと、次は 5 秒以上あける) */
+function planSpikes(level: Level, rng: RngState): { plan: SpikePlan; rng: RngState } {
+  const range = SPIKE_COUNT_RANGE(level);
+  const [r1, r2] = nextFloat(rng);
+  const count = range.min + Math.floor(r1 * (range.max - range.min + 1));
+  const [r3, r4] = nextFloat(r2);
+  const atMs = WOBBLE_START_DELAY_MS + 2000 * r3;
+  return { plan: { left: count, atMs }, rng: r4 };
+}
+
+/** 揺れを 1 tick 進める (T2-20a)。ペダルが範囲の外なら揺れない (量を 0 に戻す) */
+function stepWobble(
+  w: WobbleState, rng: RngState, pedalPos: number, range: { min: number; max: number }, dtMs: number,
+): { wobble: WobbleState; rng: RngState } {
+  const limit = (range.max - range.min) / 2; // 揺れの限界 = 範囲の幅の半分
+  if (pedalPos < range.min - 1e-9 || pedalPos > range.max + 1e-9) {
+    return resetWobble(rng);
+  }
+  if (w.phase === 'gap') {
+    const timerMs = w.timerMs + dtMs;
+    if (timerMs >= w.gapMs) {
+      // 新しい揺れ: 向きと大きさ (限界の 40〜100%) と上がる時間 (1〜2 秒) を乱数で決める
+      const [r1, r2] = nextFloat(rng);
+      const [r3, r4] = nextFloat(r2);
+      const [r5, r6] = nextFloat(r4);
+      return {
+        wobble: { qty: 0, dir: r1 < 0.5 ? 1 : -1, mag: limit * (WOBBLE_MAG_MIN + (1 - WOBBLE_MAG_MIN) * r3), riseMs: WOBBLE_RISE_MIN_MS + (WOBBLE_RISE_MAX_MS - WOBBLE_RISE_MIN_MS) * r5, fallMs: w.fallMs, phase: 'up', timerMs: 0, gapMs: w.gapMs },
+        rng: r6,
+      };
+    }
+    return { wobble: { ...w, timerMs }, rng };
+  }
+  if (w.phase === 'up') {
+    const step = w.mag * (dtMs / Math.max(1, w.riseMs));
+    const qty = w.dir === 1 ? Math.min(w.mag, w.qty + step) : Math.max(-w.mag, w.qty - step);
+    if (qty === w.dir * w.mag) {
+      // 峰に達したら、いまのペダルの位置へ戻る (戻る時間 1〜2 秒を乱数で決める)
+      const [raw, next] = nextFloat(rng);
+      return { wobble: { ...w, qty, phase: 'down', timerMs: 0, fallMs: WOBBLE_FALL_MIN_MS + (WOBBLE_FALL_MAX_MS - WOBBLE_FALL_MIN_MS) * raw }, rng: next };
+    }
+    return { wobble: { ...w, qty }, rng };
+  }
+  // down: 0 (今のペダルの位置) へ戻る
+  const step = w.mag * (dtMs / Math.max(1, w.fallMs));
+  if (w.dir === -1) {
+    // 下向きの揺れは 0 に向けて上がる
+    const q2 = Math.min(0, w.qty + step);
+    if (q2 === 0) return resetWobble(rng);
+    return { wobble: { ...w, qty: q2 }, rng };
+  }
+  const qty = Math.max(0, w.qty - step);
+  if (qty === 0) return resetWobble(rng);
+  return { wobble: { ...w, qty }, rng };
+}
+
+/** スパイクを 1 tick 進める (T2-20a)。戻す (切れる) のは stepSpike の結果で分かる */
+function stepSpike(
+  sp: SpikeState, plan: SpikePlan, rng: RngState, pedalPos: number, bandClockMs: number, dtMs: number,
+): { spike: SpikeState; plan: SpikePlan; rng: RngState } {
+  if (sp.qty === 0) {
+    // 予定の時間になったら起こす (帯の始まりから 3 秒以上たってから。left の残りがあるときだけ)
+    if (plan.left > 0 && bandClockMs >= plan.atMs) {
+      const [r1, r2] = nextFloat(rng);
+      const target = SPIKE_QTY_MIN + (SPIKE_QTY_MAX - SPIKE_QTY_MIN) * r1;
+      return {
+        spike: { qty: target * (dtMs / SPIKE_RISE_MS), target, pedalAtStart: pedalPos, elapsedMs: 0, fallingMs: -1 },
+        plan: { left: plan.left - 1, atMs: plan.atMs + SPIKE_GAP_MS },
+        rng: r2,
+      };
+    }
+    return { spike: sp, plan, rng };
+  }
+  if (sp.fallingMs >= 0) {
+    // ペダルを下げた。0.5 秒で今のペダルの位置 (スパイクの量 0) へ戻る
+    const fallingMs = sp.fallingMs + dtMs;
+    const qty = Math.max(0, sp.qty * (1 - fallingMs / SPIKE_FALL_MS));
+    if (qty <= 0) return { spike: resetSpike(), plan, rng };
+    return { spike: { ...sp, qty, fallingMs }, plan, rng };
+  }
+  // まだ上がっている最中でも、ペダルを十分下げたら戻し始める
+  const elapsedMs = sp.elapsedMs + dtMs;
+  const qty = Math.min(sp.target, sp.qty + (sp.target * dtMs) / SPIKE_RISE_MS);
+  if (pedalPos <= sp.pedalAtStart - SPIKE_RELIEF) {
+    return { spike: { ...sp, qty, elapsedMs, fallingMs: 0 }, plan, rng };
+  }
+  return { spike: { ...sp, qty, elapsedMs }, plan, rng };
 }
 
 /** 適正範囲を作る (中心と幅は RANGE_WIDTH。位置は最初メーターの中央 50。T2-16a) */
@@ -100,6 +230,9 @@ export function init(opts: { level: Level; patternId: string; sections: number; 
   // レベル2・3 は帯が変わるごとに位置が動く (動く幅は今の決まりのまま)。乱数は State の種から
   const ranges = makeRanges(opts.level, sections, seedFrom(opts.seed + 1));
   const range = ranges[0]!;
+  // 1本目の帯のスパイクの予定と揺れの初期状態 (乱数は State の種から。T2-20a)
+  const p0 = planSpikes(opts.level, seedFrom(opts.seed));
+  const w0 = resetWobble(p0.rng);
   return {
     level: opts.level,
     patternId: opts.patternId,
@@ -118,13 +251,16 @@ export function init(opts: { level: Level; patternId: string; sections: number; 
     targetMs: ranges.reduce((acc, r) => acc + bandTargetMs(r), 0) + sections * TIME_PER_SECTION_MS,
     range,
     ranges,
-    snagRaised: false,
-    snagOverMs: 0,
+    wobble: w0.wobble,
+    spike: resetSpike(),
+    spikePlan: p0.plan,
+    bandClockMs: 0,
+    spikeMs: new Array<number>(sections).fill(0),
     elapsedMs: 0,
     brk: initBreak(),
     breaks: 0,
     wrongTaps: 0,
-    rng: seedFrom(opts.seed),
+    rng: w0.rng,
   };
 }
 
@@ -173,7 +309,20 @@ export function reduce(s: WindingState, a: WindingAction): WindingState {
       // 次の帯へ。ペダルは 0 のまま。範囲ははじめに決めていた次の帯のもの (T2-16 その6)
       const next = s.ranges[s.current + 1];
       if (next === undefined) return { ...s, phase: 'done' };
-      return { ...s, current: s.current + 1, phase: 'winding', range: next };
+      // 新しい帯のスパイクの予定と揺れの初期状態 (帯の始まりから 3 秒は何も起こさない。T2-20a)
+      const plan = planSpikes(s.level, s.rng);
+      const wob = resetWobble(plan.rng);
+      return {
+        ...s,
+        current: s.current + 1,
+        phase: 'winding',
+        range: next,
+        bandClockMs: 0,
+        spikePlan: plan.plan,
+        wobble: wob.wobble,
+        spike: resetSpike(),
+        rng: wob.rng,
+      };
     }
   }
 }
@@ -187,78 +336,86 @@ function tick(s: WindingState, dtMs: number): WindingState {
   }
   if (s.phase !== 'winding' && s.phase !== 'broken') return s;
   const dt = dtClamped / 1000; // 秒
-  const f = YARN_FEEL[s.feel] ?? YARN_FEEL.standard;
-  const baseDp = DRIFT(s.level);
-  const dp = { ...baseDp, perSec: baseDp.perSec * f.driftMul, snagRate: baseDp.snagRate * f.snagMul }; // 手応え (T2-14b)
   // 時間は巻いていた時間と止まっていた時間の合計 (糸切れを直している時間も含む。T2-09a)
   const elapsedMs = s.elapsedMs + dtClamped;
 
   if (s.phase === 'broken') {
-    // 糸切れ中は張りの流れだけ進む (戻したときの見た目のため)。切れは進まない
-    const drifted = stepDrift(s.pedal, dp, dtClamped);
-    return { ...s, pedal: drifted, elapsedMs, snagRaised: false };
+    // 糸切れ中は揺れもスパイクも止める (量を 0 に戻す)。ペダルは 0 なので張り = 0
+    const settled = s.wobble.qty === 0 && s.wobble.phase === 'gap';
+    if (!settled) {
+      const r = resetWobble(s.rng);
+      return { ...s, wobble: r.wobble, spike: s.spike.qty === 0 ? s.spike : resetSpike(), elapsedMs, rng: r.rng };
+    }
+    return { ...s, spike: s.spike.qty === 0 ? s.spike : resetSpike(), elapsedMs };
   }
 
   // 範囲は巻いているあいだも動かない (T2-16a。帯が変わるときだけ cut で動かす)
   const range = s.range;
-  const tp = tensionParams(s.level, range);
-  const bp = breakParams(s.level, s.feel);
 
-  // 1. noise → 流れ → 引っかかりを進める
-  let pedal = stepNoise(s.pedal, tp, dtClamped);
-  pedal = stepDrift(pedal, dp, dtClamped);
-  const snag = stepSnag(pedal, dp, dtClamped);
-  pedal = snag.state;
-  // 2. 張りを計算して保存する。巻き進むほど張りが少しずつ上がる (帯の 0%→100% で TENSION_RISE。帯が変わると元に戻る。T2-19c)
-  const curLen = s.lengths[s.current] ?? 0;
-  const progress = (s.current + curLen / SECTION_LENGTH) / s.sections;
-  const rise = TENSION_RISE(s.level) * Math.min(1, Math.max(0, curLen / SECTION_LENGTH));
-  const tension = tensionOf(pedal, tp, progress) + rise;
-  const cur: WindingState = { ...s, pedal, tension, elapsedMs, snagRaised: snag.raised > 0, range };
-  // 3. speed > 0 なら長さを進め、糸切れの判定をする (あとで cur に重ねるので let)
-  let state = cur;
-  // 引っかかりのあいだ、張りが上の端 + SNAG_BREAK_MARGIN を超えている時間を数える (T2-16 その3)。
-  // ペダルを戻して張りが下がると 0 に戻す (数え直す)。猶予を過ぎたら 1 本切れる (今の糸切れの扱いと同じ)
-  const overLimit = tp.range.max + SNAG_BREAK_MARGIN;
-  if (pedal.snag > 0 && tension > overLimit) {
-    const overMs = s.snagOverMs + dtClamped;
-    if (overMs >= SNAG_GRACE_MS(s.level)) {
-      const [pickRaw, pickNext] = nextFloat(state.rng);
-      const thread = Math.min(BREAK.threadCount - 1, Math.floor(pickRaw * BREAK.threadCount));
-      return {
-        ...state,
-        brk: { kind: 'broken', threads: [thread], tied: [] },
-        breaks: state.breaks + 1,
-        phase: 'broken',
-        pedal: setPedal(state.pedal, 0),
-        rng: pickNext,
-        snagOverMs: 0,
-      };
-    }
-    state = { ...state, snagOverMs: overMs };
-  } else if (s.snagOverMs !== 0) {
-    state = { ...state, snagOverMs: 0 };
+  // 1. 揺れとスパイクを進める (T2-20a)。帯の始まりから WOBBLE_START_DELAY_MS のあいだは何も起こさない
+  let wobble = s.wobble;
+  let spike = s.spike;
+  let spikePlan = s.spikePlan;
+  let rng = s.rng;
+  let spikeBroke = false;
+  const pedalPos = s.pedal.pedal;
+  if (s.bandClockMs < WOBBLE_START_DELAY_MS) {
+    // まちのあいだは止めておく (量は 0 のまま)
+  } else {
+    const w = stepWobble(wobble, rng, pedalPos, range, dtClamped);
+    wobble = w.wobble;
+    rng = w.rng;
+    const sp = stepSpike(spike, spikePlan, rng, pedalPos, s.bandClockMs, dtClamped);
+    spike = sp.spike;
+    spikePlan = sp.plan;
+    rng = sp.rng;
+    // スパイクの猶予を過ぎたら切れる (2 秒以内にペダルを 10 以上下げれば切れない。T2-20a)
+    if (spike.qty > 0 && spike.fallingMs < 0 && spike.elapsedMs >= SPIKE_GRACE_MS) spikeBroke = true;
   }
-  const speed = speedOf(pedal, tp);
+  // 2. 張り = ペダルの位置 + 揺れの量 + スパイクの量 (T2-20a)
+  const tension = pedalPos + wobble.qty + spike.qty;
+  const cur: WindingState = {
+    ...s,
+    wobble,
+    spike,
+    spikePlan,
+    tension,
+    elapsedMs,
+    range,
+    rng,
+    bandClockMs: s.bandClockMs + dtClamped,
+  };
+  let state = cur;
+  if (spikeBroke) {
+    // 3. 切れたら 1 本切る (今の糸切れの扱いと同じ: タップでつなぐ)。揺れとスパイクは止める
+    const [pickRaw, pickNext] = nextFloat(state.rng);
+    const thread = Math.min(BREAK.threadCount - 1, Math.floor(pickRaw * BREAK.threadCount));
+    const wr = resetWobble(pickNext);
+    return {
+      ...state,
+      brk: { kind: 'broken', threads: [thread], tied: [] },
+      breaks: state.breaks + 1,
+      phase: 'broken',
+      pedal: setPedal(state.pedal, 0),
+      wobble: wr.wobble,
+      spike: resetSpike(),
+      rng: wr.rng,
+    };
+  }
+  // 4. 速さはペダルの位置だけで決まる (揺れは張りにだけ出る)
+  const speed = speedOf(s.pedal, { ...TENSION, range });
   if (speed > 0) {
     const lengths = [...cur.lengths];
     const windMs = [...cur.windMs];
     const okMs = [...cur.okMs];
+    const spikeMs = [...cur.spikeMs];
     lengths[cur.current] = (lengths[cur.current] ?? 0) + speed * dt;
     windMs[cur.current] = (windMs[cur.current] ?? 0) + dtClamped;
-    if (tension >= tp.range.min && tension <= tp.range.max) {
+    if (spike.qty > 0) spikeMs[cur.current] = (spikeMs[cur.current] ?? 0) + dtClamped;
+    if (tension >= range.min && tension <= range.max) {
       okMs[cur.current] = (okMs[cur.current] ?? 0) + dtClamped;
     }
-    state = { ...state, lengths, windMs, okMs };
-
-    // 糸切れの判定は、引っかかりの尖り (pedal.snag) を除いた張りで行う (T2-16a:
-    // 引っかかりは見た目の張りの感じで、0.2秒で上がって徐々に戻る。尖りのあいだに切れないようにする)
-    const br = stepBreak(state.brk, bp, dtClamped, tension - pedal.snag, tp.range.max, state.rng);
-    if (br.broke) {
-      // 4. 切れたら phase 'broken'、breaks + 1、ペダルを 0 にする (実物どおり)
-      return { ...state, brk: br.state, breaks: state.breaks + 1, phase: 'broken', pedal: setPedal(state.pedal, 0), rng: br.rng };
-    }
-    state = { ...state, brk: br.state, rng: br.rng };
+    state = { ...state, lengths, windMs, okMs, spikeMs };
 
     // 5. 帯が巻き終わったら SECTION_LENGTH に揃え、phase 'cutting'、ペダルを 0 にする
     if ((state.lengths[state.current] ?? 0) >= SECTION_LENGTH) {
@@ -279,7 +436,7 @@ export function qualities(s: WindingState): number[] {
   });
 }
 
-/** 帯 1 本の目標の時間 (ms) = 帯の長さ ÷ (範囲の TIME_ANCHOR の位置の張りになるペダルの速さ) (T2-16 その6。今の TIME_MARGIN の掛け算はやめた) */
+/** 帯 1 本の目標の時間 (ms) = 帯の長さ ÷ (範囲の TIME_ANCHOR の位置の張りになるペダルの速さ) (T2-16 その6) */
 export function bandTargetMs(range: { min: number; max: number }): number {
   const anchor = range.min + (range.max - range.min) * TIME_ANCHOR;
   const pedal = (anchor - TENSION.base) / TENSION.perPedal;
@@ -332,14 +489,17 @@ export function isValidResume(x: unknown): x is WindingState {
   if (typeof o.rng !== 'number') return false;
   if (typeof o.pedal !== 'object' || o.pedal === null) return false;
   if (typeof o.brk !== 'object' || o.brk === null) return false;
-  if (typeof o.snagRaised !== 'boolean') return false;
   if (typeof o.range !== 'object' || o.range === null) return false;
   const r = o.range as Record<string, unknown>;
   // 範囲の形 (T2-16a): center・width も必須。古い形 (min・max だけ) の保存は再開しない
   if (typeof r.center !== 'number' || typeof r.width !== 'number') return false;
   if (typeof r.min !== 'number' || typeof r.max !== 'number') return false;
-  // 引っかかりの超過の時間 (T2-16 その3)。無い古い形の保存は再開しない
-  if (typeof o.snagOverMs !== 'number' || !(o.snagOverMs >= 0)) return false;
+  // 揺れ・スパイクの状態 (T2-20a)。無い古い形の保存は再開しない
+  if (typeof o.wobble !== 'object' || o.wobble === null) return false;
+  if (typeof o.spike !== 'object' || o.spike === null) return false;
+  if (typeof o.spikePlan !== 'object' || o.spikePlan === null) return false;
+  if (typeof o.bandClockMs !== 'number' || !(o.bandClockMs >= 0)) return false;
+  if (!Array.isArray(o.spikeMs) || o.spikeMs.length !== o.sections) return false;
   // 目標の時間の合計 (T2-16b)。足した目標を持たない古い形の保存は再開しない
   if (typeof o.targetMs !== 'number' || !(o.targetMs >= 0)) return false;
   // 帯ごとの範囲 (T2-16 その6)。持たない古い形の保存は再開しない
