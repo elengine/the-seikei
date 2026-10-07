@@ -3,6 +3,12 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
+    # 文書だけの変更では公開しない (公開のたびに新しい版が届き、切り替えの最中の版が捨てられることがあるため。PU-19a)
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+      - 'PROGRESS.json'
+      - 'AGENTS.md'
   workflow_dispatch:
 
 permissions:
