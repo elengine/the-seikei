@@ -113,9 +113,10 @@ export function createWindingPanel(
       const len = s.lengths[s.current] ?? 0;
       const pct = Math.floor((len / SECTION_LENGTH) * 100);
       section.appendChild(part(`帯 ${s.current + 1}/${s.sections}`));
-      // 巻き量は操作欄の中でいちばん目立つ表示 (大きく太字。100% は藍の地に白の文字 + 「巻き終えました」)。T2-16 その7
-      const amount = div(pct >= 100 ? 'winding-panel__amount winding-panel__amount--done' : 'winding-panel__amount');
-      amount.textContent = pct >= 100 ? '巻き量 100% 巻き終えました' : `巻き量 ${pct}%`;
+      // 巻き量は操作欄の中でいちばん目立つ表示 (大きく太字)。100% になっても形とメッセージは変えず、
+      // 文字の色だけ青 (藍) にする (T2-18b)
+      const amount = div(pct >= 100 ? 'winding-panel__amount winding-panel__amount--full' : 'winding-panel__amount');
+      amount.textContent = `巻き量 ${pct}%`;
       // 巻き量の横長の帯 (0〜100%)
       const bar = div('winding-panel__amount-bar');
       const fill = div('winding-panel__amount-fill');

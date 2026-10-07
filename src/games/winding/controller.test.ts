@@ -297,6 +297,82 @@ describe('winding module (T2-07)', () => {
     }
   }, 30000);
 
+  it('2c. 案内 (お知らせ) が出ているときに画面のどこかを押すと案内が消える (ハサミの案内も含む。T2-18b)', async () => {
+    const { deps } = await makeDeps();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const module = createWindingModule(deps);
+    const props = makeProps();
+    const descW = Object.getOwnPropertyDescriptor(Element.prototype, 'clientWidth');
+    const descH = Object.getOwnPropertyDescriptor(Element.prototype, 'clientHeight');
+    Object.defineProperty(Element.prototype, 'clientWidth', { configurable: true, get(): number { return 1000; } });
+    Object.defineProperty(Element.prototype, 'clientHeight', { configurable: true, get(): number { return 750; } });
+    try {
+      const instance = module.mount(container, props);
+      const level1 = container.querySelector<HTMLButtonElement>('button[data-testid="winding-puzzle-s1"]')!;
+      level1.click();
+      beginByPedal(container);
+      for (let i = 0; i < 4; i++) {
+        stepPedal(container, 10);
+      }
+      raf.advance(2000); // cutting になる → ハサミの案内が出る
+      expect((instance.suspend() as { phase: string }).phase).toBe('cutting');
+      const notice = container.querySelector('.game-frame__notice');
+      expect(notice?.textContent ?? '').toContain('ハサミを糸の所まで引っぱって切ります');
+      // ハサミ以外の場所 (盤面の左上) を押すと案内が消える
+      const rect = stageRect(container);
+      stagePointer(container, rect, 'pointerdown', 100, 100);
+      expect(container.querySelector('.game-frame__notice'), '押したら案内が消える (T2-18b)').toBeNull();
+      instance.unmount();
+    } finally {
+      if (descW !== undefined) Object.defineProperty(Element.prototype, 'clientWidth', descW);
+      if (descH !== undefined) Object.defineProperty(Element.prototype, 'clientHeight', descH);
+    }
+  }, 30000);
+
+  it('2d. ハサミを糸の束の上で離すのではなく、指が外れた (pointercancel) ときも、刃先が糸に届いていれば閉じる動きをして切る (T2-18b)', async () => {
+    const { deps } = await makeDeps();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const module = createWindingModule(deps);
+    const props = makeProps();
+    const descW = Object.getOwnPropertyDescriptor(Element.prototype, 'clientWidth');
+    const descH = Object.getOwnPropertyDescriptor(Element.prototype, 'clientHeight');
+    Object.defineProperty(Element.prototype, 'clientWidth', { configurable: true, get(): number { return 1000; } });
+    Object.defineProperty(Element.prototype, 'clientHeight', { configurable: true, get(): number { return 750; } });
+    try {
+      const instance = module.mount(container, props);
+      const level1 = container.querySelector<HTMLButtonElement>('button[data-testid="winding-puzzle-s1"]')!;
+      level1.click();
+      beginByPedal(container);
+      const { tableY, REED_RISE, SCISSORS_LIFT, SCISSORS_TIP } = await import('./geometry');
+      for (let i = 0; i < 4; i++) {
+        stepPedal(container, 10);
+      }
+      raf.advance(2000); // cutting になる
+      expect((instance.suspend() as { phase: string }).phase).toBe('cutting');
+      const rect = stageRect(container);
+      // ハサミを持ち上げ位置まで動かして (刃先が糸の束に届く) pointercancel
+      const ty = tableY(0, 3) - REED_RISE / 2;
+      stagePointer(container, rect, 'pointerdown', 400, 650);
+      stagePointer(container, rect, 'pointermove', 570, ty + SCISSORS_LIFT + SCISSORS_TIP);
+      stagePointer(container, rect, 'pointercancel', 570, ty + SCISSORS_LIFT + SCISSORS_TIP);
+      // 閉じる動き (0.3秒) のあと切れて結びの演出へ → 次の帯に進む
+      await vi.waitFor(
+        () => {
+          raf.advance(100);
+          const panel = container.querySelector('.winding-panel')?.textContent ?? '';
+          expect(panel).toContain('帯 2/3');
+        },
+        { timeout: 30000, interval: 100 },
+      );
+      instance.unmount();
+    } finally {
+      if (descW !== undefined) Object.defineProperty(Element.prototype, 'clientWidth', descW);
+      if (descH !== undefined) Object.defineProperty(Element.prototype, 'clientHeight', descH);
+    }
+  }, 60000);
+
   it('3. visibilitychange の hidden で、状態のペダルが 0 になり、rAF が止まる', async () => {
     const { deps } = await makeDeps();
     const container = document.createElement('div');
@@ -731,7 +807,7 @@ describe('winding module T2-09 追加修正a (+4・止まる音。引っかか�
     expect(count).toBe(1);
   });
 
-  it('T2-16 その7: 帯を巻き終えた瞬間 (巻き量 100%) にブザーが1回鳴る (同じ帯で2回鳴らない)', async () => {
+  it('T2-18b: 帯を巻き終えて巻き量 100% になっても音は鳴らない (ブザーはやめた)', async () => {
     const { btn, deps, container } = await setup();
     const plays2: string[] = [];
     const orig = deps.audio.play.bind(deps.audio);
@@ -742,16 +818,13 @@ describe('winding module T2-09 追加修正a (+4・止まる音。引っかか�
     raf.advance(2);
     // pedal 50 で安全に巻く (範囲 35〜65 の中心)。巻き量 100% まで進める
     for (let k = 0; k < 5; k++) stepPedal(container, 10);
-    let buzzed = false;
-    for (let i = 0; i < 600 && !buzzed; i++) {
+    let cut = false;
+    for (let i = 0; i < 600 && !cut; i++) {
       raf.advance(500);
-      buzzed = plays2.includes('buzzer');
+      cut = (container.querySelector('.winding-panel__amount')?.className ?? '').includes('--full');
     }
-    expect(buzzed, '巻き終わりにブザー').toBe(true);
-    const count = plays2.filter((n) => n === 'buzzer').length;
-    for (let i = 0; i < 120; i++) raf.advance(500);
-    expect(plays2.filter((n) => n === 'buzzer').length, '同じ帯で2回鳴らさない').toBe(count);
-    expect(count).toBe(1);
+    expect(cut, '巻き量 100% になる').toBe(true);
+    expect(plays2, '巻き終わりに音は鳴らさない (T2-18b)').toEqual([]);
   });
 });
 
@@ -1300,14 +1373,15 @@ describe('winding module T2-16 その4b (ハサミの持ち上げと閉じる動
     restore();
   });
 
-  it('4. pointercancel では切らずにハサミが元の位置に戻る', async () => {
+  it('4. pointercancel は離したときと同じ扱い: 刃先が糸に届いていなければ元の位置に戻る (T2-18b)', async () => {
     const { container, instance, restore } = await setupToCutting();
     const rect = stageRect(container);
-    const { scissorsPos, tableY, SCISSORS_LIFT, SCISSORS_TIP, REED_RISE } = await import('./geometry');
+    const { scissorsPos } = await import('./geometry');
     const sp = scissorsPos();
+    // ハサミをつかんで、糸の束から離れた所で指が外れる (pointercancel)
     stagePointer(container, rect, 'pointerdown', sp.x, sp.y);
-    stagePointer(container, rect, 'pointermove', 570, tableY(0, 3) - REED_RISE / 2 + SCISSORS_LIFT + SCISSORS_TIP);
-    stagePointer(container, rect, 'pointercancel', 570, tableY(0, 3) - REED_RISE / 2 + SCISSORS_LIFT + SCISSORS_TIP);
+    stagePointer(container, rect, 'pointermove', 200, 400);
+    stagePointer(container, rect, 'pointercancel', 200, 400);
     raf.advance(2);
     expect((instance.suspend() as { phase: string }).phase).toBe('cutting');
     const opts = lastDrawOpts() as { scissors?: { x: number; y: number } };

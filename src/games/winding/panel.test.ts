@@ -214,29 +214,29 @@ describe('PU-14a: ドラム巻きの操作欄 (戻す・踏み込む・速さ・
     p.destroy();
   });
 
-  it('巻き量 100% で表示が藍の地に変わり (winding-panel__amount--done)「巻き終えました」の文字が添えられる (色だけに頼らない。T2-16 その7)。100% 未満では出ない', () => {
+  it('巻き量 100% は「巻き量 100%」のままで形とメッセージを変えず、文字の色だけ青 (藍) のクラスに変わり、音は鳴らない (T2-18b)。100% 未満では出ない', () => {
     const { host, p } = mount();
     const base = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 1 });
     p.update({ ...base, lengths: [200, 0, 0] });
     let amount = host.querySelector('.winding-panel__amount')!;
-    expect(amount.className).not.toContain('winding-panel__amount--done');
-    expect(amount.textContent).not.toContain('巻き終えました');
+    expect(amount.className).not.toContain('winding-panel__amount--full');
     p.update({ ...base, lengths: [400, 0, 0] });
     amount = host.querySelector('.winding-panel__amount')!;
-    expect(amount.className).toContain('winding-panel__amount--done');
+    expect(amount.className).toContain('winding-panel__amount--full');
     expect(amount.textContent).toContain('巻き量 100%');
-    expect(amount.textContent).toContain('巻き終えました');
+    expect(amount.textContent).not.toContain('巻き終えました');
     p.destroy();
   });
 
-  it('base.css: 巻き量は 32px 以上の太字。100% は藍の地に白の文字', () => {
+  it('base.css: 巻き量は 32px 以上の太字。0〜99% は黒の文字、100% (--full) は藍 (T2-18b)。「巻き終えました」の地の色の変更は無い', () => {
     const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
     const amount = css.match(/\n\.winding-panel__amount\s*\{([^}]*)\}/)![1]!;
     expect(parseInt(amount.match(/font-size: (\d+)px/)![1]!, 10)).toBeGreaterThanOrEqual(32);
     expect(amount).toContain('font-weight: bold');
-    const done = css.match(/\n\.winding-panel__amount--done\s*\{([^}]*)\}/)![1]!;
-    expect(done).toContain('var(--c-ai)');
-    expect(done).toContain('color: #fff');
+    expect(amount).toContain('color: var(--c-sumi)');
+    const full = css.match(/\n\.winding-panel__amount--full\s*\{([^}]*)\}/)![1]!;
+    expect(full).toContain('color: var(--c-ai)');
+    expect(css).not.toContain('winding-panel__amount--done');
   });
 
   it('制限時間の表記は「0:49/0:33」とスラッシュの前後の隙間なし (見切れないように。T2-16 その6)。目標以内は超過の印なし。超えたら --over と「超過」', () => {

@@ -74,12 +74,25 @@ export function surfaceY(x: number, baseY: number): number {
   return baseY - ARC_RISE * f;
 }
 
-/**
- * ハサミの置き場所 (T2-16 その4b)。いつもクリールの右下・筬の左下・盤の下のほう。
+/** ハサミの置き場所 (T2-16 その4b)。いつもクリールの右下・筬の左下・盤の下のほう。
  * 帯の位置に依存しない。
  */
 export function scissorsPos(): { x: number; y: number } {
   return { x: (CREEL_END_X + REED_X) / 2, y: LOGICAL_H - 70 };
+}
+
+/**
+ * ハサミの当たり判定 (T2-18b)。ハサミの全体 (刃と持ち手) を引っぱり始められる範囲にする。
+ * 絵は支点 (pos) を中心に、刃が上へ 53・持ち手が下へ 39 (左右に輪が開く)。
+ * 指で取りやすいよう、刃の左右は開いた刃先の幅 (+16) に 10 の余裕、持ち手の左右は輪の幅 (+25) に
+ * 10 の余裕、上下も 10 の余裕を付ける。
+ */
+export function scissorsHit(p: { x: number; y: number }, pos: { x: number; y: number }): boolean {
+  const dx = Math.abs(p.x - pos.x);
+  const dy = p.y - pos.y;
+  const blade = dy <= 0 && dy >= -(SCISSORS_TIP + 10) && dx <= 16 + 10; // 刃 (上)
+  const handle = dy >= 0 && dy <= 39 + 10 && dx <= 25 + 10; // 持ち手 (下・左右に輪)
+  return blade || handle;
 }
 
 /**

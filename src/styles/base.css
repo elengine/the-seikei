@@ -1300,20 +1300,12 @@ button {
   font-size: 32px;
   font-weight: bold;
   line-height: 1.2;
+  color: var(--c-sumi); /* 0〜99% は黒 (T2-18b) */
+}
+
+/* 巻き量が 100%: 形とメッセージは変えず、文字の色だけ青 (藍) にする (T2-18b) */
+.winding-panel__amount--full {
   color: var(--c-ai);
-}
-
-/* 巻き量が 100%: 藍の地に白の文字 (色だけに頼らず「巻き終えました」の文字を添える。T2-16 その7) */
-.winding-panel__amount--done {
-  background: var(--c-ai);
-  color: #fff;
-  padding: var(--sp-1) var(--sp-2);
-  border-radius: 4px;
-}
-
-/* 100% のときは帯も白にする (藍の地に藍の帯は見えないため) */
-.winding-panel__amount--done .winding-panel__amount-fill {
-  background: #fff;
 }
 
 /* 巻き量の横長の帯 (0〜100%。T2-16 その7) */

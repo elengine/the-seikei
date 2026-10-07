@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { setLogicalHeight, logicalHeightFor, machineExtent, CREEL_AREA, CREEL_END_X, LOGICAL_W, LOGICAL_H, endPoint, hitEnd, toPx, fromPx, threadY, drumSectionY, tableY, TABLE_AREA, REED_X, DRUM_END_X, DRUM_AREA, pointOnPath, threadPath, PIN_RAIL_X, DIAL_X, DIAL_Y, DIAL_R, reedRect, reedThreadY, THREAD_SHEET_HALF, hitBrokenThread, THREAD_MARK_X, SCISSORS_SIZE, SCISSORS_LIFT, SCISSORS_TIP, scissorsPos, scissorsHitsThread, REED_RISE, surfaceY, ARC_RISE, DRUM_BULGE } from './geometry';
+import { setLogicalHeight, logicalHeightFor, machineExtent, CREEL_AREA, CREEL_END_X, LOGICAL_W, LOGICAL_H, endPoint, hitEnd, toPx, fromPx, threadY, drumSectionY, tableY, TABLE_AREA, REED_X, DRUM_END_X, DRUM_AREA, pointOnPath, threadPath, PIN_RAIL_X, DIAL_X, DIAL_Y, DIAL_R, reedRect, reedThreadY, THREAD_SHEET_HALF, hitBrokenThread, THREAD_MARK_X, SCISSORS_SIZE, SCISSORS_LIFT, SCISSORS_TIP, scissorsPos, scissorsHitsThread, scissorsHit, REED_RISE, surfaceY, ARC_RISE, DRUM_BULGE } from './geometry';
 
 const fit = { scale: 1, offsetX: 0, offsetY: 0 };
 
@@ -440,5 +440,28 @@ describe('T2-16 その5 (surfaceY ひとつの弧で表面の高さを決める)
     expect(SCISSORS_LIFT).toBe(SCISSORS_SIZE + 24);
     expect(SCISSORS_TIP).toBeGreaterThanOrEqual(SCISSORS_SIZE * 0.5);
     expect(SCISSORS_TIP).toBeLessThanOrEqual(SCISSORS_SIZE * 0.6);
+  });
+});
+
+describe('T2-18b: ハサミの当たり判定 (刃と持ち手の全体を引っぱり始められる)', () => {
+  const pos = scissorsPos();
+
+  it('刃の先・刃の中ほど・持ち手の輪の上から引っぱり始められる', () => {
+    // 刃の先 (支点から上 53)
+    expect(scissorsHit({ x: pos.x, y: pos.y - 50 }, pos)).toBe(true);
+    // 刃の中ほど
+    expect(scissorsHit({ x: pos.x + 8, y: pos.y - 30 }, pos)).toBe(true);
+    // 持ち手の輪 (支点から下 26、左右に 15 ずつ)
+    expect(scissorsHit({ x: pos.x + 15, y: pos.y + 26 }, pos)).toBe(true);
+    expect(scissorsHit({ x: pos.x - 15, y: pos.y + 26 }, pos)).toBe(true);
+    // 持ち手の下の先
+    expect(scissorsHit({ x: pos.x, y: pos.y + 40 }, pos)).toBe(true);
+  });
+
+  it('ハサミの外 (横にはずれ・上すぎ・下すぎ) は当たらない', () => {
+    expect(scissorsHit({ x: pos.x + 45, y: pos.y + 20 }, pos)).toBe(false);
+    expect(scissorsHit({ x: pos.x - 45, y: pos.y - 20 }, pos)).toBe(false);
+    expect(scissorsHit({ x: pos.x, y: pos.y - 75 }, pos)).toBe(false); // 刃の先より上
+    expect(scissorsHit({ x: pos.x, y: pos.y + 60 }, pos)).toBe(false); // 持ち手より下
   });
 });

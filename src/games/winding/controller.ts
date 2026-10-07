@@ -5,13 +5,13 @@ import { showTutorial } from '../../core/ui/tutorialOverlay';
 import { drawBoard } from './renderer';
 import { PIN_ANGLE0 } from './renderer.parts';
 import { createWindingPanel } from './panel';
-import { fromPx, hitBrokenThread, logicalHeightFor, setLogicalHeight, SCISSORS_SIZE, SCISSORS_LIFT, SCISSORS_TIP, scissorsPos, scissorsHitsThread } from './geometry';
+import { fromPx, hitBrokenThread, logicalHeightFor, setLogicalHeight, SCISSORS_LIFT, SCISSORS_TIP, scissorsPos, scissorsHitsThread, scissorsHit } from './geometry';
 import { getContent, type Content } from '../../core/content/content';
 import { init, reduce, seedFromText } from './logic';
 import { speedOf } from '../../core/mechanics/pedal';
 import { guideFor, soundFor, resultOf } from './messages';
 import type { WindingState, WindingAction, Level } from './logic';
-import { DRUM_TURN_PER_SPEED, DRUM_EASE_UP_MS, DRUM_EASE_DOWN_MS, DRUM_STOP_MS, TENSION, SECTION_LENGTH } from './params';
+import { DRUM_TURN_PER_SPEED, DRUM_EASE_UP_MS, DRUM_EASE_DOWN_MS, DRUM_STOP_MS, TENSION } from './params';
 
 const LEVEL_NAMES: Record<Level, string> = { 1: '初級', 2: '中級', 3: '上級' };
 import { feelLabel } from './puzzles';
@@ -342,12 +342,6 @@ let cutClockSec = -1; // cutting のあいだに操作欄の時計を更新し�
       const next = reduce(s, { type: 'tick', dtMs });
       if (next !== prev) {
         s = next;
-        // 帯を巻き終えた瞬間 (巻き量が 100% になった瞬間) にブザーを1回鳴らす (同じ帯で2回鳴らさない。T2-16 その7)
-        const before = prev.lengths[prev.current] ?? 0;
-        const after = next.lengths[next.current] ?? 0;
-        if (before < SECTION_LENGTH && after >= SECTION_LENGTH) {
-          deps.audio.play('buzzer');
-        }
         if (s.phase === 'broken' && prev.phase !== 'broken') {
           // 糸が切れた: 機械の止まる音 ('broken' に変わった瞬間の1回だけ)。ドラムは急停止
           drumStopping = true;
@@ -442,15 +436,14 @@ let cutClockSec = -1; // cutting のあいだに操作欄の時計を更新し�
     if (finished || disposed || tieRunning) {
       return;
     }
-    // 帯を巻き終えたら、ハサミをつかむ (T2-16c)
+    // 帯を巻き終えたら、ハサミをつかむ (T2-16c)。当たり判定はハサミの全体 (刃と持ち手。T2-18b)
     if (s.phase === 'cutting') {
       if (scissorsCloseMs > 0) {
         return; // 閉じる動きのあいだはつかめない
       }
       const p = logicalOf(e);
       const sc = scissorsNow();
-      const half = SCISSORS_SIZE / 2 + 8;
-      if (Math.abs(p.x - sc.x) <= half && Math.abs(p.y - sc.y) <= half) {
+      if (scissorsHit(p, sc)) {
         scissorsDragAt = { x: p.x, y: p.y };
         // 引っぱるあいだは画面がスクロール・拡大しない
         frame.stage.style.touchAction = 'none';
@@ -476,6 +469,23 @@ let cutClockSec = -1; // cutting のあいだに操作欄の時計を更新し�
       dispatch({ type: 'tapThread', thread });
     }
   }
+  /** ハサミを離す (指を離したときも、外れたときも同じ。T2-18b): 刃の先が糸の束に届いていれば
+   *  閉じる動き (0.3秒) をしてから切る。消し終わってから帯の端を結ぶ動きが始まる。外れたら元の位置に戻る */
+  function releaseScissors(p: { x: number; y: number }): void {
+    if (s.phase === 'cutting' && !tieRunning) {
+      const pos = { x: p.x, y: p.y - SCISSORS_LIFT };
+      // 刃の先 (ハサミの上の端) が糸の束に届いていれば切る (T2-16 その6)
+      const tip = { x: pos.x, y: pos.y - SCISSORS_TIP };
+      if (scissorsHitsThread(tip, s.current, s.sections)) {
+        // すぐには切らず、閉じる動き (0.3秒) をしてから切る (T2-16 その4b)
+        scissorsCloseMs = SCISSORS_CLOSE_MS;
+        scissorsCloseAt = pos;
+        render();
+        return;
+      }
+    }
+    render();
+  }
   /** ハサミをつかんで動かしている (T2-16c) */
   function onPointerMove(e: PointerEvent): void {
     if (scissorsDragAt === null || finished || disposed) {
@@ -492,33 +502,24 @@ let cutClockSec = -1; // cutting のあいだに操作欄の時計を更新し�
     const p = logicalOf(e);
     scissorsDragAt = null;
     frame.stage.style.touchAction = '';
-    if (s.phase === 'cutting' && !tieRunning) {
-      const pos = { x: p.x, y: p.y - SCISSORS_LIFT };
-      // 刃の先 (ハサミの上の端) が糸の束に届いていれば切る (T2-16 その6)
-      const tip = { x: pos.x, y: pos.y - SCISSORS_TIP };
-      if (scissorsHitsThread(tip, s.current, s.sections)) {
-        // すぐには切らず、閉じる動き (0.3秒) をしてから切る (T2-16 その4b)
-        scissorsCloseMs = SCISSORS_CLOSE_MS;
-        scissorsCloseAt = pos;
-        render();
-        return;
-      }
-    }
-    render();
+    releaseScissors(p);
   }
-  /** 引っぱっている最中に指が外れた (キャンセル): 切らずに元の位置に戻す */
+  /** 引っぱっている最中に指が外れた (キャンセル): 離したときと同じ扱いにする (T2-18b) */
   function onPointerCancel(): void {
     if (scissorsDragAt === null || disposed) {
       return;
     }
+    const p = scissorsDragAt;
     scissorsDragAt = null;
     frame.stage.style.touchAction = '';
-    render();
+    releaseScissors(p);
   }
   frame.stage.addEventListener('pointerdown', onPointerDown);
   frame.stage.addEventListener('pointermove', onPointerMove);
   frame.stage.addEventListener('pointerup', onPointerUp);
   frame.stage.addEventListener('pointercancel', onPointerCancel);
+  // 案内 (お知らせ) が出ているときに画面のどこかが押されたら案内を消す (ハサミを含む。T2-18b)
+  frame.root.addEventListener('pointerdown', dismissNotice);
 
   // ---- 初期表示 ----
   if (s.phase !== 'done') {
@@ -553,6 +554,7 @@ let cutClockSec = -1; // cutting のあいだに操作欄の時計を更新し�
       frame.stage.removeEventListener('pointermove', onPointerMove);
       frame.stage.removeEventListener('pointerup', onPointerUp);
       frame.stage.removeEventListener('pointercancel', onPointerUp);
+      frame.root.removeEventListener('pointerdown', dismissNotice);
       panel.destroy();
       frame.destroy();
     },
