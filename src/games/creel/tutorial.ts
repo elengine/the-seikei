@@ -145,13 +145,18 @@ function drawPlace(ctx: Ctx, w: number, h: number): void {
   arrow(ctx, row.xs[0]!, row.cy - row.r * 0.9, row.xs[0]!, h * 0.04, COLORS.shu);
   text(ctx, '外す', row.xs[0]! + w * 0.04, h * 0.1, h * 0.085, COLORS.shu, { bold: true });
   // 置く: 手前の箱から空いた軸へ
-  const bx = w * 0.12;
-  const by = h * 0.66;
-  const bw = w * 0.26;
-  const bh = h * 0.32;
+  // 箱の帯 (今の画面は、箱が一列に並んで横に送れる)。引っぱる箱は左の 1 つ
+  const bw = w * 0.2;
+  const bh = h * 0.3;
+  const by = h * 0.68;
+  const bx = w * 0.1;
+  const gap = w * 0.03;
   drawBox(ctx, bx, by, bw, bh, SAMPLE_A);
+  drawBox(ctx, bx + bw + gap, by, bw, bh, SAMPLE_B);
+  drawBox(ctx, bx + (bw + gap) * 2, by, bw, bh, SAMPLE_A);
   arrow(ctx, bx + bw * 0.75, by - 4, row.xs[1]! - row.r * 0.3, row.cy + row.r * 1.05, COLORS.ai);
-  text(ctx, '置く', bx + bw + w * 0.04, h * 0.76, h * 0.085, COLORS.ai, { bold: true });
+  text(ctx, '置く', row.xs[1]! + row.r * 0.9, h * 0.66, h * 0.085, COLORS.ai, { bold: true });
+  text(ctx, '上へ引っぱる', w * 0.98, h * 0.6, h * 0.07, COLORS.ai, { align: 'right', bold: true });
 }
 
 /** 3ページ目: 「確認」を押すと、違う軸と空の軸に ✕ が付く。箱から引っぱり直す */
@@ -169,7 +174,9 @@ function drawDone(ctx: Ctx, w: number, h: number): void {
   const bh = h * 0.36;
   drawBox(ctx, bx, by, bw, bh, SAMPLE_A);
   arrow(ctx, bx + bw * 0.8, by - 4, row.xs[2]! - row.r * 0.5, row.cy + row.r * 1.05, COLORS.ai, 4);
-  drawButton(ctx, w * 0.56, h * 0.7, w * 0.34, h * 0.2, '確認', true, h * 0.09);
+  // 今の画面の下の行: 「ヒント」(副) と「確認」(主) が 1 行に並ぶ
+  drawButton(ctx, w * 0.42, h * 0.7, w * 0.2, h * 0.2, 'ヒント', false, h * 0.075);
+  drawButton(ctx, w * 0.66, h * 0.7, w * 0.26, h * 0.2, '確認', true, h * 0.09);
 }
 
 /** 4ページ目: ✕ の軸 →「ヒント」→ 正しいチーズが立つ。正しい糸は箱にある */
@@ -193,9 +200,9 @@ function drawHint(ctx: Ctx, w: number, h: number): void {
 
 export const creelTutorial: TutorialSpec = {
   pages: [
-    { draw: (ctx, w, h) => drawOrder(ctx, w, h), text: '「依頼書」を押すと、立てる{{cone}}の絵と型番と本数が出ます' },
-    { draw: (ctx, w, h) => drawPlace(ctx, w, h), text: '段ボールの箱から{{cone}}を引っぱって、{{spindle}}の丸に嵌めます。外すときは、{{cone}}を{{creel}}の外へ引っぱります' },
-    { draw: (ctx, w, h) => drawDone(ctx, w, h), text: '全部立てたら「確認」を押します。間違いは ✕ で示されるので、引っぱり直します' },
+    { draw: (ctx, w, h) => drawOrder(ctx, w, h), text: '「依頼書」を押すと、立てる{{cone}}の絵と型番と本数が出ます。繰り返しがあるときは「2回繰り返す」と出ます' },
+    { draw: (ctx, w, h) => drawPlace(ctx, w, h), text: '段ボールの箱の上から{{cone}}を上へ引っぱって、{{spindle}}の丸に嵌めます。箱の列は、横に送って探せます。外すときは、{{cone}}を{{creel}}の外へ引っぱります' },
+    { draw: (ctx, w, h) => drawDone(ctx, w, h), text: '全部立てたら「確認」を押します。間違いは ✕ で示されるので、箱から引っぱり直します' },
     {
       draw: (ctx, w, h) => drawHint(ctx, w, h),
       text: '確認に2回失敗すると「ヒント」が使えます(ヒントを使うと星は1つになります)',

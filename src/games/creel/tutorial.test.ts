@@ -153,3 +153,26 @@ describe('creel tutorial (PU-13d: 今の画面の文)', () => {
     expect(creelTutorial.pages[3]!.text).toContain('星は1つ');
   });
 });
+
+describe('creel tutorial (PU-17c: 今の画面に合わせる 2)', () => {
+  it('文に「メッセージ」が無い。2 ページ目に「上へ」引っぱると、箱の列を横に送れる説明がある。1 ページ目に「2回繰り返す」がある', () => {
+    for (const p of creelTutorial.pages) {
+      expect(p.text).not.toContain('メッセージ');
+      expect(p.text).not.toContain('依頼書を見る');
+      expect(p.text).not.toContain('完了');
+    }
+    const second = creelTutorial.pages[1]!.text;
+    expect(second).toContain('上へ');
+    expect(second).toContain('横に送');
+    expect(creelTutorial.pages[0]!.text).toContain('2回繰り返す');
+  });
+
+  it('2 ページ目の絵は箱の帯 (段ボールの箱が 3 つ並ぶ)。「上へ引っぱる」の字と矢印 (藍)。3 ページ目の絵は「ヒント」「確認」が 1 行に並ぶ (今の画面の下の行)', () => {
+    const r2 = record(creelTutorial.pages[1]!.draw);
+    expect(r2.fills.filter((c) => c === COLORS.cardboard.toLowerCase()).length).toBeGreaterThanOrEqual(3);
+    expect(r2.texts.some((t) => t.includes('上へ引っぱる'))).toBe(true);
+    const r3 = record(creelTutorial.pages[2]!.draw);
+    expect(r3.texts).toContain('確認');
+    expect(r3.texts).toContain('ヒント');
+  });
+});
