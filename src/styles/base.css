@@ -2092,7 +2092,6 @@ button {
 .game-frame--compact[data-layout='portrait'] .creel-box {
   flex: none;
   min-width: 0; /* 絵と型番に合わせて狭く (型番が広いときだけ広がる。横に送る) */
-  touch-action: pan-x;
 }
 
 /* 横: 箱を縦に並べ、縦に送る (操作欄がスクロールする)。引っぱるのは左 (盤面の方) */
@@ -2109,7 +2108,6 @@ button {
   justify-content: center;
   gap: var(--sp-2);
   padding: 18px var(--sp-2) 6px;
-  touch-action: pan-y;
 }
 
 /* 詰めた形では、箱の中のチーズの絵を小さめに (48px。品番の下) */

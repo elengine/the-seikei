@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { beginDrag, moveDrag, dropResult, DRAG_THRESHOLD_PX, LIFT_MARGIN_PX, liftFor, isDragGesture } from './drag';
+import { beginDrag, moveDrag, dropResult, DRAG_THRESHOLD_PX, LIFT_MARGIN_PX, liftFor, isDragGesture, DRAG_SCROLL_RATIO } from './drag';
 import { pegCenter } from './geometry';
 
 const rows = 1;
@@ -73,5 +73,37 @@ describe('PU-13c: 持ち上げる量・引っぱりか送りかの判定', () =>
     expect(isDragGesture('y', -6, 12)).toBe(true);
     expect(isDragGesture('y', -2, 20)).toBe(false);
     expect(isDragGesture('y', 10, 0)).toBe(false); // 右
+  });
+});
+
+describe('isDragGesture PU-17b (上の 180 度 / 左の 180 度)', () => {
+  const at = (deg: number, r = 10): [number, number] => [r * Math.cos((deg * Math.PI) / 180), -r * Math.sin((deg * Math.PI) / 180)]; // 画面 (y は下向き)。90° = 真上
+
+  it('送る向きの成分に対する上向きの割合の下限は定数 (15%)', () => {
+    expect(DRAG_SCROLL_RATIO).toBe(0.15);
+  });
+
+  it('縦長の帯 (x): 上向き 30°・60°・90°・120°・150° は引っぱり。ほぼ水平 (上向きが横の 15% 未満: 5°・175°)・真横・下向きはスクロール', () => {
+    for (const deg of [30, 60, 90, 120, 150]) {
+      const [dx, dy] = at(deg);
+      expect(isDragGesture('x', dx, dy), `${deg}°`).toBe(true);
+    }
+    for (const deg of [0, 5, 175, 180, 270, 300, 240]) {
+      const [dx, dy] = at(deg);
+      expect(isDragGesture('x', dx, dy), `${deg}°`).toBe(false);
+    }
+    expect(isDragGesture('x', 10, -1.4)).toBe(false); // 横 10 に対し上 1.4 (14%)
+    expect(isDragGesture('x', 10, -1.6)).toBe(true); // 16%
+  });
+
+  it('横長の帯 (y): 左向き (盤面の方) の半円は引っぱり (120°〜240°)。ほぼ真上・真下 (左向きが縦の 15% 未満)・右向きはスクロール', () => {
+    for (const deg of [120, 150, 180, 210, 240]) {
+      const [dx, dy] = at(deg);
+      expect(isDragGesture('y', dx, dy), `${deg}°`).toBe(true);
+    }
+    for (const deg of [85, 95, 265, 275, 0, 30, 330]) {
+      const [dx, dy] = at(deg);
+      expect(isDragGesture('y', dx, dy), `${deg}°`).toBe(false);
+    }
   });
 });

@@ -149,3 +149,82 @@ describe('dragView (PU-13c)', () => {
     t.view.destroy();
   });
 });
+
+describe('dragView PU-17b (箱の全体から始められる・箱の上から帯を送る)', () => {
+  it('箱の中のどこ (型番の文字・チーズの絵・角) から始めても引っぱれる', () => {
+    const t = setup('x');
+    const hinban = document.createElement('span');
+    hinban.className = 'creel-box__hinban';
+    const cheese = document.createElement('span');
+    cheese.className = 'creel-box__cheese';
+    t.box.appendChild(hinban);
+    t.box.appendChild(cheese);
+    let id = 1;
+    for (const el of [hinban, cheese, t.box]) {
+      fire(el, 'pointerdown', 300, 300, id);
+      fire(el, 'pointermove', 300, 250, id);
+      expect(layers(), el.className).toHaveLength(1);
+      fire(el, 'pointerup', 300, 250, id);
+      vi.advanceTimersByTime(400);
+      id++;
+    }
+    t.view.destroy();
+  });
+
+  it('縦長 (x): 30°・150° の上向きは引っぱり。ほぼ水平 (上向き 15% 未満) は引っぱらず、箱の帯を指の動きに合わせて自分で横に送る', () => {
+    const t = setup('x');
+    Object.defineProperty(t.boxes, 'scrollLeft', { configurable: true, writable: true, value: 100 });
+    fire(t.box, 'pointerdown', 300, 300, 1);
+    fire(t.box, 'pointermove', 310, 299, 1); // ほぼ水平
+    fire(t.box, 'pointermove', 270, 299, 1);
+    expect(layers()).toHaveLength(0);
+    expect(t.boxes.scrollLeft).toBe(130); // 左へ 30 動かした → 帯は 30 進む
+    fire(t.box, 'pointerup', 270, 299, 1);
+    expect(t.onDrop).not.toHaveBeenCalled();
+    for (const [x, y] of [[308, 296], [292, 296]] as Array<[number, number]>) {
+      fire(t.box, 'pointerdown', 300, 300, 2);
+      fire(t.box, 'pointermove', x, y, 2);
+      expect(layers(), `(${x},${y})`).toHaveLength(1);
+      fire(t.box, 'pointerup', x, y, 2);
+      vi.advanceTimersByTime(400);
+    }
+    t.view.destroy();
+  });
+
+  it('横長 (y): 左向きは引っぱり、ほぼ真上下は縦に送る', () => {
+    const t = setup('y');
+    Object.defineProperty(t.boxes, 'scrollTop', { configurable: true, writable: true, value: 50 });
+    fire(t.box, 'pointerdown', 300, 300, 1);
+    fire(t.box, 'pointermove', 299, 290, 1);
+    fire(t.box, 'pointermove', 299, 270, 1);
+    expect(layers()).toHaveLength(0);
+    expect(t.boxes.scrollTop).toBe(80);
+    fire(t.box, 'pointerup', 299, 270, 1);
+    fire(t.box, 'pointerdown', 300, 300, 2);
+    fire(t.box, 'pointermove', 290, 296, 2);
+    expect(layers()).toHaveLength(1);
+    t.view.destroy();
+  });
+
+  it('送っている指が pointercancel・pointerup で終わると、次の押さえで引っぱれる', () => {
+    const t = setup('x');
+    fire(t.box, 'pointerdown', 300, 300, 1);
+    fire(t.box, 'pointermove', 330, 300, 1);
+    fire(window, 'pointercancel', 330, 300, 1);
+    fire(t.box, 'pointerdown', 300, 300, 2);
+    fire(t.box, 'pointermove', 300, 250, 2);
+    expect(layers()).toHaveLength(1);
+    t.view.destroy();
+  });
+
+  it('箱の touch-action は none (pan-x・pan-y だと、斜めの動きをブラウザが奪って引っぱれない。送るのは dragView が行う)', async () => {
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync('src/styles/base.css', 'utf8');
+    const rules = css.match(/[^{}]*\.creel-box\s*\{[^}]*\}/g) ?? [];
+    expect(rules.length).toBeGreaterThanOrEqual(3);
+    for (const r of rules) {
+      expect(r, r).not.toMatch(/touch-action:\s*pan-/);
+    }
+    expect(rules.some((r) => /touch-action:\s*none/.test(r))).toBe(true);
+  });
+});

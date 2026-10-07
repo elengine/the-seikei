@@ -565,16 +565,16 @@ describe('PU-09b: 詰めた形の操作欄 (依頼書を見る・箱の横送り
     c.panel.destroy();
   });
 
-  it('base.css: 詰めた縦の箱は横一列で横に送れて (overflow-x: auto・touch-action: pan-x)、詰めた横は縦に送れる (pan-y)', () => {
+  it('base.css: 詰めた縦の箱は横一列で横に送れて (overflow-x: auto。箱は touch-action: none で、送るのは dragView。PU-17b)、詰めた横は縦に送れる', () => {
     const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
     const row = css.match(/\.game-frame--compact\[data-layout='portrait'\] \.creel-boxes\s*\{([^}]*)\}/);
     expect(row![1]).toContain('flex-wrap: nowrap');
     expect(row![1]).toContain('overflow-x: auto');
     const box = css.match(/\.game-frame--compact\[data-layout='portrait'\] \.creel-box\s*\{([^}]*)\}/);
-    expect(box![1]).toContain('touch-action: pan-x');
+    expect(box![1]).not.toContain('touch-action: pan-'); // 斜めの動きをブラウザに奪わせない (PU-17b)
     expect(box![1]).toContain('min-width: 0'); // 絵と型番に合わせて狭く (PU-12d)
     const col = css.match(/\.game-frame--compact\[data-layout='landscape'\] \.creel-box\s*\{([^}]*)\}/);
-    expect(col![1]).toContain('touch-action: pan-y');
+    expect(col![1]).not.toContain('touch-action: pan-');
     // 詰めた横 (高さ 560px 未満): 箱は品番とチーズを横並びにして、高さを 72px 程度に (PU-10 追記)
     expect(col![1]!).toContain('flex-direction: row');
     expect(col![1]!).toContain('justify-content: center');
