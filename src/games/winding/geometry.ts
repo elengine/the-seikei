@@ -67,13 +67,13 @@ export const DRUM_BULGE = 10;
 /** ピン (帯留めの竿) のドラムに付いている向きの基準。θpin = drumAngle + PIN_ANGLE0 (T2-10 追加修正 b) */
 export const PIN_ANGLE0 = -0.9;
 
-/** 100% になったときに帯留め (竿) が止まる横の位置: ドラムの左の端から幅の 40% (T2-19b。管理者の指定) */
-export const ROD_STOP_RATIO = 0.4;
+/** 100% になったときに帯留め (竿) が止まる横の位置: ドラムの左の端から幅の 30% (T2-21。管理者の指定) */
+export const ROD_STOP_RATIO = 0.3;
 
 /**
  * 100% になったときに帯留め (竿) が止まるまでにドラムが回る量 (ラジアン。T2-19b)。
- * 竿の正面の x は 中心 + 半径 × sin(drumAngle + PIN_ANGLE0)。x を「左の端 + 幅 × 0.4」にするので
- * sin(θpin) = 0.4 − 0.5 = −0.2 (手前側: cos > 0)。
+ * 竿の正面の x は 中心 + 半径 × sin(drumAngle + PIN_ANGLE0)。x を「左の端 + 幅 × 0.3」にするので
+ * sin(θpin) = (0.3 − 0.5) × 2 = −0.4 (手前側: cos > 0)。
  * 戻り値は今の drumAngle から次にその角度に来るまでの量 (0 以上 2π 未満。逆回りはしない)。
  */
 export function rodStopTurn(drumAngle: number): number {

@@ -1478,12 +1478,12 @@ describe('T2-19b: 100% になったとき帯留め (竿) が「手前側で左�
     }
   }
 
-  it('どの角度で 100% になっても、止まったあとの竿の x は「左の端 + 幅 × 0.4」(差 1 以下) で手前側 (cos > 0)', async () => {
+  it('どの角度で 100% になっても、止まったあとの竿の x は「左の端 + 幅 × 0.3」(差 1 以下) で手前側 (cos > 0) (T2-21)', async () => {
     for (const pre of [30, 90, 150]) {
       const { angles } = await windToRodStop(pre);
       const final = angles[angles.length - 1]!;
       const rodX = cx + radius * Math.sin(final + PIN_ANGLE0);
-      expect(Math.abs(rodX - (leftX + width * 0.4)), `pre ${pre}: 竿の x ${(rodX).toFixed(1)}`).toBeLessThanOrEqual(1);
+      expect(Math.abs(rodX - (leftX + width * 0.3)), `pre ${pre}: 竿の x ${(rodX).toFixed(1)}`).toBeLessThanOrEqual(1);
       expect(Math.cos(final + PIN_ANGLE0), `pre ${pre}: 手前側`).toBeGreaterThan(0);
     }
   }, 60000);

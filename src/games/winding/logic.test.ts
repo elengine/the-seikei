@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { init, reduce, qualities, starsOf, isValidResume, lastTapResult, bandTargetMs, targetMsOf } from './logic';
-import { TIME_PER_SECTION_MS, TIME_PEDAL_START_MS, TIME_SCISSORS_TIE_MS, SPIKE_COUNT_RANGE, SPIKE_GRACE_MS } from './params';
+import { TIME_SCISSORS_TIE_MS, TIME_PER_SPIKE_MS, SPIKE_COUNT_RANGE } from './params';
 import * as params from './params';
 import { resultOf, guideFor } from './messages';
 import type { WindingState, Level } from './logic';
@@ -298,12 +298,12 @@ describe('winding logic T2-09a B (目標の時間と星)', () => {
     let s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 1 });
     // 始めるときに全帯ぶんの合計 + 5秒 × 3 (帯ごとにスパイクの回数が違うので合計で。T2-20b)
     const sum = s.ranges.reduce((acc, r) => acc + bandTargetMs(r), 0);
-    expect(targetMsOf(s)).toBeCloseTo(sum + TIME_PER_SECTION_MS * 3, 6);
+    expect(targetMsOf(s)).toBeCloseTo(sum, 6); // 帯ごと 5 秒の足し算はやめた (T2-21)
     s = { ...s, phase: 'cutting' };
     s = reduce(s, { type: 'cut' });
     s = { ...s, phase: 'cutting' };
     s = reduce(s, { type: 'cut' });
-    expect(targetMsOf(s)).toBeCloseTo(sum + TIME_PER_SECTION_MS * 3, 6);
+    expect(targetMsOf(s)).toBeCloseTo(sum, 6);
     const r = resultOf({ ...s, elapsedMs: 95000 }, 'standalone', '2026-09-30T19:00:00+09:00');
     const timeLine = (r.summary ?? []).find((t: string) => t.startsWith('巻いた時間'));
     expect(timeLine).toBeDefined();
@@ -513,10 +513,10 @@ describe('winding logic T2-16a (張りと適正の範囲)', () => {
 });
 
 describe('winding logic T2-16 その6 (制限時間: 各帯の範囲の中心の張りで巻いた時間の合計)', () => {
-  /** 帯 1 本の目標の時間 (ms): 範囲の真ん中で巻いた時間 + 1.5秒 + 3.5秒 + スパイク1回 2秒 (T2-20b) */
+  /** 帯 1 本の目標の時間 (ms): 範囲の真ん中で巻いた時間 + 3.5秒 + スパイク1回 1秒 (T2-21) */
   const bandTime = (range: { center: number; spikes: number }): number => {
     const speed = (range.center / 100) * TENSION.maxSpeed;
-    return (SECTION_LENGTH / speed) * 1000 + 1500 + 3500 + range.spikes * 2000;
+    return (SECTION_LENGTH / speed) * 1000 + 3500 + range.spikes * 1000;
   };
 
   it('1. お題を始めるときに帯の数だけ範囲が決まっていて、どの範囲も 20〜80 に収まる (1本目は中心 50)', () => {
@@ -535,7 +535,7 @@ describe('winding logic T2-16 その6 (制限時間: 各帯の範囲の中心の
   it('2. 制限時間 = 各帯の(帯の長さ ÷ 中心の張りの速さ)の合計 + 5秒 × 帯の数 (T2-18a)', () => {
     const s = init({ level: 2, patternId: 'x', sections: 5, seed: 3 });
     const sum = s.ranges.reduce((acc, r) => acc + bandTime(r), 0);
-    expect(s.targetMs).toBeCloseTo(sum + TIME_PER_SECTION_MS * 5, 6);
+    expect(s.targetMs).toBeCloseTo(sum, 6);
   });
 
   /** 全帯を pedal で巻き切るまでの時間 (ms)。切れたら -1 */
@@ -564,8 +564,8 @@ describe('winding logic T2-16 その6 (制限時間: 各帯の範囲の中心の
     let ms = -1;
     for (let seed = 1; seed <= 60 && ms < 0; seed++) ms = windAll(1, seed, pedal);
     expect(ms, '切れずに巻き切れる種').toBeGreaterThan(0);
-    const spikeMsSum = s0.ranges.reduce((acc, r) => acc + r.spikes * SPIKE_GRACE_MS, 0);
-    const expected = s0.targetMs - TIME_PER_SECTION_MS * 3 - (TIME_PEDAL_START_MS + TIME_SCISSORS_TIE_MS) * 3 - spikeMsSum;
+    const spikeMsSum = s0.ranges.reduce((acc, r) => acc + r.spikes * TIME_PER_SPIKE_MS, 0);
+    const expected = s0.targetMs - TIME_SCISSORS_TIE_MS * 3 - spikeMsSum;
     // tick の刻み (100ms) で帯の終わりが丸められるので、帯の数ぶんの誤差は許す
     expect(Math.abs(ms - expected), `巻いた時間 ${(ms / 1000).toFixed(1)} 秒 = 期待 ${(expected / 1000).toFixed(1)} 秒`).toBeLessThanOrEqual(100 * 3);
   });
@@ -649,13 +649,13 @@ describe('T2-18a: 始まり方と時間 (巻き始めるのボタンは無い。
     expect(next.elapsedMs).toBe(1234);
   });
 
-  it('5. 制限時間 = 各帯の目標の合計 + 5秒 × 帯の数 (TIME_PER_SECTION_MS)', () => {
+  it('5. 制限時間 = 各帯の目標の合計 (帯ごと 5 秒の足し算はやめた。T2-21)', () => {
     const s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 1 });
     const bands = s.ranges.reduce((acc, r) => acc + bandTargetMs(r), 0);
-    expect(s.targetMs).toBe(bands + TIME_PER_SECTION_MS * 3);
+    expect(s.targetMs).toBe(bands);
     const s5 = init({ level: 2, patternId: 'p-chalk-char', sections: 5, seed: 2 });
     const bands5 = s5.ranges.reduce((acc, r) => acc + bandTargetMs(r), 0);
-    expect(s5.targetMs).toBe(bands5 + TIME_PER_SECTION_MS * 5);
+    expect(s5.targetMs).toBe(bands5);
   });
 });
 
@@ -875,6 +875,76 @@ describe('T2-20a: 揺れとスパイク (張り = ペダルの位置 + 揺れの
       if (s.spike.qty > 0 || s.phase !== 'winding') continue; // スパイクは ±15〜25 の別の決まり (テスト 6)
       expect(s.tension - s.pedal.pedal).toBeLessThanOrEqual(limit + 1e-9);
       expect(s.tension - s.pedal.pedal).toBeGreaterThanOrEqual(-limit - 1e-9);
+    }
+  });
+});
+
+describe('T2-21: 制限時間の新しい計算 (二重に足さない・スパイク 1 秒) と帯留め 30%', () => {
+  const DT = 100;
+
+  it('1. レベル1・帯 3 本・真ん中 50・スパイク 0 回の目標の時間は 46.5 秒 (12秒×3 + 3.5秒×3)', () => {
+    let s: WindingState | null = null;
+    for (let seed = 1; seed <= 80; seed++) {
+      const s0 = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed });
+      if (s0.ranges.every((r) => r.spikes === 0)) {
+        s = s0;
+        break;
+      }
+    }
+    expect(s, 'スパイクが 0 回の帯だけの種').not.toBeNull();
+    // レベル1 は全帯が真ん中 50: 帯 12 秒 + ハサミ 3.5 秒 = 15.5 秒 × 3 = 46.5 秒
+    expect(targetMsOf(s!)).toBe(46500);
+    for (const r of s!.ranges) {
+      expect(r.center).toBe(50);
+      expect(bandTargetMs(r)).toBe(12000 + 3500);
+    }
+  });
+
+  it('2. スパイクがある帯は 1 回につき 1 秒足す (TIME_PER_SPIKE_MS。猶予の 2 秒とは別の数)。帯ごと 5 秒の足し算はない', () => {
+    expect(TIME_PER_SPIKE_MS).toBe(1000);
+    let s: WindingState | null = null;
+    for (let seed = 1; seed <= 80; seed++) {
+      const s0 = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed });
+      if (s0.ranges[0]!.spikes === 1 && s0.ranges[1]!.spikes === 0) {
+        s = s0;
+        break;
+      }
+    }
+    expect(s, '1帯目だけスパイク 1 回の種').not.toBeNull();
+    const expected = (12000 + 3500 + 1000) + (12000 + 3500) + (12000 + 3500);
+    expect(targetMsOf(s!)).toBe(expected);
+  });
+
+  it('3. 真ん中のペダルで巻き、スパイクのたびに 10 下げて戻す遊び方なら、ハサミの 3.5 秒を含めて制限時間に間に合う (種 20 通り)', () => {
+    for (let seed = 1; seed <= 20; seed++) {
+      for (const level of [1, 2, 3] as Level[]) {
+        let s = init({ level, patternId: 'x', sections: 3, seed });
+        let cuttingMs = 0;
+        let guard = 0;
+        while (s.phase !== 'done' && guard < 60000) {
+          if (s.phase === 'ready') {
+            s = reduce(s, { type: 'setPedal', value: s.range.center });
+          } else if (s.phase === 'cutting') {
+            // ハサミで切って結ぶ動きの時間 (3.5 秒) も経過させてから結ぶ
+            s = reduce(s, { type: 'tick', dtMs: DT });
+            cuttingMs += DT;
+            if (cuttingMs >= 3500) {
+              s = reduce(s, { type: 'cut' });
+              cuttingMs = 0;
+            }
+          } else if (s.phase === 'broken' && s.brk.kind === 'broken') {
+            for (const th of s.brk.threads) s = reduce(s, { type: 'tapThread', thread: th });
+          } else if (s.phase === 'winding') {
+            // スパイクが起きたら 10 下げる (戻る)。無ければ範囲の真ん中
+            const pedal = s.spike.qty > 0 ? Math.max(0, s.spike.pedalAtStart - 10) : s.range.center;
+            s = reduce(s, { type: 'setPedal', value: pedal });
+            s = reduce(s, { type: 'tick', dtMs: DT });
+          }
+          guard += 1;
+        }
+        expect(s.phase, `L${level} seed ${seed}`).toBe('done');
+        expect(s.elapsedMs, `L${level} seed ${seed}: ${(s.elapsedMs / 1000).toFixed(1)}秒 ≤ 目標 ${(s.targetMs / 1000).toFixed(1)}秒`).toBeLessThanOrEqual(s.targetMs);
+      }
     }
   });
 });

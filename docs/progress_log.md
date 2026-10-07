@@ -1975,3 +1975,13 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - state.ts (新規・128行): 状態の形 (WindingState/WindingAction) と再開の検査 (isValidResume/lastTapResult/seedFromText)。指名の2ファイルだけでは logic.ts が約370行になり 300 行を割れなかったため、追加で分けた
 - logic.ts (253行): init・reduce・tick・成績。分けた名前は logic から再公開しているので、テストと他のファイルの import は変えていない
 - 動きは変えていない (テストの期待値も無変更・全テストの結果は分割前と同じ)。version 0.3.37 → 0.3.38
+
+## 2026-10-08 (ルビー) T2-21: 制限時間の計算を直した (二重に足していた 5 秒をやめる)・帯留め 30%
+
+- 確認役の指摘どおり、timeLimit.ts の bandTargetMs が帯ごとに 1.5 秒 + 3.5 秒を足し、logic.ts の targetMs がさらに帯ごと 5 秒 (TIME_PER_SECTION_MS) を足す二重になっていた (レベル1 で約 15 秒・レベル2 で約 25 秒・レベル3 で約 35 秒長かった)
+- 新しい計算 (管理者の決定): 帯ごと = 範囲の真ん中で巻いた時間 + ハサミ 3.5 秒 + スパイク1回 1 秒 (params.ts に TIME_PER_SPIKE_MS = 1000 を新しく置いた。猶予の SPIKE_GRACE_MS 2 秒は変えない)。ペダルの 1.5 秒は足さない
+- 制限時間 = 全帯の目標の時間の合計だけ (TIME_PER_SECTION_MS の足し算をやめ、TIME_PEDAL_START_MS・TIME_PER_SECTION_MS・TIME_ANCHOR を params から削除)
+- 例 (レベル1・帯 3 本・真ん中 50・スパイク 0 回): 12 秒 × 3 + 3.5 秒 × 3 = 46.5 秒
+- 帯留めの止まる位置を左から 40% → 30% に (geometry.ts の ROD_STOP_RATIO 0.4 → 0.3)
+- テスト (先に RED): 新しい式のテスト 3 件 (46.5 秒の例・スパイク 1 秒・真ん中のペダル + スパイクのたび 10 下げる遊び方でハサミ 3.5 秒を含めて制限時間に間に合うことを種 20 通り × 3 レベル) と、竿の位置 0.3 のテスト (geometry.test・controller.test)
+- version 0.3.38 → 0.3.39

@@ -475,7 +475,7 @@ describe('T2-19b: 100% になったとき帯留め (竿) が止まる位置', ()
   const radius = width / 2;
   const rodX = (drumAngle: number): number => cx + radius * Math.sin(drumAngle + PIN_ANGLE0_G);
 
-  it('どの drumAngle からでも、回った先の竿の x は「左の端 + 幅 × 0.4」(差 1 以下) で手前側 (cos > 0)', () => {
+  it('どの drumAngle からでも、回った先の竿の x は「左の端 + 幅 × 0.3」(差 1 以下) で手前側 (cos > 0) (T2-21)', () => {
     for (let i = 0; i < 12; i++) {
       const start = -Math.PI * 2 + (Math.PI * 2 * i) / 12;
       const delta = rodStopTurn(start);
@@ -483,12 +483,12 @@ describe('T2-19b: 100% になったとき帯留め (竿) が止まる位置', ()
       const final = start + delta;
       const th = final + PIN_ANGLE0_G;
       expect(Math.cos(th), `start ${start.toFixed(2)} は手前側`).toBeGreaterThan(0);
-      expect(Math.abs(rodX(final) - (leftX + width * 0.4)), `start ${start.toFixed(2)} の位置`).toBeLessThanOrEqual(1);
+      expect(Math.abs(rodX(final) - (leftX + width * 0.3)), `start ${start.toFixed(2)} の位置`).toBeLessThanOrEqual(1);
     }
   });
 
   it('すでにその位置にいるときは回る量 0 (それ以上回らない)', () => {
-    const atTarget = Math.asin(-0.2) - PIN_ANGLE0_G;
+    const atTarget = Math.asin(-0.4) - PIN_ANGLE0_G;
     expect(rodStopTurn(atTarget)).toBe(0);
   });
 });

@@ -9,7 +9,7 @@ import { initPedal, setPedal, speedOf } from '../../core/mechanics/pedal';
 import { initBreak, tapThread } from '../../core/mechanics/breakage';
 import {
   SECTION_LENGTH, TENSION, BREAK, MAX_TICK_MS, STARS3, STARS2,
-  TIME_PER_SECTION_MS, WOBBLE_START_DELAY_MS, SPIKE_GRACE_MS,
+  WOBBLE_START_DELAY_MS, SPIKE_GRACE_MS,
 } from './params';
 import type { Level, YarnFeel } from './params';
 import { resetWobble, resetSpike, planSpikes, stepWobble, stepSpike, makeRanges } from './tension';
@@ -46,9 +46,9 @@ export function init(opts: { level: Level; patternId: string; sections: number; 
     okMs: new Array<number>(sections).fill(0),
     pedal: initPedal(seedFrom(opts.seed)),
     tension: TENSION.base,
-    // 制限時間 = 各帯の目標の合計 + 5秒 × 帯の数 (帯1本あたり: ペダルを動かし始めてから目的の位置まで +
-    // ハサミを動かして帯の端を結ぶ動きまで。T2-18a)
-    targetMs: ranges.reduce((acc, r) => acc + bandTargetMs(r), 0) + sections * TIME_PER_SECTION_MS,
+    // 制限時間 = 各帯の目標の時間の合計 (帯ごとに真ん中で巻いた時間 + ハサミ 3.5 秒 + スパイク 1 秒。
+    // 帯ごとの 5 秒の足し算は二重だったのでやめた。T2-21)
+    targetMs: ranges.reduce((acc, r) => acc + bandTargetMs(r), 0),
     range,
     ranges,
     wobble: w0.wobble,

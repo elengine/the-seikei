@@ -40,16 +40,10 @@ export function RANGE_REACHABLE(): { min: number; max: number } {
   return { min: 10, max: 100 };
 }
 
-/** 制限時間の計算で使う、範囲の中の位置 (0 = 下の端・1 = 上の端。管理者の指定で 0.6。T2-16 その7) */
-export const TIME_ANCHOR = 0.6;
-
-/** 制限時間に帯 1 本あたり足す時間 (ms。管理者の指定で 5 秒。T2-18a)。
- * 内訳: ペダルを動かし始めてから目的の位置まで + ハサミを動かして帯の端を結ぶ動きまで */
-export const TIME_PER_SECTION_MS = 5000;
-/** 内訳: ペダルを動かし始めてから目的の位置まで (ms。T2-18a) */
-export const TIME_PEDAL_START_MS = 1500;
-/** 内訳: ハサミを動かして帯の端を結ぶ動きまで (ms。T2-18a) */
+/** ハサミを動かして帯の端を結ぶ動きまでの時間 (ms。T2-21) */
 export const TIME_SCISSORS_TIE_MS = 3500;
+/** スパイク 1 回につき制限時間に足す時間 (ms。T2-21)。糸が切れるまでの猶予 (SPIKE_GRACE_MS 2 秒) とは別の数 */
+export const TIME_PER_SPIKE_MS = 1000;
 
 /** ---- 揺れの決まり (T2-20a。管理者の仕様。数値は遊んで調整する) ---- */
 /** 帯の始まりから、揺れもスパイクも起こさない時間 */
