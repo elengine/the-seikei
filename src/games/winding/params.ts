@@ -42,8 +42,9 @@ export function RANGE_REACHABLE(): { min: number; max: number } {
 
 /** ハサミを動かして帯の端を結ぶ動きまでの時間 (ms。T2-21) */
 export const TIME_SCISSORS_TIE_MS = 3500;
-/** スパイク 1 回につき制限時間に足す時間 (ms。T2-21)。糸が切れるまでの猶予 (SPIKE_GRACE_MS 2 秒) とは別の数 */
-export const TIME_PER_SPIKE_MS = 1000;
+/** スパイク 1 回につき制限時間に足す時間 (ms。T2-21 追加修正で管理者が 2 秒に変更)。
+ * 糸が切れるまでの猶予 (SPIKE_GRACE_MS 2 秒) とは別の数 */
+export const TIME_PER_SPIKE_MS = 2000;
 
 /** ---- 揺れの決まり (T2-20a。管理者の仕様。数値は遊んで調整する) ---- */
 /** 帯の始まりから、揺れもスパイクも起こさない時間 */

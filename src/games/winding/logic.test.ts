@@ -513,10 +513,10 @@ describe('winding logic T2-16a (張りと適正の範囲)', () => {
 });
 
 describe('winding logic T2-16 その6 (制限時間: 各帯の範囲の中心の張りで巻いた時間の合計)', () => {
-  /** 帯 1 本の目標の時間 (ms): 範囲の真ん中で巻いた時間 + 3.5秒 + スパイク1回 1秒 (T2-21) */
+  /** 帯 1 本の目標の時間 (ms): 範囲の真ん中で巻いた時間 + 3.5秒 + スパイク1回 2秒 (T2-21 追加修正) */
   const bandTime = (range: { center: number; spikes: number }): number => {
     const speed = (range.center / 100) * TENSION.maxSpeed;
-    return (SECTION_LENGTH / speed) * 1000 + 3500 + range.spikes * 1000;
+    return (SECTION_LENGTH / speed) * 1000 + 3500 + range.spikes * 2000;
   };
 
   it('1. お題を始めるときに帯の数だけ範囲が決まっていて、どの範囲も 20〜80 に収まる (1本目は中心 50)', () => {
@@ -879,7 +879,7 @@ describe('T2-20a: 揺れとスパイク (張り = ペダルの位置 + 揺れの
   });
 });
 
-describe('T2-21: 制限時間の新しい計算 (二重に足さない・スパイク 1 秒) と帯留め 30%', () => {
+describe('T2-21: 制限時間の新しい計算 (二重に足さない・スパイク 1 回 2 秒) と帯留め 30%', () => {
   const DT = 100;
 
   it('1. レベル1・帯 3 本・真ん中 50・スパイク 0 回の目標の時間は 46.5 秒 (12秒×3 + 3.5秒×3)', () => {
@@ -900,8 +900,8 @@ describe('T2-21: 制限時間の新しい計算 (二重に足さない・スパ�
     }
   });
 
-  it('2. スパイクがある帯は 1 回につき 1 秒足す (TIME_PER_SPIKE_MS。猶予の 2 秒とは別の数)。帯ごと 5 秒の足し算はない', () => {
-    expect(TIME_PER_SPIKE_MS).toBe(1000);
+  it('2. スパイクがある帯は 1 回につき 2 秒足す (TIME_PER_SPIKE_MS。猶予の 2 秒とは別の数)。帯ごと 5 秒の足し算はない', () => {
+    expect(TIME_PER_SPIKE_MS).toBe(2000);
     let s: WindingState | null = null;
     for (let seed = 1; seed <= 80; seed++) {
       const s0 = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed });
@@ -911,7 +911,7 @@ describe('T2-21: 制限時間の新しい計算 (二重に足さない・スパ�
       }
     }
     expect(s, '1帯目だけスパイク 1 回の種').not.toBeNull();
-    const expected = (12000 + 3500 + 1000) + (12000 + 3500) + (12000 + 3500);
+    const expected = (12000 + 3500 + 2000) + (12000 + 3500) + (12000 + 3500);
     expect(targetMsOf(s!)).toBe(expected);
   });
 
