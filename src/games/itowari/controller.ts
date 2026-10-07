@@ -2,16 +2,17 @@ import { createGameFrame } from '../../core/ui/gameFrame';
 import type { GameFrame } from '../../core/ui/gameFrame';
 import { openSheet } from '../../core/ui/sheet';
 import type { Sheet } from '../../core/ui/sheet';
-import type { StageFit } from '../../core/viewport/viewport';
 import type { GameDeps, GameInstance, GameProps } from '../../core/game/types';
-import { MACHINE, BOX } from './geometry';
+import { BOARD_W, boardHeightFor, lanesFor, layoutFor, laneAt, textHitAt } from './geometry';
 import { init, reduce, isValidResume } from './logic';
 import type { ItowariAction, ItowariState } from './logic';
 import { createItowariPanel } from './panel';
-import { failLines, resultOfGame } from './messages';
-import { beginDrag, moveDrag, dropResult, laneAt, coneAt } from './drag';
+import { failLines, helpText, resultOfGame } from './messages';
+import { beginDrag, moveDrag, dropResult } from './drag';
 import type { DragState } from './drag';
-import { drawBoard, drawLifted, yarnHex } from './renderer';
+import { attachBoxDrag } from './boxDrag';
+import { drawBoard, yarnHex } from './renderer';
+import { COLORS } from '../../core/ui/tokens';
 import { getContent } from '../../core/content/content';
 import { itowariPuzzles } from './puzzles';
 import { openCalculatorBody } from '../drumsetup/calculator';
@@ -19,8 +20,10 @@ import { showTutorial } from '../../core/ui/tutorialOverlay';
 import { itowariTutorial } from './tutorial';
 
 /**
- * 糸割りの画面の動き (P2b T2b-03a)。盤面 (renderer) と操作欄 (panel) を置き、
- * 巻きの進みを requestAnimationFrame で回す。失敗は重ね表示、成功は結果の画面。
+ * 糸割りの画面の動き (P2b T2b-03a → PU-16)。盤面 (renderer。使う口だけを大きく) と操作欄 (panel。元の糸の箱の帯・
+ * 電卓・巻き始める) を置き、巻きの進みを requestAnimationFrame で回す。失敗は重ね表示、成功は結果の画面。
+ * 盤面の口の長さの数字を押すとテンキー、口を押すと選ぶ、口の糸を盤面の外へ引っぱると外れる。
+ * 箱の糸は、押すとはかりに載り、口へ引っぱるとかかる (boxDrag。クリール立てと同じ決まり)。
  */
 
 /** 結果の画面を出すまでの待ち時間 (ミリ秒) */
@@ -47,12 +50,17 @@ export function createItowariController(
   let lastTs: number | null = null;
   let rafId = 0;
 
-  let lastFit: StageFit = { scale: 1, offsetX: 0, offsetY: 0 };
-  // ドラッグで糸をかける・外す (T2b-03b)。押すだけなら口を選ぶ・はかりに載せる。
+  /** 盤面のカードの大きさ (画面 px)。枠が配置のたびに logicalHFor で教える。測れない環境 (jsdom) では既定 */
+  let stageSize = { w: BOARD_W, h: 750 };
+  let hoverLane: number | null = null;
+  let selectedLane: number | null = 0;
+  // 口の糸を盤面の外へ引っぱって外す (T2b-03b → PU-16)。押すだけなら口を選ぶ・長さのテンキーを開く。
   // つかんでいる指の id を覚えておき、ほかの指の動きは無視する (T2b-03 追加修正)
   // (createGameFrame の初期 resize で render が走るので、宣言は前でなければならない)
   let drag: DragState | null = null;
   let dragPointerId: number | null = null;
+  /** 口を押した位置 (長さの数字の上なら、押しただけで離したときにテンキーを開く) */
+  let press: { spindle: number; text: { spindle: number; slot: 0 | 1 } | null } | null = null;
   const frame: GameFrame = createGameFrame(parent, {
     title: deps.terms.t('game.itowari'),
     subtitle: `レベル${puzzle.level} ${puzzle.name}`,
@@ -60,14 +68,21 @@ export function createItowariController(
     onHelp: () => {
       void openTutorial();
     },
-    logicalW: MACHINE.w,
-    logicalH: MACHINE.h,
+    logicalW: BOARD_W,
+    logicalH: 750,
     message: false,
+    alwaysCompact: true, // どの大きさでも、箱は盤面の横か下の帯 (クリール立てと同じ)
+    // 盤面のカードの縦横の割合に論理の高さを合わせる (拡大率 = カードの幅 ÷ 1000。盤面は画面 px で配置する)
+    logicalHFor: (w, h) => {
+      if (w > 0 && h > 0) {
+        stageSize = { w, h };
+      }
+      return boardHeightFor(w, h);
+    },
     onStageResize: (f) => {
       // createGameFrame の代入中に最初の resize が来るので、1フレーム後に描く
       window.requestAnimationFrame(() => {
         if (f.scale > 0 && !disposed) {
-          lastFit = f; // 測れない環境 (jsdom) では既定のまま
           render(); // setupCanvas で canvas が消されるので、大きさが変わったら描き直す
         }
       });
@@ -90,10 +105,12 @@ export function createItowariController(
     if (ctx === null) {
       return;
     }
-    drawBoard(ctx, lastFit, s, getContent(), puzzle, windT);
-    if (drag !== null && drag.moved) {
-      drawLifted(ctx, yarnHex(getContent(), puzzle), canvasPoint(drag.current));
-    }
+    drawBoard(ctx, stageSize, s, getContent(), puzzle, {
+      windT,
+      selected: selectedLane,
+      hover: hoverLane,
+      lifted: drag !== null && drag.moved && segCount((drag.source as { spindle: number }).spindle) > 0 ? canvasPoint(drag.current) : null,
+    });
   }
 
   function refresh(): void {
@@ -211,38 +228,26 @@ export function createItowariController(
     }
   }
 
-  /** 指の画面座標 → 盤面の論理座標 */
-  function stagePoint(clientX: number, clientY: number): { x: number; y: number } {
-    const rect = frame.stage.getBoundingClientRect();
-    const pxPerCss = rect.width > 0 ? frame.stage.width / rect.width : 1;
-    return {
-      x: ((clientX - rect.left) * pxPerCss - lastFit.offsetX) / lastFit.scale,
-      y: ((clientY - rect.top) * pxPerCss - lastFit.offsetY) / lastFit.scale,
-    };
-  }
-
-  /** 指の画面座標 → Canvas の px (引っぱっている糸を描く位置) */
+  /** 指の画面座標 → 盤面の画面 px (Canvas の左上が原点) */
   function canvasPoint(p: { x: number; y: number }): { x: number; y: number } {
     const rect = frame.stage.getBoundingClientRect();
-    const pxPerCss = rect.width > 0 ? frame.stage.width / rect.width : 1;
-    return { x: (p.x - rect.left) * pxPerCss, y: (p.y - rect.top) * pxPerCss };
+    return { x: p.x - rect.left, y: p.y - rect.top };
   }
+
+  const laneCount = lanesFor(puzzle);
+  const boardLayout = (): ReturnType<typeof layoutFor> => layoutFor(laneCount, stageSize.w, stageSize.h);
+  const segCount = (i: number): number => s.spindles[i]?.segments.length ?? 0;
+  const sourceNo = (id: string): number => puzzle.sources.findIndex((x) => x.id === id) + 1;
 
   function onPointerDown(ev: PointerEvent): void {
     if (disposed || finished || s.phase !== 'setup') return;
-    const p = stagePoint(ev.clientX, ev.clientY);
-    const lane = laneAt(p, (MACHINE.w / 12) * lastFit.scale < 64, s.spindles.length);
-    if (lane !== null) {
-      // 糸がかかっている口なら引っぱって外せる。空の口なら押しただけの tap で選ばれる
-      drag = beginDrag({ kind: 'lane', spindle: lane }, { x: ev.clientX, y: ev.clientY });
-      dragPointerId = ev.pointerId;
-      return;
-    }
-    const cone = coneAt(p, puzzle, s);
-    if (cone !== null) {
-      drag = beginDrag({ kind: 'cone', sourceId: cone }, { x: ev.clientX, y: ev.clientY });
-      dragPointerId = ev.pointerId;
-    }
+    const p = canvasPoint({ x: ev.clientX, y: ev.clientY });
+    const lane = laneAt(boardLayout(), p, laneCount);
+    if (lane === null) return;
+    press = { spindle: lane, text: textHitAt(boardLayout(), p, segCount, laneCount) };
+    // 糸がかかっている口は引っぱって外せる。空の口・押しただけは tap (口を選ぶ・長さのテンキー)
+    drag = beginDrag({ kind: 'lane', spindle: lane }, { x: ev.clientX, y: ev.clientY });
+    dragPointerId = ev.pointerId;
   }
 
   function onPointerMove(ev: PointerEvent): void {
@@ -254,36 +259,64 @@ export function createItowariController(
   function onPointerUp(ev: PointerEvent): void {
     if (drag === null || ev.pointerId !== dragPointerId) return;
     const d = drag;
+    const pr = press;
     drag = null;
     dragPointerId = null;
-    const p = stagePoint(ev.clientX, ev.clientY);
-    const lane = laneAt(p, (MACHINE.w / 12) * lastFit.scale < 64, s.spindles.length);
-    const cone = coneAt(p, puzzle, s);
-    // 箱の糸が無い所でも箱の上なら外せる (空になった箱へ戻す)
-    const inBox = p.x >= BOX.x && p.x <= BOX.x + BOX.w && p.y >= BOX.y && p.y <= BOX.y + BOX.h;
-    const target = lane !== null ? { kind: 'lane' as const, spindle: lane } : cone !== null ? { kind: 'cone' as const, sourceId: cone } : inBox ? { kind: 'box' as const } : null;
-    const r = dropResult(d, target);
-    if (r.kind === 'mount') {
-      // その口に1つ目があれば、継ぐ糸 (2本目) としてかける (T2b-03)
-      const slot: 0 | 1 = s.spindles[r.spindle]!.segments.length === 0 ? 0 : 1;
-      dispatch({ type: 'mount', spindle: r.spindle, sourceId: r.sourceId, slot });
-      panel.select(r.spindle);
-    } else if (r.kind === 'unmount') {
-      if (s.spindles[r.spindle]!.segments.length === 2) dispatch({ type: 'unmount', spindle: r.spindle, slot: 1 });
-      dispatch({ type: 'unmount', spindle: r.spindle, slot: 0 });
+    press = null;
+    const spindle = (d.source as { spindle: number }).spindle;
+    const mounted = segCount(spindle) > 0;
+    const p = canvasPoint({ x: ev.clientX, y: ev.clientY });
+    const outside = p.x < 0 || p.y < 0 || p.x > stageSize.w || p.y > stageSize.h;
+    // 空の口は引っぱれない (動かしても押しただけと同じ)
+    const r = dropResult(mounted ? d : { ...d, moved: false }, outside ? { kind: 'outside' } : null);
+    if (r.kind === 'unmount') {
+      if (segCount(spindle) === 2) dispatch({ type: 'unmount', spindle, slot: 1 });
+      dispatch({ type: 'unmount', spindle, slot: 0 });
     } else if (r.kind === 'tap') {
-      if (d.source.kind === 'cone') dispatch({ type: 'weigh', sourceId: d.source.sourceId });
-      else panel.select(d.source.spindle);
+      selectedLane = spindle;
+      panel.select(spindle);
+      if (pr !== null && pr.text !== null) panel.openLength(pr.text.spindle, pr.text.slot);
     }
     render();
   }
-  /** 取り消し (ブラウザがスクロールに奪ったとき)。離した扱いにせず、引っぱっていた糸を箱へ戻すだけ (T2b-03 追加修正) */
+  /** 取り消し (ブラウザが奪ったとき)。離した扱いにせず、引っぱっていた糸を元へ戻すだけ (T2b-03 追加修正) */
   function onPointerCancel(ev: PointerEvent): void {
     if (drag === null || ev.pointerId !== dragPointerId) return;
     drag = null;
     dragPointerId = null;
+    press = null;
     render();
   }
+
+  // 箱の糸: 押すとはかりに載り (重さと長さの手伝いをお知らせ)、口へ引っぱるとかかる
+  const boxDrag = attachBoxDrag({
+    panel: panel.root,
+    laneAt: (cx, cy) => laneAt(boardLayout(), canvasPoint({ x: cx, y: cy }), laneCount),
+    look: () => ({ body: yarnHex(getContent(), puzzle), core: COLORS.kinariDeep }),
+    diameterPx: () => 48,
+    onTap: (sourceId) => {
+      dispatch({ type: 'weigh', sourceId });
+      const src = puzzle.sources.find((x) => x.id === sourceId);
+      if (src === undefined) return;
+      const help = helpText(puzzle, src.grossG).replace(/\n/g, ' ');
+      frame.notify(`糸 ${sourceNo(sourceId)}:${Math.round(src.grossG)} g${help !== '' ? `  ${help}` : ''}`);
+    },
+    onDrop: (spindle, sourceId) => {
+      // その口に 1 つ目があれば、継ぐ糸 (2 本目) としてかける (T2b-03)
+      const slot: 0 | 1 = segCount(spindle) === 0 ? 0 : 1;
+      dispatch({ type: 'mount', spindle, sourceId, slot });
+      selectedLane = spindle;
+      panel.select(spindle);
+      hoverLane = null;
+      render();
+    },
+    onHover: (lane) => {
+      if (lane !== hoverLane) {
+        hoverLane = lane;
+        render();
+      }
+    },
+  });
   frame.stage.addEventListener('pointerdown', onPointerDown);
   window.addEventListener('pointermove', onPointerMove);
   window.addEventListener('pointerup', onPointerUp);
@@ -307,6 +340,7 @@ export function createItowariController(
       window.clearInterval(autosave);
       failSheet?.close();
       failSheet = null;
+      boxDrag.destroy();
       frame.stage.removeEventListener('pointerdown', onPointerDown);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);

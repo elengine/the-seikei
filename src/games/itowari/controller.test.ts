@@ -4,6 +4,7 @@ import { createItowariController } from './controller';
 import { init, reduce } from './logic';
 import type { ItowariState } from './logic';
 import { itowariPuzzles } from './puzzles';
+import { layoutFor, cellRect, lanePartsFor } from './geometry';
 import { getContent } from '../../core/content/content';
 import type { GameDeps, GameProps } from '../../core/game/types';
 import { createAppContext } from '../../app/context';
@@ -98,7 +99,7 @@ function failingState(): ItowariState {
   return s;
 }
 
-describe('糸割り controller T2b-03a (プレイ画面)', () => {
+describe('糸割り controller T2b-03a → PU-16 (プレイ画面)', () => {
   let raf: ReturnType<typeof installFakeRaf>;
   let container: HTMLElement;
 
@@ -174,7 +175,7 @@ describe('糸割り controller T2b-03a (プレイ画面)', () => {
     expect(startBtn).toBeDefined();
     expect(startBtn!.getAttribute('aria-disabled')).toBeNull();
     // 設定した長さ (7,000m) はそのまま残る
-    expect(container.textContent).toContain('1番の口:7,000 m');
+    expect((instance.suspend() as ItowariState).spindles[0]!.segments[0]!.lengthM).toBe(7000);
     instance.unmount();
   }, 60000);
 
@@ -198,7 +199,7 @@ describe('糸割り controller T2b-03a (プレイ画面)', () => {
     instance.unmount();
   });
 
-  /** Canvas の当たり判定を固定する (論理座標 = 画面座標) */
+  /** Canvas の大きさを 1000×750 に見せる (盤面の画面 px と指の位置を同じにする) */
   function stubStage(): HTMLCanvasElement {
     const canvas = container.querySelector('canvas')!;
     vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
@@ -209,74 +210,101 @@ describe('糸割り controller T2b-03a (プレイ画面)', () => {
     return canvas;
   }
 
+  /** 口 i の中心 (画面 px。レベル1 の 6 口を 1000×750 の盤面に並べたとき) */
+  function laneCenter(i: number): { x: number; y: number } {
+    const c = cellRect(layoutFor(6, 1000, 750), i);
+    return { x: c.x + c.w / 2, y: c.y + c.h / 2 };
+  }
+
+  /** 口 i の長さの数字の上 (継ぐ糸のある口は slot 行) */
+  function lengthTextPoint(i: number, segs: number, slot = 0): { x: number; y: number } {
+    const r = lanePartsFor(layoutFor(6, 1000, 750), i, segs).text[slot]!;
+    return { x: r.x + r.w / 2, y: r.y + r.h / 2 };
+  }
+
   function pointer(canvas: HTMLCanvasElement, type: string, x: number, y: number, pointerId = 1): void {
     const ev = new MouseEvent(type, { clientX: x, clientY: y, bubbles: true });
     Object.defineProperty(ev, 'pointerId', { value: pointerId });
     (type === 'pointermove' || type === 'pointerup' || type === 'pointercancel' ? window : canvas).dispatchEvent(ev);
   }
 
-  it('5. ドラッグ: 箱の糸を口まで引っぱって離すと、その口にかかる (かかった口が選ばれる)', async () => {
+  /** 箱 (操作欄の段ボールの箱) の操作。PointerEvent を箱へ送る (窓でも受ける) */
+  function boxPointer(target: Element | Window, type: string, x: number, y: number, id = 1): void {
+    target.dispatchEvent(new PointerEvent(type, { clientX: x, clientY: y, pointerId: id, bubbles: true, button: 0 }));
+  }
+
+  const firstBox = (): HTMLElement => container.querySelector<HTMLElement>('.creel-box[data-source]')!;
+  const state = (instance: { suspend(): unknown }): ItowariState => instance.suspend() as ItowariState;
+  const LIFT = 24 + 24; // 引っぱるチーズは指より (半径 24 + 24px) 上
+
+  it('5. 箱の糸を口まで引っぱって離すと、その口にかかる (チーズの位置で口を決める)。かかった糸は箱から無くなる', async () => {
     const { instance } = await start(); // 何もかけていない状態
-    const canvas = stubStage();
-    // 箱の1つ目の糸 (BOX.x+26, BOX.y+62) から口7 (x 649〜715・y 300) へ
-    pointer(canvas, 'pointerdown', 15 + 26, 330 + 62);
-    raf.advance(2);
-    pointer(canvas, 'pointermove', 680, 300);
-    raf.advance(2);
-    pointer(canvas, 'pointerup', 680, 300);
+    stubStage();
+    const target = laneCenter(2);
+    const before = container.querySelectorAll('.creel-box[data-source]').length;
+    boxPointer(firstBox(), 'pointerdown', 100, 600);
+    boxPointer(window, 'pointermove', target.x, target.y + LIFT + 40);
+    boxPointer(window, 'pointermove', target.x, target.y + LIFT);
+    boxPointer(window, 'pointerup', target.x, target.y + LIFT);
     await vi.waitFor(() => {
-      expect(container.textContent).toContain('8番の口');
+      expect(state(instance).spindles[2]!.segments).toHaveLength(1);
     }, { timeout: 5000, interval: 50 });
+    expect(container.querySelectorAll('.creel-box[data-source]').length).toBe(before - 1);
+    expect(document.querySelector('.creel-drag')).toBeNull();
     instance.unmount();
   }, 20000);
 
-  it('6. 押すだけではかりに載せる: 箱の糸を押すと重さが出て、レベル1 の手伝い (長さと半分) が出る', async () => {
-    const { instance } = await start(); // 何もかけていない状態
-    const canvas = stubStage();
-    pointer(canvas, 'pointerdown', 15 + 26, 330 + 62);
-    pointer(canvas, 'pointerup', 15 + 26, 330 + 62); // 動かさずに離す
+  it('6. 箱を押すだけ (動かさない) ではかりに載る: 重さと、レベル1 の手伝い (長さと半分) がお知らせに出る', async () => {
+    const { instance } = await start();
+    boxPointer(firstBox(), 'pointerdown', 100, 600);
+    boxPointer(window, 'pointerup', 100, 600);
     await vi.waitFor(() => {
-      expect(container.textContent).toContain('約 12,000 m');
-      expect(container.textContent).toContain('半分 6,000 m');
+      const notice = container.querySelector('.game-frame__notice')!.textContent!;
+      expect(notice).toContain('糸 1:500 g');
+      expect(notice).toContain('約 12,000 m');
+      expect(notice).toContain('半分 6,000 m');
     }, { timeout: 5000, interval: 50 });
+    expect(state(instance).weighed).toHaveLength(1);
     instance.unmount();
   }, 20000);
 
-  it('7. ドラッグ: 口の糸を箱へ戻すと外れる (押せる形が変わる)', async () => {
-    // 口0だけにかけておく
+  it('7. 口の糸を盤面の外 (箱の帯の方) へ引っぱって離すと外れて、箱へ戻る。盤面の中の別の所で離すと元のまま', async () => {
     let s0 = init(p1);
     s0 = reduce(s0, { type: 'mount', spindle: 0, sourceId: p1.sources[0]!.id, slot: 0 }, p1);
     s0 = reduce(s0, { type: 'setLength', spindle: 0, slot: 0, lengthM: 6000 }, p1);
     const { instance } = await start(s0);
     const canvas = stubStage();
-    // 口0 の糸 (x 200・y 400) を箱 (15+26, 330+62) へ
-    pointer(canvas, 'pointerdown', 200, 400);
-    raf.advance(2);
-    pointer(canvas, 'pointermove', 41, 392);
-    pointer(canvas, 'pointerup', 41, 392);
+    const c = laneCenter(0);
+    // 盤面の中で動かして離す → 元のまま
+    pointer(canvas, 'pointerdown', c.x, c.y);
+    pointer(canvas, 'pointermove', c.x + 60, c.y + 20);
+    pointer(canvas, 'pointerup', c.x + 60, c.y + 20);
+    expect(state(instance).spindles[0]!.segments).toHaveLength(1);
+    // 盤面の外 (下) で離す → 外れる
+    pointer(canvas, 'pointerdown', c.x, c.y);
+    pointer(canvas, 'pointermove', c.x, 900);
+    pointer(canvas, 'pointerup', c.x, 900);
     await vi.waitFor(() => {
-      expect(container.textContent).toContain('1番の口:— m');
+      expect(state(instance).spindles[0]!.segments).toHaveLength(0);
     }, { timeout: 5000, interval: 50 });
+    expect(container.querySelectorAll('.creel-box[data-source]').length).toBe(6);
     instance.unmount();
   }, 20000);
 
-  it('8. 引っぱりの途中で pointercancel が来ると、何もかからない。次の pointerdown から新しく引っぱれる', async () => {
-    const { instance } = await start(); // 何もかけていない状態
-    const canvas = stubStage();
-    // 箱の糸を引っぱりはじめて、途中で取り消し (ブラウザがスクロールに奪った形)
-    pointer(canvas, 'pointerdown', 41, 392);
-    pointer(canvas, 'pointermove', 300, 300);
-    pointer(canvas, 'pointercancel', 300, 300);
+  it('8. 箱の糸の引っぱりの途中で pointercancel が来ると、何もかからない。次の pointerdown から新しく引っぱれる', async () => {
+    const { instance } = await start();
+    stubStage();
+    const t = laneCenter(1);
+    boxPointer(firstBox(), 'pointerdown', 100, 600);
+    boxPointer(window, 'pointermove', t.x, t.y + LIFT);
+    boxPointer(window, 'pointercancel', t.x, t.y + LIFT);
+    expect(document.querySelector('.creel-drag')).toBeNull();
+    expect(state(instance).spindles[1]!.segments).toHaveLength(0);
+    boxPointer(firstBox(), 'pointerdown', 100, 600, 2);
+    boxPointer(window, 'pointermove', t.x, t.y + LIFT, 2);
+    boxPointer(window, 'pointerup', t.x, t.y + LIFT, 2);
     await vi.waitFor(() => {
-      // 取り消しなので何もかかっていない (口1は選ばれない。口1 = x 251〜318)
-      expect(container.textContent).not.toContain('2番の口');
-    }, { timeout: 5000, interval: 50 });
-    // 次の pointerdown から新しく引っぱって、口7 にかかる
-    pointer(canvas, 'pointerdown', 41, 392);
-    pointer(canvas, 'pointermove', 680, 300);
-    pointer(canvas, 'pointerup', 680, 300);
-    await vi.waitFor(() => {
-      expect(container.textContent).toContain('8番の口');
+      expect(state(instance).spindles[1]!.segments).toHaveLength(1);
     }, { timeout: 5000, interval: 50 });
     instance.unmount();
   }, 20000);
@@ -288,80 +316,84 @@ describe('糸割り controller T2b-03a (プレイ画面)', () => {
     instance.unmount();
   });
 
-  it('10. 2本目の指は無視する: ほかの指の move・up ではかからない', async () => {
-    const { instance } = await start(); // 何もかけていない状態
+  it('10. 口の糸を引っぱっている間の 2 本目の指は無視する', async () => {
+    let s0 = init(p1);
+    s0 = reduce(s0, { type: 'mount', spindle: 0, sourceId: p1.sources[0]!.id, slot: 0 }, p1);
+    s0 = reduce(s0, { type: 'setLength', spindle: 0, slot: 0, lengthM: 6000 }, p1);
+    const { instance } = await start(s0);
     const canvas = stubStage();
-    // 1本目の指でつかんでから、2本目の指で動かして離す → 何も起きない
-    pointer(canvas, 'pointerdown', 41, 392);
-    pointer(canvas, 'pointermove', 300, 300, 2);
-    pointer(canvas, 'pointerup', 680, 300, 2);
-    expect(container.textContent).not.toContain('8番の口');
-    // 1本目の指で口7 に置いて離す → かかる
-    pointer(canvas, 'pointermove', 680, 300, 1);
-    pointer(canvas, 'pointerup', 680, 300, 1);
+    const c = laneCenter(0);
+    pointer(canvas, 'pointerdown', c.x, c.y, 1);
+    pointer(canvas, 'pointermove', c.x, 900, 2);
+    pointer(canvas, 'pointerup', c.x, 900, 2);
+    expect(state(instance).spindles[0]!.segments).toHaveLength(1);
+    pointer(canvas, 'pointermove', c.x, 900, 1);
+    pointer(canvas, 'pointerup', c.x, 900, 1);
     await vi.waitFor(() => {
-      expect(container.textContent).toContain('8番の口');
+      expect(state(instance).spindles[0]!.segments).toHaveLength(0);
     }, { timeout: 5000, interval: 50 });
     instance.unmount();
   }, 20000);
 
   it('11. 1つ目がある口に引っぱると、継ぐ糸 (2本目) としてかかる', async () => {
-    const { instance } = await start(); // 何もかけていない状態
-    const canvas = stubStage();
-    // 1本目を口7にかける
-    pointer(canvas, 'pointerdown', 41, 392);
-    pointer(canvas, 'pointermove', 680, 300);
-    pointer(canvas, 'pointerup', 680, 300);
-    await vi.waitFor(() => {
-      expect(container.textContent).toContain('8番の口');
-    }, { timeout: 5000, interval: 50 });
-    // 2本目を同じ口に引っぱる → 継ぐ糸としてかかる (「1つ目」「継ぐ糸」の選びが出る)
-    pointer(canvas, 'pointerdown', 41 + 32, 392); // 箱の2つ目の糸
-    pointer(canvas, 'pointermove', 680, 500);
-    pointer(canvas, 'pointerup', 680, 500);
-    await vi.waitFor(() => {
-      expect(container.textContent).toContain('継ぐ糸');
-    }, { timeout: 5000, interval: 50 });
-    instance.unmount();
-  }, 20000);
-
-  it('13. 箱が空でも、口の糸を箱へ持っていくと外れる', async () => {
-    // 6本すべてを別々の口にかけて箱を空にする
-    const { instance } = await start(); // 何もかけていない状態
-    const canvas = stubStage();
-    for (let i = 0; i < 6; i++) {
-      const tx = 185 + i * 66.25 + 33; // 広い画面: 口は横1列
-      pointer(canvas, 'pointerdown', 41, 392);
-      pointer(canvas, 'pointermove', tx, 300);
-      pointer(canvas, 'pointerup', tx, 300);
+    const { instance } = await start();
+    stubStage();
+    const t = laneCenter(4);
+    for (let k = 0; k < 2; k++) {
+      boxPointer(firstBox(), 'pointerdown', 100, 600, k + 1);
+      boxPointer(window, 'pointermove', t.x, t.y + LIFT, k + 1);
+      boxPointer(window, 'pointerup', t.x, t.y + LIFT, k + 1);
       await vi.waitFor(() => {
-        expect(container.textContent).toContain(`${i + 1}番の口`);
+        expect(state(instance).spindles[4]!.segments).toHaveLength(k + 1);
       }, { timeout: 5000, interval: 50 });
     }
-    // 口1の糸を、箱の糸が無い場所 (段ボールの下の段) へ持っていく → 外れる
-    pointer(canvas, 'pointerdown', 218, 300);
-    pointer(canvas, 'pointermove', 137, 444);
-    pointer(canvas, 'pointerup', 137, 444);
-    // 外れたら箱に糸が戻るので、もう一度引っぱってかけられる
-    pointer(canvas, 'pointerdown', 41, 392);
-    pointer(canvas, 'pointermove', 218, 300);
-    pointer(canvas, 'pointerup', 218, 300);
-    await vi.waitFor(() => {
-      expect(container.textContent).toContain('1番の口');
-    }, { timeout: 5000, interval: 50 });
     instance.unmount();
   }, 20000);
 
-  it('12. 空の口を押すと選ばれる (tap で口を選ぶ)', async () => {
-    const { instance } = await start(); // 何もかけていない状態
+  it('12. 口の長さの数字を押すとテンキーが開き、数字を入れて「決定」で長さが入る。口の絵 (数字の上でない所) を押すだけなら選ぶだけ', async () => {
+    let s0 = init(p1);
+    s0 = reduce(s0, { type: 'mount', spindle: 0, sourceId: p1.sources[0]!.id, slot: 0 }, p1);
+    s0 = reduce(s0, { type: 'setLength', spindle: 0, slot: 0, lengthM: 6000 }, p1);
+    const { instance } = await start(s0);
     const canvas = stubStage();
-    pointer(canvas, 'pointerdown', 416, 300); // 口3の列 (x 384〜451)
-    pointer(canvas, 'pointerup', 416, 300);
+    const yarn = lanePartsFor(layoutFor(6, 1000, 750), 0, 1).yarn;
+    pointer(canvas, 'pointerdown', yarn.cx, yarn.cy);
+    pointer(canvas, 'pointerup', yarn.cx, yarn.cy);
+    expect(container.querySelector('.sheet')).toBeNull(); // 絵を押しただけではテンキーは開かない
+    const t = lengthTextPoint(0, 1);
+    pointer(canvas, 'pointerdown', t.x, t.y);
+    pointer(canvas, 'pointerup', t.x, t.y);
+    expect(container.querySelector('.sheet')).not.toBeNull();
+    for (const d of '5500') {
+      Array.from(container.querySelectorAll('button')).find((b) => b.textContent === d)!.click();
+    }
+    Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '決定')!.click();
     await vi.waitFor(() => {
-      expect(container.textContent).toContain('4番の口');
+      expect(state(instance).spindles[0]!.segments[0]!.lengthM).toBe(5500);
     }, { timeout: 5000, interval: 50 });
+    expect(container.querySelector('.sheet')).toBeNull();
     instance.unmount();
   }, 20000);
+
+  it('13. 糸がかかっていない口の長さの数字を押すと、テンキーは開かず理由が出る', async () => {
+    const { instance } = await start();
+    const canvas = stubStage();
+    const t = lengthTextPoint(3, 0);
+    pointer(canvas, 'pointerdown', t.x, t.y);
+    pointer(canvas, 'pointerup', t.x, t.y);
+    expect(container.querySelector('.sheet')).toBeNull();
+    expect(container.querySelector('.game-frame__notice')!.textContent).toContain('口にかけてください');
+    instance.unmount();
+  });
+
+  it('14. 6 つの増減ボタンが無い。操作欄は「電卓」「巻き始める」と箱の帯だけ (巻き始めるのボタンは 1 つ)', async () => {
+    const { instance } = await start();
+    const labels = Array.from(container.querySelectorAll('.game-frame__panel button')).map((b) => b.textContent);
+    for (const l of ['−1000', '−100', '−10', '+10', '+100', '+1000']) expect(labels).not.toContain(l);
+    expect(labels.filter((l) => l === '巻き始める')).toHaveLength(1);
+    expect(container.querySelector('.game-frame--compact')).not.toBeNull(); // どの大きさでも詰めた形
+    instance.unmount();
+  });
 });
 
 describe('糸割り controller T2-17 (遊び方を開いているあいだの一時停止)', () => {
