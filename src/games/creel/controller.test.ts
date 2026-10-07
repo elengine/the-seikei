@@ -823,7 +823,7 @@ describe('PU-07b: 引っぱって置く・外す・入れ替える (押して置
   });
 });
 
-describe('PU-09b: 詰めた形で、箱の横送りと引っぱるを見分ける', () => {
+describe('PU-09b: 詰めた形の箱 (PU-20a で、横送りとの見分けはやめた。送るのは専用のバー)', () => {
   /** 詰めた形 (cover 画面) で s2 を開く。w×h は frame の親の内寸 */
   function openCompact(w: number, h: number): { parent: HTMLElement; instance: { suspend(): unknown; unmount(): void }; stage: HTMLCanvasElement } {
     const best: Record<string, number> = {};
@@ -857,36 +857,30 @@ describe('PU-09b: 詰めた形で、箱の横送りと引っぱるを見分け�
     expect(parent.querySelector('.game-frame__message')).toBeNull(); // メッセージ欄は無い (PU-12d)
   });
 
-  it('縦の詰めた形: 箱の上で横に 20px 動かしても引っぱりにならず (重ねが出ない)、上に 20px 動かすと引っぱりになる', () => {
+  it('縦の詰めた形: 箱の上の動きは向きに関係なくすべて引っぱり (横に 20px でも、上に 20px でも重ねが出る。PU-20a)', () => {
     const { parent } = openCompact(412, 915);
     const b = parent.querySelector<HTMLButtonElement>('[data-testid="creel-box-kon-a"]')!;
-    fire(b, 'pointerdown', 100, 500);
-    fire(b, 'pointermove', 120, 500); // 横に 20px
-    expect(document.querySelector('.creel-drag')).toBeNull();
-    fire(b, 'pointermove', 140, 500);
-    expect(document.querySelector('.creel-drag')).toBeNull(); // 一度スクロールと決めたら、そのあとは引っぱりにならない
-    fire(b, 'pointerup', 140, 500);
-    fire(b, 'pointerdown', 100, 500);
-    fire(b, 'pointermove', 102, 480); // 上に 20px (横は 2px)
-    expect(document.querySelector('.creel-drag')).not.toBeNull();
-    fire(b, 'pointerup', 102, 480);
-    vi.advanceTimersByTime(400);
-    expect(document.querySelector('.creel-drag')).toBeNull();
+    for (const [dx, dy] of [[20, 0], [2, -20], [-20, 3], [0, 20]] as Array<[number, number]>) {
+      fire(b, 'pointerdown', 100, 500);
+      fire(b, 'pointermove', 100 + dx, 500 + dy);
+      expect(document.querySelector('.creel-drag'), `(${dx},${dy})`).not.toBeNull();
+      fire(b, 'pointerup', 100 + dx, 500 + dy);
+      vi.advanceTimersByTime(400);
+      expect(document.querySelector('.creel-drag')).toBeNull();
+    }
   });
 
-  it('横の詰めた形: 箱は縦に送る (data-scroll=y)。縦に 20px 動かすと送る (引っぱらない)、左 (盤面の方) に 20px 動かすと引っぱる', () => {
+  it('横の詰めた形: 箱は縦に並ぶ (data-scroll=y)。箱の上の動きは向きに関係なくすべて引っぱり (縦に 20px でも、左に 20px でも。PU-20a)', () => {
     const { parent } = openCompact(915, 412);
     expect(parent.querySelector<HTMLElement>('.creel-boxes')!.dataset.scroll).toBe('y');
     const b = parent.querySelector<HTMLButtonElement>('[data-testid="creel-box-kon-a"]')!;
-    fire(b, 'pointerdown', 700, 300);
-    fire(b, 'pointermove', 700, 320); // 縦に 20px
-    expect(document.querySelector('.creel-drag')).toBeNull();
-    fire(b, 'pointerup', 700, 320);
-    fire(b, 'pointerdown', 700, 300);
-    fire(b, 'pointermove', 680, 302); // 左に 20px
-    expect(document.querySelector('.creel-drag')).not.toBeNull();
-    fire(b, 'pointerup', 680, 302);
-    vi.advanceTimersByTime(400);
+    for (const [dx, dy] of [[0, 20], [-20, 2], [20, 0], [0, -20]] as Array<[number, number]>) {
+      fire(b, 'pointerdown', 700, 300);
+      fire(b, 'pointermove', 700 + dx, 300 + dy);
+      expect(document.querySelector('.creel-drag'), `(${dx},${dy})`).not.toBeNull();
+      fire(b, 'pointerup', 700 + dx, 300 + dy);
+      vi.advanceTimersByTime(400);
+    }
   });
 
   it('クリール立ては、広い画面 (1180×820) でも詰めた形 (alwaysCompact)。メッセージ欄は無く、依頼書は「依頼書を見る」、箱は縦に送れる (横長)', () => {

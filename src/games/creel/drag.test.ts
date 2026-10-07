@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { beginDrag, moveDrag, dropResult, DRAG_THRESHOLD_PX, LIFT_MARGIN_PX, liftFor, isDragGesture, DRAG_SCROLL_RATIO } from './drag';
+import { beginDrag, moveDrag, dropResult, DRAG_THRESHOLD_PX, LIFT_MARGIN_PX, liftFor } from './drag';
 import { pegCenter } from './geometry';
 
 const rows = 1;
@@ -50,7 +50,7 @@ describe('引っぱる動き (drag.ts。PU-07a)', () => {
   });
 });
 
-describe('PU-13c: 持ち上げる量・引っぱりか送りかの判定', () => {
+describe('PU-13c: 持ち上げる量 (PU-20: 引っぱりか送りかの判定はやめた。箱の上の動きはすべて引っぱり)', () => {
   it('liftFor: チーズの半径 + 24px (チーズの下の端が指の点より 24px 上にくる)', () => {
     expect(LIFT_MARGIN_PX).toBe(24);
     expect(liftFor(48)).toBe(48);
@@ -58,52 +58,12 @@ describe('PU-13c: 持ち上げる量・引っぱりか送りかの判定', () =>
     expect(liftFor(33)).toBe(33 / 2 + 24);
   });
 
-  it('isDragGesture (縦長の帯: 送る向きは x): 上へ動かせば引っぱり。上へ向かう成分が横の半分以上あれば、横にずれても引っぱり。ほぼ横なら送る。下へは送る (何も起きない)', () => {
-    expect(isDragGesture('x', 0, -10)).toBe(true);
-    expect(isDragGesture('x', 8, -8)).toBe(true); // 斜め上 (これまでは横と同じ大きさで「送る」にされて、出てこなかった)
-    expect(isDragGesture('x', 12, -6)).toBe(true); // 上の成分が横の半分
-    expect(isDragGesture('x', 20, -2)).toBe(false); // ほぼ横
-    expect(isDragGesture('x', 0, 10)).toBe(false); // 下
-    expect(isDragGesture('x', -12, -6)).toBe(true);
-  });
-
-  it('isDragGesture (横長の帯: 送る向きは y): 左 (盤面の方) へ動かせば引っぱり。左へ向かう成分が縦の半分以上あれば引っぱり。ほぼ縦なら送る', () => {
-    expect(isDragGesture('y', -10, 0)).toBe(true);
-    expect(isDragGesture('y', -8, 8)).toBe(true);
-    expect(isDragGesture('y', -6, 12)).toBe(true);
-    expect(isDragGesture('y', -2, 20)).toBe(false);
-    expect(isDragGesture('y', 10, 0)).toBe(false); // 右
-  });
 });
 
-describe('isDragGesture PU-17b (上の 180 度 / 左の 180 度)', () => {
-  const at = (deg: number, r = 10): [number, number] => [r * Math.cos((deg * Math.PI) / 180), -r * Math.sin((deg * Math.PI) / 180)]; // 画面 (y は下向き)。90° = 真上
-
-  it('送る向きの成分に対する上向きの割合の下限は定数 (15%)', () => {
-    expect(DRAG_SCROLL_RATIO).toBe(0.15);
-  });
-
-  it('縦長の帯 (x): 上向き 30°・60°・90°・120°・150° は引っぱり。ほぼ水平 (上向きが横の 15% 未満: 5°・175°)・真横・下向きはスクロール', () => {
-    for (const deg of [30, 60, 90, 120, 150]) {
-      const [dx, dy] = at(deg);
-      expect(isDragGesture('x', dx, dy), `${deg}°`).toBe(true);
-    }
-    for (const deg of [0, 5, 175, 180, 270, 300, 240]) {
-      const [dx, dy] = at(deg);
-      expect(isDragGesture('x', dx, dy), `${deg}°`).toBe(false);
-    }
-    expect(isDragGesture('x', 10, -1.4)).toBe(false); // 横 10 に対し上 1.4 (14%)
-    expect(isDragGesture('x', 10, -1.6)).toBe(true); // 16%
-  });
-
-  it('横長の帯 (y): 左向き (盤面の方) の半円は引っぱり (120°〜240°)。ほぼ真上・真下 (左向きが縦の 15% 未満)・右向きはスクロール', () => {
-    for (const deg of [120, 150, 180, 210, 240]) {
-      const [dx, dy] = at(deg);
-      expect(isDragGesture('y', dx, dy), `${deg}°`).toBe(true);
-    }
-    for (const deg of [85, 95, 265, 275, 0, 30, 330]) {
-      const [dx, dy] = at(deg);
-      expect(isDragGesture('y', dx, dy), `${deg}°`).toBe(false);
-    }
+describe('PU-20a: 引っぱりか送りかの判定は無い', () => {
+  it('drag.ts は isDragGesture・DRAG_SCROLL_RATIO を出さない (箱の帯の送りは専用のスクロールバーだけ)', async () => {
+    const mod = (await import('./drag')) as Record<string, unknown>;
+    expect(mod['isDragGesture']).toBeUndefined();
+    expect(mod['DRAG_SCROLL_RATIO']).toBeUndefined();
   });
 });

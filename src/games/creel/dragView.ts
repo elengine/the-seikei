@@ -1,6 +1,6 @@
 import type { YarnTypeId } from '../../core/domain/types';
 import type { StageFit } from '../../core/viewport/viewport';
-import { beginDrag, moveDrag, dropResult, liftFor, isDragGesture } from './drag';
+import { beginDrag, moveDrag, dropResult, liftFor } from './drag';
 import type { DragSource, DragState, DropResult } from './drag';
 import { CREEL_AREA, fromPx, hitTest, pegCenter, toPx } from './geometry';
 
@@ -42,13 +42,9 @@ interface Active {
   yarn: YarnTypeId | null; // 引っぱるチーズの糸 (空の軸を押しただけなら null)
   target: Element;
   origin: HTMLElement | null; // 箱の要素 (戻る先)
-  scrollAxis: 'x' | 'y' | null; // 箱の列を送れる向き (詰めた形)。最初の動きがこの向きなら、引っぱらず送る
   lift: number; // チーズを指より上に出す量 (画面 px。チーズの半径 + 24px)
   pressIndex: number | null; // 盤面を押した軸
   layer: HTMLElement | null;
-  scroller: HTMLElement | null; // 箱の帯 (自分で送るとき)
-  scrollStart: number; // 送り始めのときの帯の位置
-  scrolling: boolean; // 帯を送っている (引っぱりではない)
 }
 
 export function attachDrag(opts: DragViewOpts): { cancel(): void; destroy(): void } {
@@ -182,16 +178,11 @@ export function attachDrag(opts: DragViewOpts): { cancel(): void; destroy(): voi
     let yarn: YarnTypeId | null = null;
     let origin: HTMLElement | null = null;
     let pressIndex: number | null = null;
-    let scrollAxis: 'x' | 'y' | null = null;
-    let scroller: HTMLElement | null = null;
     const boxEl = target.closest<HTMLElement>('.creel-box');
     if (boxEl !== null && opts.panel.contains(boxEl) && boxEl.dataset.yarn !== undefined) {
       yarn = boxEl.dataset.yarn;
       source = { kind: 'box', yarn };
       origin = boxEl;
-      const axis = boxEl.parentElement?.dataset.scroll;
-      scrollAxis = axis === 'x' || axis === 'y' ? axis : null;
-      scroller = scrollAxis !== null ? boxEl.parentElement : null;
     } else if (target === opts.stage) {
       const l = logicalOf(e.clientX, e.clientY);
       const hit = l === null ? null : hitTest(l, opts.rows, opts.cols);
@@ -205,34 +196,17 @@ export function attachDrag(opts: DragViewOpts): { cancel(): void; destroy(): voi
     if (source === null) {
       return;
     }
-    // setPointerCapture は、引っぱりと決まってから (onMove) 行う。箱を横に送る動きをブラウザに任せるため
+    // 箱の上の動きは向きに関係なくすべて引っぱり (帯の送りは専用のスクロールバー。PU-20a)。setPointerCapture は動き始めてから (onMove)
     active = {
       pointerId: e.pointerId,
       drag: beginDrag(source, { x: e.clientX, y: e.clientY }),
       yarn,
       target,
       origin,
-      scrollAxis,
       lift: liftFor(Math.max(MIN_DIAMETER_PX, opts.diameterPx())),
       pressIndex,
       layer: null,
-      scroller,
-      scrollStart: scroller === null ? 0 : scrollAxis === 'x' ? scroller.scrollLeft : scroller.scrollTop,
-      scrolling: false,
     };
-  }
-
-  /** 箱の帯を、指が動いた分だけ送る (指と逆向きに帯が進む) */
-  function scrollStrip(a: Active): void {
-    const s = a.scroller;
-    if (s === null || a.scrollAxis === null) {
-      return;
-    }
-    if (a.scrollAxis === 'x') {
-      s.scrollLeft = a.scrollStart - (a.drag.current.x - a.drag.start.x);
-    } else {
-      s.scrollTop = a.scrollStart - (a.drag.current.y - a.drag.start.y);
-    }
   }
 
   function onMove(e: PointerEvent): void {
@@ -240,29 +214,9 @@ export function attachDrag(opts: DragViewOpts): { cancel(): void; destroy(): voi
     if (a === null || e.pointerId !== a.pointerId) {
       return;
     }
-    const wasMoved = a.drag.moved;
     a.drag = moveDrag(a.drag, { x: e.clientX, y: e.clientY });
-    if (a.scrolling) {
-      scrollStrip(a);
-      return;
-    }
     if (!a.drag.moved || a.yarn === null) {
       return; // 動かすまで (8px 未満) と、空の軸を押しているだけのときは引っぱらない
-    }
-    if (!wasMoved && a.scrollAxis !== null) {
-      // 最初の 8px の動きの向きで、箱の列を送る (スクロール) か、チーズを引っぱるかを決める
-      const scrolling = !isDragGesture(a.scrollAxis, a.drag.current.x - a.drag.start.x, a.drag.current.y - a.drag.start.y);
-      if (scrolling) {
-        // 箱は touch-action: none (斜めの動きをブラウザに奪わせない) なので、帯は指の動きに合わせて自分で送る
-        a.scrolling = true;
-        try {
-          a.target.setPointerCapture(a.pointerId);
-        } catch {
-          // 対応していない環境 (テスト等) では window の監視だけで動く
-        }
-        scrollStrip(a);
-        return;
-      }
     }
     if (a.layer === null) {
       try {
@@ -285,10 +239,6 @@ export function attachDrag(opts: DragViewOpts): { cancel(): void; destroy(): voi
       return;
     }
     a.drag = moveDrag(a.drag, { x: e.clientX, y: e.clientY });
-    if (a.scrolling) {
-      active = null; // 帯を送り終えた (チーズは出ていない)
-      return;
-    }
     if (a.yarn === null && a.pressIndex === null) {
       active = null;
       return;

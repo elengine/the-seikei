@@ -110,19 +110,6 @@ describe('dragView (PU-13c)', () => {
     t.view.destroy();
   });
 
-  it('縦長の帯 (data-scroll=x): 斜め上 (横 8・縦 −8) に動かしても引っぱりになる。ほぼ横 (横 20・縦 −2) は送る', () => {
-    const t = setup('x');
-    fire(t.box, 'pointerdown', 300, 300);
-    fire(t.box, 'pointermove', 308, 292);
-    expect(layers()).toHaveLength(1);
-    fire(t.box, 'pointerup', 308, 292);
-    vi.advanceTimersByTime(400);
-    fire(t.box, 'pointerdown', 300, 300, 2);
-    fire(t.box, 'pointermove', 320, 298, 2);
-    expect(layers()).toHaveLength(0);
-    t.view.destroy();
-  });
-
   it('前の指の pointerup が届かないまま (指が動かず) 残っていても、次の押さえで引っぱれる (別の指でも、同じ番号でも)', () => {
     const t = setup();
     fire(t.box, 'pointerdown', 300, 300, 1); // up も cancel も来ないまま
@@ -150,7 +137,7 @@ describe('dragView (PU-13c)', () => {
   });
 });
 
-describe('dragView PU-17b (箱の全体から始められる・箱の上から帯を送る)', () => {
+describe('dragView PU-20a (箱の全体から始められる・箱の上の動きはすべて引っぱり)', () => {
   it('箱の中のどこ (型番の文字・チーズの絵・角) から始めても引っぱれる', () => {
     const t = setup('x');
     const hinban = document.createElement('span');
@@ -171,52 +158,6 @@ describe('dragView PU-17b (箱の全体から始められる・箱の上から�
     t.view.destroy();
   });
 
-  it('縦長 (x): 30°・150° の上向きは引っぱり。ほぼ水平 (上向き 15% 未満) は引っぱらず、箱の帯を指の動きに合わせて自分で横に送る', () => {
-    const t = setup('x');
-    Object.defineProperty(t.boxes, 'scrollLeft', { configurable: true, writable: true, value: 100 });
-    fire(t.box, 'pointerdown', 300, 300, 1);
-    fire(t.box, 'pointermove', 310, 299, 1); // ほぼ水平
-    fire(t.box, 'pointermove', 270, 299, 1);
-    expect(layers()).toHaveLength(0);
-    expect(t.boxes.scrollLeft).toBe(130); // 左へ 30 動かした → 帯は 30 進む
-    fire(t.box, 'pointerup', 270, 299, 1);
-    expect(t.onDrop).not.toHaveBeenCalled();
-    for (const [x, y] of [[308, 296], [292, 296]] as Array<[number, number]>) {
-      fire(t.box, 'pointerdown', 300, 300, 2);
-      fire(t.box, 'pointermove', x, y, 2);
-      expect(layers(), `(${x},${y})`).toHaveLength(1);
-      fire(t.box, 'pointerup', x, y, 2);
-      vi.advanceTimersByTime(400);
-    }
-    t.view.destroy();
-  });
-
-  it('横長 (y): 左向きは引っぱり、ほぼ真上下は縦に送る', () => {
-    const t = setup('y');
-    Object.defineProperty(t.boxes, 'scrollTop', { configurable: true, writable: true, value: 50 });
-    fire(t.box, 'pointerdown', 300, 300, 1);
-    fire(t.box, 'pointermove', 299, 290, 1);
-    fire(t.box, 'pointermove', 299, 270, 1);
-    expect(layers()).toHaveLength(0);
-    expect(t.boxes.scrollTop).toBe(80);
-    fire(t.box, 'pointerup', 299, 270, 1);
-    fire(t.box, 'pointerdown', 300, 300, 2);
-    fire(t.box, 'pointermove', 290, 296, 2);
-    expect(layers()).toHaveLength(1);
-    t.view.destroy();
-  });
-
-  it('送っている指が pointercancel・pointerup で終わると、次の押さえで引っぱれる', () => {
-    const t = setup('x');
-    fire(t.box, 'pointerdown', 300, 300, 1);
-    fire(t.box, 'pointermove', 330, 300, 1);
-    fire(window, 'pointercancel', 330, 300, 1);
-    fire(t.box, 'pointerdown', 300, 300, 2);
-    fire(t.box, 'pointermove', 300, 250, 2);
-    expect(layers()).toHaveLength(1);
-    t.view.destroy();
-  });
-
   it('箱の touch-action は none (pan-x・pan-y だと、斜めの動きをブラウザが奪って引っぱれない。送るのは dragView が行う)', async () => {
     const { readFileSync } = await import('node:fs');
     const css = readFileSync('src/styles/base.css', 'utf8');
@@ -226,5 +167,33 @@ describe('dragView PU-17b (箱の全体から始められる・箱の上から�
       expect(r, r).not.toMatch(/touch-action:\s*pan-/);
     }
     expect(rules.some((r) => /touch-action:\s*none/.test(r))).toBe(true);
+  });
+
+  it('箱の上の動きは向きに関係なくすべて引っぱり (縦長 x・横長 y のどちらでも): 真横・真上・真下・斜め・ほぼ水平のどれでも、チーズが出る。帯 (scrollLeft・scrollTop) は動かない', () => {
+    for (const axis of ['x', 'y'] as const) {
+      const t = setup(axis);
+      Object.defineProperty(t.boxes, 'scrollLeft', { configurable: true, writable: true, value: 100 });
+      Object.defineProperty(t.boxes, 'scrollTop', { configurable: true, writable: true, value: 50 });
+      let id = 1;
+      for (const [dx, dy] of [[30, 0], [-30, 0], [0, -30], [0, 30], [20, -2], [-20, 2], [9, 9], [-9, -9], [2, 20]] as Array<[number, number]>) {
+        fire(t.box, 'pointerdown', 300, 300, id);
+        fire(t.box, 'pointermove', 300 + dx, 300 + dy, id);
+        expect(layers(), `${axis} (${dx},${dy})`).toHaveLength(1);
+        fire(t.box, 'pointerup', 300 + dx, 300 + dy, id);
+        vi.advanceTimersByTime(400);
+        id++;
+      }
+      expect(t.boxes.scrollLeft).toBe(100);
+      expect(t.boxes.scrollTop).toBe(50);
+      t.view.destroy();
+    }
+  });
+
+  it('箱の touch-action は none で、箱の帯 (.creel-boxes) は overflow: hidden (指でなぞってもスクロールしない。送るのは専用のバー)', async () => {
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync('src/styles/base.css', 'utf8');
+    const boxesRules = css.match(/[^{}]*\.creel-boxes\s*\{[^}]*\}/g) ?? [];
+    expect(boxesRules.some((r) => /overflow(-x|-y)?:\s*auto/.test(r))).toBe(false);
+    expect(boxesRules.some((r) => /overflow:\s*hidden/.test(r))).toBe(true);
   });
 });

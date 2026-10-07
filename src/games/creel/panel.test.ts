@@ -569,19 +569,21 @@ describe('PU-09b: 詰めた形の操作欄 (依頼書を見る・箱の横送り
     const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
     const row = css.match(/\.game-frame--compact\[data-layout='portrait'\] \.creel-boxes\s*\{([^}]*)\}/);
     expect(row![1]).toContain('flex-wrap: nowrap');
-    expect(row![1]).toContain('overflow-x: auto');
+    expect(row![1]).toContain('overflow: hidden'); // 帯は指でなぞってもスクロールしない (送るのは専用のバー。PU-20a)
     const box = css.match(/\.game-frame--compact\[data-layout='portrait'\] \.creel-box\s*\{([^}]*)\}/);
     expect(box![1]).not.toContain('touch-action: pan-'); // 斜めの動きをブラウザに奪わせない (PU-17b)
     expect(box![1]).toContain('min-width: 0'); // 絵と型番に合わせて狭く (PU-12d)
     const col = css.match(/\.game-frame--compact\[data-layout='landscape'\] \.creel-box\s*\{([^}]*)\}/);
     expect(col![1]).not.toContain('touch-action: pan-');
-    // 詰めた横 (高さ 560px 未満): 箱は品番とチーズを横並びにして、高さを 72px 程度に (PU-10 追記)
-    expect(col![1]!).toContain('flex-direction: row');
+    // 詰めた横 (PU-20b): 箱は絵の下に型番 (縦並び)。狭い箱 (2 列 + バーの操作欄) でも、絵と型番が枠の内側 8px 以上に収まる
+    expect(col![1]!).toContain('flex-direction: column');
     expect(col![1]!).toContain('justify-content: center');
-    const pad = col![1]!.match(/padding: (\d+)px var\(--sp-2\) (\d+)px/)!;
+    expect(col![1]!).toContain('min-width: 0');
+    expect(col![1]!).toContain('box-sizing: border-box');
+    const padX = css.match(/data-layout='landscape'\] \.creel-box\s*\{[^}]*padding: \d+px var\(--sp-(\d)\)/)![1]!;
+    expect(parseInt(css.match(new RegExp(`--sp-${padX}: (\\d+)px`))![1]!, 10)).toBeGreaterThanOrEqual(8);
     const cheese = parseInt(css.match(/\.game-frame--compact \.creel-box__cheese\s*\{[^}]*width: (\d+)px/)![1]!, 10);
     expect(cheese).toBeGreaterThanOrEqual(48);
-    expect(parseInt(pad[1]!, 10) + cheese + parseInt(pad[2]!, 10) + 4).toBeLessThanOrEqual(84); // 縁 2px×2 を含めた高さ
   });
 });
 
@@ -650,7 +652,7 @@ describe('PU-12d: 箱の並び (縦長は絵の下に型番、横長は 2 列で
     expect(hin).toContain('letter-spacing: -0.04em'); // 入らないときは字間を詰める
   });
 
-  it('base.css: 縦長は箱が縦並び (flex-direction: column) で幅は絵と型番に合わせて狭く (最小幅 0)、横長は箱が横並び (row) で、帯が 2 列の格子', () => {
+  it('base.css: 縦長は箱が縦並び (flex-direction: column) で幅は絵と型番に合わせて狭く (最小幅 0)、横長も箱は縦並びで、帯が 2 列の格子', () => {
     const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
     const base = css.match(/\n\.creel-box\s*\{([^}]*)\}/)![1]!;
     expect(base).toContain('flex-direction: column');
@@ -658,7 +660,7 @@ describe('PU-12d: 箱の並び (縦長は絵の下に型番、横長は 2 列で
     expect(pBox).toContain('min-width: 0');
     expect(pBox).not.toContain('min-width: 120px');
     const lBox = css.match(/\.game-frame--compact\[data-layout='landscape'\] \.creel-box\s*\{([^}]*)\}/)![1]!;
-    expect(lBox).toContain('flex-direction: row');
+    expect(lBox).toContain('flex-direction: column'); // PU-20b: 絵の下に型番 (狭い箱でも枠の内側に収まる)
     const lBoxes = css.match(/\.game-frame--compact\[data-layout='landscape'\] \.creel-boxes\s*\{([^}]*)\}/)![1]!;
     expect(lBoxes).toContain('display: grid');
     expect(lBoxes).toContain('grid-template-columns: repeat(2, minmax(0, 1fr))');
@@ -729,5 +731,110 @@ describe('PU-12 追加修正: 詰めた横 (915×412) でスクロールを無�
     expect(grid).toContain('grid-template-columns: repeat(2, minmax(0, 1fr))');
     const rep = css.match(/\.game-frame--compact\[data-layout='landscape'\] \.sheet \.creel-order-repeat\s*\{([^}]*)\}/)![1]!;
     expect(rep).toContain('grid-column: 1 / -1');
+  });
+});
+
+
+describe('PU-20a: 箱の帯の専用スクロールバー', () => {
+  function mk(layout: 'portrait' | 'landscape', compact = true): { frameEl: HTMLElement; parent: HTMLElement; panel: CreelPanel; boxes: HTMLElement } {
+    const frameEl = document.createElement('div');
+    frameEl.className = compact ? 'game-frame game-frame--compact' : 'game-frame';
+    frameEl.dataset.layout = layout;
+    document.body.appendChild(frameEl);
+    const parent = document.createElement('div');
+    frameEl.appendChild(parent);
+    const panel = createCreelPanel(parent, { content, onAction: () => undefined });
+    panel.update(s2State());
+    return { frameEl, parent, panel, boxes: parent.querySelector<HTMLElement>('.creel-boxes')! };
+  }
+  /** 箱の帯の見えている大きさと全体の大きさを (jsdom は測れないので) 決める */
+  function measure(boxes: HTMLElement, view: number, total: number, axis: 'x' | 'y'): void {
+    const [v, t, p] = axis === 'x' ? ['clientWidth', 'scrollWidth', 'scrollLeft'] : ['clientHeight', 'scrollHeight', 'scrollTop'];
+    Object.defineProperty(boxes, v!, { configurable: true, value: view });
+    Object.defineProperty(boxes, t!, { configurable: true, value: total });
+    Object.defineProperty(boxes, p!, { configurable: true, writable: true, value: 0 });
+  }
+  const tick = async (): Promise<void> => {
+    await Promise.resolve();
+    await Promise.resolve();
+  };
+  const barOf = (parent: HTMLElement): HTMLElement | null => parent.querySelector<HTMLElement>('.scrollbar');
+
+  it('縦長: 箱が収まらないとき、箱の帯のすぐ下に横のバーが出る。収まるときは出ない', () => {
+    const c = mk('portrait');
+    measure(c.boxes, 300, 900, 'x');
+    c.panel.update(s2State());
+    const bar = barOf(c.parent)!;
+    expect(bar).not.toBeNull();
+    expect(bar.classList.contains('scrollbar--x')).toBe(true);
+    expect(bar.hidden).toBe(false);
+    expect(c.boxes.nextElementSibling).toBe(bar); // 帯のすぐ下
+    measure(c.boxes, 300, 300, 'x');
+    c.panel.update(s2State());
+    expect(barOf(c.parent)!.hidden).toBe(true);
+    c.panel.destroy();
+  });
+
+  it('横長: 箱が収まらないとき、箱の帯のすぐ右に縦のバーが出る (横のバーは無い)', () => {
+    const c = mk('landscape');
+    measure(c.boxes, 200, 600, 'y');
+    c.panel.update(s2State());
+    const bar = barOf(c.parent)!;
+    expect(bar.classList.contains('scrollbar--y')).toBe(true);
+    expect(bar.hidden).toBe(false);
+    expect(c.boxes.nextElementSibling).toBe(bar);
+    expect(c.parent.querySelector('.scrollbar--x')).toBeNull();
+    c.panel.destroy();
+  });
+
+  it('バーの溝を押すと、箱の帯が 1 画面分動く (縦長は scrollLeft、横長は scrollTop)。バーの位置も追いつく', () => {
+    const c = mk('portrait');
+    measure(c.boxes, 300, 900, 'x');
+    c.panel.update(s2State());
+    const bar = barOf(c.parent)!;
+    Object.defineProperty(bar, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({ x: 0, y: 0, left: 0, top: 0, right: 300, bottom: 64, width: 300, height: 64 }),
+    });
+    bar.dispatchEvent(new PointerEvent('pointerdown', { clientX: 280, clientY: 30, pointerId: 1, bubbles: true, button: 0 }));
+    expect(c.boxes.scrollLeft).toBe(300);
+    const thumb = bar.querySelector<HTMLElement>('.scrollbar__thumb')!;
+    expect(parseFloat(thumb.style.left)).toBeCloseTo((300 / 600) * (100 - 100 / 3), 3);
+    c.panel.destroy();
+    const l = mk('landscape');
+    measure(l.boxes, 200, 600, 'y');
+    l.panel.update(s2State());
+    const bar2 = barOf(l.parent)!;
+    Object.defineProperty(bar2, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({ x: 0, y: 0, left: 0, top: 0, right: 64, bottom: 200, width: 64, height: 200 }),
+    });
+    bar2.dispatchEvent(new PointerEvent('pointerdown', { clientX: 30, clientY: 190, pointerId: 1, bubbles: true, button: 0 }));
+    expect(l.boxes.scrollTop).toBe(200);
+    l.panel.destroy();
+  });
+
+  it('回して向きが変わると、バーの向きも変わる (縦長 → 横長で横のバーが縦のバーに)', async () => {
+    const c = mk('portrait');
+    measure(c.boxes, 300, 900, 'x');
+    c.panel.update(s2State());
+    expect(c.parent.querySelector('.scrollbar--x')).not.toBeNull();
+    measure(c.boxes, 200, 600, 'y');
+    c.frameEl.dataset.layout = 'landscape';
+    await tick();
+    expect(c.parent.querySelector('.scrollbar--x')).toBeNull();
+    expect(c.parent.querySelector('.scrollbar--y')).not.toBeNull();
+    expect(c.parent.querySelectorAll('.scrollbar')).toHaveLength(1);
+    c.panel.destroy();
+  });
+
+  it('今の形 (詰めた形でない) ではバーを出さない。destroy でバーも消える', () => {
+    const c = mk('portrait', false);
+    measure(c.boxes, 300, 900, 'x');
+    c.panel.update(s2State());
+    const bar = barOf(c.parent);
+    expect(bar === null || bar.hidden).toBe(true);
+    c.panel.destroy();
+    expect(document.querySelector('.scrollbar')).toBeNull();
   });
 });

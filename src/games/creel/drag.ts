@@ -17,21 +17,6 @@ export function liftFor(diameter: number): number {
   return diameter / 2 + LIFT_MARGIN_PX;
 }
 
-/** 引っぱる向きへの成分が、送る向きの成分のこの割合以上なら引っぱり (それより水平・垂直に近い動きは帯を送る。PU-17b) */
-export const DRAG_SCROLL_RATIO = 0.15;
-
-/**
- * 箱の帯の上で指が動き始めたとき、チーズを引っぱる動きか、帯を送る動きかを決める (dx・dy は指が動いた量)。
- * axis は帯を送れる向き ('x' = 横に送る縦長の画面、'y' = 縦に送る横長の画面)。
- * 引っぱる向き (縦長は上の 180 度、横長は左の 180 度) への成分が、送る向きの成分の DRAG_SCROLL_RATIO 以上あれば引っぱり。
- * 真横 (縦長)・真上下 (横長) に近い動きと、反対向き (下・右) の動きは、帯を送る。
- */
-export function isDragGesture(axis: 'x' | 'y', dx: number, dy: number): boolean {
-  const toward = axis === 'x' ? -dy : -dx; // 引っぱる向きへ動いた量
-  const along = axis === 'x' ? Math.abs(dx) : Math.abs(dy); // 送る向きへ動いた量
-  return toward > 0 && toward >= along * DRAG_SCROLL_RATIO;
-}
-
 export type DragSource = { kind: 'box'; yarn: YarnTypeId } | { kind: 'peg'; index: number };
 
 export interface DragState {

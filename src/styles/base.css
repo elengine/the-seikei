@@ -2073,12 +2073,100 @@ button {
   width: 100%;
 }
 
-/* 縦: 箱を横一列に並べ、指で横に送る。箱の上で上に動かすと、チーズを引っぱる (dragView が向きで決める) */
+/* 専用のスクロールバー (PU-20a。src/core/ui/scrollBar.ts)。押せる太さは 64px、見た目の溝は細い。つまみは藍で、握りの線つき */
+.scrollbar {
+  position: relative;
+  flex: none;
+  box-sizing: border-box;
+  touch-action: none; /* つまみを引っぱる間に画面をスクロール・拡大させない */
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: pointer;
+}
+
+.scrollbar[hidden] {
+  display: none;
+}
+
+.scrollbar--x {
+  height: 64px;
+  width: 100%;
+}
+
+.scrollbar--y {
+  width: 64px;
+  align-self: stretch;
+}
+
+/* 溝 (細い) */
+.scrollbar::before {
+  content: '';
+  position: absolute;
+  background: var(--c-line);
+  border-radius: 8px;
+}
+
+.scrollbar--x::before {
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 16px;
+  transform: translateY(-50%);
+}
+
+.scrollbar--y::before {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 16px;
+  transform: translateX(-50%);
+}
+
+.scrollbar__thumb {
+  position: absolute;
+  background: var(--c-ai);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.scrollbar--x .scrollbar__thumb {
+  top: 50%;
+  height: 40px;
+  transform: translateY(-50%);
+}
+
+.scrollbar--y .scrollbar__thumb {
+  left: 50%;
+  width: 40px;
+  transform: translateX(-50%);
+}
+
+/* 握りの印: 白い縦線 (縦のバーでは横線) */
+.scrollbar__grip {
+  width: 14px;
+  height: 18px;
+  background: repeating-linear-gradient(to right, var(--c-white) 0 2px, transparent 2px 6px);
+}
+
+.scrollbar--y .scrollbar__grip {
+  width: 18px;
+  height: 14px;
+  background: repeating-linear-gradient(to bottom, var(--c-white) 0 2px, transparent 2px 6px);
+}
+
+/* 箱の帯と専用のスクロールバーの行 (PU-20a)。箱の上の動きはすべて引っぱり。帯は指でなぞってもスクロールせず、バーだけで送る */
+.creel-boxes-row {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* 縦: 箱を横一列に並べる。送るのは、帯のすぐ下の横のバー */
 .game-frame--compact[data-layout='portrait'] .creel-boxes {
   flex-wrap: nowrap;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  padding-bottom: var(--sp-1);
+  overflow: hidden;
 }
 
 .game-frame--compact[data-layout='portrait'] .creel-box {
@@ -2086,8 +2174,40 @@ button {
   min-width: 0; /* 絵と型番に合わせて狭く (型番が広いときだけ広がる。横に送る) */
 }
 
-/* 横: 箱を縦に並べ、縦に送る (操作欄がスクロールする)。引っぱるのは左 (盤面の方) */
+/* 横: 箱を縦に並べる。送るのは、帯のすぐ右の縦のバー。操作欄は縦にスクロールせず、箱の帯が残りの高さを使う (PU-20b) */
+.game-frame--compact[data-layout='landscape'] .game-frame__panel:has(.creel-panel) {
+  overflow: hidden;
+}
+
+.game-frame--compact[data-layout='landscape'] .creel-panel {
+  height: 100%;
+}
+
+.game-frame--compact[data-layout='landscape'] .creel-section:has(.creel-boxes-row) {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.game-frame--compact[data-layout='landscape'] .creel-boxes-row {
+  flex: 1 1 0;
+  min-height: 0;
+  flex-direction: row;
+  align-items: stretch;
+}
+
+.game-frame--compact[data-layout='landscape'] .creel-actions {
+  position: static;
+  flex: none;
+}
+
 .game-frame--compact[data-layout='landscape'] .creel-boxes {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  align-content: start;
+  overflow: hidden;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr)); /* 帯の中に 2 列。縦に送る */
   gap: var(--sp-2);
@@ -2096,9 +2216,11 @@ button {
 .game-frame--compact[data-layout='landscape'] .creel-box {
   flex: none;
   width: 100%;
-  flex-direction: row; /* 絵の右に型番 (高さ 76px ほど) */
+  min-width: 0;
+  box-sizing: border-box;
+  flex-direction: column; /* 絵の下に型番 (狭い箱でも、絵と型番が枠の内側 8px 以上に収まる。PU-20b) */
   justify-content: center;
-  gap: var(--sp-2);
+  gap: 2px;
   padding: 18px var(--sp-2) 6px;
 }
 
@@ -2517,13 +2639,20 @@ button {
 .game-frame--compact .creel-actions .btn {
   flex: 1 1 0;
   min-width: 64px; /* 押せる部品は 64px 以上 */
+  min-height: 64px;
   padding: 0 var(--sp-2);
   font-size: 20px;
   white-space: nowrap;
 }
 
+/* 「依頼書」「ヒント」は同じ幅、「確認」(主) は少し広く (PU-20b。「ヒント」が細くならない) */
 .game-frame--compact .creel-actions .creel-order-open {
-  flex: 2 1 0; /* 「依頼書を見る」は字が長いので、ほかの 2 倍の幅 */
+  flex: 1 1 0;
+}
+
+.game-frame--compact .creel-actions .creel-actions__check {
+  flex: 1.3 1 0;
+  min-width: 64px;
 }
 
 .game-frame--compact[data-layout='landscape'] .sheet .creel-order {

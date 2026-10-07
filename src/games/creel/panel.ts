@@ -7,6 +7,8 @@ import { createButton, setLockedReason } from '../../core/ui/widgets';
 import { createConeIcon } from './coneIcon';
 import { createSectionHeading } from '../../core/ui/layout';
 import { openSheet } from '../../core/ui/sheet';
+import { createScrollBar } from '../../core/ui/scrollBar';
+import type { ScrollBar } from '../../core/ui/scrollBar';
 import type { Sheet } from '../../core/ui/sheet';
 
 export interface CreelPanel {
@@ -78,10 +80,14 @@ export function createCreelPanel(parent: HTMLElement, opts: {
 
   // ---- 2. 糸の箱 ----
   const boxesBox = section('糸の箱');
+  // 箱の帯 (boxes) と、そのすぐ下 (縦長)・すぐ右 (横長) の専用スクロールバーを、1 つの行 (boxesRow) に置く (PU-20a)
+  const boxesRow = document.createElement('div');
+  boxesRow.classList.add('creel-boxes-row');
+  boxesBox.appendChild(boxesRow);
   const boxes = document.createElement('div');
   boxes.classList.add('creel-boxes');
   boxes.dataset.testid = 'creel-boxes';
-  boxesBox.appendChild(boxes);
+  boxesRow.appendChild(boxes);
 
   // ---- 3. 一番下: 依頼書 (左・詰めた形)・ヒント・確認 (右・主) ----
   const actions = document.createElement('div');
@@ -154,9 +160,53 @@ export function createCreelPanel(parent: HTMLElement, opts: {
     return frameEl?.classList.contains('game-frame--compact') ?? false;
   }
 
+  // ---- 箱の帯の専用スクロールバー (詰めた形だけ。縦長は横・横長は縦。全部見えているときは出さない) ----
+  let bar: ScrollBar | null = null;
+  let barAxis: 'x' | 'y' | null = null;
+
+  /** バーに、箱の帯の見えている大きさ・全体の大きさ・位置を伝える */
+  function syncBar(): void {
+    if (bar === null || barAxis === null) {
+      return;
+    }
+    const x = barAxis === 'x';
+    bar.update({
+      view: x ? boxes.clientWidth : boxes.clientHeight,
+      total: x ? boxes.scrollWidth : boxes.scrollHeight,
+      pos: x ? boxes.scrollLeft : boxes.scrollTop,
+    });
+  }
+
+  /** 向き (縦長 x・横長 y・詰めた形でなければ無し) に合わせてバーを作り直す */
+  function applyBar(axis: 'x' | 'y' | null): void {
+    if (axis !== barAxis) {
+      bar?.destroy();
+      bar = null;
+      barAxis = axis;
+      if (axis !== null) {
+        bar = createScrollBar({
+          orientation: axis,
+          ariaLabel: '糸の箱の列',
+          onChange: (pos) => {
+            if (axis === 'x') {
+              boxes.scrollLeft = pos;
+            } else {
+              boxes.scrollTop = pos;
+            }
+            syncBar();
+          },
+        });
+        boxesRow.appendChild(bar.root); // 箱の帯のすぐ下・すぐ右
+      }
+    }
+    syncBar();
+  }
+
   function applyMode(): void {
     const compact = isCompactNow();
-    boxes.dataset.scroll = compact ? (frameEl?.dataset.layout === 'landscape' ? 'y' : 'x') : '';
+    const axis = compact ? (frameEl?.dataset.layout === 'landscape' ? 'y' : 'x') : null;
+    boxes.dataset.scroll = axis ?? '';
+    applyBar(axis);
     if (compact) {
       if (orderBtn === null) {
         orderBtn = createButton({ label: '依頼書', variant: 'secondary', onClick: toggleSheet });
@@ -186,6 +236,9 @@ export function createCreelPanel(parent: HTMLElement, opts: {
   if (frameEl !== null) {
     modeObserver?.observe(frameEl, { attributes: true, attributeFilter: ['class', 'data-layout'] });
   }
+  // 画面の大きさ・文字の大きさが変わって帯の大きさが変わったら、バーを出すか・つまみの長さを計算し直す
+  const sizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => syncBar()) : null;
+  sizeObserver?.observe(boxes);
 
   /** 状態に合わせて表示を更新する */
   function render(s: CreelState): void {
@@ -257,6 +310,7 @@ export function createCreelPanel(parent: HTMLElement, opts: {
       box.appendChild(hinban);
       boxes.appendChild(box);
     }
+    syncBar();
   }
 
   return {
@@ -270,6 +324,9 @@ export function createCreelPanel(parent: HTMLElement, opts: {
 
     destroy(): void {
       modeObserver?.disconnect();
+      sizeObserver?.disconnect();
+      bar?.destroy();
+      bar = null;
       closeSheet();
       root.remove();
     },
