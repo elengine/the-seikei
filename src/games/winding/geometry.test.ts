@@ -1,5 +1,6 @@
+import { PIN_ANGLE0 as PIN_ANGLE0_G } from './renderer.parts';
 import { describe, it, expect, afterEach } from 'vitest';
-import { setLogicalHeight, logicalHeightFor, machineExtent, CREEL_AREA, CREEL_END_X, LOGICAL_W, LOGICAL_H, endPoint, hitEnd, toPx, fromPx, threadY, drumSectionY, tableY, TABLE_AREA, REED_X, DRUM_END_X, DRUM_AREA, pointOnPath, threadPath, PIN_RAIL_X, DIAL_X, DIAL_Y, DIAL_R, reedRect, reedThreadY, THREAD_SHEET_HALF, hitBrokenThread, THREAD_MARK_X, SCISSORS_SIZE, SCISSORS_LIFT, SCISSORS_TIP, scissorsPos, scissorsHitsThread, scissorsHit, REED_RISE, surfaceY, ARC_RISE, DRUM_BULGE } from './geometry';
+import { setLogicalHeight, logicalHeightFor, machineExtent, CREEL_AREA, CREEL_END_X, LOGICAL_W, LOGICAL_H, endPoint, hitEnd, toPx, fromPx, threadY, drumSectionY, tableY, TABLE_AREA, REED_X, DRUM_END_X, DRUM_AREA, pointOnPath, threadPath, PIN_RAIL_X, DIAL_X, DIAL_Y, DIAL_R, reedRect, reedThreadY, THREAD_SHEET_HALF, hitBrokenThread, THREAD_MARK_X, SCISSORS_SIZE, SCISSORS_LIFT, SCISSORS_TIP, scissorsPos, scissorsHitsThread, scissorsHit, rodStopTurn, REED_RISE, surfaceY, ARC_RISE, DRUM_BULGE } from './geometry';
 
 const fit = { scale: 1, offsetX: 0, offsetY: 0 };
 
@@ -463,5 +464,31 @@ describe('T2-18b: ハサミの当たり判定 (刃と持ち手の全体を引っ
     expect(scissorsHit({ x: pos.x - 45, y: pos.y - 20 }, pos)).toBe(false);
     expect(scissorsHit({ x: pos.x, y: pos.y - 75 }, pos)).toBe(false); // 刃の先より上
     expect(scissorsHit({ x: pos.x, y: pos.y + 60 }, pos)).toBe(false); // 持ち手より下
+  });
+});
+
+describe('T2-19b: 100% になったとき帯留め (竿) が止まる位置', () => {
+  const { x, w } = DRUM_AREA;
+  const leftX = x - DRUM_BULGE;
+  const width = w + DRUM_BULGE * 2;
+  const cx = x + w / 2;
+  const radius = width / 2;
+  const rodX = (drumAngle: number): number => cx + radius * Math.sin(drumAngle + PIN_ANGLE0_G);
+
+  it('どの drumAngle からでも、回った先の竿の x は「左の端 + 幅 × 0.4」(差 1 以下) で手前側 (cos > 0)', () => {
+    for (let i = 0; i < 12; i++) {
+      const start = -Math.PI * 2 + (Math.PI * 2 * i) / 12;
+      const delta = rodStopTurn(start);
+      expect(delta, `start ${start.toFixed(2)}`).toBeGreaterThanOrEqual(0);
+      const final = start + delta;
+      const th = final + PIN_ANGLE0_G;
+      expect(Math.cos(th), `start ${start.toFixed(2)} は手前側`).toBeGreaterThan(0);
+      expect(Math.abs(rodX(final) - (leftX + width * 0.4)), `start ${start.toFixed(2)} の位置`).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('すでにその位置にいるときは回る量 0 (それ以上回らない)', () => {
+    const atTarget = Math.asin(-0.2) - PIN_ANGLE0_G;
+    expect(rodStopTurn(atTarget)).toBe(0);
   });
 });

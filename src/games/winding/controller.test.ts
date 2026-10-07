@@ -8,6 +8,8 @@ import { createFixedClock } from '../../core/clock/clock';
 import { init } from './logic';
 import { setPedal } from '../../core/mechanics/pedal';
 import { paramsOf, SECTION_LENGTH } from './params';
+import { DRUM_AREA, DRUM_BULGE } from './geometry';
+import { PIN_ANGLE0 } from './renderer.parts';
 import { getContent } from '../../core/content/content';
 
 const drawBoardCalls: unknown[][] = [];
@@ -1395,4 +1397,87 @@ describe('winding module T2-16 その4b (ハサミの持ち上げと閉じる動
     instance.unmount();
     restore();
   });
+});
+
+describe('T2-19b: 100% になったとき帯留め (竿) が「手前側で左から 40%」で止まる', () => {
+  let raf: ReturnType<typeof installFakeRaf>;
+
+  beforeEach(() => {
+    document.body.textContent = '';
+    raf = installFakeRaf();
+    drawBoardCalls.length = 0;
+    // drawBoard が呼ばれるように ctx を偽装する (jsdom は getContext が null を返す)
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      canvas: document.createElement('canvas'),
+    } as unknown as CanvasRenderingContext2D);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  const { x, w } = DRUM_AREA;
+  const leftX = x - DRUM_BULGE;
+  const width = w + DRUM_BULGE * 2;
+  const cx = x + w / 2;
+  const radius = width / 2;
+
+  /** 巻き残り pre から pedal 30 で巻き切って、ピンが止まるまでの drumAngle を返す (逆回りチェック用の履歴つき) */
+  async function windToRodStop(pre: number): Promise<{ angles: number[] }> {
+    const { deps } = await makeDeps();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const module = createWindingModule(deps);
+    const p1 = paramsOf(1);
+    const base = init({ level: 1, patternId: p1.patternId, sections: p1.sections, seed: 1 });
+    const state = { ...base, pedal: setPedal(base.pedal, 30), lengths: [SECTION_LENGTH - pre, 0, 0] };
+    const descW = Object.getOwnPropertyDescriptor(Element.prototype, 'clientWidth');
+    const descH = Object.getOwnPropertyDescriptor(Element.prototype, 'clientHeight');
+    Object.defineProperty(Element.prototype, 'clientWidth', { configurable: true, get(): number { return 1000; } });
+    Object.defineProperty(Element.prototype, 'clientHeight', { configurable: true, get(): number { return 750; } });
+    try {
+      const instance = module.mount(container, makeProps({ resume: state }));
+      raf.advance(1);
+      for (let k = 0; k < 3; k++) stepPedal(container, 10); // 再開直後はペダル 0 → 30 に踏み直す
+      expect((instance.suspend() as { phase: string }).phase).toBe('winding');
+      // cutting になるまで (巻き残りは長くても 12 秒ほど)
+      let cut = false;
+      for (let i = 0; i < 1000 && !cut; i++) {
+        raf.advance(1);
+        cut = (instance.suspend() as { phase: string }).phase === 'cutting';
+      }
+      expect(cut, `100% になる (pre ${pre})`).toBe(true);
+      // ピン回し (800ms = 50 フレーム) が終わるまで drumAngle を記録する
+      const angles: number[] = [];
+      for (let i = 0; i < 70; i++) {
+        raf.advance(1);
+        const opts = lastDrawOpts() as { drumAngle?: number } | undefined;
+        if (opts?.drumAngle !== undefined) angles.push(opts.drumAngle);
+      }
+      instance.unmount();
+      return { angles };
+    } finally {
+      if (descW !== undefined) Object.defineProperty(Element.prototype, 'clientWidth', descW);
+      if (descH !== undefined) Object.defineProperty(Element.prototype, 'clientHeight', descH);
+    }
+  }
+
+  it('どの角度で 100% になっても、止まったあとの竿の x は「左の端 + 幅 × 0.4」(差 1 以下) で手前側 (cos > 0)', async () => {
+    for (const pre of [30, 90, 150]) {
+      const { angles } = await windToRodStop(pre);
+      const final = angles[angles.length - 1]!;
+      const rodX = cx + radius * Math.sin(final + PIN_ANGLE0);
+      expect(Math.abs(rodX - (leftX + width * 0.4)), `pre ${pre}: 竿の x ${(rodX).toFixed(1)}`).toBeLessThanOrEqual(1);
+      expect(Math.cos(final + PIN_ANGLE0), `pre ${pre}: 手前側`).toBeGreaterThan(0);
+    }
+  }, 60000);
+
+  it('止まるまで逆回りしない (drumAngle は増え続ける)', async () => {
+    const { angles } = await windToRodStop(90);
+    expect(angles.length, 'ドラムの角度が記録されている').toBeGreaterThan(10);
+    for (let i = 1; i < angles.length; i++) {
+      expect(angles[i]!, `フレーム ${i}`).toBeGreaterThanOrEqual(angles[i - 1]! - 1e-9);
+    }
+  }, 60000);
 });

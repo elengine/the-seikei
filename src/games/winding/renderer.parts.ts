@@ -18,6 +18,8 @@ const KNOT = { w: 24, h: 30 } as const; // 幅はピンの横木に少し重な�
 
 /** ドラムの桟の数 (円筒の周りに等間隔に並ぶ。正面に 10〜12 本見える。T2-10 追加修正) */
 export const SLAT_COUNT = 16;
+import { PIN_ANGLE0 } from './geometry';
+export { PIN_ANGLE0 };
 
 /** 板の穴の縦の間隔 (論理座標。T2-13a) */
 const HOLE_STEP = 60;
@@ -25,7 +27,7 @@ const HOLE_STEP = 60;
 const HOLE_R = 4;
 
 /** ピン (横木) の静止時の角度 (rad)。正面から少し左に来るように (T2-10 追加修正 b) */
-export const PIN_ANGLE0 = -0.9;
+/** ピンの向きの基準 PIN_ANGLE0 は geometry.ts にある (T2-19b で竿の止まる位置の計算と共有) */
 
 /** 4. ドラム: 縦向き円筒。明るさの勾配は横向き (中央を明るく、左右の端を暗く)。
  * drumAngle (ラジアン) で桟が横に流れて回って見える (T2-10b)。見た目だけの値で State には入らない */

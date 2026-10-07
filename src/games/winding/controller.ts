@@ -3,9 +3,8 @@ import type { StageFit } from '../../core/viewport/viewport';
 import { createGameFrame } from '../../core/ui/gameFrame';
 import { showTutorial } from '../../core/ui/tutorialOverlay';
 import { drawBoard } from './renderer';
-import { PIN_ANGLE0 } from './renderer.parts';
 import { createWindingPanel } from './panel';
-import { fromPx, hitBrokenThread, logicalHeightFor, setLogicalHeight, SCISSORS_LIFT, SCISSORS_TIP, scissorsPos, scissorsHitsThread, scissorsHit } from './geometry';
+import { fromPx, hitBrokenThread, logicalHeightFor, setLogicalHeight, SCISSORS_LIFT, SCISSORS_TIP, scissorsPos, scissorsHitsThread, scissorsHit, rodStopTurn } from './geometry';
 import { getContent, type Content } from '../../core/content/content';
 import { init, reduce, seedFromText } from './logic';
 import { speedOf } from '../../core/mechanics/pedal';
@@ -68,6 +67,8 @@ let drumStopping = false; // 糸が切れて急停止する途中か
 let pinTurnMs = -1; // 結ぶ前の、ピンを正面へ回す演出の経過時間 (-1 は回していない)
 let pinTurnPrevEased = 0; // 前フレームの ease の値 (角速度を決めるのに使う)
 let cutClockSec = -1; // cutting のあいだに操作欄の時計を更新した秒 (T2-18a)
+let pinTurnStartAngle = 0; // ピン回しを始めたときの drumAngle (T2-19b)
+let pinTurnGoal = 0; // ピン回しで回る量 (竿が「左から 40%」に来るまで。T2-19b)
   let tieElapsedMs = 0; // 結びの演出の経過時間 (rAF の時刻で進める)
   let tieRunning = false; // 結びの演出中か
   let nowMs = 0; // いまの rAF の時刻 (時刻が必要な処理に渡す)
@@ -313,30 +314,32 @@ let cutClockSec = -1; // cutting のあいだに操作欄の時計を更新し�
       {
         const speed = speedOf(s.pedal, TENSION);
         const winding = s.phase === 'winding';
-        let target = winding && speed > 0 ? speed * DRUM_TURN_PER_SPEED : 0;
         if (pinTurnMs >= 0) {
-          // ピンを正面の少し左 (sin θpin = -0.5) へなめらかに回す (T2-10 追加修正 b)
+          // 100% になった角度から、帯留め (竿) が「手前側で左から 40%」の角度まで
+          // なめらかに回って止める (T2-19b)。角度を直接決めるのでぴったり止まる。逆回りはしない
           const k = Math.min(1, pinTurnMs / PIN_TURN_MS);
           const eased = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2; // ease-in-out
-          const pinTarget = -Math.PI / 6; // sin = -0.5
-          const goal = pinTarget - PIN_ANGLE0;
-          target = goal * Math.max(0, (eased - pinTurnPrevEased) / Math.max(0.001, dtMs / PIN_TURN_MS)) * (PIN_TURN_MS / 1000) / Math.max(0.001, PIN_TURN_MS / 1000);
+          drumAngle = pinTurnStartAngle + pinTurnGoal * eased;
+          drumOmega = (pinTurnGoal * (eased - pinTurnPrevEased)) / Math.max(0.001, dtMs / 1000);
           pinTurnPrevEased = eased;
           if (k >= 1) {
+            drumAngle = pinTurnStartAngle + pinTurnGoal;
+            drumOmega = 0;
             pinTurnMs = -1;
             pinTurnPrevEased = 0;
-            target = 0;
           }
+        } else {
+          const target = winding && speed > 0 ? speed * DRUM_TURN_PER_SPEED : 0;
+          const easeMs = drumStopping ? DRUM_STOP_MS : target > drumOmega ? DRUM_EASE_UP_MS : DRUM_EASE_DOWN_MS;
+          // DRUM_EASE_MS は「目標の 9 割に達するまでの時間」(管理者の指定値)。係数は指数で近づける
+          const alpha = 1 - Math.exp(-dtMs / (easeMs / 2.3));
+          drumOmega += (target - drumOmega) * alpha;
+          if (target === 0 && drumOmega < 0.05) {
+            drumOmega = 0; // ほぼ止まったら 0 に落とす
+            drumStopping = false;
+          }
+          drumAngle += drumOmega * (dtMs / 1000);
         }
-        const easeMs = drumStopping ? DRUM_STOP_MS : target > drumOmega ? DRUM_EASE_UP_MS : DRUM_EASE_DOWN_MS;
-        // DRUM_EASE_MS は「目標の 9 割に達するまでの時間」(管理者の指定値)。係数は指数で近づける
-        const alpha = 1 - Math.exp(-dtMs / (easeMs / 2.3));
-        drumOmega += (target - drumOmega) * alpha;
-        if (target === 0 && drumOmega < 0.05) {
-          drumOmega = 0; // ほぼ止まったら 0 に落とす
-          drumStopping = false;
-        }
-        drumAngle += drumOmega * (dtMs / 1000);
       }
       const prev = s;
       const next = reduce(s, { type: 'tick', dtMs });
@@ -348,9 +351,11 @@ let cutClockSec = -1; // cutting のあいだに操作欄の時計を更新し�
           deps.audio.play('stop');
         }
         if (s.phase === 'cutting' && prev.phase !== 'cutting') {
-          // 帯を巻き終えた: ピンが正面に来るまでドラムを回してから結ぶ (T2-10 追加修正 b)
+          // 帯を巻き終えた: 帯留め (竿) が「手前側で左から 40%」の角度までなめらかに回って止める (T2-19b)
           pinTurnMs = 0;
           pinTurnPrevEased = 0;
+          pinTurnStartAngle = drumAngle;
+          pinTurnGoal = rodStopTurn(drumAngle);
           cutClockSec = Math.floor(s.elapsedMs / 1000);
         }
         updateMessage();

@@ -1926,3 +1926,17 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - 巻き量の計算が新しい長さで 100% になる。
 - 既存テストの調整: panel.test の 100% の長さを SECTION_LENGTH から計算する形に。logic.test の制限時間のテストの許容差を tick の刻み × 帯数 (100ms × 3) に (帯の時間が短くなったため刻みの丸めが相対的に大きくなった)。
 - 全体: 1158 passed | 11 skipped。check 0・build 0。version 0.3.30 → 0.3.31 (pull --rebase のあと main が 0.3.30 になっていたため大きい方の次の patch に)。
+
+## 2026-10-07 T2-19b: 100% になったとき帯留めを「左から 40%」の位置で止める (version 0.3.32)
+
+仕様: docs/04_tasks/P2/T2-19.md の T2-19b (管理者「100% になったとき、帯留めがドラムの裏側になることがある」)。
+
+### 直したこと
+- `geometry.ts` に `rodStopTurn(drumAngle)` を新設: 竿の x = 中心 + 半径 × sin(drumAngle + PIN_ANGLE0) が「左の端 + 幅 × 0.4」(sin = −0.2・手前側 cos > 0) になる角度へ、今の角度から**次にその角度に来るまでの量** (0 以上・逆回りなし) を返す。`PIN_ANGLE0` を renderer.parts から geometry へ移し、renderer.parts は再 export (controller.test などの import はそのまま)。
+- controller のピン回し (100% のあと 0.8 秒・ease-in-out) を**速度ベースから位置ベースに変えた**: drumAngle = 開始角度 + 目標の量 × ease。前の形は角速度の積分で目標に届かない (丸めのずれ) ことがあり、位置を直接決めるので**ぴったり止まる**。0.8 秒は PIN_TURN_MS (0.6〜1 秒のまんなか) のまま。
+- そのあとのハサミ・結ぶ動きは今のまま (竿はその位置のまま)。
+
+### テスト (先に RED を確認)
+- geometry.test: 12 通りの drumAngle から回った先の竿の x が「左の端 + 幅 × 0.4」(差 1 以下)・手前側 (cos > 0)・回る量 0 以上/すでにその位置なら 0。(RED: rodStopTurn が無い → GREEN)
+- controller.test: 巻き残り 30/90/150 の 3 通りで 100% にして、止まったあとの竿の x が同じ位置 (差 1 以下)・手前側/ピン回しのあいだ drumAngle が増え続ける (逆回りなし)。(RED: ずれる → GREEN)
+- 全体: 1167 passed | 11 skipped。check 0・build 0。version 0.3.31 → 0.3.32。

@@ -64,6 +64,31 @@ export const SCISSORS_TIP = 53;
 /** ドラムの楕円の横ふくらみ (左右の端からはみ出す量・論理 px。T2-16 その3-4) */
 export const DRUM_BULGE = 10;
 
+/** ピン (帯留めの竿) のドラムに付いている向きの基準。θpin = drumAngle + PIN_ANGLE0 (T2-10 追加修正 b) */
+export const PIN_ANGLE0 = -0.9;
+
+/** 100% になったときに帯留め (竿) が止まる横の位置: ドラムの左の端から幅の 40% (T2-19b。管理者の指定) */
+export const ROD_STOP_RATIO = 0.4;
+
+/**
+ * 100% になったときに帯留め (竿) が止まるまでにドラムが回る量 (ラジアン。T2-19b)。
+ * 竿の正面の x は 中心 + 半径 × sin(drumAngle + PIN_ANGLE0)。x を「左の端 + 幅 × 0.4」にするので
+ * sin(θpin) = 0.4 − 0.5 = −0.2 (手前側: cos > 0)。
+ * 戻り値は今の drumAngle から次にその角度に来るまでの量 (0 以上 2π 未満。逆回りはしない)。
+ */
+export function rodStopTurn(drumAngle: number): number {
+  const width = DRUM_AREA.w + DRUM_BULGE * 2;
+  const cx = DRUM_AREA.x + DRUM_AREA.w / 2;
+  const radius = width / 2;
+  const targetX = DRUM_AREA.x - DRUM_BULGE + width * ROD_STOP_RATIO;
+  const target = Math.asin((targetX - cx) / radius) - PIN_ANGLE0;
+  let delta = (target - drumAngle) % (Math.PI * 2);
+  if (delta < 0) delta += Math.PI * 2;
+  // 浮動小数の丸めで 2π ちょうどにならないように 0 に寄せる
+  if (delta > Math.PI * 2 - 1e-9) delta = 0;
+  return delta;
+}
+
 /** ドラムの表面の弓なりの高さ (T2-16 その5)。中央が ARC_RISE だけ高い ∩ の山なり。x は論理座標・baseY はその部品の基準の高さ (ドラムの左右の端での高さ)。上の縁でも胴の途中でも下の端でも同じ向き。 */
 export const ARC_RISE = 12;
 
