@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { init, reduce, qualities, starsOf, isValidResume, lastTapResult, bandTargetMs, targetMsOf } from './logic';
-import { TIME_ANCHOR, TIME_PER_SECTION_MS, SPIKE_COUNT_RANGE } from './params';
+import { TIME_PER_SECTION_MS, TIME_PEDAL_START_MS, TIME_SCISSORS_TIE_MS, SPIKE_COUNT_RANGE, SPIKE_GRACE_MS } from './params';
 import * as params from './params';
 import { resultOf, guideFor } from './messages';
 import type { WindingState, Level } from './logic';
@@ -296,14 +296,14 @@ describe('winding logic T2-09a B (目標の時間と星)', () => {
 
   it('16. 目標の時間は、はじめに全帯ぶん決まっている (T2-16 その6)。summary に出る', () => {
     let s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 1 });
-    // 始めるときに全帯ぶんの合計 (レベル1 は全帯が同じ範囲なので 3帯ぶん同じ値) + 5秒 × 3 (T2-18a)
-    const one = bandTargetMs(s.ranges[0]!);
-    expect(targetMsOf(s)).toBeCloseTo(one * 3 + TIME_PER_SECTION_MS * 3, 6);
+    // 始めるときに全帯ぶんの合計 + 5秒 × 3 (帯ごとにスパイクの回数が違うので合計で。T2-20b)
+    const sum = s.ranges.reduce((acc, r) => acc + bandTargetMs(r), 0);
+    expect(targetMsOf(s)).toBeCloseTo(sum + TIME_PER_SECTION_MS * 3, 6);
     s = { ...s, phase: 'cutting' };
     s = reduce(s, { type: 'cut' });
     s = { ...s, phase: 'cutting' };
     s = reduce(s, { type: 'cut' });
-    expect(targetMsOf(s)).toBeCloseTo(one * 3 + TIME_PER_SECTION_MS * 3, 6);
+    expect(targetMsOf(s)).toBeCloseTo(sum + TIME_PER_SECTION_MS * 3, 6);
     const r = resultOf({ ...s, elapsedMs: 95000 }, 'standalone', '2026-09-30T19:00:00+09:00');
     const timeLine = (r.summary ?? []).find((t: string) => t.startsWith('巻いた時間'));
     expect(timeLine).toBeDefined();
@@ -512,22 +512,11 @@ describe('winding logic T2-16a (張りと適正の範囲)', () => {
 
 });
 
-describe('winding logic T2-16 その7 (制限時間の割合を 0.6 に)', () => {
-  it('割合は 0.6 (範囲の下の端から 60% の所の張りで計算する。管理者「50% だと簡単すぎた」)', () => {
-    expect(TIME_ANCHOR).toBe(0.6);
-  });
-});
-
 describe('winding logic T2-16 その6 (制限時間: 各帯の範囲の中心の張りで巻いた時間の合計)', () => {
-  /** 張り tension になるペダルの値 (張り = base + perPedal × pedal) */
-  const pedalFor = (tension: number): number => (tension - TENSION.base) / TENSION.perPedal;
-  /** 帯の計算の基準になる張り (範囲の TIME_ANCHOR の位置。0.5 なら中心) */
-  const anchorOf = (range: { min: number; max: number }): number =>
-    range.min + (range.max - range.min) * TIME_ANCHOR;
-  /** その張りで最後まで巻いたときの時間 (ms) */
-  const bandTime = (range: { min: number; max: number }): number => {
-    const speed = (pedalFor(anchorOf(range)) / 100) * TENSION.maxSpeed;
-    return (SECTION_LENGTH / speed) * 1000;
+  /** 帯 1 本の目標の時間 (ms): 範囲の真ん中で巻いた時間 + 1.5秒 + 3.5秒 + スパイク1回 2秒 (T2-20b) */
+  const bandTime = (range: { center: number; spikes: number }): number => {
+    const speed = (range.center / 100) * TENSION.maxSpeed;
+    return (SECTION_LENGTH / speed) * 1000 + 1500 + 3500 + range.spikes * 2000;
   };
 
   it('1. お題を始めるときに帯の数だけ範囲が決まっていて、どの範囲も 20〜80 に収まる (1本目は中心 50)', () => {
@@ -569,21 +558,21 @@ describe('winding logic T2-16 その6 (制限時間: 各帯の範囲の中心の
     return s.phase === 'done' && s.breaks === 0 ? s.elapsedMs : -1;
   };
 
-  it('3. 制限時間の計算の位置 (範囲の下の端から 60%) の張りちょうどで巻くと、巻いた時間は制限時間から帯1本あたり 5 秒を引いた時間になる (T2-18a)', () => {
+  it('3. 範囲の真ん中のペダルで巻くと、巻いた時間 = 制限時間 − 5秒×帯数 − (1.5+3.5)秒×帯数 − スパイク1回2秒×回数 (T2-20b)', () => {
     const s0 = init({ level: 1, patternId: 'x', sections: 3, seed: 1 });
-    const anchor = s0.ranges[0]!.min + (s0.ranges[0]!.max - s0.ranges[0]!.min) * TIME_ANCHOR;
-    const pedal = pedalFor(anchor);
+    const pedal = s0.ranges[0]!.center; // レベル1 は真ん中 50 で固定
     let ms = -1;
     for (let seed = 1; seed <= 60 && ms < 0; seed++) ms = windAll(1, seed, pedal);
     expect(ms, '切れずに巻き切れる種').toBeGreaterThan(0);
-    // tick の刻み (100ms) で帯の終わりが丸められるので、帯の数ぶんの誤差は許す (T2-19a: 帯の時間が短くなった)
-    expect(Math.abs(ms - (s0.targetMs - TIME_PER_SECTION_MS * 3)), '巻いた時間ちょうど (タイマーの刻み × 帯数の誤差をのぞく)').toBeLessThanOrEqual(100 * 3);
+    const spikeMsSum = s0.ranges.reduce((acc, r) => acc + r.spikes * SPIKE_GRACE_MS, 0);
+    const expected = s0.targetMs - TIME_PER_SECTION_MS * 3 - (TIME_PEDAL_START_MS + TIME_SCISSORS_TIE_MS) * 3 - spikeMsSum;
+    // tick の刻み (100ms) で帯の終わりが丸められるので、帯の数ぶんの誤差は許す
+    expect(Math.abs(ms - expected), `巻いた時間 ${(ms / 1000).toFixed(1)} 秒 = 期待 ${(expected / 1000).toFixed(1)} 秒`).toBeLessThanOrEqual(100 * 3);
   });
 
-  it('4. 制限時間の計算の位置より強めに巻けば制限時間より早く終わる', () => {
+  it('4. 範囲の真ん中より強めに巻けば制限時間より早く終わる', () => {
     const s0 = init({ level: 1, patternId: 'x', sections: 3, seed: 1 });
-    const anchor = s0.ranges[0]!.min + (s0.ranges[0]!.max - s0.ranges[0]!.min) * TIME_ANCHOR;
-    const pedal = pedalFor(anchor) + 5;
+    const pedal = s0.ranges[0]!.center + 5;
     let ms = -1;
     for (let seed = 1; seed <= 60 && ms < 0; seed++) ms = windAll(1, seed, pedal);
     expect(ms, '切れずに巻き切れる種').toBeGreaterThan(0);

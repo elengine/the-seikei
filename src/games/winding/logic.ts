@@ -7,7 +7,7 @@ import type { BreakState, TapResult } from '../../core/mechanics/breakage';
 import {
   SECTION_LENGTH, RANGE_WIDTH, RANGE_CENTER, RANGE_SHIFT_ON_SECTION, RANGE_REACHABLE, MAX_SPEED,
   TENSION, BREAK, MAX_TICK_MS, STARS3, STARS2,
-  TIME_ANCHOR, TIME_PER_SECTION_MS,
+  TIME_PER_SECTION_MS, TIME_PEDAL_START_MS, TIME_SCISSORS_TIE_MS,
   WOBBLE_START_DELAY_MS, WOBBLE_RISE_MIN_MS, WOBBLE_RISE_MAX_MS, WOBBLE_FALL_MIN_MS, WOBBLE_FALL_MAX_MS,
   WOBBLE_GAP_MIN_MS, WOBBLE_GAP_MAX_MS, WOBBLE_MAG_MIN,
   SPIKE_RISE_MS, SPIKE_FALL_MS, SPIKE_QTY_MIN, SPIKE_QTY_MAX, SPIKE_RELIEF, SPIKE_GRACE_MS, SPIKE_GAP_MS, SPIKE_COUNT_RANGE,
@@ -15,6 +15,15 @@ import {
 import type { Level, YarnFeel } from './params';
 
 export type { Level } from './params';
+
+/** 適正範囲 + この帯で起こすスパイクの回数 (T2-20b: 制限時間の計算に使う) */
+export interface RangeWithSpikes {
+  center: number;
+  width: number;
+  min: number;
+  max: number;
+  spikes: number;
+}
 
 /** 揺れの状態 (T2-20a)。量 (qty) は 0 から始まり、峰 (mag) まで上がって 0 に戻る */
 export interface WobbleState {
@@ -65,8 +74,8 @@ export interface WindingState {
   /** 目標の時間の合計 (ms)。帯が始まるときに、その帯のぶんを足す (T2-16b) */
   targetMs: number;
   tension: number; // 最後に計算した張り(描画用)
-  range: { center: number; width: number; min: number; max: number }; // 今の帯の適正範囲 (ranges[current] と同じ。T2-16 その6)
-  ranges: Array<{ center: number; width: number; min: number; max: number }>; // 帯ごとの適正範囲。お題を始めるときに全部決める (制限時間を最初に出すため。T2-16 その6)
+  range: RangeWithSpikes; // 今の帯の適正範囲 (ranges[current] と同じ。T2-16 その6)
+  ranges: RangeWithSpikes[]; // 帯ごとの適正範囲。お題を始めるときに全部決める (制限時間を最初に出すため。T2-16 その6)
   /** 揺れ (T2-20a)。量は 0 → 峰 (範囲の幅の半分の 40〜100%) → 0。張り = ペダルの位置 + 量 */
   wobble: WobbleState;
   /** スパイク (T2-20a)。qty が 0 より大きいあいだ張りに上乗せされる。ペダルを SPIKE_RELIEF 下げると戻る */
@@ -108,14 +117,11 @@ function resetSpike(): SpikeState {
   return { qty: 0, target: 0, pedalAtStart: 0, elapsedMs: 0, fallingMs: -1 };
 }
 
-/** 帯のスパイクの予定を乱数で決める (回数はレベルの決まり。最初は 3〜5 秒のあと、次は 5 秒以上あける) */
-function planSpikes(level: Level, rng: RngState): { plan: SpikePlan; rng: RngState } {
-  const range = SPIKE_COUNT_RANGE(level);
+/** 帯のスパイクの予定を作る (回数ははじめに決めた範囲のもの。最初の時刻は 3〜5 秒のあとを乱数で) */
+function planSpikes(range: RangeWithSpikes, rng: RngState): { plan: SpikePlan; rng: RngState } {
   const [r1, r2] = nextFloat(rng);
-  const count = range.min + Math.floor(r1 * (range.max - range.min + 1));
-  const [r3, r4] = nextFloat(r2);
-  const atMs = WOBBLE_START_DELAY_MS + 2000 * r3;
-  return { plan: { left: count, atMs }, rng: r4 };
+  const atMs = WOBBLE_START_DELAY_MS + 2000 * r1;
+  return { plan: { left: range.spikes, atMs }, rng: r2 };
 }
 
 /** 揺れを 1 tick 進める (T2-20a)。ペダルが範囲の外なら揺れない (量を 0 に戻す) */
@@ -197,13 +203,13 @@ function stepSpike(
 }
 
 /** 適正範囲を作る (中心と幅は RANGE_WIDTH。位置は最初メーターの中央 50。T2-16a) */
-export function makeRange(center: number, width: number): { center: number; width: number; min: number; max: number } {
-  return { center, width, min: center - width / 2, max: center + width / 2 };
+export function makeRange(center: number, width: number, spikes = 0): RangeWithSpikes {
+  return { center, width, min: center - width / 2, max: center + width / 2, spikes };
 }
 
 /** 帯ごとの適正範囲を先に全部決める (T2-16 その6)。1本目は中心 50。レベル2・3 は帯ごとに位置が動く。
  * 範囲は 20〜80 に収める (下の端が 20 を下回らない・上の端が 80 を超えない) */
-export function makeRanges(level: Level, sections: number, rng: number): Array<{ center: number; width: number; min: number; max: number }> {
+export function makeRanges(level: Level, sections: number, rng: number): RangeWithSpikes[] {
   const width = RANGE_WIDTH(level);
   const shift = RANGE_SHIFT_ON_SECTION(level);
   // 位置の移動を丸める範囲に、20〜80 の制限を足す
@@ -211,14 +217,19 @@ export function makeRanges(level: Level, sections: number, rng: number): Array<{
   const hi = Math.min(RANGE_CENTER(level).max, RANGE_REACHABLE().max, 80 - width / 2);
   let r = rng;
   let center = 50;
-  const ranges: Array<{ center: number; width: number; min: number; max: number }> = [];
+  const ranges: RangeWithSpikes[] = [];
   for (let i = 0; i < sections; i++) {
     if (i > 0 && shift > 0) {
       const [raw, r2] = nextFloat(r);
       r = r2;
       center = Math.min(hi, Math.max(lo, center + (raw * 2 - 1) * shift));
     }
-    ranges.push(makeRange(center, width));
+    // 帯ごとのスパイクの回数もここで決める (制限時間の計算に使う。T2-20b)
+    const range = SPIKE_COUNT_RANGE(level);
+    const [raw2, r3] = nextFloat(r);
+    r = r3;
+    const spikes = range.min + Math.floor(raw2 * (range.max - range.min + 1));
+    ranges.push(makeRange(center, width, spikes));
   }
   return ranges;
 }
@@ -231,7 +242,7 @@ export function init(opts: { level: Level; patternId: string; sections: number; 
   const ranges = makeRanges(opts.level, sections, seedFrom(opts.seed + 1));
   const range = ranges[0]!;
   // 1本目の帯のスパイクの予定と揺れの初期状態 (乱数は State の種から。T2-20a)
-  const p0 = planSpikes(opts.level, seedFrom(opts.seed));
+  const p0 = planSpikes(range, seedFrom(opts.seed));
   const w0 = resetWobble(p0.rng);
   return {
     level: opts.level,
@@ -310,7 +321,7 @@ export function reduce(s: WindingState, a: WindingAction): WindingState {
       const next = s.ranges[s.current + 1];
       if (next === undefined) return { ...s, phase: 'done' };
       // 新しい帯のスパイクの予定と揺れの初期状態 (帯の始まりから 3 秒は何も起こさない。T2-20a)
-      const plan = planSpikes(s.level, s.rng);
+      const plan = planSpikes(next, s.rng);
       const wob = resetWobble(plan.rng);
       return {
         ...s,
@@ -436,12 +447,14 @@ export function qualities(s: WindingState): number[] {
   });
 }
 
-/** 帯 1 本の目標の時間 (ms) = 帯の長さ ÷ (範囲の TIME_ANCHOR の位置の張りになるペダルの速さ) (T2-16 その6) */
-export function bandTargetMs(range: { min: number; max: number }): number {
-  const anchor = range.min + (range.max - range.min) * TIME_ANCHOR;
-  const pedal = (anchor - TENSION.base) / TENSION.perPedal;
-  const speed = (pedal / 100) * MAX_SPEED;
-  return (SECTION_LENGTH / speed) * 1000;
+/**
+ * 帯 1 本の目標の時間 (ms) = 範囲の真ん中のペダルで巻いた時間 + 1.5秒 (ペダルを踏む時間)
+ * + 3.5秒 (ハサミで帯の端を結ぶ時間) + スパイク1回につき 2秒 (T2-20b)
+ */
+export function bandTargetMs(range: RangeWithSpikes): number {
+  const speed = (range.center / 100) * MAX_SPEED;
+  const windMs = (SECTION_LENGTH / speed) * 1000;
+  return windMs + TIME_PEDAL_START_MS + TIME_SCISSORS_TIE_MS + range.spikes * SPIKE_GRACE_MS;
 }
 
 /** お題の目標の時間 (ms)。帯が始まるごとに足した合計 (T2-16b) */

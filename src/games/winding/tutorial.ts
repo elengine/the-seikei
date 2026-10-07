@@ -137,7 +137,7 @@ function drawPage3(ctx: CanvasRenderingContext2D, w: number, h: number): void {
   ctx.lineTo(mX + mW * 0.85 + 9, mY - 26);
   ctx.closePath();
   ctx.fill();
-  drawText(ctx, '▲ ときどき引っかかる', mX + mW * 0.6, mY - h * 0.08);
+  drawText(ctx, '▲ ときどき急に強くなる', mX + mW * 0.55, mY - h * 0.08);
   // 張りのランプ (ドラムの上): 適正は緑の○、外れは橙の▲▼、切れたら赤の✕ (PU-14d)
   const lamps: Array<{ color: string; mark: string; name: string }> = [
     { color: COLORS.lampOk, mark: '○', name: '適正' },
@@ -273,11 +273,11 @@ export const windingTutorial: TutorialSpec = {
     },
     {
       draw: (ctx, w, h) => drawPage3(ctx, w, h),
-      text: '張りはメーターと、{{drum}}の上のランプで分かります。緑の○は適正、橙の▲は強すぎ、▼は弱すぎです。張りは少しずつ流れ、ときどき糸が引っかかって急に強くなります。張りはひとりでに上下し、巻き進むほど少しずつ上がるので、緑の適正な範囲も少しずつ動きます。動きに合わせて{{pedal}}を合わせ続けてください',
+      text: '張りはメーターと、{{drum}}の上のランプで分かります。緑の○は適正、橙の▲は強すぎ、▼は弱すぎです。張りはペダルの強さそのもので、巻き始めて3秒たつと、ペダルの位置を中心に、緑の範囲の半分までひとりでに上下します(揺れ)。動きに合わせて{{pedal}}を合わせ続けてください',
     },
     {
       draw: (ctx, w, h) => drawPage4(ctx, w, h),
-      text: '引っかかって張りが急に上がったら、{{pedal}}を少し戻します。戻さないと糸が切れて、機械が止まり、ランプが赤い✕になります。強すぎるほど、何本も切れます。切れた糸は、そのあたりを押すとつながります。何本も切れたら、1本ずつ押してください',
+      text: 'ときどき、張りが急に強くなります(スパイク)。{{pedal}}をいまより 10 以上下げて戻します。張りはもとに戻ります。2秒以内に下げないと糸が切れて、機械が止まり、ランプが赤い✕になります。切れた糸は、そのあたりを押すとつながります',
     },
     {
       draw: (ctx, w, h) => drawPage5(ctx, w, h),

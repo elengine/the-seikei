@@ -90,11 +90,11 @@ describe('winding tutorial T2-12 (遊び方を5ページに)', () => {
     expect(windingTutorial.pages).toHaveLength(5);
   });
 
-  it('2. 3ページ目に「範囲」と「動き」を含む。4ページ目に「押すとつながります」を含む。5ページ目に「目標の時間」を含む', () => {
+  it('2. 3ページ目に「範囲」と「揺れ」を含む。4ページ目に「スパイク」と「押すとつながります」を含む。5ページ目に「目標の時間」を含む (T2-20b)', () => {
     expect(windingTutorial.pages[2]?.text).toContain('範囲');
-    expect(windingTutorial.pages[2]?.text).toContain('動き');
+    expect(windingTutorial.pages[2]?.text).toContain('揺れ');
+    expect(windingTutorial.pages[3]?.text).toContain('スパイク');
     expect(windingTutorial.pages[3]?.text).toContain('押すとつながります');
-    expect(windingTutorial.pages[3]?.text).toContain('1本ずつ押してください');
     expect(windingTutorial.pages[4]?.text).toContain('目標の時間');
   });
 
@@ -190,11 +190,11 @@ describe('T2-18c: 遊び方を今の画面に合わせる', () => {
     }
   });
 
-  it('始まり方・引っかかったら戻す・ハサミで切る・時間は最後まで続くを説明する', () => {
+  it('始まり方・スパイクで戻す・ハサミで切る・時間は最後まで続くを説明する (T2-20b)', () => {
     expect(all).toContain('右へ動かすと'); // ペダルを右へ動かすと始まる
-    expect(all).toContain('引っかかって'); // 引っかかりで張りが急に上がったら
+    expect(all).toContain('スパイク'); // 張りが急に上がる
     expect(all).toContain('戻します'); // ペダルを戻す
-    expect(all).toContain('戻さないと'); // 戻さないと切れる
+    expect(all).toContain('2秒以内に下げないと'); // 戻さないと切れる
     expect(all).toContain('ハサミを糸の所まで引っぱって切ります'); // ハサミで切る
     expect(all).toContain('最後の帯を結び終えるまで'); // 時間は最後の帯を結ぶまで続く
     expect(all).toContain('100%'); // 巻き量 100% の表し方 (文字が青)
