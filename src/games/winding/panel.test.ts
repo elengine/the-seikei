@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { createWindingPanel, clockFontSize } from './panel';
 import type { WindingAction } from './logic';
 import { init, reduce } from './logic';
+import { SECTION_LENGTH } from './params';
 
 /** jsdom に無い setPointerCapture を足す */
 if (typeof Element !== 'undefined' && !Element.prototype.setPointerCapture) {
@@ -217,10 +218,10 @@ describe('PU-14a: ドラム巻きの操作欄 (戻す・踏み込む・速さ・
   it('巻き量 100% は「巻き量 100%」のままで形とメッセージを変えず、文字の色だけ青 (藍) のクラスに変わり、音は鳴らない (T2-18b)。100% 未満では出ない', () => {
     const { host, p } = mount();
     const base = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 1 });
-    p.update({ ...base, lengths: [200, 0, 0] });
+    p.update({ ...base, lengths: [SECTION_LENGTH * 0.5, 0, 0] });
     let amount = host.querySelector('.winding-panel__amount')!;
     expect(amount.className).not.toContain('winding-panel__amount--full');
-    p.update({ ...base, lengths: [400, 0, 0] });
+    p.update({ ...base, lengths: [SECTION_LENGTH, 0, 0] });
     amount = host.querySelector('.winding-panel__amount')!;
     expect(amount.className).toContain('winding-panel__amount--full');
     expect(amount.textContent).toContain('巻き量 100%');

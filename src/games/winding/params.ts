@@ -10,8 +10,8 @@ export type Level = 1 | 2 | 3;
 /** pedal 100 のときの速さ (長さ/秒) */
 export const MAX_SPEED = 40;
 
-/** 1本の帯の長さ。pedal 50 の速さで 20 秒で巻き終わる長さ (P2/README) */
-export const SECTION_LENGTH = MAX_SPEED * 0.5 * 20; // = 400
+/** 1本の帯の長さ。pedal 50 の速さで 12 秒で巻き終わる長さ (T2-19a: 今までの 20 秒を 0.6 倍に。管理者の指定) */
+export const SECTION_LENGTH = MAX_SPEED * 0.5 * 12; // = 240
 
 /** 難易度ごとの帯の数 (初級・中級・上級) */
 export function SECTIONS(level: Level): number {

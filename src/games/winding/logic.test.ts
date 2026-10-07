@@ -744,7 +744,8 @@ describe('winding logic T2-16 その6 (制限時間: 各帯の範囲の中心の
       }
       guard += 1;
     }
-    return s.phase === 'done' ? s.elapsedMs : -1;
+    // 切れずに巻き切ったときだけ時間を返す (切れたら -1)
+    return s.phase === 'done' && s.breaks === 0 ? s.elapsedMs : -1;
   };
 
   it('3. 制限時間の計算の位置 (範囲の下の端から 60%) の張りちょうどで巻くと、巻いた時間は制限時間から帯1本あたり 5 秒を引いた時間になる (T2-18a)', () => {
@@ -754,7 +755,8 @@ describe('winding logic T2-16 その6 (制限時間: 各帯の範囲の中心の
     let ms = -1;
     for (let seed = 1; seed <= 60 && ms < 0; seed++) ms = windAll(1, seed, pedal);
     expect(ms, '切れずに巻き切れる種').toBeGreaterThan(0);
-    expect(Math.abs(ms - (s0.targetMs - TIME_PER_SECTION_MS * 3)), '巻いた時間ちょうど (タイマーの刻みの誤差をのぞく)').toBeLessThanOrEqual(200);
+    // tick の刻み (100ms) で帯の終わりが丸められるので、帯の数ぶんの誤差は許す (T2-19a: 帯の時間が短くなった)
+    expect(Math.abs(ms - (s0.targetMs - TIME_PER_SECTION_MS * 3)), '巻いた時間ちょうど (タイマーの刻み × 帯数の誤差をのぞく)').toBeLessThanOrEqual(100 * 3);
   });
 
   it('4. 制限時間の計算の位置より強めに巻けば制限時間より早く終わる', () => {
@@ -844,5 +846,31 @@ describe('T2-18a: 始まり方と時間 (巻き始めるのボタンは無い。
     const s5 = init({ level: 2, patternId: 'p-chalk-char', sections: 5, seed: 2 });
     const bands5 = s5.ranges.reduce((acc, r) => acc + bandTargetMs(r), 0);
     expect(s5.targetMs).toBe(bands5 + TIME_PER_SECTION_MS * 5);
+  });
+});
+
+describe('winding logic T2-19a (1本の帯を巻く時間を 6 割に)', () => {
+  it('1. 同じペダル (50) で 1本の帯を巻き終える時間は、今までの長さ (pedal 50 で 20 秒 = 400) の 0.6 倍 (±5%)', () => {
+    let s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 1 });
+    s = reduce(s, { type: 'setPedal', value: 50 });
+    let ms = 0;
+    while (s.phase === 'winding' && ms < 60000) {
+      s = reduce(s, { type: 'tick', dtMs: 100 });
+      ms += 100;
+    }
+    expect(s.phase, '1本目が巻き終わる').toBe('cutting');
+    // 今までの長さ: pedal 50 (速さ 20/秒) で 400 ÷ 20 = 20 秒。0.6 倍 → 12 秒
+    const oldSec = 400 / (MAX_SPEED * 0.5);
+    const expectSec = oldSec * 0.6;
+    expect(Math.abs(ms / 1000 - expectSec) / expectSec, `実際 ${(ms / 1000).toFixed(1)} 秒・期待 ${expectSec} 秒`).toBeLessThan(0.05);
+  });
+
+  it('2. 長さが 0.6 倍になったので、巻き量の計算も新しい長さで 100% になる', () => {
+    let s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 1 });
+    s = reduce(s, { type: 'setPedal', value: 50 });
+    s = reduce(s, { type: 'tick', dtMs: 100 });
+    const pct = ((s.lengths[0] ?? 0) / SECTION_LENGTH) * 100;
+    expect(pct).toBeGreaterThan(0);
+    expect(pct).toBeLessThan(100);
   });
 });
