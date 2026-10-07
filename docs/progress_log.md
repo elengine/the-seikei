@@ -1966,3 +1966,12 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - logic.test.ts: 制限時間のテストを新しい式に書き換え (真ん中のペダルで巻いた時間 = 制限時間 − 5秒×帯数 − 5秒×帯数 − スパイク×2秒)
 - tutorial.ts: 遊び方の3ページ目 (揺れ: 3秒たつとペダルの位置を中心に緑の範囲の半分まで上下) と4ページ目 (スパイク: 10以上下げて戻す・2秒で切れる) の文と図のラベルを変えた。00_rules どおり遊び方を確かめた (文と図を読んで画面の見た目と一致)
 - version 0.3.36 → 0.3.37
+
+## 2026-10-08 (ルビー) T2-20 追加修正: logic.ts を 300 行以内に分割した
+
+- logic.ts が 553 行で 00_rules の「1ファイル 300 行以内」を超えていたので分けた
+- tension.ts (新規・189行): 揺れとスパイクの型と1tickの進め方、適正範囲づくり (makeRange/makeRanges)
+- timeLimit.ts (新規・23行): 制限時間の計算 (bandTargetMs/targetMsOf)
+- state.ts (新規・128行): 状態の形 (WindingState/WindingAction) と再開の検査 (isValidResume/lastTapResult/seedFromText)。指名の2ファイルだけでは logic.ts が約370行になり 300 行を割れなかったため、追加で分けた
+- logic.ts (253行): init・reduce・tick・成績。分けた名前は logic から再公開しているので、テストと他のファイルの import は変えていない
+- 動きは変えていない (テストの期待値も無変更・全テストの結果は分割前と同じ)。version 0.3.37 → 0.3.38
