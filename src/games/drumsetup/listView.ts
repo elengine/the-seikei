@@ -20,6 +20,7 @@ export function createListView(parent: HTMLElement, opts: {
   content?: ContentData;
   title?: string; // 見出しの行の題名 (ゲーム名)。無ければ「ドラム設定」
   savedPuzzleId?: string | null; // 途中の状態が保存されているお題 (T1-15 と同じ)
+  unlockAll?: boolean; // true なら鍵のお題も押せる (管理者メニュー。PU-18)
   onSelect: (puzzleId: string) => void;
   onTutorial?: () => void; // 右の「遊び方」。無ければ出さない
   onNotice?: (text: string) => void; // 鍵の理由の出し方 (テストで受け取る。無ければ行内に出す)
@@ -86,7 +87,7 @@ export function createListView(parent: HTMLElement, opts: {
       firstUnclearedSeen = true; // 最初の未クリアのお題は押せる (次はこれ)
       status = { kind: 'next' };
     } else {
-      status = { kind: 'locked', reason: '前のお題をクリアすると遊べます' };
+      status = opts.unlockAll === true ? { kind: 'open' } : { kind: 'locked', reason: '前のお題をクリアすると遊べます' };
     }
     // 補足: 番手と帯の本数。クリール立てで同じお題をクリアしていれば「クリール立て済み」を添える
     const creelCleared = (creelRec.best[`puzzle:${puzzle.id}`] ?? 0) > 0;

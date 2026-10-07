@@ -96,12 +96,12 @@ function createLockIcon(): SVGElement {
   return svg;
 }
 
-/** 一覧の行 (お題や柄の1行)。状態は「星」「次はこれ」「鍵」 */
+/** 一覧の行 (お題や柄の1行)。状態は「星」「次はこれ」「鍵」(「open」は何も出さない) */
 export function createListRow(opts: {
   swatch?: HTMLElement;
   name: string;
   meta?: string;
-  status: { kind: 'stars'; stars: 0 | 1 | 2 | 3 } | { kind: 'next' } | { kind: 'locked'; reason: string };
+  status: { kind: 'stars'; stars: 0 | 1 | 2 | 3 } | { kind: 'next' } | { kind: 'open' } | { kind: 'locked'; reason: string };
   onClick: () => void;
   onLocked?: (reason: string) => void;
 }): HTMLButtonElement {
@@ -130,6 +130,8 @@ export function createListRow(opts: {
   } else if (st.kind === 'next') {
     row.classList.add('list-row--next');
     status.textContent = '次はこれ';
+  } else if (st.kind === 'open') {
+    row.classList.add('list-row--open'); // 星も「次はこれ」も鍵も無い、ふつうの行 (すべてのお題を開けるとき。PU-18)
   } else {
     row.classList.add('list-row--locked');
     row.dataset.reason = st.reason;

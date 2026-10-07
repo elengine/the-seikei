@@ -80,3 +80,39 @@ describe('ドラム巻きの一覧 T2-14a (お題15題・クリール立てと�
     expect(thick).toContain('太い糸(流れやすい)');
   });
 });
+
+describe('PU-18 すべてのお題を開ける (unlockAll)', () => {
+  function mountU(unlockAll: boolean | undefined, best: Record<string, number> = {}): { host: HTMLElement; onSelect: ReturnType<typeof vi.fn> } {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const onSelect = vi.fn();
+    createListView(host, {
+      records: { get: () => ({ bestStars: 0, plays: 0, best }) } as unknown as Records,
+      onSelect,
+      onExit: () => undefined,
+      unlockAll,
+    });
+    return { host, onSelect };
+  }
+
+  it('false (または指定なし) なら今のまま: 最初の未クリアが「次はこれ」、その先は鍵', () => {
+    for (const u of [false, undefined]) {
+      const { host } = mountU(u);
+      const rows = Array.from(host.querySelectorAll('.list-row'));
+      expect(rows[0]!.classList.contains('list-row--next'), 'u=' + String(u)).toBe(true);
+      expect(rows.slice(1).every((r) => r.classList.contains('list-row--locked'))).toBe(true);
+    }
+  });
+
+  it('true なら鍵の行が無く、どの行を押しても onSelect が呼ばれる。星を取ったお題の星はそのまま', () => {
+    const first = Array.from(mountU(false).host.querySelectorAll('.list-row'))[0]!;
+    expect(first).toBeDefined();
+    const { host, onSelect } = mountU(true);
+    const rows = Array.from(host.querySelectorAll<HTMLElement>('.list-row'));
+    expect(rows.length).toBeGreaterThan(3);
+    expect(host.querySelector('.list-row--locked')).toBeNull();
+    expect(host.querySelector('.list-row__status svg[class*="lock"], .lock-icon')).toBeNull();
+    for (const r of rows) r.click();
+    expect(onSelect).toHaveBeenCalledTimes(rows.length);
+  });
+});

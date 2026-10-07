@@ -17,6 +17,7 @@ export function createListView(parent: HTMLElement, opts: {
   content?: Content;
   title?: string; // 見出しの行の題名 (ゲーム名)。無ければ「クリール立て」
   savedPuzzleId?: string | null; // 途中の状態が保存されているお題 (T1-15)
+  unlockAll?: boolean; // true なら鍵のお題も押せる (管理者メニュー。PU-18)
   onSelect: (puzzleId: string) => void;
   onTutorial?: () => void; // 右の「遊び方」。無ければ出さない
   onExit: () => void;
@@ -76,7 +77,7 @@ export function createListView(parent: HTMLElement, opts: {
       firstUnclearedSeen = true; // 最初の未クリアのお題は押せる (次はこれ)
       status = { kind: 'next' };
     } else {
-      status = { kind: 'locked', reason: '前のお題をクリアすると遊べます' };
+      status = opts.unlockAll === true ? { kind: 'open' } : { kind: 'locked', reason: '前のお題をクリアすると遊べます' };
     }
     const row = createListRow({
       swatch: createFabricSwatch(pattern, content),

@@ -10,6 +10,8 @@ export interface SettingsData {
   soundOn: boolean;
   volume: number; // 0〜1
   tutorialSeen: Partial<Record<GameId, boolean>>;
+  /** 管理者メニューの「すべてのお題を開ける(確認用)」。true のとき、一覧の鍵を開ける (記録は変えない。PU-18) */
+  unlockAll: boolean;
 }
 
 export const DEFAULT_SETTINGS: SettingsData = {
@@ -19,6 +21,7 @@ export const DEFAULT_SETTINGS: SettingsData = {
   soundOn: true,
   volume: 0.7,
   tutorialSeen: {},
+  unlockAll: false,
 };
 
 /** settings コレクションの data の形。SettingsData に項目ごとの更新日時を足したもの */
@@ -55,6 +58,7 @@ function normalize(data: Partial<SettingsData> | undefined): SettingsData {
     soundOn: typeof d.soundOn === 'boolean' ? d.soundOn : DEFAULT_SETTINGS.soundOn,
     volume: typeof d.volume === 'number' ? d.volume : DEFAULT_SETTINGS.volume,
     tutorialSeen: d.tutorialSeen !== undefined && typeof d.tutorialSeen === 'object' ? d.tutorialSeen : DEFAULT_SETTINGS.tutorialSeen,
+    unlockAll: typeof d.unlockAll === 'boolean' ? d.unlockAll : DEFAULT_SETTINGS.unlockAll,
   };
 }
 

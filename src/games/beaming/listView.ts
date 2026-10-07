@@ -21,6 +21,7 @@ export function createListView(parent: HTMLElement, opts: {
   content?: ContentData;
   title?: string;
   savedPuzzleId?: string | null;
+  unlockAll?: boolean; // true なら鍵のお題も押せる (管理者メニュー。PU-18)
   onSelect: (puzzleId: string) => void;
   onTutorial?: () => void;
   onExit: () => void;
@@ -81,7 +82,7 @@ export function createListView(parent: HTMLElement, opts: {
       firstUnclearedSeen = true; // 最初の未クリアのお題は押せる (次はこれ)
       status = { kind: 'next' };
     } else {
-      status = { kind: 'locked', reason: '前のお題をクリアすると遊べます' };
+      status = opts.unlockAll === true ? { kind: 'open' } : { kind: 'locked', reason: '前のお題をクリアすると遊べます' };
     }
     // 補足: 巻き幅と帯の数 (帯の数はドラム巻きのお題と同じ)
     const stage = puzzle.stage as 1 | 2 | 3 | 4 | 5;

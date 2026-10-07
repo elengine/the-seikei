@@ -180,6 +180,7 @@ export function createBeamingModule(deps: GameDeps): GameModule {
         container.textContent = '';
         currentList = createListView(container, {
           records: deps.records,
+          unlockAll: deps.unlockAll?.() === true,
           title: deps.terms.t('game.beaming'),
           savedPuzzleId: savedPuzzleId(),
           onTutorial: () => {

@@ -54,6 +54,8 @@ export interface GameDeps {
   records: Records;
   clock: Clock;
   log: (level: 'info' | 'warn' | 'error', message: string) => void;
+  /** 管理者メニューの「すべてのお題を開ける(確認用)」が入っているか。一覧の鍵を開けるときに読む (PU-18)。無ければ false 扱い */
+  unlockAll?: () => boolean;
 }
 
 export interface GameInstance {

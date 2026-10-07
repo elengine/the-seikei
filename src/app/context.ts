@@ -90,5 +90,6 @@ export function gameDepsFrom(ctx: AppContext): GameDeps {
     records: ctx.records,
     clock: ctx.clock,
     log: (level, message) => ctx.logger.log(level, message),
+    unlockAll: () => ctx.settings.get().unlockAll,
   };
 }

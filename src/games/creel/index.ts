@@ -46,6 +46,7 @@ export function createCreelModule(deps: GameDeps): GameModule {
         container.textContent = '';
         const list = createListView(container, {
           records: deps.records,
+          unlockAll: deps.unlockAll?.() === true,
           content,
           title: deps.terms.t('game.creel'),
           savedPuzzleId: savedPuzzleId(),

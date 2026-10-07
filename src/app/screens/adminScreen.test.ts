@@ -27,6 +27,7 @@ describe('T1-14 C: バックアップの書き出しで、データの読み出�
           }
         }),
       },
+      settings: { get: () => ({ unlockAll: false }), update: vi.fn(async () => undefined) },
       navigate: () => undefined,
     } as unknown as AppContext;
 
@@ -61,6 +62,7 @@ describe('T1-21a-2 診断: 管理者の画面に回転の記録の節がある',
     const ctx = {
       repo: { exportAll: vi.fn(async () => ({})), getMeta: vi.fn(async () => undefined) },
       logger: { entries: vi.fn(() => []), log: vi.fn() },
+      settings: { get: () => ({ unlockAll: false }), update: vi.fn(async () => undefined) },
       navigate: () => undefined,
     } as unknown as AppContext;
     const screen = createAdminScreen(ctx);
@@ -90,13 +92,14 @@ describe('PU-03b: 管理者の画面の節と押せないボタン', () => {
     const ctx = {
       repo: { exportAll: vi.fn(), getMeta: vi.fn(async () => undefined) },
       logger: { entries: vi.fn(() => []), log: vi.fn() },
+      settings: { get: () => ({ unlockAll: false }), update: vi.fn(async () => undefined) },
       navigate: () => undefined,
     } as unknown as AppContext;
     const container = document.createElement('div');
     document.body.appendChild(container);
     createAdminScreen(ctx).mount(container, {});
     const heads = Array.from(container.querySelectorAll('.section-heading')).map((h) => h.textContent);
-    expect(heads).toEqual(['診断', 'バックアップ', 'インストール', 'ログ', '回転の記録 (診断)']); // 「版の切り替え」は設定の画面に移した (PU-10a)。回転の記録は T1-21a-2 の診断
+    expect(heads).toEqual(['確認用', '診断', 'バックアップ', 'インストール', 'ログ', '回転の記録 (診断)']); // 「版の切り替え」は設定の画面に移した (PU-10a)。回転の記録は T1-21a-2 の診断
     expect(container.querySelector('.screen-header__title')!.textContent).toBe('管理者');
     expect(Array.from(container.querySelectorAll('button')).some((b) => b.textContent === '今すぐ新しい版に切り替える')).toBe(false);
     const install = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'アプリとしてインストール')!;
@@ -104,5 +107,50 @@ describe('PU-03b: 管理者の画面の節と押せないボタン', () => {
     expect(install.hasAttribute('disabled')).toBe(false);
     install.click();
     expect(container.textContent).toContain('この端末では、いまはインストールできません');
+  });
+});
+
+describe('PU-18 管理者メニュー: すべてのお題を開ける(確認用)', () => {
+  beforeAll(() => {
+    vi.stubGlobal('__BUILD_ID__', 'test-build');
+    vi.stubGlobal('__APP_VERSION__', 'test');
+  });
+
+  function mountAdmin(initial: boolean): { container: HTMLElement; update: ReturnType<typeof vi.fn> } {
+    let unlockAll = initial;
+    const update = vi.fn(async (patch: { unlockAll?: boolean }) => {
+      if (patch.unlockAll !== undefined) unlockAll = patch.unlockAll;
+    });
+    const ctx = {
+      repo: { exportAll: vi.fn(async () => ({})), getMeta: vi.fn(async () => undefined) },
+      logger: { entries: vi.fn(() => []), log: vi.fn() },
+      settings: { get: () => ({ unlockAll }), update },
+      navigate: () => undefined,
+    } as unknown as AppContext;
+    const screen = createAdminScreen(ctx);
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    screen.mount(container, {});
+    return { container, update };
+  }
+
+  it('切り替え「すべてのお題を開ける(確認用)」と説明の 1 行がある。押すと設定が true になり、もう一度押すと false に戻る', async () => {
+    const { container, update } = mountAdmin(false);
+    const group = container.querySelector('[aria-label="すべてのお題を開ける(確認用)"]')!;
+    expect(group).not.toBeNull();
+    expect(container.textContent).toContain('クリアしていないお題も遊べます。記録(星)は変わりません');
+    const buttons = Array.from(group.querySelectorAll('button'));
+    expect(buttons.map((b) => b.textContent)).toEqual(['✓開けない', '開ける']); // 選んだものに ✓
+    buttons.find((b) => b.textContent === '開ける')!.click();
+    await vi.waitFor(() => expect(update).toHaveBeenCalledWith({ unlockAll: true }));
+    await vi.waitFor(() => expect(group.querySelector('[aria-pressed="true"]')!.textContent).toContain('開ける'));
+    Array.from(group.querySelectorAll('button')).find((b) => b.textContent!.includes('開けない'))!.click();
+    await vi.waitFor(() => expect(update).toHaveBeenCalledWith({ unlockAll: false }));
+  });
+
+  it('設定が true のとき、最初から「開ける」が選ばれている', () => {
+    const { container } = mountAdmin(true);
+    const group = container.querySelector('[aria-label="すべてのお題を開ける(確認用)"]')!;
+    expect(group.querySelector('[aria-pressed="true"]')!.textContent).toContain('開ける');
   });
 });

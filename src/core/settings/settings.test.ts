@@ -137,3 +137,20 @@ describe('PU-08c: fontScale は 1〜5 の数。古い値は読み込むときに
     expect(await loadWith('4')).toBe(1);
   });
 });
+
+describe('settings PU-18 (unlockAll)', () => {
+  it('unlockAll の初期値は false。保存データに無い (古いデータ) ときも false。update で true になり、作り直しても残る', async () => {
+    expect(DEFAULT_SETTINGS.unlockAll).toBe(false);
+    const { repo, clock, settings } = await make();
+    expect(settings.get().unlockAll).toBe(false);
+    // 古い保存データ (unlockAll が無い)
+    await repo.put('settings', { playerName: '', shopName: '整経所', fontScale: 1, soundOn: true, volume: 0.7, tutorialSeen: {}, _updated: {} }, 'main');
+    const old = await createSettingsService(repo, clock);
+    expect(old.get().unlockAll).toBe(false);
+    await old.update({ unlockAll: true });
+    expect(old.get().unlockAll).toBe(true);
+    expect((await createSettingsService(repo, clock)).get().unlockAll).toBe(true);
+    await old.update({ unlockAll: false });
+    expect(old.get().unlockAll).toBe(false);
+  });
+});

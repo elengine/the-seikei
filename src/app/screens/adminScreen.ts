@@ -1,7 +1,7 @@
 import type { AppContext } from '../context';
 import type { Screen } from '../screenManager';
 import type { ImportReport } from '../../core/storage/types';
-import { createButton, setLockedReason } from '../../core/ui/widgets';
+import { createButton, createChoice, setLockedReason } from '../../core/ui/widgets';
 import { createCard, createPage, createScreenHeader, createSectionHeading } from '../../core/ui/layout';
 import { collectDiagnostics, hasInstallPromptEvent, promptInstall } from '../diagnostics';
 import { startRotationProbe } from './rotationProbe';
@@ -46,11 +46,37 @@ export function createAdminScreen(ctx: AppContext): Screen {
         return n;
       }
 
+      const checkCard = section('確認用');
       const diagCard = section('診断');
       const backupCard = section('バックアップ');
       const installCard = section('インストール');
       const logCard = section('ログ');
       const rotCard = section('回転の記録 (診断)');
+
+      // ---- すべてのお題を開ける (確認用。各ゲームの一覧の鍵を開ける。記録は変えない。PU-18) ----
+      const unlockLabel = document.createElement('p');
+      unlockLabel.classList.add('admin__unlock-label');
+      unlockLabel.textContent = 'すべてのお題を開ける(確認用)';
+      checkCard.appendChild(unlockLabel);
+      const unlockChoice = createChoice<'off' | 'on'>({
+        options: [
+          { value: 'off', label: '開けない' },
+          { value: 'on', label: '開ける' },
+        ],
+        value: ctx.settings.get().unlockAll ? 'on' : 'off',
+        ariaLabel: 'すべてのお題を開ける(確認用)',
+        onChange: (v) => {
+          void (async () => {
+            await ctx.settings.update({ unlockAll: v === 'on' });
+            unlockChoice.setValue(ctx.settings.get().unlockAll ? 'on' : 'off');
+          })();
+        },
+      });
+      checkCard.appendChild(unlockChoice.root);
+      const unlockNote = document.createElement('p');
+      unlockNote.classList.add('admin__notice');
+      unlockNote.textContent = 'クリアしていないお題も遊べます。記録(星)は変わりません';
+      checkCard.appendChild(unlockNote);
 
       // ---- 回転の記録 (診断。iPhone で回転したときに画面全体が一瞬ずれる原因を数字で確定させる) ----
       const rotNote = document.createElement('p');
