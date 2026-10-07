@@ -541,7 +541,7 @@
 - `resultView.ts`:結果の箱を 見出しの部分(`.result__head`:題名・お疲れ様・星・絵)→ 成績の欄(`.result__body`:成績・星の目安・新しい柄)→ ボタンの行(`.result__actions`)の 3 つに分けた。低い横長(`(orientation: landscape) and (max-height: 559px)`、詰めた形の判定と同じ考え)では `.result--wide` を付け、回したら付け外し、閉じたら監視を外す。
 - CSS:`.dialog.result` は `overflow: hidden`・`max-height: calc(100dvh − 上下の余白 − safe area)`。`.result__body` だけが `overflow-y: auto`(`min-height: 0`)。ボタンの行は `flex: none` で下に固定。`.result--wide` は左右 2 列(左に見出し、右に成績の欄とボタンの行)、題名 32px・星 40px。縦長・高い画面は今のまま(箱の高さの決め方だけ dvh と safe area に変えた)。
 - 範囲外に触ったもの:なし。
-- check・テスト 1156 件超すべて成功・build 成功。
+- check・テスト 1140 件すべて成功・build 成功。
 - 画面(本番と同じビルド、文字最大。**実際のゲームの結果画面ではなく、同じ HTML のクラス構造を JavaScript で作って**測った。結果の画面を出すには 1 お題を最後まで遊ぶ必要があったため。CSS とクラスは同じ):
   - 852×393:成績 5 行で、箱 16〜377・ボタンの下端 365(≦ 393)・ボタンの高さ 64・成績の欄は中でスクロール(342/255)・題名 32px・星 40px・2 列。スクリーンショット 1 枚。
   - 915×412:成績 5 行で下端 384(≦ 412)・同様。成績 1 行でもボタンは見える。
