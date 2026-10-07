@@ -196,7 +196,29 @@ function drawPage4(ctx: CanvasRenderingContext2D, w: number, h: number): void {
   drawText(ctx, '同じ印どうしをつなぐ', w * 0.3, h * 0.82);
 }
 
-/** 5ページ目: 巻き量と、制限時間 (目標を超えると朱の「超過」) の略図 (T2-12・PU-14d) */
+/** ハサミの略図 (盤面と同じ鋼の刃・藍の輪の持ち手。T2-18c) */
+function drawScissors(ctx: CanvasRenderingContext2D, x: number, y: number, scale: number): void {
+  // 開いた刃 2枚 (鋼) が交わる
+  ctx.fillStyle = COLORS.steel;
+  for (const dir of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + dir * 10 * scale, y - 34 * scale);
+    ctx.lineTo(x + dir * 20 * scale, y - 30 * scale);
+    ctx.closePath();
+    ctx.fill();
+  }
+  // 持ち手の輪 2つ (藍)
+  ctx.strokeStyle = COLORS.ai;
+  ctx.lineWidth = 5 * scale;
+  for (const dir of [-1, 1]) {
+    ctx.beginPath();
+    ctx.arc(x + dir * 14 * scale, y + 16 * scale, 10 * scale, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+}
+
+/** 5ページ目: 巻き量と、制限時間 (目標を超えると朱の「超過」)・ハサミの略図 (T2-12・PU-14d・T2-18c) */
 function drawPage5(ctx: CanvasRenderingContext2D, w: number, h: number): void {
   const tX = w * 0.14;
   // 巻き量
@@ -217,10 +239,13 @@ function drawPage5(ctx: CanvasRenderingContext2D, w: number, h: number): void {
   ctx.fillStyle = COLORS.shu;
   ctx.font = 'bold 36px sans-serif';
   ctx.fillText('1:52 / 1:30 超過', tX + 16, h * 0.46 + 40);
+  // ハサミの絵と説明
+  drawScissors(ctx, w * 0.17, h * 0.72, 1.4);
+  drawText(ctx, 'ハサミを糸の所まで引っぱって切ります', w * 0.28, h * 0.75);
   // 星3の説明の星 (3つ)
   ctx.fillStyle = COLORS.steel;
   for (let i = 0; i < 3; i++) {
-    drawStar(ctx, w * 0.42 + i * 60, h * 0.78, 22);
+    drawStar(ctx, w * 0.42 + i * 60, h * 0.92, 22);
   }
 }
 
@@ -244,7 +269,7 @@ export const windingTutorial: TutorialSpec = {
     { draw: (ctx, w, h) => drawPage1(ctx, w, h), text: 'クリールの糸を{{section}}にまとめて、{{drum}}に巻いていきます' },
     {
       draw: (ctx, w, h) => drawPage2(ctx, w, h),
-      text: '「巻き始める」を押したあと、{{pedal}}の帯を指で右へ動かすと巻けます。右へ動かすほど速く巻けますが、張りも強くなります',
+      text: '{{pedal}}の帯を指で右へ動かすと、その瞬間に巻き始まります。右へ動かすほど速く巻けますが、張りも強くなります',
     },
     {
       draw: (ctx, w, h) => drawPage3(ctx, w, h),
@@ -252,11 +277,11 @@ export const windingTutorial: TutorialSpec = {
     },
     {
       draw: (ctx, w, h) => drawPage4(ctx, w, h),
-      text: '張りが強すぎると糸が切れて、機械が止まり、ランプが赤い✕になります。強すぎるほど、何本も切れます。切れた糸は、そのあたりを押すとつながります。何本も切れたら、1本ずつ押してください',
+      text: '引っかかって張りが急に上がったら、{{pedal}}を少し戻します。戻さないと糸が切れて、機械が止まり、ランプが赤い✕になります。強すぎるほど、何本も切れます。切れた糸は、そのあたりを押すとつながります。何本も切れたら、1本ずつ押してください',
     },
     {
       draw: (ctx, w, h) => drawPage5(ctx, w, h),
-      text: '「巻き量」は今の帯を巻いた割合です。星3は、適正な張りで巻いた割合が8割以上で、目標の時間内に巻き終えたときです。時間の表示が目標を超えると、朱の「超過」になります',
+      text: '帯を巻き終えたら、ハサミを糸の所まで引っぱって切ります。時間は、最後の帯を結び終えるまで進みます。「巻き量」は今の帯を巻いた割合で、100%になると文字が青くなります。星3は、適正な張りで巻いた割合が8割以上で、目標の時間内に巻き終えたときです。時間の表示が目標を超えると、朱の「超過」になります',
     },
   ],
 };

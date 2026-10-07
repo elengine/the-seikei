@@ -140,10 +140,10 @@ describe('winding tutorial T2-12 (遊び方を5ページに)', () => {
 describe('PU-14d: ドラム巻きの遊び方を今の画面に合わせる', () => {
   const all = windingTutorial.pages.map((p) => p.text).join('\n');
 
-  it('文に「ランプ」と「巻き量」があり、「踏み込む」「戻す」「速さ」「メッセージ」が無い', () => {
+  it('文に「ランプ」と「巻き量」があり、「踏み込む」「速さ」「メッセージ」が無い。「戻す」は T2-18c で説明に使う', () => {
     expect(all).toContain('ランプ');
     expect(all).toContain('巻き量');
-    for (const w of ['踏み込む', '戻す', '速さ', 'メッセージ', '時間の制限はありません']) {
+    for (const w of ['踏み込む', '速さ', 'メッセージ', '時間の制限はありません']) {
       expect(all, w).not.toContain(w);
     }
   });
@@ -176,5 +176,35 @@ describe('PU-14d: ドラム巻きの遊び方を今の画面に合わせる', ()
     expect(texts.some((t) => t.includes('超過'))).toBe(true);
     expect(texts.some((t) => t.includes('巻き量'))).toBe(true);
     expect(rec.fillStyleLog).toContain(COLORS.shu);
+  });
+});
+
+describe('T2-18c: 遊び方を今の画面に合わせる', () => {
+  const all = windingTutorial.pages.map((p) => p.text).join('\n');
+
+  it('文に「ハサミ」と「ランプ」があり、「巻き始める」「帯の端を結ぶ」が無い', () => {
+    expect(all).toContain('ハサミ');
+    expect(all).toContain('ランプ');
+    for (const w of ['巻き始める', '帯の端を結ぶ']) {
+      expect(all, w).not.toContain(w);
+    }
+  });
+
+  it('始まり方・引っかかったら戻す・ハサミで切る・時間は最後まで続くを説明する', () => {
+    expect(all).toContain('右へ動かすと'); // ペダルを右へ動かすと始まる
+    expect(all).toContain('引っかかって'); // 引っかかりで張りが急に上がったら
+    expect(all).toContain('戻します'); // ペダルを戻す
+    expect(all).toContain('戻さないと'); // 戻さないと切れる
+    expect(all).toContain('ハサミを糸の所まで引っぱって切ります'); // ハサミで切る
+    expect(all).toContain('最後の帯を結び終えるまで'); // 時間は最後の帯を結ぶまで続く
+    expect(all).toContain('100%'); // 巻き量 100% の表し方 (文字が青)
+  });
+
+  it('5ページ目の絵にハサミがある (鋼の刃と、輪の持ち手)', () => {
+    const { ctx, rec } = makeFakeCtx();
+    windingTutorial.pages[4]!.draw(ctx, 900, 600);
+    expect(rec.fillStyleLog).toContain(COLORS.steel); // 刃
+    const arcs = rec.ops.filter((o) => o.k === 'arc'); // 持ち手の輪
+    expect(arcs.length).toBeGreaterThanOrEqual(2);
   });
 });
