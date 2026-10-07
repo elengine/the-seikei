@@ -54,14 +54,20 @@ export const TIME_SCISSORS_TIE_MS = 3500;
 /** 張りの流れ・引っかかりのパラメータ (T2-09a・T2-16a・T2-16 その3)。引っかかりは +15〜25・0.5秒で上がり 2〜3秒で戻る (起きやすさはレベルで変わる) */
 export function DRIFT(level: Level): DriftParams {
   const common = { snagSizeMin: 15, snagSizeMax: 25, snagRiseMs: 500, snagRecoverMinMs: 2000, snagRecoverMaxMs: 3000 }; // 0.5秒で上がり 2〜3秒で戻る (T2-16 その3)
-  if (level === 2) return { perSec: 1.0, turnRate: 0.15, max: 12, snagRate: 0.04, snagSize: 9, ...common };
-  if (level === 3) return { perSec: 1.6, turnRate: 0.15, max: 12, snagRate: 0.06, snagSize: 12, ...common }; // max 16 → 12 (T2-11a。どの状態でもペダルで範囲に届くように)
-  return { perSec: 0.6, turnRate: 0.15, max: 8, snagRate: 0.02, snagSize: 6, ...common };
+  // T2-19c: 揺れを大きく (±12/±18/±24)・数秒ごとに向きが変わる流れ・引っかかりを 1.5 倍に (管理者の指定)
+  if (level === 2) return { perSec: 7, turnRate: 0.15, max: 18, snagRate: 0.04 * 1.5, snagSize: 9, flipEveryMinSec: 4, flipEveryMaxSec: 9, ...common };
+  if (level === 3) return { perSec: 8, turnRate: 0.15, max: 24, snagRate: 0.06 * 1.5, snagSize: 12, flipEveryMinSec: 4, flipEveryMaxSec: 9, ...common };
+  return { perSec: 10, turnRate: 0.15, max: 16, snagRate: 0.02 * 1.5, snagSize: 6, flipEveryMinSec: 4, flipEveryMaxSec: 9, ...common };
 }
 
-/** ぶれの大きさ (T2-09a。初級 ±1・中級 ±1.5・上級 ±2) */
+/** 巻き進むほど上がる張り (帯の 0%→100% での上がり量。帯が変わると元に戻る。T2-19c。管理者が遊んで調整する) */
+export function TENSION_RISE(level: Level): number {
+  return level === 1 ? 8 : level === 2 ? 11 : 14;
+}
+
+/** ぶれの大きさ (T2-09a は初級 ±1・中級 ±1.5・上級 ±2。T2-19c: 固定したペダルでは範囲から外れるように大きくする) */
 export function NOISE_AMP(level: Level): number {
-  return level === 1 ? 1 : level === 2 ? 1.5 : 2;
+  return level === 1 ? 7 : level === 2 ? 7 : 8;
 }
 
 /** 目標の時間の余裕 (適正の上端で巻くときの速さに掛ける。T2-16b) */
@@ -94,7 +100,7 @@ export const TENSION: TensionParams = {
   perPedal: 1.0, // 張り≒ペダルの位置 (T2-16 その3。ペダル 0 で張り 0・速さを十分に出せる)
   yarnDrift: 0, // 糸量による +4 はやめた (T2-09a の流れに置き換え。T2-09 追加修正a)
   noiseAmp: 2,
-  noiseStepPerSec: 1,
+  noiseStepPerSec: 3, // T2-19c: 固定したペダルが範囲から外れやすいよう、ぶれの動きも速くする
   range: { min: 30, max: 70 }, // 呼び出し側で難易度のものに差し替える
 };
 

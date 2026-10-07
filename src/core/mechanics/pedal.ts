@@ -35,6 +35,9 @@ export interface DriftParams {
   /** 戻る時間の範囲 (ms)。省略すると SNAG_RECOVER_MS の一定 (従来どおり) */
   snagRecoverMinMs?: number;
   snagRecoverMaxMs?: number;
+  /** 数秒ごとに向きが変わる流れ (T2-19c)。向きが変わる間隔の範囲 (秒)。省略すると turnRate の確率 (従来どおり) */
+  flipEveryMinSec?: number;
+  flipEveryMaxSec?: number;
 }
 
 export interface PedalState {
@@ -48,6 +51,10 @@ export interface PedalState {
   snagRecoverMs?: number;
   snagElapsedMs?: number;
   rng: RngState;
+  /** 数秒ごとに向きが変わる流れ (T2-19c) の状態: 向き (+1/-1)・向きが変わってからの経過時間・次に向きが変わるまでの時間 (ms) */
+  flipDir?: number;
+  flipMs?: number;
+  flipEveryMs?: number;
 }
 
 /** pedal 0、noise 0、流れ 0、引っかかりなしで始める */
@@ -95,6 +102,35 @@ export function stepNoise(s: PedalState, p: TensionParams, dtMs: number): PedalS
  */
 export function stepDrift(s: PedalState, p: DriftParams, dtMs: number): PedalState {
   const dtSec = Math.max(0, dtMs) / 1000;
+  if (p.flipEveryMinSec !== undefined && p.flipEveryMaxSec !== undefined) {
+    // 数秒ごとに向きが変わる流れ (T2-19c)。向きは数秒ごとに反転し、drift は 0 を通って連続に動く。
+    // 向きは状態に持つ (drift の符号から毎フレーム求めると、反転がすぐ打ち消されて ±max に張り付く)。
+    // 幅いっぱい (±max) まで振れることが多いので、固定したペダルでは範囲から外れやすい
+    let rng = s.rng;
+    let flipDir = s.flipDir;
+    let flipEveryMs = s.flipEveryMs;
+    let flipMs = s.flipMs ?? 0;
+    if (flipDir === undefined || flipEveryMs === undefined) {
+      // 最初: 向きと、次に向きが変わるまでの時間を決める
+      const [r0, r1] = nextFloat(rng);
+      const [r2, r3] = nextFloat(r1);
+      rng = r3;
+      flipDir = r0 < 0.5 ? 1 : -1;
+      flipEveryMs = (p.flipEveryMinSec + (p.flipEveryMaxSec - p.flipEveryMinSec) * r2) * 1000;
+      flipMs = 0;
+    }
+    flipMs += Math.max(0, dtMs);
+    if (flipMs >= flipEveryMs) {
+      // 向きが変わる。次の間隔も乱数で決める
+      flipDir = -(flipDir ?? 1);
+      flipMs = 0;
+      const [r0, r1] = nextFloat(rng);
+      rng = r1;
+      flipEveryMs = (p.flipEveryMinSec + (p.flipEveryMaxSec - p.flipEveryMinSec) * r0) * 1000;
+    }
+    const clamped = Math.min(p.max, Math.max(-p.max, s.drift + flipDir * p.perSec * dtSec));
+    return { ...s, drift: clamped, flipDir, flipMs, flipEveryMs, rng };
+  }
   let [raw, next] = nextFloat(s.rng);
   // 動く向き (+1 / -1)。drift が 0 (はじまり) のときだけ乱数で決める
   let dir: number;

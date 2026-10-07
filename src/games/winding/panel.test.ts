@@ -7,6 +7,25 @@ import type { WindingAction } from './logic';
 import { init, reduce } from './logic';
 import { SECTION_LENGTH } from './params';
 
+// T2-19c: 引っかかりで切れることがあるので、切れたらつないで、張りが範囲の真ん中に来るペダルで巻く
+const windCenter = (s0: ReturnType<typeof init>, maxTicks: number): ReturnType<typeof init> => {
+  let cur = s0;
+  for (let i = 0; i < maxTicks && cur.phase !== 'cutting'; i++) {
+    if (cur.phase === 'broken' && cur.brk.kind === 'broken') {
+      for (const th of cur.brk.threads) cur = reduce(cur, { type: 'tapThread', thread: th });
+      if (cur.phase !== 'winding') continue;
+      cur = reduce(cur, { type: 'setPedal', value: 0 });
+      cur = reduce(cur, { type: 'tick', dtMs: 100 });
+      if (cur.phase !== 'winding') continue;
+    }
+    const want = Math.round(cur.range.center - (cur.tension - cur.pedal.pedal));
+    cur = reduce(cur, { type: 'setPedal', value: Math.min(100, Math.max(0, want)) });
+    cur = reduce(cur, { type: 'tick', dtMs: 100 });
+  }
+  return cur;
+};
+
+
 /** jsdom に無い setPointerCapture を足す */
 if (typeof Element !== 'undefined' && !Element.prototype.setPointerCapture) {
   Element.prototype.setPointerCapture = function setPointerCapture(): void {};
@@ -62,12 +81,8 @@ describe('winding panel (T2-06)', () => {
 
   it('4. 「帯 2/5」の文字が current と sections に従う', () => {
     const s = init({ level: 1, patternId: 'p-pin-kon', sections: 5, seed: 1 });
-    // current 1 (2本目) の 'cutting' 状態を作る
-    let cur = reduce(s, { type: 'setPedal', value: 50 });
-    for (let i = 0; i < 300 && cur.phase === 'winding'; i++) {
-      cur = reduce(cur, { type: 'tick', dtMs: 100 });
-    }
-    cur = reduce(cur, { type: 'cut' });
+    // current 1 (2本目) の 'cutting' 状態を作る (T2-19c: 切れたらつないで巻く)
+    const cur = reduce(windCenter(s, 2000), { type: 'cut' });
     panel.update(cur);
     const label = document.body.querySelector('.winding-panel__section')!;
     expect(label.textContent).toContain('帯 2/5');

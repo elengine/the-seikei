@@ -8,7 +8,7 @@ import {
   SECTION_LENGTH, RANGE_WIDTH, RANGE_CENTER, RANGE_SHIFT_ON_SECTION, RANGE_REACHABLE, MAX_SPEED,
   DRIFT, NOISE_AMP, BREAK_RATE, TENSION, BREAK,
   MAX_TICK_MS, STARS3, STARS2, BREAK_EXTRA_STEP, BREAK_MAX_THREADS,
-  YARN_FEEL, SNAG_BREAK_MARGIN, SNAG_GRACE_MS, TIME_ANCHOR, TIME_PER_SECTION_MS,
+  YARN_FEEL, SNAG_BREAK_MARGIN, SNAG_GRACE_MS, TIME_ANCHOR, TIME_PER_SECTION_MS, TENSION_RISE,
 } from './params';
 import type { Level, YarnFeel } from './params';
 
@@ -209,10 +209,11 @@ function tick(s: WindingState, dtMs: number): WindingState {
   pedal = stepDrift(pedal, dp, dtClamped);
   const snag = stepSnag(pedal, dp, dtClamped);
   pedal = snag.state;
-  // 2. 張りを計算して保存する
+  // 2. 張りを計算して保存する。巻き進むほど張りが少しずつ上がる (帯の 0%→100% で TENSION_RISE。帯が変わると元に戻る。T2-19c)
   const curLen = s.lengths[s.current] ?? 0;
   const progress = (s.current + curLen / SECTION_LENGTH) / s.sections;
-  const tension = tensionOf(pedal, tp, progress);
+  const rise = TENSION_RISE(s.level) * Math.min(1, Math.max(0, curLen / SECTION_LENGTH));
+  const tension = tensionOf(pedal, tp, progress) + rise;
   const cur: WindingState = { ...s, pedal, tension, elapsedMs, snagRaised: snag.raised > 0, range };
   // 3. speed > 0 なら長さを進め、糸切れの判定をする (あとで cur に重ねるので let)
   let state = cur;

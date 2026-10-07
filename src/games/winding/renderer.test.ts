@@ -11,6 +11,25 @@ import { makeFakeCtx } from './renderer.test.helpers';
 import { SLAT_COUNT, PIN_ANGLE0, lampStateOf, lampGeometry, DRUM_BULGE, drumSectionPinY } from './renderer.parts';
 import { WING_SIDE_MAX_RATIO, SLAT_OVER, SLAT_FLARE, STRIPE_H } from './params';
 import { init, reduce } from './logic';
+
+// T2-19c: 引っかかりで切れることがあるので、切れたらつないで、張りが範囲の真ん中に来るペダルで巻く
+const windCenter = (s0: ReturnType<typeof init>, maxTicks: number): ReturnType<typeof init> => {
+  let cur = s0;
+  for (let i = 0; i < maxTicks && cur.phase !== 'cutting'; i++) {
+    if (cur.phase === 'broken' && cur.brk.kind === 'broken') {
+      for (const th of cur.brk.threads) cur = reduce(cur, { type: 'tapThread', thread: th });
+      if (cur.phase !== 'winding') continue;
+      cur = reduce(cur, { type: 'setPedal', value: 0 });
+      cur = reduce(cur, { type: 'tick', dtMs: 100 });
+      if (cur.phase !== 'winding') continue;
+    }
+    const want = Math.round(cur.range.center - (cur.tension - cur.pedal.pedal));
+    cur = reduce(cur, { type: 'setPedal', value: Math.min(100, Math.max(0, want)) });
+    cur = reduce(cur, { type: 'tick', dtMs: 100 });
+  }
+  return cur;
+};
+
 import type { WindingState } from './logic';
 import { loadContent } from '../../core/content/content';
 import colorsJson from '../../content/colors.json';
@@ -79,11 +98,7 @@ describe('winding renderer (T2-05)', () => {
     const { ctx, rec } = makeFakeCtx();
     let s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 1 });
     for (let sec = 0; sec < 3; sec++) {
-      s = reduce(s, { type: 'setPedal', value: 30 });
-      s = reduce(s, { type: 'setPedal', value: 50 });
-      for (let i = 0; i < 500 && s.phase === 'winding'; i++) {
-        s = reduce(s, { type: 'tick', dtMs: 100 });
-      }
+      s = windCenter(s, 2000);
       if (s.phase === 'cutting') s = reduce(s, { type: 'cut' });
     }
     expect(s.phase).toBe('done');
@@ -201,11 +216,7 @@ describe('winding renderer T2-08 (盤面の絵を実物らしくする)', () => 
     const { ctx, rec } = makeFakeCtx();
     let s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 1 });
     for (let sec = 0; sec < 2; sec++) {
-      s = reduce(s, { type: 'setPedal', value: 30 });
-      s = reduce(s, { type: 'setPedal', value: 50 });
-      for (let i = 0; i < 500 && s.phase === 'winding'; i++) {
-        s = reduce(s, { type: 'tick', dtMs: 100 });
-      }
+      s = windCenter(s, 2000);
       if (s.phase === 'cutting') s = reduce(s, { type: 'cut' });
     }
     expect(s.current).toBe(2);
@@ -288,11 +299,7 @@ describe('winding renderer T2-08-fix a (ドラムの向き・台の移動・結�
     for (const p of [0, 0.5, 1]) {
       const { ctx, rec } = makeFakeCtx();
       let s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 1 });
-      s = reduce(s, { type: 'setPedal', value: 30 });
-      s = reduce(s, { type: 'setPedal', value: 50 });
-      for (let i = 0; i < 500 && s.phase === 'winding'; i++) {
-        s = reduce(s, { type: 'tick', dtMs: 100 });
-      }
+      s = windCenter(s, 2000);
       // cut の直前 (phase 'cutting'・current 0) で演出を見る (cut を送ると current が進む)
       expect(s.phase).toBe('cutting');
       drawBoard(ctx, fit, s, content, { threadCount: 8, show: 'red', timeMs: 0, tieProgress: p });
