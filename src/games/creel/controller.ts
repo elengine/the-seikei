@@ -17,6 +17,29 @@ import type { CreelPanel } from './panel';
 
 const DONE_WAIT_MS = 1500;
 
+/** 盤面のカードの幅の割合の範囲 (横長の詰めた形)。標準は gameFrame の 0.6 */
+const STAGE_RATIO_MIN = 0.35;
+const STAGE_RATIO_MAX = 0.6;
+/** 論理の盤面の縦横の割合 (幅 ÷ 高さ = 1000 ÷ 750)。この幅で描けばカードの高さをちょうど使い切る */
+const BOARD_ASPECT = 1000 / 750;
+
+/**
+ * 枠の本体 (.game-frame__body) の内寸から、盤面のカードの幅の割合を決める。
+ * カードの高さ (= 本体の内側の高さ) × 4/3 の幅に合わせると、絵の右に大きな空きができない。測れないときは標準の割合。
+ */
+export function stageWidthRatio(frameRoot: HTMLElement | null): number {
+  const body = frameRoot?.querySelector<HTMLElement>('.game-frame__body');
+  if (body === null || body === undefined || body.clientWidth <= 0 || body.clientHeight <= 0) {
+    return STAGE_RATIO_MAX;
+  }
+  const cs = getComputedStyle(body);
+  const innerW = body.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  const innerH = body.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+  const gap = parseFloat(cs.columnGap) || 0;
+  const ratio = (BOARD_ASPECT * innerH) / Math.max(1, innerW - gap);
+  return Math.min(STAGE_RATIO_MAX, Math.max(STAGE_RATIO_MIN, ratio));
+}
+
 /**
  * クリール立てのプレイ画面。盤面 (Canvas) と操作欄をつなぐ。
  * mount したら「戻る」以外の操作はすべて reduce を通して状態を1つに保つ。
@@ -48,6 +71,8 @@ export function createController(parent: HTMLElement, deps: GameDeps, props: Gam
   let liftedIndex: number | null = null; // 持ち上げている軸 (空いた軸として描く)
 
   // ---- 枠 ----
+  /** 横長の詰めた形で、盤面のカードの幅を絵の幅に合わせるための割合 (PU-20b)。枠ができるまでは null */
+  let frameRef: { root: HTMLElement } | null = null;
   const frame = createGameFrame(parent, {
     title: deps.terms.t('game.creel'),
     subtitle: `レベル${puzzle.stage} ${pattern?.name ?? ''}`.trim(), // 今のお題
@@ -58,6 +83,10 @@ export function createController(parent: HTMLElement, deps: GameDeps, props: Gam
     logicalW: 1000,
     logicalH: 750,
     alwaysCompact: true, // どの大きさでも、依頼書はポップアップ・箱は盤面の横か下の帯
+    // 横長では、盤面のカードの幅をクリールの絵の幅 (カードの高さの 4/3 倍) に合わせ、残りを箱の帯とバーに回す。枠が配置のたびに読む
+    get compactStageWidthRatio(): number {
+      return stageWidthRatio(frameRef?.root ?? null);
+    },
     message: false, // メッセージ欄は無い (盤面を大きく使う。案内は frame.notify)
     onStageResize: (fit) => {
       lastFit = fit;
@@ -66,6 +95,8 @@ export function createController(parent: HTMLElement, deps: GameDeps, props: Gam
       }
     },
   });
+
+  frameRef = frame;
 
   // ---- 操作欄 ----
   const panel: CreelPanel = createCreelPanel(frame.panel, {

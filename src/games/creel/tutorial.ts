@@ -145,17 +145,24 @@ function drawPlace(ctx: Ctx, w: number, h: number): void {
   arrow(ctx, row.xs[0]!, row.cy - row.r * 0.9, row.xs[0]!, h * 0.04, COLORS.shu);
   text(ctx, '外す', row.xs[0]! + w * 0.04, h * 0.1, h * 0.085, COLORS.shu, { bold: true });
   // 置く: 手前の箱から空いた軸へ
-  // 箱の帯 (今の画面は、箱が一列に並んで横に送れる)。引っぱる箱は左の 1 つ
+  // 箱の帯 (今の画面は、箱が一列に並び、専用のバーで送る)。引っぱる箱は左の 1 つ
   const bw = w * 0.2;
-  const bh = h * 0.3;
-  const by = h * 0.68;
+  const bh = h * 0.22;
+  const by = h * 0.66;
   const bx = w * 0.1;
   const gap = w * 0.03;
   drawBox(ctx, bx, by, bw, bh, SAMPLE_A);
   drawBox(ctx, bx + bw + gap, by, bw, bh, SAMPLE_B);
   drawBox(ctx, bx + (bw + gap) * 2, by, bw, bh, SAMPLE_A);
   arrow(ctx, bx + bw * 0.75, by - 4, row.xs[1]! - row.r * 0.3, row.cy + row.r * 1.05, COLORS.ai);
-  text(ctx, '置く', row.xs[1]! + row.r * 0.9, h * 0.66, h * 0.085, COLORS.ai, { bold: true });
+  // 箱の帯のすぐ下のバー (つまみは藍、溝は薄い色)
+  const barY = by + bh + h * 0.012;
+  ctx.fillStyle = COLORS.line;
+  ctx.fillRect(bx, barY, (bw + gap) * 3 - gap, h * 0.02);
+  ctx.fillStyle = COLORS.ai;
+  ctx.fillRect(bx, barY - h * 0.005, ((bw + gap) * 3 - gap) * 0.45, h * 0.03);
+  text(ctx, 'バー', bx + ((bw + gap) * 3 - gap) * 0.5, barY + h * 0.012, h * 0.06, COLORS.ai, { bold: true });
+  text(ctx, '置く', row.xs[1]! + row.r * 0.9, h * 0.6, h * 0.085, COLORS.ai, { bold: true });
   text(ctx, '上へ引っぱる', w * 0.98, h * 0.6, h * 0.07, COLORS.ai, { align: 'right', bold: true });
 }
 
@@ -201,7 +208,7 @@ function drawHint(ctx: Ctx, w: number, h: number): void {
 export const creelTutorial: TutorialSpec = {
   pages: [
     { draw: (ctx, w, h) => drawOrder(ctx, w, h), text: '「依頼書」を押すと、立てる{{cone}}の絵と型番と本数が出ます。繰り返しがあるときは「2回繰り返す」と出ます' },
-    { draw: (ctx, w, h) => drawPlace(ctx, w, h), text: '段ボールの箱の上から{{cone}}を上へ引っぱって、{{spindle}}の丸に嵌めます。箱の列は、横に送って探せます。外すときは、{{cone}}を{{creel}}の外へ引っぱります' },
+    { draw: (ctx, w, h) => drawPlace(ctx, w, h), text: '段ボールの箱の上から、どの向きになぞっても{{cone}}が出ます。上へ引っぱって、{{spindle}}の丸に嵌めます。箱の列が全部見えないときは、箱の列のそばのバーを引っぱって送ります。外すときは、{{cone}}を{{creel}}の外へ引っぱります' },
     { draw: (ctx, w, h) => drawDone(ctx, w, h), text: '全部立てたら「確認」を押します。間違いは ✕ で示されるので、箱から引っぱり直します' },
     {
       draw: (ctx, w, h) => drawHint(ctx, w, h),

@@ -163,8 +163,17 @@ describe('creel tutorial (PU-17c: 今の画面に合わせる 2)', () => {
     }
     const second = creelTutorial.pages[1]!.text;
     expect(second).toContain('上へ');
-    expect(second).toContain('横に送');
+    expect(second).toContain('バー'); // PU-20: 箱の列はスクロールバーで送る
     expect(creelTutorial.pages[0]!.text).toContain('2回繰り返す');
+  });
+
+  it('PU-20: 2 ページ目の文に、箱の列のバーで送ることと、箱の上はどの向きになぞってもコーンが出ることがある。絵に「バー」の字がある', () => {
+    const t = creelTutorial.pages[1]!.text;
+    expect(t).toContain('箱の列');
+    expect(t).toContain('バー');
+    expect(t).toContain('どの向き');
+    expect(t).not.toContain('横に送');
+    expect(record(creelTutorial.pages[1]!.draw).texts.some((x) => x.includes('バー'))).toBe(true);
   });
 
   it('2 ページ目の絵は箱の帯 (段ボールの箱が 3 つ並ぶ)。「上へ引っぱる」の字と矢印 (藍)。3 ページ目の絵は「ヒント」「確認」が 1 行に並ぶ (今の画面の下の行)', () => {
