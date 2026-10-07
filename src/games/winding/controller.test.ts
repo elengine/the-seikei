@@ -114,6 +114,12 @@ function pedalValue(container: HTMLElement): number {
   return parseFloat(container.querySelector<HTMLElement>('.pedal__bar')!.style.left || '0');
 }
 
+/** 「巻き始める」ボタンの代わり (T2-18a): ペダルを 10 まで動かして巻き始めさせてから 0 に戻す (ペダル 0 のまま winding になる) */
+function beginByPedal(container: HTMLElement): void {
+  stepPedal(container, 10);
+  stepPedal(container, -10);
+}
+
 describe('winding module (T2-07)', () => {
   let raf: ReturnType<typeof installFakeRaf>;
 
@@ -170,19 +176,20 @@ describe('winding module (T2-07)', () => {
       // 初級を選ぶ
       const level1 = container.querySelector<HTMLButtonElement>('button[data-testid="winding-puzzle-s1"]')!;
       level1.click();
-      // 「巻き始める」
-      const start = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める');
-      expect(start).toBeDefined();
-      start!.click();
+      // 「巻き始める」のボタンは無い (T2-18a)。最初の案内 (お知らせ) が出ている
+      expect(Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める')).toBeUndefined();
+      expect(container.querySelector('.game-frame__notice')?.textContent ?? '').toContain('巻き始めます');
       const { threadY, tableY, scissorsPos } = await import('./geometry');
-      // ペダル 40 (溝を 10 ずつ 4 回)。張り 40 で範囲 (35〜65) の中ほど → 切れずに品質 0.8 以上。
-      // 速さは目標に届かない (固定ペダルでは範囲の上を追いかけられない) ので星2 (T2-16b)
+      // ペダル 40 (溝を 10 ずつ 4 回)。ペダルを動かした瞬間に巻き始まり (T2-18a)、案内も消える
       const setP = (): void => {
         for (let i = 0; i < 4; i++) {
           stepPedal(container, 10);
         }
       };
       setP();
+      const st0 = instance.suspend() as { phase: string };
+      expect(st0.phase).toBe('winding');
+      expect(container.querySelector('.game-frame__notice'), 'ready の案内はペダルを動かした瞬間に消える (T2-18a)').toBeNull();
       // 帯1本: pedal 40 の速さ (16/秒) で 400 論理長 → 25秒。rAF 16ms ずつ
       raf.advance(2000);
       // 「帯の端を結ぶ」のボタンは無い (T2-16c)
@@ -265,8 +272,7 @@ describe('winding module (T2-07)', () => {
       const instance = module.mount(container, props);
       const level1 = container.querySelector<HTMLButtonElement>('button[data-testid="winding-puzzle-s1"]')!;
       level1.click();
-      const start = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める');
-      start!.click();
+      beginByPedal(container);
       const { scissorsPos } = await import('./geometry');
       for (let i = 0; i < 4; i++) {
         stepPedal(container, 10);
@@ -300,9 +306,7 @@ describe('winding module (T2-07)', () => {
     const instance = module.mount(container, props);
     const level1 = container.querySelector<HTMLButtonElement>('button[data-testid="winding-puzzle-s1"]')!;
     level1.click();
-    Array.from(container.querySelectorAll('button'))
-      .find((b) => b.textContent === '巻き始める')!
-      .click();
+    beginByPedal(container);
     // ペダルを踏む
     stepPedal(container, 10);
     raf.advance(10);
@@ -330,9 +334,7 @@ describe('winding module (T2-07)', () => {
     const instance = module.mount(container, props);
     const level1 = container.querySelector<HTMLButtonElement>('button[data-testid="winding-puzzle-s1"]')!;
     level1.click();
-    Array.from(container.querySelectorAll('button'))
-      .find((b) => b.textContent === '巻き始める')!
-      .click();
+    beginByPedal(container);
     raf.advance(5);
     instance.unmount();
     const framesAtUnmount = raf.frames.length;
@@ -353,7 +355,7 @@ describe('winding module (T2-07)', () => {
     const { paramsOf } = await import('./params');
     const p1 = paramsOf(1);
     let state = init({ level: 1, patternId: p1.patternId, sections: p1.sections, seed: 1 });
-    state = reduce(state, { type: 'start' });
+    state = reduce(state, { type: 'setPedal', value: 30 });
     state = reduce(state, { type: 'setPedal', value: 60 });
     const props = makeProps({ resume: state });
     const instance = module.mount(container, props);
@@ -369,7 +371,7 @@ describe('winding module (T2-07)', () => {
     const module = createWindingModule(deps);
     const { init, reduce } = await import('./logic');
     let state = init({ level: 2, patternId: 'p-shadow-char', sections: 6, seed: 1, puzzleId: 's4-2', feel: 'fine' });
-    state = reduce(state, { type: 'start' });
+    state = reduce(state, { type: 'setPedal', value: 30 });
     const props = makeProps({ resume: state });
     const instance = module.mount(container, props);
     const sub = container.querySelector('.screen-header__subtitle')!.textContent!;
@@ -389,7 +391,7 @@ describe('winding module (T2-07)', () => {
     const { threadY } = await import('./geometry');
     const p1 = paramsOf(1);
     let state = init({ level: 1, patternId: p1.patternId, sections: p1.sections, seed: 1 });
-    state = reduce(state, { type: 'start' });
+    state = reduce(state, { type: 'setPedal', value: 30 });
     state = reduce(state, { type: 'tick', dtMs: 1000 }); // 帯1を少し巻く
     state = reduce(state, { type: 'setPedal', value: 40 });
     state = reduce(state, { type: 'tick', dtMs: 5000 });
@@ -442,7 +444,7 @@ describe('winding module (T2-07)', () => {
     const { paramsOf } = await import('./params');
     const p1 = paramsOf(1);
     let state = init({ level: 1, patternId: p1.patternId, sections: p1.sections, seed: 1 });
-    state = reduce(state, { type: 'start' });
+    state = reduce(state, { type: 'setPedal', value: 30 });
     state = { ...state, phase: 'cutting', current: 0 };
     const props = makeProps({ resume: state });
     // 盤面の大きさ (jsdom は clientWidth が 0。ハサミの当たり判定に使う)
@@ -489,7 +491,7 @@ describe('winding module (T2-07)', () => {
     const instance = module.mount(container, props);
     // 初級 → 巻き始める → 少し巻く
     (container.querySelector('button[data-testid="winding-puzzle-s1"]') as HTMLButtonElement).click();
-    Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める')!.click();
+    beginByPedal(container);
     for (let i = 0; i < 4; i++) {
       stepPedal(container, 10);
     }
@@ -543,7 +545,7 @@ describe('winding module (T2-07)', () => {
     const instance = module.mount(container, props);
     // 初級で途中を作る
     (container.querySelector('button[data-testid="winding-puzzle-s1"]') as HTMLButtonElement).click();
-    Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める')!.click();
+    beginByPedal(container);
     for (let i = 0; i < 4; i++) {
       stepPedal(container, 10);
     }
@@ -713,7 +715,7 @@ describe('winding module T2-09 追加修正a (+4・止まる音。引っかか�
     deps.audio.play = (n: Parameters<typeof deps.audio.play>[0]) => { plays2.push(n); return orig(n); };
     btn('紺の無地帯 3本次はこれ'); // 一覧の行の文字 (名前・補足・状態)
     raf.advance(2);
-    btn('巻き始める');
+    beginByPedal(container);
     raf.advance(2);
     // pedal 100 で切れるまで進める (切れない場合は中止)
     let broke = false;
@@ -736,7 +738,7 @@ describe('winding module T2-09 追加修正a (+4・止まる音。引っかか�
     deps.audio.play = (n: Parameters<typeof deps.audio.play>[0]) => { plays2.push(n); return orig(n); };
     btn('紺の無地帯 3本次はこれ');
     raf.advance(2);
-    btn('巻き始める');
+    beginByPedal(container);
     raf.advance(2);
     // pedal 50 で安全に巻く (範囲 35〜65 の中心)。巻き量 100% まで進める
     for (let k = 0; k < 5; k++) stepPedal(container, 10);
@@ -781,14 +783,11 @@ describe('winding module T2-10 追加修正 a (ドラムの回る速さ・drumAn
     return container;
   }
 
-  const btn = (container: HTMLElement, label: string): HTMLButtonElement | undefined =>
-    Array.from(container.querySelectorAll('button')).find((b) => b.textContent === label);
 
   it('1. ペダル 50 で 1 秒進めると、drumAngle が 4.5〜5.5 増える (DRUM_TURN_PER_SPEED 0.25)', async () => {
     const container = await setup();
     container.querySelector<HTMLButtonElement>('button[data-testid="winding-puzzle-s1"]')!.click();
-    await vi.waitFor(() => expect(btn(container, '巻き始める')).toBeDefined());
-    btn(container, '巻き始める')!.click();
+    beginByPedal(container);
     // ペダル 50 (溝を 10 ずつ 5 回動かす)
     for (let i = 0; i < 5; i++) {
       stepPedal(container, 10);
@@ -807,8 +806,7 @@ describe('winding module T2-10 追加修正 a (ドラムの回る速さ・drumAn
   it('2. 糸が切れたあと・ペダル 0 のあいだは drumAngle が増えない', async () => {
     const container = await setup();
     container.querySelector<HTMLButtonElement>('button[data-testid="winding-puzzle-s1"]')!.click();
-    await vi.waitFor(() => expect(btn(container, '巻き始める')).toBeDefined());
-    btn(container, '巻き始める')!.click();
+    beginByPedal(container);
     // ペダルを踏まず (speed 0) のまま進める
     await vi.waitFor(() => expect(lastDrawOpts()?.drumAngle).toBeDefined());
     const before = lastDrawOpts()!.drumAngle!;
@@ -844,14 +842,11 @@ describe('winding module T2-10 追加修正 b (なめらかな回り方・結ぶ
     return container;
   }
 
-  const btn = (container: HTMLElement, label: string): HTMLButtonElement | undefined =>
-    Array.from(container.querySelectorAll('button')).find((b) => b.textContent === label);
 
   async function startWinding(): Promise<HTMLElement> {
     const container = await setup();
     container.querySelector<HTMLButtonElement>('button[data-testid="winding-puzzle-s1"]')!.click();
-    await vi.waitFor(() => expect(btn(container, '巻き始める')).toBeDefined());
-    btn(container, '巻き始める')!.click();
+    beginByPedal(container);
     return container;
   }
 
@@ -916,11 +911,7 @@ describe('winding module T2-11a → T2-16a (メーターの適正の帯)', () =>
     const module = createWindingModule(deps);
     module.mount(container, makeProps());
     container.querySelector<HTMLButtonElement>('button[data-testid="winding-puzzle-s1"]')!.click();
-    await vi.waitFor(() => {
-      const b = Array.from(container.querySelectorAll('button')).find((x) => x.textContent === '巻き始める');
-      expect(b).toBeDefined();
-    });
-    Array.from(container.querySelectorAll('button')).find((x) => x.textContent === '巻き始める')!.click();
+    beginByPedal(container);
     return container;
   }
 
@@ -966,7 +957,7 @@ describe('PU-05c: ドラム巻きの結果のつなぎ', () => {
     container.querySelector<HTMLButtonElement>('button[data-testid="winding-puzzle-s1"]')!.click();
     const btn = (label: string): HTMLButtonElement | undefined =>
       Array.from(container.querySelectorAll('button')).find((b) => b.textContent === label);
-    btn('巻き始める')!.click();
+    beginByPedal(container);
     const pedalUp = (): void => {
       for (let k = 0; k < 4; k++) {
         stepPedal(container, 10);
@@ -1098,7 +1089,7 @@ describe('PU-14a: メッセージ欄を無くし、一度きりの案内はお�
     vi.unstubAllGlobals();
   });
 
-  it('メッセージ欄 (.game-frame__message) が無い。最初に「巻き始める」の案内が盤面のお知らせに 1 回出る', async () => {
+  it('メッセージ欄 (.game-frame__message) が無い。最初に「ペダルを右へ動かすと巻き始めます」の案内が盤面のお知らせに 1 回出る (T2-18a)', async () => {
     const { deps } = await makeDeps();
     const container = document.createElement('div');
     document.body.appendChild(container);
@@ -1108,12 +1099,12 @@ describe('PU-14a: メッセージ欄を無くし、一度きりの案内はお�
     container.querySelector<HTMLButtonElement>('[data-testid="winding-puzzle-s1"]')!.click();
     expect(container.querySelector('.game-frame__message')).toBeNull();
     const notice = container.querySelector('.game-frame__notice')!;
-    expect(notice.textContent).toContain('巻き始める');
+    expect(notice.textContent).toContain('巻き始めます');
     expect(container.querySelectorAll('.game-frame__notice')).toHaveLength(1);
     raf.advance(10);
   });
 
-  it('巻いていないときにペダルの溝を押すと、理由がお知らせに出る', async () => {
+  it('ready の案内は、ペダルの溝を動かした瞬間に消える (T2-18a)', async () => {
     const { deps } = await makeDeps();
     const container = document.createElement('div');
     document.body.appendChild(container);
@@ -1121,8 +1112,9 @@ describe('PU-14a: メッセージ欄を無くし、一度きりの案内はお�
     module.mount(container, makeProps());
     await vi.waitFor(() => expect(container.querySelector('[data-testid="winding-puzzle-s1"]')).not.toBeNull());
     container.querySelector<HTMLButtonElement>('[data-testid="winding-puzzle-s1"]')!.click();
+    expect(container.querySelector('.game-frame__notice')!.textContent).toContain('巻き始めます');
     stepPedal(container, 10);
-    expect(container.querySelector('.game-frame__notice')!.textContent).toContain('巻き始める');
+    expect(container.querySelector('.game-frame__notice'), 'ペダルを動かすと案内が消える').toBeNull();
   });
 });
 
@@ -1143,8 +1135,6 @@ describe('winding module T2-17 (遊び方を開いているあいだの一時停
     vi.restoreAllMocks();
   });
 
-  const btn = (container: HTMLElement, label: string): HTMLButtonElement | undefined =>
-    Array.from(container.querySelectorAll('button')).find((b) => b.textContent === label);
   const helpBtn = (container: HTMLElement): HTMLButtonElement | null =>
     container.querySelector<HTMLButtonElement>('button[aria-label="遊び方"]');
   const closeBtn = (container: HTMLElement): HTMLButtonElement | null =>
@@ -1157,8 +1147,7 @@ describe('winding module T2-17 (遊び方を開いているあいだの一時停
     const module = createWindingModule(deps);
     const instance = module.mount(container, makeProps());
     container.querySelector<HTMLButtonElement>('button[data-testid="winding-puzzle-s1"]')!.click();
-    await vi.waitFor(() => expect(btn(container, '巻き始める')).toBeDefined());
-    btn(container, '巻き始める')!.click();
+    beginByPedal(container);
     return { container, instance: instance as unknown as { suspend(): unknown; unmount(): void } };
   }
 
@@ -1248,7 +1237,7 @@ describe('winding module T2-16 その4b (ハサミの持ち上げと閉じる動
     };
     const instance = module.mount(container, props);
     container.querySelector<HTMLButtonElement>('button[data-testid="winding-puzzle-s1"]')!.click();
-    Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める')!.click();
+    beginByPedal(container);
     for (let i = 0; i < 4; i++) stepPedal(container, 10);
     raf.advance(2000); // cutting になる
     expect((instance.suspend() as { phase: string }).phase).toBe('cutting');

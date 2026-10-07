@@ -1862,3 +1862,22 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - **`src/core/viewport/viewport.ts`・`src/main.ts`・`src/styles/base.css` は 0.3.20 (コミット 4588b3b) の時点と完全に一致** (git diff が空)。
 - 全テスト 1105 件成功。`npm run check` エラー 0。`npm run build` 成功。
 - 管理者メニューの「回転の記録 (診断)」は残っている (テスト 21 件が通ることで確認)。
+
+## 2026-10-07 T2-18a: 始まり方と時間(version 0.3.26)
+
+仕様: docs/04_tasks/P2/T2-18.md(管理者の実機確認 2026-10-07 の指摘。Discord メッセージ 1557242802138779661)。
+
+### 直したこと
+1. **「巻き始める」のボタンを無くした**: 操作欄の主な操作の行(panel.ts の buttonRow)を削除。`logic.ts` の `start` アクションを廃止し、`setPedal` で ready に 0 より大きい値を入れた瞬間に `winding` に移る。ペダルは ready でも押せる(panel.ts の `pedal.setEnabled`)。最初の案内は「ペダルを右へ動かすと巻き始めます」(messages.ts)で、巻き始まった瞬間に消す(controller.ts `dismissNotice`。gameFrame のお知らせ要素を消す)。
+2. **時間を最後の帯を結び終えるまで止めない**: `logic.ts` の tick が `cutting` のあいだも `elapsedMs` を進める(ピンを回す・ハサミ・結びの動作のあいだも含む)。ready のあいだは進まない。`done` で止まる。
+3. **制限時間 = 今の計算 + 5 秒 × 帯の数**: `params.ts` に `TIME_PER_SECTION_MS = 5000`(内訳 `TIME_PEDAL_START_MS = 1500`・`TIME_SCISSORS_TIE_MS = 3500`)を置き、init の targetMs に足す。
+
+### 実装上の補足
+- cutting のあいだは tick で毎フレーム状態が変わるようになったため、操作欄の更新は時計の秒が変わったときだけにした(controller.ts の `cutClockSec`。毎フレームの panel.update は重い)。
+- controller.test.ts の「巻き始める」ボタンのクリックは `beginByPedal`(ペダルを 10 まで動かして巻き始めさせてから 0 に戻す)に置き換えた。
+
+### テスト(先に RED を確認)
+- logic.test.ts に T2-18a の describe(ready は時間が進まない/ペダルで始まる/cutting でも時間が進む/done で止まる/制限時間 = 合計 + 5秒×帯数)。その6 の制限時間のテストは新しい式に更新。
+- panel.test.ts: 「巻き始める」のボタンが無い/ready と winding でペダルが押せる/ボタンが 1 つも無い。
+- controller.test.ts: ボタンが無い/ペダルを動かすと winding になり案内が消える。
+- 全体: 1110 passed | 11 skipped。check 0・build 0。

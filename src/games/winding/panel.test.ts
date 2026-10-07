@@ -28,13 +28,13 @@ describe('winding panel (T2-06)', () => {
     panel.destroy();
   });
 
-  it("1. 'ready' で「巻き始める」があり、押すと start", () => {
+  it("1. 'ready' で「巻き始める」のボタンは無く、ペダルは押せる (ペダルを動かすと巻き始まる。T2-18a)", () => {
     const s = init({ level: 1, patternId: 'p-pin-kon', sections: 5, seed: 1 });
     panel.update(s);
     const btn = Array.from(document.body.querySelectorAll('button')).find((b) => b.textContent === '巻き始める');
-    expect(btn).toBeDefined();
-    btn!.click();
-    expect(onAction).toHaveBeenLastCalledWith({ type: 'start' });
+    expect(btn, '巻き始めるのボタンは廃止').toBeUndefined();
+    const root = document.body.querySelector('.pedal-control')!;
+    expect(root.className).not.toContain('disabled');
   });
 
   it("2. 'cutting' では「帯の端を結ぶ」のボタンは無い (ハサミは盤面に出る。T2-16c)", () => {
@@ -44,22 +44,25 @@ describe('winding panel (T2-06)', () => {
     expect(btn, '帯の端を結ぶのボタンは廃止').toBeUndefined();
   });
 
-  it("3. 'winding' 以外では、ペダルが押せない (setEnabled(false))", () => {
+  it("3. 'broken'・'cutting' では、ペダルが押せない ('ready' と 'winding' は押せる。T2-18a)", () => {
     const s = init({ level: 1, patternId: 'p-pin-kon', sections: 5, seed: 1 });
-    panel.update(s);
+    panel.update({ ...s, phase: 'broken' });
     const root = document.body.querySelector('.pedal-control')!;
     expect(root.className).toContain('disabled');
+    panel.update({ ...s, phase: 'cutting' });
+    expect(root.className).toContain('disabled');
+    // 'ready' は押せる (ペダルを動かすと巻き始まる。T2-18a)
+    panel.update(s);
+    expect(root.className).not.toContain('disabled');
     // 'winding' なら押せる
-    const w = reduce(s, { type: 'start' });
-    panel.update(w);
+    panel.update(reduce(s, { type: 'setPedal', value: 30 }));
     expect(root.className).not.toContain('disabled');
   });
 
   it('4. 「帯 2/5」の文字が current と sections に従う', () => {
     const s = init({ level: 1, patternId: 'p-pin-kon', sections: 5, seed: 1 });
     // current 1 (2本目) の 'cutting' 状態を作る
-    let cur = reduce(s, { type: 'start' });
-    cur = reduce(cur, { type: 'setPedal', value: 50 });
+    let cur = reduce(s, { type: 'setPedal', value: 50 });
     for (let i = 0; i < 300 && cur.phase === 'winding'; i++) {
       cur = reduce(cur, { type: 'tick', dtMs: 100 });
     }
@@ -71,7 +74,7 @@ describe('winding panel (T2-06)', () => {
 
   it('5. ペダルの溝を動かすと setPedal が渡る (「踏み込む」ボタンは PU-14a で無くなった)', () => {
     const s = init({ level: 1, patternId: 'p-pin-kon', sections: 5, seed: 1 });
-    const w = reduce(s, { type: 'start' });
+    const w = reduce(s, { type: 'setPedal', value: 50 });
     panel.update(w);
     onAction.mockClear();
     const groove = document.body.querySelector<HTMLElement>('.pedal__groove')!;
@@ -92,7 +95,6 @@ describe('winding panel T2-05-fix (横木が状態に合わせて戻る)', () =>
     const onAction2 = vi.fn();
     const panel2 = createWindingPanel(document.body, { terms, onAction: onAction2 });
     let s = init({ level: 1, patternId: 'p-pin-kon', sections: 5, seed: 1 });
-    s = reduce(s, { type: 'start' });
     s = reduce(s, { type: 'setPedal', value: 60 });
     panel2.update(s);
     const bar = document.body.querySelector<HTMLElement>('.pedal__bar')!;
@@ -114,15 +116,12 @@ describe('PU-05c: ドラム巻きの操作欄の並び', () => {
     return { panel: p, host };
   }
 
-  it('節の見出しは「張り」「ペダル」(用語の呼び名)。一番下に主な操作 (primary)', () => {
+  it('節の見出しは「張り」「ペダル」(用語の呼び名)。「巻き始める」の主な操作は無く (T2-18a)、ボタンは 1 つも無い', () => {
     const { panel: p, host } = mountPanel();
     p.update(init({ level: 1, patternId: 'p-pin-kon', sections: 5, seed: 1 }));
     expect(Array.from(host.querySelectorAll('.section-heading')).map((h) => h.textContent)).toEqual(['張り', 'ペダル']);
-    const actions = host.querySelector('.winding-panel__actions')!;
-    expect(actions).toBe(host.querySelector('.winding-panel')!.lastElementChild);
-    for (const b of Array.from(actions.querySelectorAll('button'))) {
-      expect(b.classList.contains('btn--primary')).toBe(true);
-    }
+    expect(host.querySelector('.winding-panel__actions'), '主な操作の行は廃止').toBeNull();
+    expect(host.querySelectorAll('button')).toHaveLength(0); // ペダルの溝はボタンでない
     p.destroy();
   });
 
@@ -150,10 +149,10 @@ describe('PU-09d: ドラム巻きの操作欄 (横向きのペダルと詰めた
     return { host, p };
   }
 
-  it('操作欄の並び: 1行の情報 → 張りのメーター → 横向きのペダル → 一番下に主な操作', () => {
+  it('操作欄の並び: 1行の情報 → 張りのメーター → 横向きのペダル (主な操作の行は T2-18a で無くなった)', () => {
     const { host, p } = mount();
     const kids = Array.from(host.querySelector('.winding-panel')!.children).map((c) => c.className.split(' ')[0]);
-    expect(kids).toEqual(['winding-panel__section', 'winding-panel__block', 'winding-panel__block', 'winding-panel__actions']);
+    expect(kids).toEqual(['winding-panel__section', 'winding-panel__block', 'winding-panel__block']);
     expect(host.querySelector('.winding-panel__block .tension-meter')).not.toBeNull();
     p.destroy();
   });
@@ -281,16 +280,17 @@ describe('PU-14a: ドラム巻きの操作欄 (戻す・踏み込む・速さ・
     expect(clockFontSize(0, 320)).toBe(40);
   });
 
-  it('巻いていない (ペダル 0) 状態で溝を押すと、理由が onNotice に出る (戻す・踏み込むの代わり)', () => {
+  it('押せない状態 (broken) で溝を押すと、理由が onNotice に出る (戻す・踏み込むの代わり)', () => {
     document.body.innerHTML = '';
     const notice = vi.fn();
     const host = document.createElement('div');
     document.body.appendChild(host);
     const p = createWindingPanel(host, { terms, onAction: () => undefined, onNotice: notice });
-    p.update(init({ level: 1, patternId: 'p-pin-kon', sections: 5, seed: 1 }));
+    const s = { ...init({ level: 1, patternId: 'p-pin-kon', sections: 5, seed: 1 }), phase: 'broken' as const };
+    p.update(s);
     const groove = host.querySelector<HTMLElement>('.pedal__groove')!;
     groove.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, clientX: 10, clientY: 10 }));
-    expect(String(notice.mock.calls[0]![0])).toContain('巻き始める');
+    expect(String(notice.mock.calls[0]![0])).toContain('糸をつなぐと使えます');
     p.destroy();
   });
 

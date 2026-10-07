@@ -1,5 +1,4 @@
 import { createPedalControl, createTensionMeter } from '../../core/ui/pedalControl';
-import { createButton } from '../../core/ui/widgets';
 import { createSectionHeading } from '../../core/ui/layout';
 import type { WindingState, WindingAction } from './logic';
 import { targetMsOf } from './logic';
@@ -17,11 +16,9 @@ export interface WindingPanel {
   destroy(): void;
 }
 
-/** ペダルが押せないときの理由 (フェーズごと) */
+/** ペダルが押せないときの理由 (フェーズごと)。'ready' は押せる (ペダルを動かすと巻き始まる。T2-18a) */
 function pedalReason(phase: WindingState['phase']): string {
   switch (phase) {
-    case 'ready':
-      return '「巻き始める」を押すと使えます';
     case 'broken':
       return '糸をつなぐと使えます';
     case 'cutting':
@@ -85,17 +82,8 @@ export function createWindingPanel(
     showValue: false, // 速さの表示は無し
   });
 
-  // 4. 一番下の主な操作 ('ready' は「巻き始める」。'cutting' はハサミが盤面に出るのでボタンは無し。T2-16c)
-  const buttonRow = document.createElement('div');
-  buttonRow.className = 'winding-panel__actions';
-  const startBtn = createButton({
-    label: '巻き始める',
-    variant: 'primary',
-    onClick: () => opts.onAction({ type: 'start' }),
-  });
-  startBtn.classList.add('winding-panel__main');
-  buttonRow.appendChild(startBtn);
-  root.appendChild(buttonRow);
+  // 4. 一番下の主な操作は無し (T2-18a: 「巻き始める」のボタンは廃止。ペダルを動かすと巻き始まり、
+  //    'cutting' はハサミが盤面に出る。T2-16c)
 
   parent.appendChild(root);
 
@@ -105,11 +93,6 @@ export function createWindingPanel(
     const min = Math.floor(total / 60);
     const sec = total % 60;
     return `${min}:${String(sec).padStart(2, '0')}`;
-  }
-
-  /** ボタンの表示を phase で切り替える (場所は空けたまま) */
-  function showButton(s: WindingState): void {
-    startBtn.style.display = s.phase === 'ready' ? '' : 'none';
   }
 
   function part(text: string): HTMLSpanElement {
@@ -181,10 +164,10 @@ export function createWindingPanel(
       }
       time.textContent = prevText;
       meter.update(s.tension, s.range);
-      pedal.setEnabled(s.phase === 'winding', pedalReason(s.phase));
+      // ペダルは 'ready' と 'winding' で押せる (ready で動かすと巻き始まる。T2-18a)
+      pedal.setEnabled(s.phase === 'winding' || s.phase === 'ready', pedalReason(s.phase));
       // 横木の位置を状態に合わせる (setValue は onChange を呼ばないので、繰り返しにはならない)
       pedal.setValue(s.pedal.pedal);
-      showButton(s);
     },
     destroy(): void {
       pedal.destroy();

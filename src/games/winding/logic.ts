@@ -8,7 +8,7 @@ import {
   SECTION_LENGTH, RANGE_WIDTH, RANGE_CENTER, RANGE_SHIFT_ON_SECTION, RANGE_REACHABLE, MAX_SPEED,
   DRIFT, NOISE_AMP, BREAK_RATE, TENSION, BREAK,
   MAX_TICK_MS, STARS3, STARS2, BREAK_EXTRA_STEP, BREAK_MAX_THREADS,
-  YARN_FEEL, SNAG_BREAK_MARGIN, SNAG_GRACE_MS, TIME_ANCHOR,
+  YARN_FEEL, SNAG_BREAK_MARGIN, SNAG_GRACE_MS, TIME_ANCHOR, TIME_PER_SECTION_MS,
 } from './params';
 import type { Level, YarnFeel } from './params';
 
@@ -44,8 +44,7 @@ export interface WindingState {
 }
 
 export type WindingAction =
-  | { type: 'start' } // 「巻き始める」
-  | { type: 'setPedal'; value: number }
+  | { type: 'setPedal'; value: number } // ペダル。ready で 0 より大きくすると巻き始まる (T2-18a)
   | { type: 'tick'; dtMs: number }
   | { type: 'tapThread'; thread: number }
   | { type: 'cut' } // 「帯の端を結ぶ」
@@ -114,7 +113,9 @@ export function init(opts: { level: Level; patternId: string; sections: number; 
     okMs: new Array<number>(sections).fill(0),
     pedal: initPedal(seedFrom(opts.seed)),
     tension: TENSION.base,
-    targetMs: ranges.reduce((acc, r) => acc + bandTargetMs(r), 0),
+    // 制限時間 = 各帯の目標の合計 + 5秒 × 帯の数 (帯1本あたり: ペダルを動かし始めてから目的の位置まで +
+    // ハサミを動かして帯の端を結ぶ動きまで。T2-18a)
+    targetMs: ranges.reduce((acc, r) => acc + bandTargetMs(r), 0) + sections * TIME_PER_SECTION_MS,
     range,
     ranges,
     snagRaised: false,
@@ -132,11 +133,12 @@ export function reduce(s: WindingState, a: WindingAction): WindingState {
   if (s.phase === 'done') return s; // 'done' の後はどの操作でも状態を変えない
 
   switch (a.type) {
-    case 'start':
-      if (s.phase !== 'ready') return s;
-      return { ...s, phase: 'winding' };
-
     case 'setPedal':
+      // ready でペダルを 0 より大きくすると、その瞬間に巻き始まる (T2-18a。「巻き始める」のボタンは無い)
+      if (s.phase === 'ready') {
+        if (a.value <= 0) return s;
+        return { ...s, phase: 'winding', pedal: setPedal(s.pedal, a.value) };
+      }
       if (s.phase !== 'winding') return s;
       return { ...s, pedal: setPedal(s.pedal, a.value) };
 
@@ -176,11 +178,15 @@ export function reduce(s: WindingState, a: WindingAction): WindingState {
   }
 }
 
-/** tick。dtMs を MAX_TICK_MS で丸め、'winding' と 'broken' で時間を進める */
+/** tick。dtMs を MAX_TICK_MS で丸め、'winding'・'broken'・'cutting' で時間を進める */
 function tick(s: WindingState, dtMs: number): WindingState {
-  if (s.phase !== 'winding' && s.phase !== 'broken') return s;
-  const dt = Math.min(MAX_TICK_MS, Math.max(0, dtMs)) / 1000; // 秒
   const dtClamped = Math.min(MAX_TICK_MS, Math.max(0, dtMs));
+  // 帯の端を結んでいるあいだ (cutting: ピンを回す・ハサミ・結ぶ動作) も時間は進み続ける (T2-18a)
+  if (s.phase === 'cutting') {
+    return { ...s, elapsedMs: s.elapsedMs + dtClamped };
+  }
+  if (s.phase !== 'winding' && s.phase !== 'broken') return s;
+  const dt = dtClamped / 1000; // 秒
   const f = YARN_FEEL[s.feel] ?? YARN_FEEL.standard;
   const baseDp = DRIFT(s.level);
   const dp = { ...baseDp, perSec: baseDp.perSec * f.driftMul, snagRate: baseDp.snagRate * f.snagMul }; // 手応え (T2-14b)

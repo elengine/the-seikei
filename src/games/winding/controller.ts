@@ -67,6 +67,7 @@ let drumOmega = 0; // 角速度 (rad/s)。目標へなめらかに近づける (
 let drumStopping = false; // 糸が切れて急停止する途中か
 let pinTurnMs = -1; // 結ぶ前の、ピンを正面へ回す演出の経過時間 (-1 は回していない)
 let pinTurnPrevEased = 0; // 前フレームの ease の値 (角速度を決めるのに使う)
+let cutClockSec = -1; // cutting のあいだに操作欄の時計を更新した秒 (T2-18a)
   let tieElapsedMs = 0; // 結びの演出の経過時間 (rAF の時刻で進める)
   let tieRunning = false; // 結びの演出中か
   let nowMs = 0; // いまの rAF の時刻 (時刻が必要な処理に渡す)
@@ -124,6 +125,11 @@ let pinTurnPrevEased = 0; // 前フレームの ease の値 (角速度を決め�
       guided.add(g.key);
       frame.notify(g.text);
     }
+  }
+
+  /** 出ているお知らせ (一度きりの案内) を消す (T2-18a: ペダルを動かして巻き始めたら ready の案内を消す) */
+  function dismissNotice(): void {
+    frame.root.querySelector('.game-frame__notice')?.remove();
   }
 
   // ---- ハサミ (帯を巻き終えたらハサミで糸を切る。T2-16c) ----
@@ -222,6 +228,10 @@ let pinTurnPrevEased = 0; // 前フレームの ease の値 (角速度を決め�
       return;
     }
     s = next;
+    // 巻き始まった瞬間に ready の案内を消す (T2-18a)
+    if (prev.phase === 'ready' && s.phase === 'winding') {
+      dismissNotice();
+    }
     // 効果音
     const sound = soundFor(a, prev, s);
     if (sound !== null) {
@@ -347,9 +357,22 @@ let pinTurnPrevEased = 0; // 前フレームの ease の値 (角速度を決め�
           // 帯を巻き終えた: ピンが正面に来るまでドラムを回してから結ぶ (T2-10 追加修正 b)
           pinTurnMs = 0;
           pinTurnPrevEased = 0;
+          cutClockSec = Math.floor(s.elapsedMs / 1000);
         }
         updateMessage();
-        refresh();
+        if (s.phase === 'cutting' && prev.phase === 'cutting') {
+          // cutting のあいだは時間だけが進む (T2-18a)。時計の表示は 1 秒ごとに変わるので、
+          // 秒が変わったときだけ操作欄を更新し、ほかのフレームは盤面だけ描き直す
+          const sec = Math.floor(s.elapsedMs / 1000);
+          if (sec !== cutClockSec) {
+            cutClockSec = sec;
+            refresh();
+          } else {
+            render();
+          }
+        } else {
+          refresh();
+        }
       } else if (tieRunning || s.phase === 'winding' || s.phase === 'broken') {
         // 状態が変わらなくても、揺らしや演出のために毎フレーム盤面だけ描き直す
         render();

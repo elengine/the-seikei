@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { init, reduce, qualities, starsOf, isValidResume, lastTapResult, bandTargetMs, targetMsOf } from './logic';
-import { TIME_ANCHOR } from './params';
+import { TIME_ANCHOR, TIME_PER_SECTION_MS } from './params';
 import { resultOf, guideFor } from './messages';
 import type { WindingState, Level } from './logic';
 import { paramsOf, SECTION_LENGTH, MAX_SPEED, TENSION, DRIFT, NOISE_AMP, RANGE_CENTER, RANGE_WIDTH, RANGE_REACHABLE, YARN_FEEL } from './params';
@@ -10,7 +10,7 @@ import { seedFrom } from '../../core/clock/clock';
 
 /** 20秒 + 少し の tick を送る (pedal 50 用)。pedal 40 など遅いときは、'cutting' まで続ける */
 function windToCut(s: WindingState, pedal: number): WindingState {
-  let cur = reduce(s, { type: 'start' });
+  let cur = reduce(s, { type: 'setPedal', value: 30 });
   cur = reduce(cur, { type: 'setPedal', value: pedal });
   for (let i = 0; i < 500; i++) {
     if (cur.phase !== 'winding') break;
@@ -24,7 +24,7 @@ describe('winding logic (T2-04)', () => {
     let s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 1 });
     expect(s.phase).toBe('ready');
     expect(s.current).toBe(0);
-    s = reduce(s, { type: 'start' });
+    s = reduce(s, { type: 'setPedal', value: 30 });
     expect(s.phase).toBe('winding');
     s = reduce(s, { type: 'setPedal', value: 50 });
     for (let i = 0; i < 201; i++) {
@@ -36,13 +36,14 @@ describe('winding logic (T2-04)', () => {
     expect(s.lengths[0]).toBe(SECTION_LENGTH);
   });
 
-  it("2. 'ready' のとき setPedal は効かない。'broken' のときも効かない", () => {
+  it("2. 'broken' のとき setPedal は効かない (ready では 0 は始まらない・0 より大きいと巻き始まる。T2-18a)", () => {
     let s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 1 });
-    s = reduce(s, { type: 'setPedal', value: 50 });
+    s = reduce(s, { type: 'setPedal', value: 0 });
+    expect(s.phase).toBe('ready');
     expect(s.pedal.pedal).toBe(0);
     // broken を作る: 上級で pedal 100
     let b = init({ level: 3, patternId: 'p-alt-kon', sections: 7, seed: 42 });
-    b = reduce(b, { type: 'start' });
+    b = reduce(b, { type: 'setPedal', value: 30 });
     for (let i = 0; i < 200; i++) {
       if (b.phase === 'broken') break;
       if (b.phase === 'winding') b = reduce(b, { type: 'setPedal', value: 100 });
@@ -57,7 +58,7 @@ describe('winding logic (T2-04)', () => {
 
   it('3. tick の dtMs 5000 は 100 として扱われる (長さの増え方で)', () => {
     let s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 1 });
-    s = reduce(s, { type: 'start' });
+    s = reduce(s, { type: 'setPedal', value: 30 });
     s = reduce(s, { type: 'setPedal', value: 50 });
     // 1回の tick dtMs=5000 → 100ms ぶんしか進まない
     const after = reduce(s, { type: 'tick', dtMs: 5000 });
@@ -72,7 +73,7 @@ describe('winding logic (T2-04)', () => {
       let s = init({ level: 1, patternId: p1.patternId, sections: p1.sections, seed });
       let brokeOut = false;
       for (let sec = 0; sec < p1.sections; sec++) {
-        s = reduce(s, { type: 'start' });
+        s = reduce(s, { type: 'setPedal', value: 30 });
         s = reduce(s, { type: 'setPedal', value: 50 });
         for (let i = 0; i < 500 && s.phase === 'winding'; i++) {
           if (i % 10 === 0) {
@@ -110,7 +111,7 @@ describe('winding logic (T2-04)', () => {
     const p3 = paramsOf(3);
     const run = () => {
       let s = init({ level: 3, patternId: p3.patternId, sections: p3.sections, seed: 99 });
-      s = reduce(s, { type: 'start' });
+      s = reduce(s, { type: 'setPedal', value: 30 });
       for (let i = 0; i < 300; i++) {
         if (s.phase === 'broken') break;
         if (s.phase === 'winding') s = reduce(s, { type: 'setPedal', value: 100 });
@@ -146,7 +147,7 @@ describe('winding logic (T2-04)', () => {
   it('6. 別の糸を押すと wrongTaps + 1', () => {
     const p3 = paramsOf(3);
     let s = init({ level: 3, patternId: p3.patternId, sections: p3.sections, seed: 99 });
-    s = reduce(s, { type: 'start' });
+    s = reduce(s, { type: 'setPedal', value: 30 });
     for (let i = 0; i < 300; i++) {
       if (s.phase === 'broken') break;
       if (s.phase === 'winding') s = reduce(s, { type: 'setPedal', value: 100 });
@@ -171,7 +172,8 @@ describe('winding logic (T2-04)', () => {
 
   it('7. 止まっている時間 (pedal 0) は windMs に入らない', () => {
     let s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 1 });
-    s = reduce(s, { type: 'start' });
+    s = reduce(s, { type: 'setPedal', value: 30 }); // 巻き始める (T2-18a)
+    s = reduce(s, { type: 'setPedal', value: 0 }); // 止めたまま tick
     // pedal 0 のまま tick
     s = reduce(s, { type: 'tick', dtMs: 100 });
     s = reduce(s, { type: 'tick', dtMs: 100 });
@@ -194,7 +196,7 @@ describe('winding logic (T2-04)', () => {
     expect(done.phase).toBe('done');
     // 'done' の後はどの操作でも状態を変えない
     let cur = done;
-    cur = reduce(cur, { type: 'start' });
+    cur = reduce(cur, { type: 'setPedal', value: 30 });
     cur = reduce(cur, { type: 'setPedal', value: 50 });
     cur = reduce(cur, { type: 'tick', dtMs: 100 });
     cur = reduce(cur, { type: 'cut' });
@@ -256,7 +258,7 @@ describe('winding logic T2-09a A (範囲・流れ・引っかかり) T2-16a 改�
     let flagged: { now: boolean; next: boolean } | null = null;
     for (let seed = 1; seed <= 20 && !sawSnag; seed++) {
       let s = init({ level: 1, patternId: 'x', sections: 3, seed });
-      s = reduce(s, { type: 'start' });
+      s = reduce(s, { type: 'setPedal', value: 30 });
       s = reduce(s, { type: 'setPedal', value: 33 }); // 範囲の中央 (流れでも切れない)
       for (let i = 0; i < 3000 && !sawSnag; i++) {
         s = reduce(s, { type: 'tick', dtMs: 100 });
@@ -277,7 +279,7 @@ describe('winding logic T2-09a A (範囲・流れ・引っかかり) T2-16a 改�
 describe('winding logic T2-09a B (目標の時間と星)', () => {
   it('14. elapsedMs は巻いていた時間と止まっていた時間の合計。糸切れを直している時間も含む', () => {
     let s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 1 });
-    s = reduce(s, { type: 'start' });
+    s = reduce(s, { type: 'setPedal', value: 30 });
     s = reduce(s, { type: 'tick', dtMs: 100 }); // winding (止まっていても数える)
     s = reduce(s, { type: 'tick', dtMs: 100 });
     const windingMs = s.elapsedMs;
@@ -293,7 +295,7 @@ describe('winding logic T2-09a B (目標の時間と星)', () => {
     expect(afterCut).toBeGreaterThan(windingMs);
     // broken のあいだも進む ('broken' でも時間は進める。糸切れを直している時間も含む)
     let b = init({ level: 3, patternId: 'p-alt-kon', sections: 7, seed: 99 });
-    b = reduce(b, { type: 'start' });
+    b = reduce(b, { type: 'setPedal', value: 30 });
     for (let i = 0; i < 300; i++) {
       if (b.phase === 'broken') break;
       if (b.phase === 'winding') b = reduce(b, { type: 'setPedal', value: 100 });
@@ -320,14 +322,14 @@ describe('winding logic T2-09a B (目標の時間と星)', () => {
 
   it('16. 目標の時間は、はじめに全帯ぶん決まっている (T2-16 その6)。summary に出る', () => {
     let s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 1 });
-    // 始めるときに全帯ぶんの合計 (レベル1 は全帯が同じ範囲なので 3帯ぶん同じ値)
+    // 始めるときに全帯ぶんの合計 (レベル1 は全帯が同じ範囲なので 3帯ぶん同じ値) + 5秒 × 3 (T2-18a)
     const one = bandTargetMs(s.ranges[0]!);
-    expect(targetMsOf(s)).toBeCloseTo(one * 3, 6);
+    expect(targetMsOf(s)).toBeCloseTo(one * 3 + TIME_PER_SECTION_MS * 3, 6);
     s = { ...s, phase: 'cutting' };
     s = reduce(s, { type: 'cut' });
     s = { ...s, phase: 'cutting' };
     s = reduce(s, { type: 'cut' });
-    expect(targetMsOf(s)).toBeCloseTo(one * 3, 6);
+    expect(targetMsOf(s)).toBeCloseTo(one * 3 + TIME_PER_SECTION_MS * 3, 6);
     const r = resultOf({ ...s, elapsedMs: 95000 }, 'standalone', '2026-09-30T19:00:00+09:00');
     const timeLine = (r.summary ?? []).find((t: string) => t.startsWith('巻いた時間'));
     expect(timeLine).toBeDefined();
@@ -357,7 +359,8 @@ describe('T2-13c (1回押してつなぐ・文言)', () => {
     const g = guideFor('broken', (x: string) => x)!;
     expect(g.key).toBe('broken');
     expect(g.text).toContain('切れた糸のあたりを押して');
-    expect(guideFor('ready', (x: string) => x)!.text).toContain('巻き始める');
+    expect(guideFor('ready', (x: string) => x)!.text).toContain('右へ動かすと巻き始めます'); // T2-18a: 巻き始めるのボタンは無くなった
+    expect(guideFor('ready', (x: string) => x)!.text).not.toContain('巻き始める');
     expect(guideFor('winding', (x: string) => x)).toBeNull();
     expect(guideFor('cutting', (x: string) => x)!.text).toContain('ハサミを糸の所まで引っぱって切ります'); // T2-16c
     expect(guideFor('done', (x: string) => x)).toBeNull();
@@ -416,7 +419,7 @@ describe('winding logic T2-11a (どの状態でも範囲に届く・範囲が動
   it('2. winding で 10 秒進めても、範囲の中心も幅も変わらない (T2-16a: 巻いているあいだは動かない)。broken のあいだも変わらない', () => {
     for (const level of [1, 3] as const) {
       let s = init({ level, patternId: 'x', sections: 3, seed: 3 });
-      s = reduce(s, { type: 'start' });
+      s = reduce(s, { type: 'setPedal', value: 30 });
       s = reduce(s, { type: 'setPedal', value: 50 });
       const before = { ...s.range };
       for (let i = 0; i < 100; i++) {
@@ -427,7 +430,7 @@ describe('winding logic T2-11a (どの状態でも範囲に届く・範囲が動
     }
     // broken のあいだも変わらない
     let s = init({ level: 3, patternId: 'x', sections: 3, seed: 3 });
-    s = reduce(s, { type: 'start' });
+    s = reduce(s, { type: 'setPedal', value: 30 });
     s = { ...s, phase: 'broken' as const };
     const before = { ...s.range };
     for (let i = 0; i < 50; i++) {
@@ -440,7 +443,7 @@ describe('winding logic T2-11a (どの状態でも範囲に届く・範囲が動
     const run = (seed: number): Array<{ center: number; width: number }> => {
       // 初級 (糸切れが起きにくく、10 秒以上巻ける) で確かめる
       let s = init({ level: 1, patternId: 'x', sections: 3, seed });
-      s = reduce(s, { type: 'start' });
+      s = reduce(s, { type: 'setPedal', value: 30 });
       s = reduce(s, { type: 'setPedal', value: 50 });
       const out: Array<{ center: number; width: number }> = [];
       for (let i = 0; i < 300 && s.phase === 'winding'; i++) {
@@ -481,7 +484,7 @@ describe('winding logic T2-14b (糸の手応え)', () => {
   it('1. 細い糸のお題は、同じ種・同じ外れ方で標準より早く切れる', () => {
     const run = (feel: YarnFeel, seed: number): number => {
       let s = init({ level: 1, patternId: 'x', sections: 3, seed, feel });
-      s = reduce(s, { type: 'start' });
+      s = reduce(s, { type: 'setPedal', value: 30 });
       s = reduce(s, { type: 'setPedal', value: 100 }); // 範囲の上を外れ続ける
       for (let i = 0; i < 2000; i++) {
         s = reduce(s, { type: 'tick', dtMs: 500 });
@@ -503,7 +506,7 @@ describe('winding logic T2-14b (糸の手応え)', () => {
   it('2. 太い糸のお題は、同じ種で流れの動きが大きい (1フレームの流れの量を比べる)', () => {
     const run = (feel: YarnFeel, seed: number): number => {
       let s = init({ level: 2, patternId: 'x', sections: 3, seed, feel });
-      s = reduce(s, { type: 'start' });
+      s = reduce(s, { type: 'setPedal', value: 30 });
       s = reduce(s, { type: 'setPedal', value: 50 });
       s = reduce(s, { type: 'tick', dtMs: 100 });
       return Math.abs(s.pedal.drift);
@@ -603,7 +606,7 @@ describe('winding logic T2-16a (張りと適正の範囲)', () => {
     let found: { seed: number; maxSnag: number; riseMs: number; recoverMs: number } | null = null;
     for (let seed = 1; seed <= 40 && found === null; seed++) {
       let s = init({ level: 3, patternId: 'x', sections: 3, seed });
-      s = reduce(s, { type: 'start' });
+      s = reduce(s, { type: 'setPedal', value: 30 });
       s = reduce(s, { type: 'setPedal', value: 33 }); // 範囲の中央付近 (引っかかり以外の張りは安定)
       let maxSnag = 0;
       let eventMs = -1;
@@ -659,7 +662,7 @@ describe('T2-16 その3: 張り≒ペダルの位置・引っかかりで切れ�
     let s: WindingState | null = null;
     for (let seed = 1; seed <= 60 && s === null; seed++) {
       let st = init({ level: 1, patternId: 'x', sections: 3, seed });
-      st = reduce(st, { type: 'start' });
+      st = reduce(st, { type: 'setPedal', value: 30 });
       st = reduce(st, { type: 'setPedal', value: 70 }); // 範囲の上の端 (65) より上
       // 引っかかり (+25) を手で立てる (張り 95。引っかかりが無ければ 70)
       st = { ...st, pedal: { ...st.pedal, snag: 25, snagTarget: 25 } };
@@ -677,7 +680,7 @@ describe('T2-16 その3: 張り≒ペダルの位置・引っかかりで切れ�
 
   it('5. 猶予のうちにペダルを戻して張りが下がると数え直すので切れない', () => {
     let s = init({ level: 1, patternId: 'x', sections: 3, seed: 1 });
-    s = reduce(s, { type: 'start' });
+    s = reduce(s, { type: 'setPedal', value: 30 });
     s = reduce(s, { type: 'setPedal', value: 70 });
     s = { ...s, pedal: { ...s.pedal, snag: 25, snagTarget: 25 } };
     s = reduce(s, { type: 'tick', dtMs: 1500 }); // 1.5 秒超過 (猶予 2 秒の途中)
@@ -721,16 +724,16 @@ describe('winding logic T2-16 その6 (制限時間: 各帯の範囲の中心の
     }
   });
 
-  it('2. 制限時間 = 各帯の(帯の長さ ÷ 中心の張りの速さ)の合計', () => {
+  it('2. 制限時間 = 各帯の(帯の長さ ÷ 中心の張りの速さ)の合計 + 5秒 × 帯の数 (T2-18a)', () => {
     const s = init({ level: 2, patternId: 'x', sections: 5, seed: 3 });
     const sum = s.ranges.reduce((acc, r) => acc + bandTime(r), 0);
-    expect(s.targetMs).toBeCloseTo(sum, 6);
+    expect(s.targetMs).toBeCloseTo(sum + TIME_PER_SECTION_MS * 5, 6);
   });
 
   /** 全帯を pedal で巻き切るまでの時間 (ms)。切れたら -1 */
   const windAll = (level: Level, seed: number, pedal: number): number => {
     const s0 = init({ level, patternId: 'x', sections: 3, seed });
-    let s = reduce(s0, { type: 'start' });
+    let s = reduce(s0, { type: 'setPedal', value: 30 });
     s = reduce(s, { type: 'setPedal', value: pedal });
     let guard = 0;
     while (s.phase !== 'done' && s.phase !== 'broken' && guard < 1200) {
@@ -744,14 +747,14 @@ describe('winding logic T2-16 その6 (制限時間: 各帯の範囲の中心の
     return s.phase === 'done' ? s.elapsedMs : -1;
   };
 
-  it('3. 制限時間の計算の位置 (範囲の下の端から 60%) の張りちょうどで巻くと、制限時間ちょうどで終わる', () => {
+  it('3. 制限時間の計算の位置 (範囲の下の端から 60%) の張りちょうどで巻くと、巻いた時間は制限時間から帯1本あたり 5 秒を引いた時間になる (T2-18a)', () => {
     const s0 = init({ level: 1, patternId: 'x', sections: 3, seed: 1 });
     const anchor = s0.ranges[0]!.min + (s0.ranges[0]!.max - s0.ranges[0]!.min) * TIME_ANCHOR;
     const pedal = pedalFor(anchor);
     let ms = -1;
     for (let seed = 1; seed <= 60 && ms < 0; seed++) ms = windAll(1, seed, pedal);
     expect(ms, '切れずに巻き切れる種').toBeGreaterThan(0);
-    expect(Math.abs(ms - s0.targetMs), '制限時間ちょうど (タイマーの刻みの誤差をのぞく)').toBeLessThanOrEqual(200);
+    expect(Math.abs(ms - (s0.targetMs - TIME_PER_SECTION_MS * 3)), '巻いた時間ちょうど (タイマーの刻みの誤差をのぞく)').toBeLessThanOrEqual(200);
   });
 
   it('4. 制限時間の計算の位置より強めに巻けば制限時間より早く終わる', () => {
@@ -797,3 +800,49 @@ describe('winding logic T2-16 その6 (制限時間: 各帯の範囲の中心の
     expect(line).toContain('(目標 1分30秒)');
   });
 })
+describe('T2-18a: 始まり方と時間 (巻き始めるのボタンは無い。ペダルを動かすと始まる。時間は最後の帯を結び終えるまで進む)', () => {
+  it('1. ready では tick しても時間が進まない (ペダルを動かす前は時間が進まない)', () => {
+    const s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 1 });
+    expect(s.phase).toBe('ready');
+    expect(s.elapsedMs).toBe(0);
+    const next = reduce(s, { type: 'tick', dtMs: 1000 });
+    expect(next).toBe(s); // ready では何も進まない
+    expect(next.elapsedMs).toBe(0);
+  });
+
+  it('2. ペダルを 0 より大きくすると巻き始まる (ready → winding)。0 のままでは始まらない', () => {
+    const s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 1 });
+    const zero = reduce(s, { type: 'setPedal', value: 0 });
+    expect(zero.phase).toBe('ready');
+    const on = reduce(s, { type: 'setPedal', value: 30 });
+    expect(on.phase).toBe('winding');
+    expect(on.pedal.pedal).toBe(30);
+  });
+
+  it('3. 帯の端を結んでいるあいだ (cutting) も時間が進む', () => {
+    const s = { ...init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 1 }), phase: 'cutting' as const, elapsedMs: 1000 };
+    // dtMs は MAX_TICK_MS (100) で丸められるので 2 回送る
+    let next = reduce(s, { type: 'tick', dtMs: 100 });
+    next = reduce(next, { type: 'tick', dtMs: 100 });
+    expect(next.elapsedMs).toBe(1200);
+    // ほかの値は変わらない (巻き直しではない)
+    expect(next.phase).toBe('cutting');
+    expect(next.lengths).toEqual(s.lengths);
+  });
+
+  it('4. 最後の帯を結び終えたら (done) 時間は止まる', () => {
+    const s = { ...init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 1 }), phase: 'done' as const, elapsedMs: 1234 };
+    const next = reduce(s, { type: 'tick', dtMs: 500 });
+    expect(next).toBe(s);
+    expect(next.elapsedMs).toBe(1234);
+  });
+
+  it('5. 制限時間 = 各帯の目標の合計 + 5秒 × 帯の数 (TIME_PER_SECTION_MS)', () => {
+    const s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 1 });
+    const bands = s.ranges.reduce((acc, r) => acc + bandTargetMs(r), 0);
+    expect(s.targetMs).toBe(bands + TIME_PER_SECTION_MS * 3);
+    const s5 = init({ level: 2, patternId: 'p-chalk-char', sections: 5, seed: 2 });
+    const bands5 = s5.ranges.reduce((acc, r) => acc + bandTargetMs(r), 0);
+    expect(s5.targetMs).toBe(bands5 + TIME_PER_SECTION_MS * 5);
+  });
+});

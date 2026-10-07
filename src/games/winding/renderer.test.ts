@@ -30,7 +30,7 @@ const fit = { scale: 1, offsetX: 0, offsetY: 0 };
 /** 'winding' まで進めた状態 */
 function windingState(seed = 1): WindingState {
   let s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed });
-  s = reduce(s, { type: 'start' });
+  s = reduce(s, { type: 'setPedal', value: 30 });
   s = reduce(s, { type: 'setPedal', value: 50 });
   return s;
 }
@@ -38,7 +38,7 @@ function windingState(seed = 1): WindingState {
 /** 'broken' の状態 (上級で pedal 100) */
 function brokenState(seed = 99): WindingState {
   let s = init({ level: 3, patternId: 'p-alt-kon', sections: 7, seed });
-  s = reduce(s, { type: 'start' });
+  s = reduce(s, { type: 'setPedal', value: 30 });
   for (let i = 0; i < 300; i++) {
     if (s.phase === 'broken') break;
     if (s.phase === 'winding') s = reduce(s, { type: 'setPedal', value: 100 });
@@ -79,7 +79,7 @@ describe('winding renderer (T2-05)', () => {
     const { ctx, rec } = makeFakeCtx();
     let s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 1 });
     for (let sec = 0; sec < 3; sec++) {
-      s = reduce(s, { type: 'start' });
+      s = reduce(s, { type: 'setPedal', value: 30 });
       s = reduce(s, { type: 'setPedal', value: 50 });
       for (let i = 0; i < 500 && s.phase === 'winding'; i++) {
         s = reduce(s, { type: 'tick', dtMs: 100 });
@@ -201,7 +201,7 @@ describe('winding renderer T2-08 (盤面の絵を実物らしくする)', () => 
     const { ctx, rec } = makeFakeCtx();
     let s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 1 });
     for (let sec = 0; sec < 2; sec++) {
-      s = reduce(s, { type: 'start' });
+      s = reduce(s, { type: 'setPedal', value: 30 });
       s = reduce(s, { type: 'setPedal', value: 50 });
       for (let i = 0; i < 500 && s.phase === 'winding'; i++) {
         s = reduce(s, { type: 'tick', dtMs: 100 });
@@ -253,7 +253,7 @@ describe('winding renderer T2-08-fix a (ドラムの向き・台の移動・結�
   it('2. 帯の縞は、帯の全幅にわたる楕円の弧 (上の縁と同じ横半径・縦半径。横の線ではない。T2-16 前2)', () => {
     const { ctx, rec } = makeFakeCtx();
     let s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 1 });
-    s = reduce(s, { type: 'start' });
+    s = reduce(s, { type: 'setPedal', value: 30 });
     s = reduce(s, { type: 'setPedal', value: 50 });
     for (let i = 0; i < 50 && s.phase === 'winding'; i++) {
       s = reduce(s, { type: 'tick', dtMs: 100 });
@@ -270,7 +270,7 @@ describe('winding renderer T2-08-fix a (ドラムの向き・台の移動・結�
   it('3. 台の縦の位置が今の帯の区画の中心に合う (fillRect の y が tableY 付近)', () => {
     const { ctx, rec } = makeFakeCtx();
     let s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 1 });
-    s = reduce(s, { type: 'start' });
+    s = reduce(s, { type: 'setPedal', value: 30 });
     s = reduce(s, { type: 'setPedal', value: 50 });
     for (let i = 0; i < 500 && s.phase === 'winding'; i++) {
       s = reduce(s, { type: 'tick', dtMs: 100 });
@@ -288,7 +288,7 @@ describe('winding renderer T2-08-fix a (ドラムの向き・台の移動・結�
     for (const p of [0, 0.5, 1]) {
       const { ctx, rec } = makeFakeCtx();
       let s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 1 });
-      s = reduce(s, { type: 'start' });
+      s = reduce(s, { type: 'setPedal', value: 30 });
       s = reduce(s, { type: 'setPedal', value: 50 });
       for (let i = 0; i < 500 && s.phase === 'winding'; i++) {
         s = reduce(s, { type: 'tick', dtMs: 100 });

@@ -21,7 +21,8 @@ export function msToText(ms: number): string {
 /** 一度きりの案内の文 (PU-14a。メッセージ欄は無いので、盤面の中央のお知らせで出す。お題ごとに最初の 1 回)。無ければ null */
 export function guideFor(phase: WindingState['phase'], render: Render): { key: string; text: string } | null {
   if (phase === 'ready') {
-    return { key: 'ready', text: render('「巻き始める」を押して、{{pedal}}を右へ動かすと巻き始めます') };
+    // 「巻き始める」のボタンは廃止 (T2-18a)。ペダルを動かすと巻き始まる
+    return { key: 'ready', text: render('{{pedal}}を右へ動かすと巻き始めます') };
   }
   if (phase === 'broken') {
     return { key: 'broken', text: render('糸が切れました。切れた糸のあたりを押して、つないでください') };
