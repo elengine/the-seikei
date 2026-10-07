@@ -104,7 +104,8 @@ export function setReloadForTest(fn: (() => void) | null): void {
  * 待っている版に SKIP_WAITING を送り、切り替わったら読み込み直す。切り替わった印は 2 つ:
  * controllerchange (この画面の担当が変わった) と、待っていた版が activated になること (クライアントを引き継がない
  * Service Worker では controllerchange が来ないことがあるため)。どちらが先でも、再読み込みは 1 回。
- * 5 秒たっても切り替わらなければ、読み込み直さず false を返す。
+ * 5 秒たっても切り替わらなければ、読み込み直さず false を返す。待っていた版が捨てられた (redundant) ときは、
+ * 5 秒を待たずに false を返す (呼び出し側が新しい版を見つけ直す。PU-19b)。
  */
 function switchTo(w: ServiceWorker, swc: ServiceWorkerContainer): Promise<boolean> {
   return new Promise((resolve) => {
@@ -138,6 +139,8 @@ function switchTo(w: ServiceWorker, swc: ServiceWorkerContainer): Promise<boolea
     function onState(): void {
       if (w.state === 'activated') {
         finish(true);
+      } else if (w.state === 'redundant') {
+        finish(false); // さらに新しい版が入って捨てられた
       }
     }
     swc.addEventListener('controllerchange', onChange);
@@ -147,8 +150,20 @@ function switchTo(w: ServiceWorker, swc: ServiceWorkerContainer): Promise<boolea
 }
 
 /**
+ * 切り替えに失敗したあと、今の registration から新しい版 (失敗した版 prev とは別の版) を見つける。
+ * 入れている途中の版があれば入れ終わるのを待つ。無ければ null (PU-19b)。
+ */
+async function findNewer(reg: ServiceWorkerRegistration, prev: ServiceWorker): Promise<ServiceWorker | null> {
+  if (reg.installing !== null && reg.installing !== prev && reg.installing.state !== 'installed') {
+    await waitUntilInstalled(reg.installing);
+  }
+  const next = reg.waiting;
+  return next !== null && next !== prev && next.state !== 'redundant' ? next : null;
+}
+
+/**
  * 新しい版に切り替えて、読み込み直す (確認のダイアログは出さない)。成功なら true (読み込み直しを呼んだ)、
- * 切り替わらなければ false。待っている版は registration から直接見つける (registerSW の更新の関数には頼らない。
+ * 切り替わらなければ false (新しい版が見つかれば 1 回だけやり直す)。待っている版は registration から直接見つける (registerSW の更新の関数には頼らない。
  * 関数は、待っている版が見つからないときの代わり)。
  */
 export async function applyUpdate(): Promise<boolean> {
@@ -162,7 +177,17 @@ export async function applyUpdate(): Promise<boolean> {
         w = reg.waiting;
       }
       if (w !== null) {
-        return switchTo(w, swc);
+        if (await switchTo(w, swc)) {
+          return true;
+        }
+        // 切り替え中にさらに新しい版が入って待っていた版が捨てられた、または別の版が待っている・入れている途中:
+        // 新しい版を見つけ直して、1 回だけやり直す。それでも切り替わらなければ false (案内を出す)
+        const next = await findNewer(reg, w);
+        if (next === null) {
+          return false;
+        }
+        waiting = next;
+        return switchTo(next, swc);
       }
     }
   }

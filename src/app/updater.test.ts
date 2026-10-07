@@ -245,3 +245,101 @@ describe('PU-10f: 「アップデートする」で確実に切り替える', ()
     await expect(check2).resolves.toBe('latest');
   });
 });
+
+describe('PU-19b: 切り替えに失敗したら、新しい版を見つけ直して 1 回だけやり直す', () => {
+  let reload: ReturnType<typeof vi.fn<() => void>>;
+  beforeEach(() => {
+    reload = vi.fn<() => void>();
+    setReloadForTest(reload);
+  });
+  afterEach(() => {
+    setReloadForTest(null);
+    vi.useRealTimers();
+  });
+
+  it('待っていた版が切り替えの途中で redundant になり、新しい版が waiting に入る → 5 秒を待たずに新しい版へ SKIP_WAITING を送り、切り替わったら読み込み直す', async () => {
+    vi.useFakeTimers();
+    const old = new FakeWorker('installed');
+    const next = new FakeWorker('installed');
+    const { swc, reg } = fakeRegistration({ waiting: old });
+    const done = applyUpdate();
+    await vi.advanceTimersByTimeAsync(10);
+    expect(old.postMessage).toHaveBeenCalledWith({ type: 'SKIP_WAITING' });
+    reg.waiting = next; // さらに新しい版が入り、待っていた版は捨てられる
+    old.setState('redundant');
+    await vi.advanceTimersByTimeAsync(10); // 5 秒は待たない
+    expect(next.postMessage).toHaveBeenCalledWith({ type: 'SKIP_WAITING' });
+    expect(reload).not.toHaveBeenCalled();
+    swc.dispatchEvent(new Event('controllerchange'));
+    await expect(done).resolves.toBe(true);
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('5 秒たっても切り替わらず、そのとき別の版が waiting にあれば、その版でもう 1 回やり直す', async () => {
+    vi.useFakeTimers();
+    const old = new FakeWorker('installed');
+    const next = new FakeWorker('installed');
+    const { reg } = fakeRegistration({ waiting: old });
+    const done = applyUpdate();
+    await vi.advanceTimersByTimeAsync(100);
+    reg.waiting = next;
+    await vi.advanceTimersByTimeAsync(5100);
+    expect(next.postMessage).toHaveBeenCalledTimes(1);
+    next.setState('activated');
+    await expect(done).resolves.toBe(true);
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('入れている途中 (installing) の新しい版があれば、入れ終わるのを待ってから切り替える', async () => {
+    vi.useFakeTimers();
+    const old = new FakeWorker('installed');
+    const incoming = new FakeWorker('installing');
+    const { reg } = fakeRegistration({ waiting: old });
+    const done = applyUpdate();
+    await vi.advanceTimersByTimeAsync(10);
+    reg.installing = incoming;
+    old.setState('redundant');
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(incoming.postMessage).not.toHaveBeenCalled(); // まだ入れている途中
+    reg.installing = null;
+    reg.waiting = incoming;
+    incoming.setState('installed');
+    await vi.advanceTimersByTimeAsync(10);
+    expect(incoming.postMessage).toHaveBeenCalledWith({ type: 'SKIP_WAITING' });
+    incoming.setState('activated');
+    await expect(done).resolves.toBe(true);
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('やり直しも切り替わらなければ false (案内を出す)。やり直しは 1 回だけ (3 つ目の版には送らない)', async () => {
+    vi.useFakeTimers();
+    const first = new FakeWorker('installed');
+    const second = new FakeWorker('installed');
+    const third = new FakeWorker('installed');
+    const { reg } = fakeRegistration({ waiting: first });
+    const done = applyUpdate();
+    await vi.advanceTimersByTimeAsync(10);
+    reg.waiting = second;
+    first.setState('redundant');
+    await vi.advanceTimersByTimeAsync(10);
+    expect(second.postMessage).toHaveBeenCalledTimes(1);
+    reg.waiting = third;
+    second.setState('redundant');
+    await vi.advanceTimersByTimeAsync(6000);
+    await expect(done).resolves.toBe(false);
+    expect(third.postMessage).not.toHaveBeenCalled();
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it('待っていた版が redundant になっても、新しい版が無ければ、時間を待たずに false', async () => {
+    vi.useFakeTimers();
+    const old = new FakeWorker('installed');
+    fakeRegistration({ waiting: old });
+    const done = applyUpdate();
+    await vi.advanceTimersByTimeAsync(10);
+    old.setState('redundant');
+    await vi.advanceTimersByTimeAsync(10);
+    await expect(done).resolves.toBe(false);
+    expect(reload).not.toHaveBeenCalled();
+  });
+});
