@@ -2352,6 +2352,19 @@ button {
 }
 
 /* ---- ビーム巻き (T3-03a) ---- */
+/* 縦長のとき、操作欄が画面に収まらない (文字の大きさ最大・700×880 で操作欄の下が画面の外に出た。T3-04
+   ブラウザ確認) なら、盤面の列を縮めて操作欄を収める。ビーム巻きだけ (:has で限定) */
+@media (orientation: portrait) {
+  .game-frame__body:has(.beaming-panel) .game-frame__stage-col {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .game-frame__body:has(.beaming-panel) .game-frame__stage {
+    flex: 1 1 auto;
+  }
+}
+
 .beaming-panel {
   display: flex;
   flex-direction: column;
