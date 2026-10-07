@@ -1100,8 +1100,69 @@ body {
   gap: var(--sp-2);
 }
 
+/* 結果の箱 (PU-21): 画面の高さ (100dvh) から上下の余白と safe area を引いた中に収める。ボタンの行は下に固定し、
+   成績の欄 (.result__body) だけが中でスクロールする */
+.dialog.result {
+  overflow: hidden;
+  max-height: calc(100dvh - 2 * var(--sp-4) - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+}
+
+.result__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  flex: none;
+}
+
+.result__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* 低い横長 (スマホの横向きなど): 左右 2 列。左に題名・お疲れ様・星、右に成績の欄とボタンの行 */
+.dialog.result--wide {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'head body'
+    'head actions';
+  column-gap: var(--sp-4);
+  row-gap: var(--sp-2);
+  width: min(820px, calc(100vw - 2 * var(--sp-4)));
+  padding: calc(var(--stripe-h) + var(--sp-3)) var(--sp-4) var(--sp-3);
+}
+
+.result--wide .result__head {
+  grid-area: head;
+  align-self: center;
+  gap: var(--sp-2);
+}
+
+.result--wide .result__body {
+  grid-area: body;
+  gap: var(--sp-2);
+}
+
+.result--wide .result__actions {
+  grid-area: actions;
+}
+
+.result--wide .result__title {
+  font-size: 32px;
+}
+
+.result--wide .result-stars {
+  font-size: 40px;
+}
+
 /* 結果の 3 つのボタン (「一覧」「もう一度」「次へ」) は、狭い画面・大きい文字でも 1 行に並べる (PU-14d) */
 .result__actions {
+  flex: none; /* ボタンの行は下に固定 (成績の欄だけが縮む・スクロールする) */
   flex-wrap: nowrap;
   gap: var(--sp-2);
 }

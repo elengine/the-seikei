@@ -143,3 +143,112 @@ describe('PU-14d: 結果のボタンの文字は短い (「一覧」「もう一
     expect(css.match(/\n\.result__actions\s*\{([^}]*)\}/)![1]).toContain('flex-wrap: nowrap');
   });
 });
+
+describe('PU-21: 結果の画面を低い横長 (スマホの横向き) でも画面の中に収める', () => {
+  const css = (): string => readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
+  const LOW_LANDSCAPE = '(orientation: landscape) and (max-height: 559px)';
+
+  /** 高さ 393 の横長か (低い横長の問い合わせに合うか) を決める偽の matchMedia。set(low) で回転を真似て、監視に知らせる */
+  function withMedia<T>(low: boolean, fn: (m: { listeners: Set<() => void>; set: (low: boolean) => void }) => T): T {
+    const orig = window.matchMedia;
+    const listeners = new Set<() => void>();
+    const state = { low };
+    window.matchMedia = ((q: string) => ({
+      get matches() {
+        return q === LOW_LANDSCAPE ? state.low : false;
+      },
+      media: q,
+      addEventListener: (_t: string, cb: () => void) => listeners.add(cb),
+      removeEventListener: (_t: string, cb: () => void) => listeners.delete(cb),
+    })) as unknown as typeof window.matchMedia;
+    try {
+      return fn({
+        listeners,
+        set: (v) => {
+          state.low = v;
+          for (const cb of [...listeners]) cb();
+        },
+      });
+    } finally {
+      window.matchMedia = orig;
+    }
+  }
+
+  it('作りは 見出しの部分 (.result__head: 題名・お疲れ様・星・絵) → 成績の欄 (.result__body: 成績・目安・新しい柄) → ボタンの行 (.result__actions)。ボタンの行は結果の箱の直下の最後', () => {
+    const { host } = mountResult({
+      stars: 2,
+      preview: document.createElement('canvas'),
+      lines: [{ label: '誤差', value: '1cm' }],
+      hint: '1回目で合えば星3です',
+      newPatternNames: ['紺の無地'],
+    });
+    const box = host.querySelector<HTMLElement>('.result')!;
+    const kids = Array.from(box.children).map((c) => c.className.split(' ')[0]);
+    expect(kids).toEqual(['stripe-top', 'result__head', 'result__body', 'dialog__actions']);
+    expect(box.lastElementChild!.classList.contains('result__actions')).toBe(true);
+    const head = box.querySelector('.result__head')!;
+    expect(head.querySelector('.result__title')).not.toBeNull();
+    expect(head.querySelector('.result__praise')).not.toBeNull();
+    expect(head.querySelector('.result-stars')).not.toBeNull();
+    expect(head.querySelector('.result__preview')).not.toBeNull();
+    const body = box.querySelector('.result__body')!;
+    expect(body.querySelector('.result__lines')).not.toBeNull();
+    expect(body.querySelector('.result__hint')).not.toBeNull();
+    expect(body.querySelector('.result-patterns')).not.toBeNull();
+    expect(body.querySelector('button')).toBeNull(); // ボタンは成績の欄の外
+  });
+
+  it('高さ 393 の横長 (低い横長) では .result--wide が付き、そうでなければ付かない。押して閉じたら監視を外す', async () => {
+    await withMedia(true, async ({ listeners }) => {
+      const { host, done } = mountResult({ stars: 3, lines: [], newPatternNames: [] });
+      expect(host.querySelector('.result')!.classList.contains('result--wide')).toBe(true);
+      expect(listeners.size).toBeGreaterThan(0);
+      button(host, '一覧').click();
+      await done;
+      expect(listeners.size).toBe(0);
+    });
+    withMedia(false, () => {
+      const { host } = mountResult({ stars: 3, lines: [], newPatternNames: [] });
+      expect(host.querySelector('.result')!.classList.contains('result--wide')).toBe(false);
+    });
+  });
+
+  it('回して低い横長になる/戻ると、.result--wide を付け外しする', () => {
+    withMedia(false, ({ set }) => {
+      const { host } = mountResult({ stars: 3, lines: [], newPatternNames: [] });
+      const box = host.querySelector('.result')!;
+      set(true);
+      expect(box.classList.contains('result--wide')).toBe(true);
+      set(false);
+      expect(box.classList.contains('result--wide')).toBe(false);
+    });
+  });
+
+  it('base.css: 結果の箱はボタンの行を下に固定する (overflow: hidden・高さは 100dvh から余白と safe area を引く)。成績の欄 (.result__body) だけが中でスクロール (overflow-y: auto・min-height: 0)', () => {
+    const c = css();
+    const box = c.match(/\n\.dialog\.result\s*\{([^}]*)\}/)![1]!;
+    expect(box).toContain('overflow: hidden');
+    expect(box).toMatch(/max-height:[^;]*100dvh/);
+    expect(box).toContain('safe-area-inset');
+    const body = c.match(/\n\.result__body\s*\{([^}]*)\}/)![1]!;
+    expect(body).toContain('overflow-y: auto');
+    expect(body).toContain('min-height: 0');
+    expect(c.match(/\n\.result__actions\s*\{([^}]*)\}/)![1]).toContain('flex: none');
+  });
+
+  it('base.css: 低い横長 (.result--wide) は左右 2 列 (左に見出し・右に成績の欄とボタンの行)。題名は 32px 以上・星は 40px 以上', () => {
+    const c = css();
+    const wide = c.match(/\n\.dialog\.result--wide\s*\{([^}]*)\}/)![1]!;
+    expect(wide).toContain('display: grid');
+    expect(wide).toContain('grid-template-columns');
+    expect(wide).toContain("'head body'");
+    expect(wide).toContain("'head actions'");
+    expect(c.match(/\n\.result--wide \.result__head\s*\{([^}]*)\}/)![1]).toContain('grid-area: head');
+    expect(c.match(/\n\.result--wide \.result__body\s*\{([^}]*)\}/)![1]).toContain('grid-area: body');
+    expect(c.match(/\n\.result--wide \.result__actions\s*\{([^}]*)\}/)![1]).toContain('grid-area: actions');
+    const title = c.match(/\n\.result--wide \.result__title\s*\{([^}]*)\}/)![1]!;
+    expect(parseInt(title.match(/font-size:\s*(\d+)px/)![1]!, 10)).toBeGreaterThanOrEqual(32);
+    const stars = c.match(/\n\.result--wide \.result-stars\s*\{([^}]*)\}/)![1]!;
+    expect(parseInt(stars.match(/font-size:\s*(\d+)px/)![1]!, 10)).toBeGreaterThanOrEqual(40);
+  });
+});

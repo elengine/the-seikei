@@ -3,6 +3,9 @@ import { createStars } from './layout';
 
 type ResultLine = string | { label: string; value: string };
 
+/** 低い横長の画面 (スマホの横向きなど。詰めた形の判定と同じ考え) */
+const LOW_LANDSCAPE = '(orientation: landscape) and (max-height: 559px)';
+
 /** 星が1つずつ現れる間隔 (ミリ秒) */
 const STAR_STEP_MS = 300;
 
@@ -40,23 +43,32 @@ export function showResult(
     const { backdrop, dialog: box } = createDialogShell(undefined, 'result');
     const timers: ReturnType<typeof setTimeout>[] = [];
 
+    // 見出しの部分 (題名・お疲れ様・星・絵)。低い横長では左の列になる (PU-21)
+    const head = document.createElement('div');
+    head.classList.add('result__head');
+    box.appendChild(head);
+    // 成績の欄 (成績・星の目安・新しい柄)。ボタンの行が見えるよう、この欄だけが中でスクロールする (PU-21)
+    const body = document.createElement('div');
+    body.classList.add('result__body');
+    box.appendChild(body);
+
     // 見出し (固定の言葉)
     const title = document.createElement('h2');
     title.classList.add('result__title', 'font-heading');
     title.textContent = '完了しました';
-    box.appendChild(title);
+    head.appendChild(title);
     box.setAttribute('aria-label', '完了しました');
     const sub = document.createElement('p');
     sub.classList.add('result__praise');
     sub.textContent = 'お疲れ様でした';
-    box.appendChild(sub);
+    head.appendChild(sub);
 
     // 星: 1つずつ現れる (動きを減らす設定ならすぐ全部)
     const starsWrap = document.createElement('div');
     starsWrap.classList.add('result-stars');
     const stars = createStars(opts.stars, 'result');
     starsWrap.appendChild(stars);
-    box.appendChild(starsWrap);
+    head.appendChild(starsWrap);
     const reduced = prefersReducedMotion();
     stars.querySelectorAll('.stars__on').forEach((s, i) => {
       if (reduced) {
@@ -77,7 +89,7 @@ export function showResult(
       const pv = document.createElement('div');
       pv.classList.add('result__preview');
       pv.appendChild(opts.preview);
-      box.appendChild(pv);
+      head.appendChild(pv);
     }
 
     // 成績
@@ -98,14 +110,14 @@ export function showResult(
         }
         lines.appendChild(li);
       }
-      box.appendChild(lines);
+      body.appendChild(lines);
     }
 
     if (opts.hint !== undefined) {
       const hint = document.createElement('p');
       hint.classList.add('result__hint');
       hint.textContent = opts.hint;
-      box.appendChild(hint);
+      body.appendChild(hint);
     }
 
     // 新しく集めた柄 (空なら欄を出さない)
@@ -120,14 +132,23 @@ export function showResult(
       names.classList.add('result-patterns__names');
       names.textContent = opts.newPatternNames.join('・');
       patterns.appendChild(names);
-      box.appendChild(patterns);
+      body.appendChild(patterns);
     }
+
+    // 低い横長 (スマホの横向きなど。高さ 560px 未満) では左右 2 列にする (CSS の .result--wide)。回したら付け外しする
+    const lowQuery = typeof window.matchMedia === 'function' ? window.matchMedia(LOW_LANDSCAPE) : null;
+    const applyWide = (): void => {
+      box.classList.toggle('result--wide', lowQuery?.matches === true);
+    };
+    applyWide();
+    lowQuery?.addEventListener?.('change', applyWide);
 
     // ボタン: 左から「一覧」「もう一度」(secondary)、右に next (primary)。next が無ければ「一覧」が primary
     function finish(value: 'list' | 'again' | 'next'): void {
       for (const t of timers) {
         clearTimeout(t);
       }
+      lowQuery?.removeEventListener?.('change', applyWide);
       backdrop.remove();
       resolve(value);
     }
