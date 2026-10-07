@@ -471,6 +471,36 @@ body {
   gap: var(--sp-6);
 }
 
+/* 「開発中」の区切り (カードの列のあいだの、行全体。PU-17a) */
+.home__dev {
+  grid-column: 1 / -1;
+  margin-top: var(--sp-2);
+}
+
+.home__dev .section-heading {
+  margin: 0;
+}
+
+.home__dev-note {
+  margin: var(--sp-1) 0 0;
+  font-size: var(--fs-body);
+  color: var(--c-sumi-sub);
+}
+
+/* 開発中のカードの札 (右上。文字つき) */
+.game-card__dev {
+  position: absolute;
+  top: var(--sp-3);
+  right: var(--sp-3);
+  padding: 2px var(--sp-2);
+  border: 1px solid var(--c-shu);
+  border-radius: var(--r-card);
+  background: var(--c-white);
+  color: var(--c-shu);
+  font-size: 20px;
+  line-height: 1.3;
+}
+
 /* ゲームのカード (カード全体が1つのボタン) */
 .game-card {
   position: relative;

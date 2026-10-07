@@ -5,6 +5,19 @@ import { listGames } from '../../core/game/registry';
 import { createCardArt, gameStatusText } from './homeCards';
 import { isUpdateReady, onUpdateState } from '../updater';
 import { onViewportChange } from '../../core/viewport/viewport';
+import { createSectionHeading } from '../../core/ui/layout';
+import type { GameId } from '../../core/game/types';
+
+/**
+ * まだ遊びの中身を調整している (まともに遊べない) ゲーム。ホームでは「開発中」の区切りの下に並ぶ。
+ * 仕上がったら、ここから外すだけで区切りの上へ移る (並びは登録の順。PU-17a)
+ */
+export const DEV_GAMES: GameId[] = ['drumsetup', 'beaming', 'itowari'];
+
+/** ゲームの id を、区切りの上 (main) と下 (dev) に分ける。それぞれ元の順 */
+export function splitByDev(ids: GameId[], dev: GameId[] = DEV_GAMES): { main: GameId[]; dev: GameId[] } {
+  return { main: ids.filter((id) => !dev.includes(id)), dev: ids.filter((id) => dev.includes(id)) };
+}
 
 /** 準備中のゲーム (名前は用語辞書の項目。無いものは固定の文字) */
 const COMING_SOON: { termKey?: string; fixedName?: string; summary: string }[] = [
@@ -48,6 +61,7 @@ export function createHomeScreen(ctx: AppContext): Screen {
     name: string;
     summary: string;
     status: string;
+    dev?: boolean;
     onClick: () => void;
   }): HTMLButtonElement {
     const btn = el('button', 'game-card');
@@ -56,6 +70,11 @@ export function createHomeScreen(ctx: AppContext): Screen {
       btn.classList.add('game-card--soon');
     }
     btn.appendChild(createCardArt(opts.kind));
+    if (opts.dev === true) {
+      const tag = el('span', 'game-card__dev'); // 右上の札。文字つき (色だけに頼らない)
+      tag.textContent = '開発中';
+      btn.appendChild(tag);
+    }
     const name = el('span', 'game-card__name', 'font-heading');
     name.textContent = opts.name;
     btn.appendChild(name);
@@ -136,9 +155,12 @@ export function createHomeScreen(ctx: AppContext): Screen {
 
       // 下: ゲームのカード
       const games = el('div', 'home__games');
-      for (const m of listGames()) {
+      const modules = listGames();
+      const { main: mainIds } = splitByDev(modules.map((m) => m.id));
+      const addGame = (m: (typeof modules)[number], dev: boolean): void => {
         games.appendChild(
           card({
+            dev,
             kind:
               m.id === 'winding'
                 ? 'winding'
@@ -155,6 +177,19 @@ export function createHomeScreen(ctx: AppContext): Screen {
             onClick: () => ctx.navigate(`/games/${m.id}`),
           }),
         );
+      };
+      for (const m of modules.filter((x) => mainIds.includes(x.id))) {
+        addGame(m, false);
+      }
+      // 「開発中」の区切り (行全体)。この下のカードも押せば遊べる
+      const dev = el('div', 'home__dev');
+      dev.appendChild(createSectionHeading('開発中'));
+      const devNote = el('p', 'home__dev-note');
+      devNote.textContent = '遊びの中身を調整しています';
+      dev.appendChild(devNote);
+      games.appendChild(dev);
+      for (const m of modules.filter((x) => !mainIds.includes(x.id))) {
+        addGame(m, true);
       }
       for (const s of COMING_SOON) {
         const btn: HTMLButtonElement = card({

@@ -27,7 +27,7 @@ vi.mock('../updater', () => ({
 }));
 
 
-function fakeModule(id: 'creel' | 'winding' | 'itowari', titleTermKey: string, summary: string): GameModule {
+function fakeModule(id: GameModule['id'], titleTermKey: string, summary: string): GameModule {
   return {
     id,
     titleTermKey,
@@ -44,6 +44,7 @@ function makeCtx(settings: { shopName: string; playerName: string }): { ctx: App
   const names: Record<string, string> = {
     'game.creel': 'クリール立て',
     'game.winding': 'ドラム巻き',
+    'game.drumsetup': 'ドラム設定',
     'game.beaming': 'ビーミング',
     'game.itowari': '糸割り',
     'game.shop': '整経屋の一日',
@@ -75,9 +76,9 @@ beforeEach(() => {
   vi.stubGlobal('__APP_VERSION__', '0.1.0');
   vi.stubGlobal('__BUILD_ID__', '2026-10-04T12:00:00.000Z');
   clearGamesForTest();
-  registerGame(fakeModule('itowari', 'game.itowari', '足りない糸を、ワインダーで巻き分ける'));
   registerGame(fakeModule('creel', 'game.creel', '依頼書のとおりにコーンを立てる'));
   registerGame(fakeModule('winding', 'game.winding', '張りを見ながら、帯をドラムに巻く'));
+  registerGame(fakeModule('itowari', 'game.itowari', '足りない糸を、ワインダーで巻き分ける'));
 });
 
 afterEach(() => {
@@ -110,27 +111,27 @@ describe('ホーム画面 (PU-03a)', () => {
     expect(b.root.querySelector('.home__greeting')).toBeNull();
   });
 
-  it('登録済みのゲームのカードに、名前・説明・状態が出て、押すとそのゲームへ移る。並びは糸割りが最初', () => {
+  it('登録済みのゲームのカードに、名前・説明・状態が出て、押すとそのゲームへ移る。並びはクリール立て・ドラム巻き・(開発中の区切り)・糸割り (PU-17a)', () => {
     const { root, navigate } = mountHome();
     const cards = Array.from(root.querySelectorAll<HTMLButtonElement>('.game-card:not(.game-card--soon)'));
     expect(cards).toHaveLength(3);
-    const itowari = cards[0]!;
+    const itowari = cards[2]!;
     expect(itowari.querySelector('.game-card__name')!.textContent).toBe('糸割り');
     expect(itowari.querySelector('.game-card__summary')!.textContent).toBe('足りない糸を、ワインダーで巻き分ける');
     expect(itowari.querySelector('.game-card__status')!.textContent).toBe('お題 15');
     itowari.click();
     expect(navigate).toHaveBeenCalledWith('/games/itowari');
-    const creel = cards[1]!;
+    const creel = cards[0]!;
     expect(creel.tagName).toBe('BUTTON');
     expect(creel.querySelector('.game-card__name')!.textContent).toBe('クリール立て');
     expect(creel.querySelector('.game-card__name')!.classList.contains('font-heading')).toBe(true);
     expect(creel.querySelector('.game-card__summary')!.textContent).toBe('依頼書のとおりにコーンを立てる');
     expect(creel.querySelector('.game-card__status')!.textContent).toMatch(/^お題 \d+$/);
-    expect(cards[2]!.querySelector('.game-card__status')!.textContent).toBe('初級・中級・上級');
+    expect(cards[1]!.querySelector('.game-card__status')!.textContent).toBe('初級・中級・上級');
     expect(creel.querySelector('.game-card__art')).not.toBeNull();
     creel.click();
     expect(navigate).toHaveBeenCalledWith('/games/creel');
-    cards[2]!.click();
+    cards[1]!.click();
     expect(navigate).toHaveBeenCalledWith('/games/winding');
   });
 
@@ -322,5 +323,86 @@ describe('T1-22c: 回転のあとにカードの並びの行の高さを計算�
     } finally {
       globalThis.requestAnimationFrame = realRaf;
     }
+  });
+});
+
+describe('ホーム画面 PU-17a (開発中の区切り)', () => {
+  const NAMES = ['クリール立て', 'ドラム巻き', '開発中', 'ドラム設定', 'ビーミング', '糸割り', '柄の図鑑'];
+
+  function mountAll(): HTMLElement {
+    clearGamesForTest();
+    // 登録の順は main.ts と同じ (クリール立て・ドラム巻き・ドラム設定・ビーミング・糸割り)
+    registerGame(fakeModule('creel', 'game.creel', 'a'));
+    registerGame(fakeModule('winding', 'game.winding', 'b'));
+    registerGame(fakeModule('drumsetup', 'game.drumsetup', 'c'));
+    registerGame(fakeModule('beaming', 'game.beaming', 'd'));
+    registerGame(fakeModule('itowari', 'game.itowari', 'e'));
+    return mountHome().root;
+  }
+
+  /** 並びの順に、カードの名前と区切りの見出しの文字を返す */
+  function order(root: HTMLElement): string[] {
+    return Array.from(root.querySelectorAll('.home__games > .game-card, .home__games > .home__dev'))
+      .map((e) => (e.classList.contains('home__dev') ? e.querySelector('.section-heading')!.textContent! : e.querySelector('.game-card__name')!.textContent!));
+  }
+
+  it('並びは クリール立て・ドラム巻き → 「開発中」の区切り → ドラム設定・ビーミング・糸割り・柄の図鑑', () => {
+    expect(order(mountAll())).toEqual(NAMES);
+  });
+
+  it('区切りは見出し「開発中」と、その下に 20px 以上の「遊びの中身を調整しています」。3 列の画面では行全体 (grid-column: 1 / -1)', () => {
+    const root = mountAll();
+    const dev = root.querySelector('.home__dev')!;
+    expect(dev.querySelector('.section-heading')!.textContent).toBe('開発中');
+    expect(dev.querySelector('.home__dev-note')!.textContent).toBe('遊びの中身を調整しています');
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf8');
+    const rule = css.match(/\.home__dev \{([^}]*)\}/)![1]!;
+    expect(rule).toContain('grid-column: 1 / -1');
+    const note = css.match(/\.home__dev-note \{([^}]*)\}/)![1]!;
+    expect(note).toMatch(/font-size: var\(--fs-body\)|font-size: (2\d|3\d)px/);
+  });
+
+  it('開発中のカードには右上に「開発中」の札 (文字つき)。区切りの上のカードには無い。柄の図鑑は「準備中」のまま', () => {
+    const root = mountAll();
+    const cards = Array.from(root.querySelectorAll<HTMLElement>('.home__games > .game-card'));
+    for (const c of cards) {
+      const name = c.querySelector('.game-card__name')!.textContent!;
+      const tag = c.querySelector('.game-card__dev');
+      if (['ドラム設定', 'ビーミング', '糸割り'].includes(name)) {
+        expect(tag, name).not.toBeNull();
+        expect(tag!.textContent).toBe('開発中');
+      } else {
+        expect(tag, name).toBeNull();
+      }
+    }
+    expect(cards.at(-1)!.classList.contains('game-card--soon')).toBe(true);
+    expect(cards.at(-1)!.querySelector('.game-card__status')!.textContent).toBe('準備中');
+  });
+
+  it('開発中のカードも押せばそのゲームへ移る', () => {
+    const { ctx, navigate } = makeCtx({ shopName: '', playerName: '' });
+    clearGamesForTest();
+    registerGame(fakeModule('creel', 'game.creel', 'a'));
+    registerGame(fakeModule('itowari', 'game.itowari', 'e'));
+    const screen = createHomeScreen(ctx);
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    screen.mount(root, {});
+    const itowari = Array.from(root.querySelectorAll<HTMLButtonElement>('.game-card')).find((c) => c.textContent!.includes('糸割り'))!;
+    itowari.click();
+    expect(navigate).toHaveBeenCalledWith('/games/itowari');
+    screen.unmount();
+  });
+
+  it('DEV_GAMES から外したゲームは、区切りの上 (クリール立て・ドラム巻きと同じ側) に出る', async () => {
+    vi.resetModules();
+    vi.doMock('./homeCards', async (orig) => await orig());
+    const mod = await import('./homeScreen');
+    expect(mod.DEV_GAMES).toEqual(['drumsetup', 'beaming', 'itowari']);
+    expect(mod.splitByDev(['creel', 'winding', 'drumsetup', 'beaming', 'itowari'] as never, ['beaming'] as never)).toEqual({
+      main: ['creel', 'winding', 'drumsetup', 'itowari'],
+      dev: ['beaming'],
+    });
+    vi.doUnmock('./homeCards');
   });
 });

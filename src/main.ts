@@ -84,11 +84,12 @@ async function main(): Promise<void> {
   }
 
   // ゲームの登録 (クリール立て・ドラム巻き)。内容データの問題があればログに残す
-  registerGame(createItowariModule(gameDepsFrom(ctx)));
+  // 登録の順がホームのカードの順 (開発中のゲームは DEV_GAMES で区切りの下へ。PU-17a)
   registerGame(createCreelModule(gameDepsFrom(ctx)));
-  registerGame(createDrumSetupModule(gameDepsFrom(ctx)));
   registerGame(createWindingModule(gameDepsFrom(ctx)));
+  registerGame(createDrumSetupModule(gameDepsFrom(ctx)));
   registerGame(createBeamingModule(gameDepsFrom(ctx)));
+  registerGame(createItowariModule(gameDepsFrom(ctx)));
   const contentProblems = getContent().problems;
   if (contentProblems.length > 0) {
     for (const problem of contentProblems) {
