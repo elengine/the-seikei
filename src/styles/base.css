@@ -637,6 +637,21 @@ body {
   justify-content: flex-end;
 }
 
+/* 記録を消す (PU-22): 危険のボタン (白地・朱の枠・64px 以上) と説明 */
+.settings__danger-btn {
+  min-height: 64px;
+  width: 100%;
+  background: var(--c-white);
+  color: var(--c-shu);
+  border: 2px solid var(--c-shu);
+}
+
+.settings__danger-note {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--fs-body);
+  color: var(--c-sumi-sub);
+}
+
 .settings__admin {
   margin-top: var(--sp-7);
   display: flex;

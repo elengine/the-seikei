@@ -23,6 +23,14 @@ vi.mock('../updater', () => ({
   },
 }));
 
+// ゲームの記録を消す関数 (clearProgress) は偽物にする。画面の流れ (2 回の確認・お知らせ) だけを確かめる
+const clr = vi.hoisted(() => ({
+  fn: undefined as unknown as () => Promise<{ removed: number }>,
+}));
+vi.mock('../../core/storage/clearProgress', () => ({
+  clearProgress: () => clr.fn(),
+}));
+
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -132,13 +140,13 @@ describe('settingsScreen (選択中ボタンの見た目)', () => {
     expect(css).toContain('.font-slider__input::-moz-range-track');
   });
 
-  it('節の見出しが3つ (お店とお名前・見やすさと音・ことば)', async () => {
+  it('節の見出しが4つ (お店とお名前・見やすさと音・ことば・記録。PU-22)', async () => {
     const ctx = await makeCtx();
     const container = document.createElement('div');
     document.body.appendChild(container);
     createSettingsScreen(ctx).mount(container, {});
     const heads = Array.from(document.querySelectorAll('.section-heading')).map((h) => h.textContent);
-    expect(heads).toEqual(['お店とお名前', '見やすさと音', 'ことば']);
+    expect(heads).toEqual(['お店とお名前', '見やすさと音', 'ことば', '記録']);
   });
 });
 
@@ -360,5 +368,105 @@ describe('PU-10f: 「アップデートする」が切り替えられなかっ�
     await Promise.resolve();
     await Promise.resolve();
     expect(document.querySelector('.update-notice')!.textContent).not.toContain('切り替えられませんでした');
+  });
+});
+
+
+describe('settingsScreen PU-22 (ゲームの記録を消す)', () => {
+  beforeEach(() => {
+    document.body.textContent = '';
+    clr.fn = vi.fn(async () => ({ removed: 3 }));
+  });
+
+  async function mount(): Promise<{ ctx: AppContext; container: HTMLElement; logs: string[] }> {
+    const ctx = await makeCtx();
+    const logs: string[] = [];
+    const orig = ctx.logger.log.bind(ctx.logger);
+    ctx.logger.log = (level, message) => {
+      logs.push(`${level}:${message}`);
+      return orig(level, message);
+    };
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    createSettingsScreen(ctx).mount(container, {});
+    return { ctx, container, logs };
+  }
+
+  const btn = (label: string): HTMLButtonElement | undefined =>
+    Array.from(document.querySelectorAll('button')).find((b) => b.textContent === label);
+  const dialogTitle = (): string | null => document.querySelector('.dialog__title')?.textContent ?? null;
+  const tick = async (): Promise<void> => {
+    await vi.waitFor(() => undefined);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  };
+
+  it('1. 「記録」の節に、危険のボタン「ゲームの記録を消す」と説明の 1 行がある。「管理者」の上 (下のほう)', async () => {
+    await mount();
+    const heading = Array.from(document.querySelectorAll('.section-heading')).find((h) => h.textContent === '記録');
+    expect(heading).toBeDefined();
+    const danger = btn('ゲームの記録を消す')!;
+    expect(danger.classList.contains('btn--danger')).toBe(true);
+    expect(document.body.textContent).toContain('星・途中の状態・図鑑を消します。お名前や設定は残ります');
+    const admin = btn('管理者')!;
+    expect(danger.compareDocumentPosition(admin) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy(); // 管理者は後ろ (下)
+  });
+
+  it('2. 押すと 1 回目の確認 (題名「ゲームの記録を消しますか」・「はい」「いいえ」)。「いいえ」なら何も消さない', async () => {
+    await mount();
+    btn('ゲームの記録を消す')!.click();
+    expect(dialogTitle()).toBe('ゲームの記録を消しますか');
+    expect(document.querySelector('.dialog__message')!.textContent).toBe('すべてのゲームの星と途中の状態、図鑑が消えます。お名前・屋号・設定は残ります');
+    expect(btn('はい')).toBeDefined();
+    btn('いいえ')!.click();
+    await tick();
+    expect(document.querySelector('.dialog')).toBeNull();
+    expect(clr.fn).not.toHaveBeenCalled();
+  });
+
+  it('3. 1 回目「はい」→ 2 回目の確認 (題名「本当に消しますか」・「消す」「やめる」・バックアップの案内)。「やめる」なら何も消さない', async () => {
+    await mount();
+    btn('ゲームの記録を消す')!.click();
+    btn('はい')!.click();
+    await vi.waitFor(() => expect(dialogTitle()).toBe('本当に消しますか'));
+    expect(document.querySelector('.dialog__message')!.textContent).toBe('消した記録は元に戻せません。残しておきたいときは、先にバックアップを書き出してください');
+    expect(btn('いいえ')).toBeUndefined(); // 2 回目は「はい」「いいえ」ではない
+    expect(btn('消す')!.classList.contains('btn--danger')).toBe(true); // 危険の見た目
+    btn('やめる')!.click();
+    await tick();
+    expect(document.querySelector('.dialog')).toBeNull();
+    expect(clr.fn).not.toHaveBeenCalled();
+  });
+
+  it('4. 1 回目「はい」→ 2 回目「消す」で、消す関数が 1 回呼ばれ、お知らせ「記録を消しました」が出る', async () => {
+    await mount();
+    btn('ゲームの記録を消す')!.click();
+    btn('はい')!.click();
+    await vi.waitFor(() => expect(dialogTitle()).toBe('本当に消しますか'));
+    btn('消す')!.click();
+    await vi.waitFor(() => expect(clr.fn).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(document.querySelector('.update-notice')!.textContent).toContain('記録を消しました'));
+    expect(document.querySelector('.dialog')).toBeNull();
+  });
+
+  it('5. 消すのに失敗したら「消せませんでした。もう一度お試しください」を出し、ログに残す', async () => {
+    clr.fn = vi.fn(async () => {
+      throw new Error('boom');
+    });
+    const { logs } = await mount();
+    btn('ゲームの記録を消す')!.click();
+    btn('はい')!.click();
+    await vi.waitFor(() => expect(dialogTitle()).toBe('本当に消しますか'));
+    btn('消す')!.click();
+    await vi.waitFor(() => expect(document.querySelector('.update-notice')!.textContent).toContain('消せませんでした。もう一度お試しください'));
+    expect(logs.some((l) => l.startsWith('warn:') && l.includes('記録'))).toBe(true);
+  });
+
+  it('6. base.css: ボタンは白地・朱の枠・64px 以上。説明は 20px 以上', () => {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
+    const b = css.match(/\.settings__danger-btn\s*\{([^}]*)\}/)![1]!;
+    expect(b).toContain('min-height: 64px');
+    expect(b).toContain('var(--c-shu)');
+    const note = css.match(/\.settings__danger-note\s*\{([^}]*)\}/)![1]!;
+    expect(note).toMatch(/font-size:\s*(var\(--fs-body\)|(2\d|3\d)px)/);
   });
 });

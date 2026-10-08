@@ -1,6 +1,7 @@
 import type { AppContext } from '../context';
 import type { Screen } from '../screenManager';
-import { createButton, createChoice, textInputDialog } from '../../core/ui/widgets';
+import { confirmDialog, createButton, createChoice, textInputDialog } from '../../core/ui/widgets';
+import { clearProgress } from '../../core/storage/clearProgress';
 import { createCard, createPage, createScreenHeader, createSectionHeading } from '../../core/ui/layout';
 import { FONT } from '../../core/ui/tokens';
 import type { FontScale } from '../../core/ui/tokens';
@@ -367,6 +368,53 @@ export function createSettingsScreen(ctx: AppContext): Screen {
         }),
       );
       wordsCard.appendChild(termsRow.row);
+
+      // ---- 記録: ゲームの記録を消す (2 回の確認つき。PU-22) ----
+      const recordCard = section('記録');
+      const dangerBtn = createButton({
+        label: 'ゲームの記録を消す',
+        variant: 'danger',
+        onClick: () => void runClear(),
+      });
+      dangerBtn.classList.add('settings__danger-btn');
+      recordCard.appendChild(dangerBtn);
+      const dangerNote = document.createElement('p');
+      dangerNote.classList.add('settings__danger-note');
+      dangerNote.textContent = '星・途中の状態・図鑑を消します。お名前や設定は残ります';
+      recordCard.appendChild(dangerNote);
+
+      async function runClear(): Promise<void> {
+        // 1 回目: 「はい」「いいえ」。2 回目は、押し間違いを防ぐため、何が起きるか分かる言葉 (「消す」「やめる」)
+        const first = await confirmDialog(root, {
+          title: 'ゲームの記録を消しますか',
+          message: 'すべてのゲームの星と途中の状態、図鑑が消えます。お名前・屋号・設定は残ります',
+          okLabel: 'はい',
+          cancelLabel: 'いいえ',
+        });
+        if (!first || disposed) {
+          return;
+        }
+        const secondPromise = confirmDialog(root, {
+          title: '本当に消しますか',
+          message: '消した記録は元に戻せません。残しておきたいときは、先にバックアップを書き出してください',
+          okLabel: '消す',
+          cancelLabel: 'やめる',
+        });
+        const okBtn = root.querySelector<HTMLButtonElement>('[data-testid="dialog-ok"]');
+        okBtn?.classList.remove('btn--primary');
+        okBtn?.classList.add('btn--danger'); // 危険の見た目
+        if (!(await secondPromise) || disposed) {
+          return;
+        }
+        try {
+          const r = await clearProgress(ctx.repo);
+          ctx.logger.log('info', `ゲームの記録を消しました (${r.removed}件)`);
+          showText('記録を消しました', 4000);
+        } catch (e) {
+          ctx.logger.log('warn', `ゲームの記録を消せませんでした: ${e instanceof Error ? e.message : String(e)}`);
+          showText('消せませんでした。もう一度お試しください', 6000);
+        }
+      }
 
       refresh(); // 初期値の表示
 
