@@ -174,9 +174,10 @@ function tick(s: WindingState, dtMs: number): WindingState {
     // スパイクの猶予を過ぎたら切れる (2 秒以内にペダルを 10 以上下げれば切れない。T2-20a)
     if (spike.qty > 0 && spike.fallingMs < 0 && spike.elapsedMs >= SPIKE_GRACE_MS) spikeBroke = true;
   }
-  // 強く踏みすぎの数え (T2-22): ペダルの位置が範囲の上の端を超えているあいだ時間を数える。
+  // 張りが強すぎの数え (T2-22 追加修正): 張り (ペダルの位置 + 揺れの量。スパイクの量は含めない) が
+  // 範囲の上の端を超えているあいだ時間を数える。揺れで上に外れたときも数える。
   // スパイクのあいだは数えない (スパイクは「2 秒以内に 10 下げる」の決まりだけ)。範囲の下は数えない (出来が下がるだけ)
-  const countingOver = !spikeBroke && spike.qty === 0 && pedalPos > range.max;
+  const countingOver = !spikeBroke && spike.qty === 0 && pedalPos + wobble.qty > range.max;
   const overMs = countingOver ? s.overMs + dtClamped : 0;
   // 2. 張り = ペダルの位置 + 揺れの量 + スパイクの量 (T2-20a)
   const tension = pedalPos + wobble.qty + spike.qty;
@@ -193,7 +194,7 @@ function tick(s: WindingState, dtMs: number): WindingState {
     overMs,
   };
   let state = cur;
-  // 強く踏みすぎの猶予を過ぎたら糸が 1 本切れる (数えた時間は 0 に戻す。T2-22)
+  // 張りが強すぎの猶予を過ぎたら糸が 1 本切れる (数えた時間は 0 に戻す。T2-22)
   if (!spikeBroke && overMs >= OVER_GRACE_MS(s.level) * YARN_FEEL[s.feel].overGraceMul) {
     const [pickRaw, pickNext] = nextFloat(state.rng);
     const thread = Math.min(BREAK.threadCount - 1, Math.floor(pickRaw * BREAK.threadCount));

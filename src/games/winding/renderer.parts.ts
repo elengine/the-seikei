@@ -376,7 +376,7 @@ export function lampGeometry(fit: StageFit): { x: number; y: number; r: number }
 }
 
 /** 張りのランプを描く (適正=緑「○」、強すぎ=橙「▲」、弱すぎ=橙「▼」、切れた=赤「✕」、巻いていない=消灯の灰色)。光っているときは外側に薄い輪。
- * 強く踏みすぎを数えているあいだ (T2-22) は ▲ を点滅させる (0.25 秒ごと。猶予の残りが 1 秒を切ると 0.12 秒ごと) */
+ * 張りが強すぎを数えているあいだ (T2-22) は ▲ を点滅させる (0.25 秒ごと。猶予の残りが 1 秒を切ると 0.12 秒ごと) */
 export function drawTensionLamp(ctx: CanvasRenderingContext2D, fit: StageFit, s: WindingState, timeMs = 0): void {
   const state = lampStateOf(s);
   const { x, y, r } = lampGeometry(fit);
@@ -401,7 +401,7 @@ export function drawTensionLamp(ctx: CanvasRenderingContext2D, fit: StageFit, s:
   }
   // 中の記号 (色だけに頼らない)
   const symbol = state === 'ok' ? '○' : state === 'high' ? '▲' : state === 'low' ? '▼' : '✕';
-  // 強く踏みすぎを数えているあいだは ▲ を点滅させる (色だけに頼らず点滅と記号で知らせる。T2-22)
+  // 張りが強すぎを数えているあいだは ▲ を点滅させる (色だけに頼らず点滅と記号で知らせる。T2-22)
   let symbolVisible = true;
   if (state === 'high' && s.overMs > 0 && s.spike.qty === 0) {
     const grace = OVER_GRACE_MS(s.level) * YARN_FEEL[s.feel].overGraceMul;

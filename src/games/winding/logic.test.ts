@@ -1010,23 +1010,43 @@ describe('T2-22: ペダルを強く踏みすぎたまま猶予を過ぎると糸
     expect(s.overMs).toBe(2000);
   });
 
-  it('5. ペダルが上の端ちょうどでも、揺れで張りが上に外れても切れない (種 20 通り。スパイクの無い帯だけ)', () => {
+  it('5. 揺れで張りが上の端を超えたあいだ数え、猶予を過ぎると切れる (ペダルは上の端の近く。T2-22 追加修正)', () => {
+    let s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 6 });
+    s = reduce(s, { type: 'setPedal', value: s.range.max - 1 }); // ペダルは範囲の中
+    // 揺れを峰 (範囲の幅の半分) まで上げる。張り = ペダル + 揺れ が上の端を超える
+    s = { ...s, wobble: { qty: 0, dir: 1, mag: s.range.width / 2, riseMs: 2000, fallMs: 2000, phase: 'up' as const, timerMs: 0, gapMs: 1000 } };
+    let sawOver = false;
+    for (let i = 0; i < 300; i++) {
+      s = reduce(s, { type: 'tick', dtMs: DT });
+      if (s.overMs > 0) sawOver = true;
+      if (s.phase === 'broken') break;
+    }
+    expect(sawOver, '揺れで張りが上の端を超えたあいだ数える').toBe(true);
+    expect(s.phase).toBe('broken');
+  });
+
+  it('6. 範囲の真ん中に固定すれば、揺れでも切れない (種 20 通り。裏技が成り立つ。スパイクの無い帯だけ)', () => {
     let tested = 0;
-    let wentAbove = 0;
     for (let seed = 1; seed <= 80 && tested < 20; seed++) {
       const s0 = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed });
       if (s0.ranges[0]!.spikes > 0) continue; // スパイクのある帯は T2-20 の決まりで切れるので外す
       tested += 1;
       let s = s0;
-      s = reduce(s, { type: 'setPedal', value: s.range.max });
-      for (let i = 0; i < 300 && s.phase === 'winding'; i++) {
-        s = reduce(s, { type: 'tick', dtMs: DT });
-        if (s.tension > s.range.max) wentAbove += 1; // 揺れで張りが上に外れたことがある
-      }
+      s = reduce(s, { type: 'setPedal', value: s.range.center });
+      for (let i = 0; i < 300 && s.phase === 'winding'; i++) s = reduce(s, { type: 'tick', dtMs: DT });
       expect(s.phase, `seed ${seed}`).not.toBe('broken');
     }
     expect(tested).toBe(20);
-    expect(wentAbove).toBeGreaterThan(0); // 揺れで上に外れる場面が本当にあった
+  });
+
+  it('7. スパイクの量は数える条件に含まれない (スパイクのあいだは数えない。T2-22 追加修正)', () => {
+    let s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 5 });
+    s = { ...s, phase: 'winding' as const, bandClockMs: 3500, spikePlan: { left: 1, atMs: 3500 } };
+    s = reduce(s, { type: 'setPedal', value: s.range.center + 5 });
+    for (let i = 0; i < 6; i++) s = reduce(s, { type: 'tick', dtMs: 100 }); // スパイクが峰まで上がるのを待つ
+    expect(s.spike.qty).toBeGreaterThan(0);
+    expect(s.tension).toBeGreaterThan(s.range.max); // スパイクぶんで張りは上の端を超えている
+    expect(s.overMs).toBe(0); // でもスパイクのあいだは数えない
   });
 
   it('6. 範囲の真ん中で、スパイクに正しく反応する遊び方でも切れない (種 20 通り・3 レベル)', () => {
