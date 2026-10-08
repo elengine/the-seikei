@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import {
   pxPerCm, cmToX, xToCm, BEAM_W_PX, BOARD_W, BEAM_CENTER_X, woundRadius, setBoardHeight, BOARD, drawnExtent, FLANGE_RX, CORE_R,
-  flangeHit, dragCm, FLANGE_HIT_MIN_PX, leverY, leverNotchX, nearestNotch, hitLever, lampX, lampY, DRUM_X,
+  ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX, flangeHit, dragCm, FLANGE_HIT_MIN_PX, leverY, leverNotchX, nearestNotch, hitLever, lampX, lampY, DRUM_X,
 } from './geometry';
 import { logicalHeightFor } from '../winding/geometry';
 
@@ -148,5 +148,23 @@ describe('T3-04b (速さのレバーとランプの座標)', () => {
     expect(lampX()).toBeLessThan(BOARD_W / 2);
     expect(lampX()).toBeGreaterThan(DRUM_X);
     expect(lampY()).toBe(leverY());
+  });
+});
+
+describe('PU-24a: 立体に見える絵の座標 (軸の長さは固定・ドラムの丸み)', () => {
+  it('軸の両端 (ROD_X0・ROD_X1) は固定で、いちばん広い巻き幅 (126cm) の円盤の外までとどく。盤面の中に収まる', () => {
+    expect(ROD_X0).toBeGreaterThanOrEqual(0);
+    expect(ROD_X1).toBeLessThanOrEqual(BOARD_W);
+    expect(ROD_X0).toBeLessThan(cmToX(126, -63) - FLANGE_RX);
+    expect(ROD_X1).toBeGreaterThan(cmToX(126, 63) + FLANGE_RX);
+  });
+
+  it('drumArcX: ドラムの筋の x。真ん中 (t=0) で軸の位置より DRUM_TILT_RX だけ左へふくらみ、上下の端 (t=±1) で軸の位置。上下対称', () => {
+    expect(DRUM_TILT_RX).toBeGreaterThan(10);
+    expect(drumArcX(300, 0)).toBeCloseTo(300 - DRUM_TILT_RX, 9);
+    expect(drumArcX(300, 1)).toBeCloseTo(300, 9);
+    expect(drumArcX(300, -1)).toBeCloseTo(300, 9);
+    expect(drumArcX(300, 0.5)).toBeCloseTo(drumArcX(300, -0.5), 9);
+    expect(drumArcX(300, 0.5)).toBeGreaterThan(drumArcX(300, 0));
   });
 });

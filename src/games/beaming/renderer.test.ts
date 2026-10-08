@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { drawBoard, mainHex } from './renderer';
 import { init, reduce } from './logic';
 import type { BeamingState } from './logic';
-import { cmToX, BOARD, setBoardHeight, FLANGE_RX, DRUM_X, DRUM_W, woundRadius, leverNotchX, leverY, lampX, lampY } from './geometry';
+import { cmToX, BOARD, setBoardHeight, FLANGE_RX, DRUM_X, DRUM_W, woundRadius, leverNotchX, leverY, lampX, lampY, ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX } from './geometry';
 import { getContent } from '../../core/content/content';
 import { COLORS } from '../../core/ui/tokens';
 import { makeFakeCtx } from '../winding/renderer.test.helpers';
@@ -113,6 +113,28 @@ describe('beaming renderer PU-15a (盤面。実物の写真に寄せた絵)', ()
     expect(rod[1]! + rod[3]! / 2).toBeCloseTo(BOARD.axisY, 6);
   });
 
+  it('3b. 軸の長さは変えない: 円盤をどこへ動かしても、軸の両端の x は ROD_X0・ROD_X1 のまま。軸の中心の高さは円盤の楕円の中心の高さと同じ (軸が円盤の中心を貫く。PU-24a)', () => {
+    const rodOf = (s: BeamingState): number[] => {
+      const rec = draw(s);
+      return rec.ops
+        .map((o, i) => ({ o, style: styleBefore(rec.ops, i) }))
+        .filter((e) => e.o.k === 'fillRect' && e.style === COLORS.steel)
+        .map((e) => e.o.args as number[])
+        .find((a) => a[2]! > 400 && a[3]! < 40)!;
+    };
+    const a = rodOf(beamState());
+    const b = rodOf(beamState({ leftCm: -20, rightCm: 25 }));
+    const c = rodOf(init({ level: 1, widthCm: 90, seed: 42, puzzleId: 's1', patternId: 'p-muji-kon' }));
+    for (const r of [a, b, c]) {
+      expect(r[0]!).toBe(ROD_X0);
+      expect(r[0]! + r[2]!).toBe(ROD_X1);
+      expect(r[1]! + r[3]! / 2).toBeCloseTo(BOARD.axisY, 6);
+    }
+    const faces = ellipses(draw(beamState())).filter((e) => e.fill === COLORS.flange && e.rx === FLANGE_RX);
+    expect(faces.length).toBe(2);
+    for (const f of faces) expect(f.y).toBeCloseTo(BOARD.axisY, 6); // 円盤の中心 = 軸の中心の高さ
+  });
+
   it('4. 円盤の穴は同心円状の輪 (2 重以上) に並ぶ (円盤の中心からの正規化した距離が 2 種類以上)', () => {
     const rec = draw(beamState());
     const cx = cmToX(60, -30);
@@ -126,14 +148,24 @@ describe('beaming renderer PU-15a (盤面。実物の写真に寄せた絵)', ()
     expect(rings.size).toBeGreaterThanOrEqual(2);
   });
 
-  it('5. 奥のドラムは横に寝た円筒。糸の筋は縦 (x が同じ moveTo→lineTo の線がドラムの幅いっぱいに並ぶ)。両端は楕円', () => {
+  it('5. 奥のドラムは横に寝た円筒を少し斜めから見た形 (PU-24a): 端の楕円の面は右側の 1 つだけ (左の端は円筒の輪郭の曲線だけ)。糸の筋は円筒の丸みに沿って曲がる', () => {
     const rec = draw(beamState());
-    const vert = segments(rec).filter(
-      (g) => g.x1 === g.x2 && g.x1 >= DRUM_X && g.x1 <= DRUM_X + DRUM_W && g.y1 >= BOARD.drumY && g.y2 <= BOARD.drumY + BOARD.drumH + 1 && Math.abs(g.y2 - g.y1) > BOARD.drumH * 0.5,
-    );
-    expect(vert.length).toBeGreaterThanOrEqual(20);
-    const ends = ellipses(rec).filter((e) => Math.abs(e.y - (BOARD.drumY + BOARD.drumH / 2)) < 1);
-    expect(ends.length).toBeGreaterThanOrEqual(2);
+    const cy = BOARD.drumY + BOARD.drumH / 2;
+    const ends = ellipses(rec).filter((e) => Math.abs(e.y - cy) < 1 && e.fill === COLORS.steel);
+    expect(ends).toHaveLength(1); // 片側だけ
+    expect(ends[0]!.x).toBe(DRUM_X + DRUM_W);
+    expect(ends[0]!.rx).toBe(DRUM_TILT_RX);
+    // 筋: 同じ軸の位置の点が、真ん中 (y = 中心) で x = 軸の位置 − DRUM_TILT_RX (丸みで左へふくらむ)、上下の端で x = 軸の位置
+    const xs = DRUM_X + 12 + 14 * 10;
+    const pts: Array<{ x: number; y: number }> = [];
+    for (const o of rec.ops) {
+      if ((o.k === 'moveTo' || o.k === 'lineTo') && o.args) pts.push({ x: Number(o.args[0]), y: Number(o.args[1]) });
+    }
+    expect(pts.some((p) => Math.abs(p.x - drumArcX(xs, 0)) < 1e-6 && Math.abs(p.y - cy) < 1)).toBe(true);
+    expect(pts.some((p) => Math.abs(p.x - xs) < 1e-6 && p.y < cy - BOARD.drumH * 0.3)).toBe(true);
+    // 縦のまっすぐな筋 (x が同じ 2 点の線。胴の右の輪郭 x = 右の端を除く) で描いていない
+    const straight = segments(rec).filter((g) => g.x1 === g.x2 && g.x1 >= DRUM_X && g.x1 < DRUM_X + DRUM_W && Math.min(g.y1, g.y2) >= BOARD.drumY && Math.max(g.y1, g.y2) <= BOARD.drumY + BOARD.drumH + 1 && Math.abs(g.y2 - g.y1) > BOARD.drumH * 0.5);
+    expect(straight.length).toBe(0);
   });
 
   it('6. ドラムから降りる糸のシートの手前に、茶色 (wood) の細い横棒 (ガイドの棒) がある', () => {
@@ -147,26 +179,10 @@ describe('beaming renderer PU-15a (盤面。実物の写真に寄せた絵)', ()
     expect(bar![3]!).toBeLessThan(24);
   });
 
-  it('7. 乗り上げのとき、その側の円盤の縁が朱になり「乗り上げ」の文字 (20px 以上) が出る。中央にあれば朱も文字も無い', () => {
-    let s = beamState();
-    for (let i = 0; i < 4; i++) s = reduce(s, { type: 'nudge', dir: -1 });
-    const rec = draw(s);
-    const shuEdge = rec.ops.filter((o, i) => o.k === 'ellipse' && styleBefore(rec.ops, i) === COLORS.shu);
-    expect(shuEdge.length).toBeGreaterThan(0);
-    const texts = rec.ops.filter((o) => o.k === 'fillText' && String(o.args?.[0]).includes('乗り上げ'));
-    expect(texts.length).toBeGreaterThan(0);
-    const idx = rec.ops.indexOf(texts[0]!);
-    let font = '';
-    for (let j = idx - 1; j >= 0; j--) {
-      if (rec.ops[j]!.k === 'font') {
-        font = String(rec.ops[j]!.v);
-        break;
-      }
-    }
-    expect(Number(/(\d+)px/.exec(font)?.[1] ?? 0)).toBeGreaterThanOrEqual(20);
-    const rec2 = draw(beamState());
-    expect(rec2.ops.filter((o, i) => o.k === 'ellipse' && styleBefore(rec2.ops, i) === COLORS.shu).length).toBe(0);
-    expect(rec2.ops.some((o) => o.k === 'fillText' && String(o.args?.[0]).includes('乗り上げ'))).toBe(false);
+  it('7. 乗り上げの表示は無い (T3-05 で偏りが無くなる。PU-24a): 糸が円盤に寄っていても、円盤の縁は朱にならず「乗り上げ」の文字も出ない', () => {
+    const rec = draw(beamState({ shiftCm: -25 }));
+    expect(rec.ops.filter((o, i) => o.k === 'ellipse' && styleBefore(rec.ops, i) === COLORS.shu).length).toBe(0);
+    expect(rec.ops.some((o) => o.k === 'fillText' && String(o.args?.[0]).includes('乗り上げ'))).toBe(false);
   });
 
   it('8. 幅合わせの段階では、ビームの下に目標の点線 (y = 目標の点線の位置の線分) と目盛りが出て、円盤の内側の印が左右に 2 つ。巻き返しでは出ない', () => {

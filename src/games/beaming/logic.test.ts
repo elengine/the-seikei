@@ -370,19 +370,20 @@ describe('T3-03a 追加修正 (乗り上げの判定を1か所に・遊びは中
     expect(OVERFLOW_CLEARANCE_CM).toBe(CENTER_OK_CM);
   });
 
-  it('18. renderer が overflowSides と同じ結果になる (朱の縁・文字が判定と一致。メッセージ欄は PU-15c で無くなった)', () => {
+  it('18. renderer は乗り上げの表示 (朱の縁・「乗り上げ」の文字) を描かない。判定 (overflowSides) が true でも (PU-24a。偏りは T3-05 で無くなる)', () => {
     const content = getContent();
     const fit = { scale: 1, offsetX: 0, offsetY: 0 };
     for (const shiftCm of [-2, -1.6, -1.2, 0, 1.2, 1.6, 2]) {
       const s = { ...setupExact(make()), shiftCm };
       const sides = overflowSides(s);
-      // renderer: 乗り上げの円盤の朱の縁と「乗り上げ」の文字は、判定が true のときだけ出る
+      // renderer: 判定の結果にかかわらず、朱の縁も「乗り上げ」の文字も出ない
       const { ctx, rec } = makeFakeCtx();
       drawBoard(ctx, fit, s, content, 0);
       const shu = rec.ops.some((o) => o.k === 'ellipse' && styleBefore(rec.ops, rec.ops.indexOf(o)) === COLORS.shu);
       const text = rec.ops.some((o) => o.k === 'fillText' && String(o.args?.[0]).includes('乗り上げ'));
-      expect(shu).toBe(sides.left || sides.right);
-      expect(text).toBe(sides.left || sides.right);
+      expect(sides.left || sides.right || true).toBe(true);
+      expect(shu).toBe(false);
+      expect(text).toBe(false);
     }
   });
 });

@@ -39,8 +39,22 @@ export const DRUM_W = 820;
 
 /** ビームの芯 (銀色の軸) の太さの半分 (px) */
 export const CORE_R = 11;
-/** 軸が円盤の外へ飛び出す長さ (px) */
-export const ROD_OUT = 70;
+/**
+ * 軸の両端の x (固定。盤面に対していつも同じ。PU-24a)。円盤の位置を左右に動かして巻き幅を合わせる仕組みなので、
+ * 軸の長さは変えない。いちばん広い巻き幅の円盤の外まで届く。円盤だけが軸の上を動く。
+ */
+export const ROD_X0 = 40;
+export const ROD_X1 = BOARD_W - 40;
+/** ドラムを少し斜めから見たときの、端の楕円の横の半径 (px)。右の端の面だけが見える (ドラム巻きと同じ構図。PU-24a) */
+export const DRUM_TILT_RX = 30;
+
+/**
+ * ドラムの糸の筋 (円周の線) の x。軸の位置 xs の円周は、斜めから見ると楕円の左半分 (「(」の形) に見える:
+ * t = −1〜1 (下から上へ) で、真ん中 (t=0) は xs より DRUM_TILT_RX だけ左へふくらみ、上下の端 (t=±1) は xs。
+ */
+export function drumArcX(xs: number, t: number): number {
+  return xs - DRUM_TILT_RX * Math.sqrt(Math.max(0, 1 - t * t));
+}
 /** 円盤 (斜めから見て楕円) の横の半径 (px) */
 export const FLANGE_RX = 30;
 

@@ -2,10 +2,10 @@ import type { Content } from '../../core/content/content';
 import { COLORS } from '../../core/ui/tokens';
 import type { StageFit } from '../../core/viewport/viewport';
 import {
-  BOARD, BEAM_CENTER_X, DRUM_X, DRUM_W, CORE_R, ROD_OUT, FLANGE_RX, woundRadius, woundTopY, sheetTopY, cmToX, pxPerCm, TOP_TEXT, toPx,
+  BOARD, BEAM_CENTER_X, DRUM_X, DRUM_W, CORE_R, ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX, FLANGE_RX, woundRadius, woundTopY, sheetTopY, cmToX, pxPerCm,
   leverNotchX, leverY, lampX, lampY,
 } from './geometry';
-import { overflowSides, goodSpeedOf } from './logic';
+import { goodSpeedOf } from './logic';
 import { GOOD_SPEED_ZONES } from './params';
 import type { BeamingState } from './logic';
 
@@ -28,11 +28,6 @@ export function mainHex(content: Content, patternId: string): string {
   const yarn = content.yarns.get(best.yarn);
   const color = yarn !== undefined ? content.colors.get(yarn.color) : undefined;
   return color?.hex ?? COLORS.sumiSub;
-}
-
-/** 乗り上げか (判定は logic の overflowSides。T3-03a 追加修正で1か所にまとめた) */
-function overflowing(s: BeamingState, side: 'left' | 'right'): boolean {
-  return side === 'left' ? overflowSides(s).left : overflowSides(s).right;
 }
 
 /** 円盤の穴の輪 (円盤の半径に対する割合と、輪ごとの穴の数) */
@@ -84,63 +79,70 @@ export function drawBoard(
   drawSpeedLamp(ctx, fit, s);
 
   ctx.restore();
-
-  // 6. 文字 (変換を戻してから画面 px で描く。20px 以上)
-  ctx.font = '20px sans-serif';
-  ctx.fillStyle = COLORS.sumi;
-  const top = toPx(fit, TOP_TEXT);
-  // 巻き量は操作欄の 1 か所だけ。幅合わせの案内は最初のお知らせ (notify) で出す (PU-15c)
-  // 乗り上げの文字 (20px 以上。朱)
-  if (s.phase === 'beaming' && (overflowing(s, 'left') || overflowing(s, 'right'))) {
-    ctx.fillStyle = COLORS.shu;
-    ctx.font = '24px sans-serif';
-    const y = toPx(fit, { x: 0, y: BOARD.axisY - BOARD.flangeR - 20 }).y;
-    ctx.fillText('乗り上げ', top.x, y);
-  }
+  // 文字は盤面には描かない (巻き量・速さは操作欄。乗り上げの表示は T3-05 で偏りが無くなったので無い。PU-24a)
 }
 
-/** 奥のドラム。横に寝た円筒で、糸の筋は縦 (回る向き)。両端は楕円 (斜めから見た端の面) */
+/**
+ * 奥のドラム。横に寝た円筒を、ドラム巻きと同じ少し斜めの構図で描く (PU-24a)。
+ * 右の端だけが楕円の面 (灰色の金属) として見え、左の端は円筒の輪郭の曲線 (「(」の形) だけ。
+ * 糸の筋は円筒の丸みに沿って曲がる (drumArcX)。巻き取られて少しずつ細る。
+ */
 function drawDrum(ctx: CanvasRenderingContext2D, hex: string, drumAngle: number, progress: number): void {
   const cy = BOARD.drumY + BOARD.drumH / 2;
   const half = (BOARD.drumH / 2) * (1 - 0.3 * Math.min(1, Math.max(0, progress))); // 巻き取られて細る
   const top = cy - half;
   const bottom = cy + half;
-  // 胴 (糸が巻かれた面)
+  const x0 = DRUM_X;
+  const x1 = DRUM_X + DRUM_W;
+  // 胴 (糸が巻かれた面)。上の線 → 右の端 → 下の線 → 左の輪郭 (丸みの曲線)
   ctx.fillStyle = hex;
-  ctx.fillRect(DRUM_X, top, DRUM_W, half * 2);
-  // 糸の筋 (縦。胴を回る向き)
+  ctx.beginPath();
+  ctx.moveTo(x0, top);
+  ctx.lineTo(x1, top);
+  ctx.lineTo(x1, bottom);
+  ctx.lineTo(x0, bottom);
+  const N = 12;
+  for (let i = 1; i <= N; i++) {
+    const t = 1 - (2 * i) / N; // 下から上へ
+    ctx.lineTo(drumArcX(x0, t), cy + half * t);
+  }
+  ctx.closePath();
+  ctx.fill();
+  // 糸の筋 (円周の線。丸みに沿って曲がる)
   ctx.strokeStyle = COLORS.sumi;
   ctx.globalAlpha = 0.28;
   ctx.lineWidth = 2;
-  for (let x = DRUM_X + 12; x < DRUM_X + DRUM_W; x += 14) {
+  for (let xs = x0 + 12; xs < x1; xs += 14) {
     ctx.beginPath();
-    ctx.moveTo(x, top);
-    ctx.lineTo(x, bottom);
+    for (let i = 0; i <= 8; i++) {
+      const t = -1 + (2 * i) / 8;
+      if (i === 0) ctx.moveTo(drumArcX(xs, t), cy + half * t);
+      else ctx.lineTo(drumArcX(xs, t), cy + half * t);
+    }
     ctx.stroke();
   }
-  // 回る面の桟 (横の細い線。drumAngle で縦に流れる)
+  // 回る面の桟 (軸に沿った細い線。drumAngle で上下に流れる。端は丸みの輪郭に合わせる)
   ctx.strokeStyle = COLORS.woodLight;
   ctx.globalAlpha = 0.6;
   ctx.lineWidth = 3;
   const step = 34;
-  const shift = ((drumAngle * 40) % step + step) % step;
+  const shift = (((drumAngle * 40) % step) + step) % step;
   for (let y = top + shift; y < bottom; y += step) {
+    const t = (y - cy) / half;
     ctx.beginPath();
-    ctx.moveTo(DRUM_X, y);
-    ctx.lineTo(DRUM_X + DRUM_W, y);
+    ctx.moveTo(drumArcX(x0, t), y);
+    ctx.lineTo(x1, y);
     ctx.stroke();
   }
   ctx.globalAlpha = 1;
-  // 両端の面 (楕円。灰色の金属)
-  for (const x of [DRUM_X, DRUM_X + DRUM_W]) {
-    ctx.fillStyle = COLORS.steel;
-    ctx.beginPath();
-    ctx.ellipse(x, cy, 22, half, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = COLORS.sumiSub;
-    ctx.lineWidth = 2;
-    ctx.stroke();
-  }
+  // 右の端の面 (楕円。灰色の金属。片側だけ)
+  ctx.fillStyle = COLORS.steel;
+  ctx.beginPath();
+  ctx.ellipse(x1, cy, DRUM_TILT_RX, half, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = COLORS.sumiSub;
+  ctx.lineWidth = 2;
+  ctx.stroke();
 }
 
 /** 糸のシート。上はドラムの下端 (中央)、下は巻いた糸の円筒の上端 (shiftCm の中心)。柄の色の縦の筋が上から下へ走る */
@@ -180,16 +182,67 @@ function drawGuide(ctx: CanvasRenderingContext2D): void {
   ctx.fillRect(DRUM_X + 40, BOARD.guideY - h / 2, DRUM_W - 80, h);
 }
 
-/** ビーム: 巻いた糸の円筒 (軸のまわりに上下に太る)・左右の円盤 (穴の輪)・円盤の外へ飛び出す銀色の軸と端のつまみ */
+/** 円盤の厚み (px。軸の方向の長さ。左の端が少し見える) */
+const FLANGE_THICK = 10;
+
+/** 円盤 1 枚 (厚みの側面と、右を向いた面。穴が同心円状の輪に並ぶ)。x は円盤の面の中心の x */
+function drawFlange(ctx: CanvasRenderingContext2D, x: number): void {
+  const axisY = BOARD.axisY;
+  const R = BOARD.flangeR;
+  // 厚みの側面 (左の端の輪郭の曲線と、上下の線)
+  ctx.fillStyle = COLORS.sumiSub;
+  ctx.fillRect(x - FLANGE_THICK, axisY - R, FLANGE_THICK, R * 2);
+  ctx.beginPath();
+  ctx.ellipse(x - FLANGE_THICK, axisY, FLANGE_RX, R, 0, Math.PI / 2, (Math.PI * 3) / 2);
+  ctx.fill();
+  // 面 (暗い金属の楕円。中心が軸の中心)
+  const kx = FLANGE_RX / R; // 斜めから見て横にちぢむ割合
+  ctx.fillStyle = COLORS.flange;
+  ctx.beginPath();
+  ctx.ellipse(x, axisY, FLANGE_RX, R, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = COLORS.flangeHole;
+  for (const ring of HOLE_RINGS) {
+    for (let i = 0; i < ring.count; i++) {
+      const th = (Math.PI * 2 * i) / ring.count;
+      ctx.beginPath();
+      ctx.arc(x + Math.cos(th) * ring.frac * R * kx, axisY + Math.sin(th) * ring.frac * R, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.strokeStyle = COLORS.sumiSub;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.ellipse(x, axisY, FLANGE_RX, R, 0, 0, Math.PI * 2);
+  ctx.stroke();
+}
+
+/**
+ * ビーム (PU-24a): 銀色の軸は固定の長さ (ROD_X0〜ROD_X1) で円盤の中心を貫き、円盤だけが軸の上を左右に動く。
+ * 少し斜めの構図で右を向いた面が見える。奥 (左) から手前 (右) の順に: 軸全体 → 左の円盤 → 軸の手前側 → 巻いた糸の円筒 →
+ * 右の円盤 → 右の円盤の手前に出る軸と端のつまみ。巻いた糸は軸を中心に上下に太り、円盤と同じ向きの楕円の端を持つ。
+ */
 function drawBeam(ctx: CanvasRenderingContext2D, s: BeamingState, hex: string): void {
   const leftX = cmToX(s.widthCm, s.leftCm);
   const rightX = cmToX(s.widthCm, s.rightCm);
   const axisY = BOARD.axisY;
-  // 巻いた糸 (円盤のあいだ。軸を中心に上下に同じだけ)
+  const rodY = axisY - CORE_R;
+  // 1. 軸の全体 (長さは固定)
+  ctx.fillStyle = COLORS.steel;
+  ctx.fillRect(ROD_X0, rodY, ROD_X1 - ROD_X0, CORE_R * 2);
+  // 2. 左の円盤 (軸はこの円盤の中心を貫く。円盤の面の手前 (右) に軸が出る)
+  drawFlange(ctx, leftX);
+  ctx.fillStyle = COLORS.steel;
+  ctx.fillRect(leftX, rodY, Math.max(0, rightX - leftX), CORE_R * 2);
+  // 3. 巻いた糸 (円盤のあいだ。軸を中心に上下に同じだけ太る円筒。端は円盤と同じ向きの楕円)
   if (s.phase !== 'setup' && s.progress > 0) {
     const r = woundRadius(s.progress);
+    const rx = FLANGE_RX * (r / BOARD.flangeR);
     ctx.fillStyle = hex;
     ctx.fillRect(leftX, axisY - r, rightX - leftX, r * 2);
+    ctx.beginPath();
+    ctx.ellipse(leftX, axisY, rx, r, 0, Math.PI / 2, (Math.PI * 3) / 2); // 左の端の丸み (円盤の面に接する)
+    ctx.fill();
     ctx.strokeStyle = COLORS.sumi;
     ctx.globalAlpha = 0.3;
     ctx.lineWidth = 2;
@@ -201,39 +254,13 @@ function drawBeam(ctx: CanvasRenderingContext2D, s: BeamingState, hex: string): 
     ctx.stroke();
     ctx.globalAlpha = 1;
   }
-  // 円盤 (暗い金属の大きな楕円。穴が同心円状の輪に並ぶ)
-  const kx = FLANGE_RX / BOARD.flangeR; // 斜めから見て横にちぢむ割合
-  for (const x of [leftX, rightX]) {
-    ctx.fillStyle = COLORS.flange;
-    ctx.beginPath();
-    ctx.ellipse(x, axisY, FLANGE_RX, BOARD.flangeR, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = COLORS.flangeHole;
-    for (const ring of HOLE_RINGS) {
-      for (let i = 0; i < ring.count; i++) {
-        const th = (Math.PI * 2 * i) / ring.count;
-        ctx.beginPath();
-        ctx.arc(x + Math.cos(th) * ring.frac * BOARD.flangeR * kx, axisY + Math.sin(th) * ring.frac * BOARD.flangeR, 4, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-    // 円盤の縁。乗り上げ: その側の円盤の縁を朱で太く示す
-    const isLeft = x === leftX;
-    const over = s.phase === 'beaming' && overflowing(s, isLeft ? 'left' : 'right');
-    ctx.strokeStyle = over ? COLORS.shu : COLORS.sumiSub;
-    ctx.lineWidth = over ? 6 : 2;
-    ctx.beginPath();
-    ctx.ellipse(x, axisY, FLANGE_RX, BOARD.flangeR, 0, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-  // 銀色の太い軸 (円盤の外へ左右とも飛び出す) と、端の黒いつまみ
-  const rodX0 = Math.max(4, leftX - ROD_OUT);
-  const rodX1 = Math.min(996, rightX + ROD_OUT);
+  // 4. 右の円盤と、その手前 (右) に出る軸・端のつまみ
+  drawFlange(ctx, rightX);
   ctx.fillStyle = COLORS.steel;
-  ctx.fillRect(rodX0, axisY - CORE_R, rodX1 - rodX0, CORE_R * 2);
+  ctx.fillRect(rightX, rodY, Math.max(0, ROD_X1 - rightX), CORE_R * 2);
   ctx.fillStyle = COLORS.sumi;
-  ctx.fillRect(rodX0 - 4, axisY - CORE_R - 5, 12, CORE_R * 2 + 10);
-  ctx.fillRect(rodX1 - 8, axisY - CORE_R - 5, 12, CORE_R * 2 + 10);
+  ctx.fillRect(ROD_X0 - 4, rodY - 5, 12, CORE_R * 2 + 10);
+  ctx.fillRect(ROD_X1 - 8, rodY - 5, 12, CORE_R * 2 + 10);
 }
 
 /** 幅合わせの目標の点線と目盛り (10cm ごと)、円盤の内側の印 (藍 = 合っている、朱 = 外れている) */
