@@ -25,7 +25,7 @@ export function guideFor(phase: WindingState['phase'], render: Render): { key: s
     return { key: 'ready', text: render('{{pedal}}を右へ動かすと巻き始めます') };
   }
   if (phase === 'broken') {
-    return { key: 'broken', text: render('糸が切れました。切れた糸のあたりを押して、つないでください') };
+    return { key: 'broken', text: render('糸が切れました。切れた場所をタップしてつないでください') };
   }
   if (phase === 'cutting') {
     return { key: 'cutting', text: render('ハサミを糸の所まで引っぱって切ります') };

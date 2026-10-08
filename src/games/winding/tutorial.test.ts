@@ -90,12 +90,12 @@ describe('winding tutorial T2-12 (遊び方を5ページに)', () => {
     expect(windingTutorial.pages).toHaveLength(5);
   });
 
-  it('2. 3ページ目に「範囲」と「揺れ」を含む。4ページ目に「スパイク」と「押すとつながります」を含む。5ページ目に「目標の時間」を含む (T2-20b)', () => {
-    expect(windingTutorial.pages[2]?.text).toContain('範囲');
-    expect(windingTutorial.pages[2]?.text).toContain('揺れ');
-    expect(windingTutorial.pages[3]?.text).toContain('スパイク');
-    expect(windingTutorial.pages[3]?.text).toContain('押すとつながります');
-    expect(windingTutorial.pages[4]?.text).toContain('目標の時間');
+  it('2. 3ページ目に「メーター」と「合わせ続けます」を含む。4ページ目に「▲」と「つなぎます」を含む。5ページ目に「星3」を含む (T2-24 で文を変えた)', () => {
+    expect(windingTutorial.pages[2]?.text).toContain('メーター');
+    expect(windingTutorial.pages[2]?.text).toContain('合わせ続けます');
+    expect(windingTutorial.pages[3]?.text).toContain('▲');
+    expect(windingTutorial.pages[3]?.text).toContain('つなぎます');
+    expect(windingTutorial.pages[4]?.text).toContain('星3');
   });
 
   it('3. 3ページ目の絵に、適正の帯が左右に動く矢印がある (fillRect の帯と、矢の三角形の fill)', () => {
@@ -140,10 +140,9 @@ describe('winding tutorial T2-12 (遊び方を5ページに)', () => {
 describe('PU-14d: ドラム巻きの遊び方を今の画面に合わせる', () => {
   const all = windingTutorial.pages.map((p) => p.text).join('\n');
 
-  it('文に「ランプ」と「巻き量」があり、「踏み込む」「速さ」「メッセージ」が無い。「戻す」は T2-18c で説明に使う', () => {
+  it('文に「ランプ」があり、「踏み込む」「速さ」「メッセージ」が無い。「巻き量」の説明は T2-24 で短い文に変えたので無い', () => {
     expect(all).toContain('ランプ');
-    expect(all).toContain('巻き量');
-    for (const w of ['踏み込む', '速さ', 'メッセージ', '時間の制限はありません']) {
+    for (const w of ['踏み込む', '速さ', 'メッセージ', '時間の制限はありません', '巻き量']) {
       expect(all, w).not.toContain(w);
     }
   });
@@ -190,14 +189,15 @@ describe('T2-18c: 遊び方を今の画面に合わせる', () => {
     }
   });
 
-  it('始まり方・スパイクで戻す・ハサミで切る・時間は最後まで続くを説明する (T2-20b)', () => {
-    expect(all).toContain('右へ動かすと'); // ペダルを右へ動かすと始まる
-    expect(all).toContain('スパイク'); // 張りが急に上がる
+  it('始まり方・強すぎの戻し・ハサミで切る・星3の条件を説明する。作り手の言葉と細かい数字は無い (T2-24)', () => {
+    expect(all).toContain('右へ動かすと巻き始めます'); // ペダルを右へ動かすと始まる
     expect(all).toContain('戻します'); // ペダルを戻す
-    expect(all).toContain('2秒以内に下げないと'); // 戻さないと切れる
     expect(all).toContain('ハサミを糸の所まで引っぱって切ります'); // ハサミで切る
-    expect(all).toContain('最後の帯を結び終えるまで'); // 時間は最後の帯を結ぶまで続く
-    expect(all).toContain('100%'); // 巻き量 100% の表し方 (文字が青)
+    expect(all).toContain('星3'); // 星3の条件
+    // 作り手の言葉と細かい数字は書かない (T2-24)
+    for (const w of ['揺れ', 'スパイク', '10 以上', '3秒', '2秒']) {
+      expect(all, w).not.toContain(w);
+    }
   });
 
   it('5ページ目の絵にハサミがある (鋼の刃と、輪の持ち手)', () => {
@@ -209,11 +209,36 @@ describe('T2-18c: 遊び方を今の画面に合わせる', () => {
   });
 });
 
-describe('winding tutorial T2-22 (強く踏みすぎると切れる)', () => {
-  it('遊び方に「ペダルを強く踏みすぎたまま」の文があり、▲の点滅と切れることが書いてある', () => {
+describe('winding tutorial T2-22 (強すぎだと切れる)・T2-24 (文面)', () => {
+  it('遊び方に「強すぎるまま(▲が点滅)にしておくと、糸が切れます」の文がある (T2-24 で文を変えた)', () => {
     const all = windingTutorial.pages.map((p) => p.text).join('\n');
-    expect(all).toContain('張りが強すぎる状態');
-    expect(all).toContain('▲');
-    expect(all).toContain('糸が切れます');
+    expect(all).toContain('強すぎるまま(▲が点滅)にしておくと、糸が切れます');
+  });
+});
+
+describe('winding tutorial T2-24 (遊び方の文面を遊ぶ人向けに)', () => {
+  it('5ページの文が仕様書のとおり', () => {
+    const texts = windingTutorial.pages.map((p) => p.text);
+    expect(texts[0]).toBe('クリールの糸を{{section}}にまとめて、{{drum}}に巻いていきます');
+    expect(texts[1]).toBe('{{pedal}}を右へ動かすと巻き始めます。右へ動かすほど速く巻けますが、張りも強くなります');
+    expect(texts[2]).toBe('張りは、メーターと{{drum}}の上のランプで見ます。緑の○が、ちょうどよい張りです。張りはひとりでに上下するので、{{pedal}}で合わせ続けます');
+    expect(texts[3]).toBe('張りが急に強くなったら、すぐに{{pedal}}を戻します。強すぎるまま(▲が点滅)にしておくと、糸が切れます。切れたら、切れた場所をタップしてつなぎます');
+    expect(texts[4]).toBe('{{section}}を巻き終えたら、ハサミを糸の所まで引っぱって切ります。ちょうどよい張りで、目標の時間内に全部巻き終えると星3です');
+  });
+
+  it('呼び名を置き換えると {{pedal}}・{{drum}}・{{section}} が呼び名になる', async () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const renderText = (text: string): string =>
+      text.replaceAll('{{pedal}}', 'ふみこみレバー').replaceAll('{{drum}}', 'ドラム').replaceAll('{{section}}', 'たい');
+    const dialog = showTutorial(host, { pages: [{ draw: () => undefined, text: windingTutorial.pages[0]!.text }] }, { renderText });
+    await Promise.resolve();
+    const text = host.textContent ?? '';
+    expect(text).toContain('たいにまとめて');
+    expect(text).toContain('ドラムに巻いて');
+    expect(text).not.toContain('{{section}}');
+    const close = Array.from(host.querySelectorAll('button')).find((b) => b.textContent === '始める' || b.textContent === '×');
+    close?.click();
+    await dialog;
   });
 });

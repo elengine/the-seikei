@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resultOf } from './messages';
+import { guideFor, resultOf } from './messages';
 import { init } from './logic';
 
 describe('resultOf (PU-05c: 結果の行と星3の条件。T2-13c で行が4つに)', () => {
@@ -17,5 +17,13 @@ describe('resultOf (PU-05c: 結果の行と星3の条件。T2-13c で行が4つ�
     expect(r.resultLines![2]!.value).toBe('0回');
     expect(r.starHint).toBe('適正な張りが8割以上、目標の時間内で星3です');
     expect(r.summary).toHaveLength(4);
+  });
+});
+
+describe('糸が切れたときの文 (T2-24)', () => {
+  it('「糸が切れました。切れた場所をタップしてつないでください」(render を通しても変わらない)', () => {
+    const g = guideFor('broken', (s: string) => s);
+    expect(g?.key).toBe('broken');
+    expect(g?.text).toBe('糸が切れました。切れた場所をタップしてつないでください');
   });
 });
