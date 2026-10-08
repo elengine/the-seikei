@@ -470,3 +470,30 @@ describe('settingsScreen PU-22 (ゲームの記録を消す)', () => {
     expect(note).toMatch(/font-size:\s*(var\(--fs-body\)|(2\d|3\d)px)/);
   });
 });
+
+describe('settingsScreen PU-23b (切り替えているあいだ)', () => {
+  beforeEach(() => {
+    document.body.textContent = '';
+    upd.ready = true;
+  });
+
+  it('「アップデートする」を押している間は、ボタンを出さず「切り替えています…」を出す。失敗したら、ボタンと案内に戻る (記録を見てくださいとは書かない)', async () => {
+    let finish: (ok: boolean) => void = () => undefined;
+    upd.apply = () => new Promise<boolean>((resolve) => (finish = resolve));
+    const ctx = await makeCtx();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    createSettingsScreen(ctx).mount(container, {});
+    const go = (): HTMLButtonElement | undefined => Array.from(document.querySelectorAll('button')).find((b) => b.textContent === 'アップデートする');
+    go()!.click();
+    expect(go()).toBeUndefined();
+    expect(document.querySelector('.update-notice')!.textContent).toContain('切り替えています…');
+    finish(false);
+    await vi.waitFor(() => expect(go()).toBeDefined());
+    const text = document.querySelector('.update-notice')!.textContent!;
+    expect(text).toContain('切り替えられませんでした');
+    expect(text).not.toContain('アップデートの記録');
+    expect(text).not.toContain('管理者');
+    upd.ready = false;
+  });
+});

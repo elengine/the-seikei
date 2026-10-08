@@ -154,6 +154,7 @@ export function createSettingsScreen(ctx: AppContext): Screen {
           return;
         }
         applying = true;
+        showText('切り替えています…'); // 押せるボタンは出さない (切り替えは最長 25 秒ほどかかることがある。PU-23b)
         const ok = await applyUpdate();
         applying = false;
         if (!ok && !disposed) {

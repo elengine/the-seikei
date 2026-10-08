@@ -5,6 +5,7 @@ import { createButton, createChoice, setLockedReason } from '../../core/ui/widge
 import { createCard, createPage, createScreenHeader, createSectionHeading } from '../../core/ui/layout';
 import { collectDiagnostics, hasInstallPromptEvent, promptInstall } from '../diagnostics';
 import { startRotationProbe } from './rotationProbe';
+import { readUpdateLogs } from '../updater';
 
 function pad2(n: number): string {
   return String(n).padStart(2, '0');
@@ -48,6 +49,7 @@ export function createAdminScreen(ctx: AppContext): Screen {
 
       const checkCard = section('確認用');
       const diagCard = section('診断');
+      const updateLogCard = section('アップデートの記録');
       const backupCard = section('バックアップ');
       const installCard = section('インストール');
       const logCard = section('ログ');
@@ -77,6 +79,40 @@ export function createAdminScreen(ctx: AppContext): Screen {
       unlockNote.classList.add('admin__notice');
       unlockNote.textContent = 'クリアしていないお題も遊べます。記録(星)は変わりません';
       checkCard.appendChild(unlockNote);
+
+      // ---- アップデートの記録 (直近 3 回。「アップデートする」を押してからの流れを経過ミリ秒つきで。PU-23a) ----
+      const updateLog = document.createElement('div');
+      updateLog.classList.add('admin__update-log');
+      const logs = readUpdateLogs();
+      if (logs.length === 0) {
+        const none = document.createElement('p');
+        none.textContent = '記録はまだありません';
+        updateLog.appendChild(none);
+      }
+      for (const entry of logs) {
+        const table = document.createElement('table');
+        const caption = document.createElement('caption');
+        const when = new Date(entry.at);
+        const stamp = Number.isNaN(when.getTime())
+          ? entry.at
+          : `${when.getFullYear()}-${pad2(when.getMonth() + 1)}-${pad2(when.getDate())} ${pad2(when.getHours())}:${pad2(when.getMinutes())}:${pad2(when.getSeconds())}`;
+        caption.textContent = `${stamp}(${entry.result === 'reloaded' ? '読み込み直した' : '案内を出した'})`;
+        table.appendChild(caption);
+        const body = document.createElement('tbody');
+        for (const e of entry.events) {
+          const tr = document.createElement('tr');
+          const ms = document.createElement('td');
+          ms.textContent = `${e.ms.toLocaleString('en-US')} ms`;
+          const label = document.createElement('td');
+          label.textContent = e.label;
+          tr.appendChild(ms);
+          tr.appendChild(label);
+          body.appendChild(tr);
+        }
+        table.appendChild(body);
+        updateLog.appendChild(table);
+      }
+      updateLogCard.appendChild(updateLog);
 
       // ---- 回転の記録 (診断。iPhone で回転したときに画面全体が一瞬ずれる原因を数字で確定させる) ----
       const rotNote = document.createElement('p');
