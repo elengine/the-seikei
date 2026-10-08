@@ -35,6 +35,8 @@ export interface WindingState {
   spikePlan: SpikePlan;
   /** 帯の始まりからの時間 (ms)。揺れもスパイクも WOBBLE_START_DELAY_MS のあとだけ起こす */
   bandClockMs: number;
+  /** ペダルが範囲の上の端を超えている時間の合計 (ms。範囲の中に戻すと 0 に戻る。T2-22) */
+  overMs: number;
   /** 帯ごとの、スパイクの量が 0 でなかった時間 (ms。テストと成績の内訳用) */
   spikeMs: number[];
   elapsedMs: number; // 巻いていた時間と止まっていた時間の合計 (目標の時間の比較用。T2-09a)
@@ -86,6 +88,7 @@ export function isValidResume(x: unknown): x is WindingState {
   if (typeof o.wobble !== 'object' || o.wobble === null) return false;
   if (typeof o.spike !== 'object' || o.spike === null) return false;
   if (typeof o.spikePlan !== 'object' || o.spikePlan === null) return false;
+  if (typeof o.overMs !== 'number' || !(o.overMs >= 0)) return false;
   if (typeof o.bandClockMs !== 'number' || !(o.bandClockMs >= 0)) return false;
   if (!Array.isArray(o.spikeMs) || o.spikeMs.length !== o.sections) return false;
   // 目標の時間の合計 (T2-16b)。足した目標を持たない古い形の保存は再開しない

@@ -208,3 +208,12 @@ describe('T2-18c: 遊び方を今の画面に合わせる', () => {
     expect(arcs.length).toBeGreaterThanOrEqual(2);
   });
 });
+
+describe('winding tutorial T2-22 (強く踏みすぎると切れる)', () => {
+  it('遊び方に「ペダルを強く踏みすぎたまま」の文があり、▲の点滅と切れることが書いてある', () => {
+    const all = windingTutorial.pages.map((p) => p.text).join('\n');
+    expect(all).toContain('ペダルを強く踏みすぎたまま');
+    expect(all).toContain('▲');
+    expect(all).toContain('糸が切れます');
+  });
+});

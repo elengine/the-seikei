@@ -8,7 +8,7 @@ import type { FakeRecorder } from './renderer.test.helpers';
 
 // 偽の ctx (呼ばれた命令を記録する) は helpers に置く
 import { makeFakeCtx } from './renderer.test.helpers';
-import { SLAT_COUNT, PIN_ANGLE0, lampStateOf, lampGeometry, DRUM_BULGE, drumSectionPinY } from './renderer.parts';
+import { SLAT_COUNT, PIN_ANGLE0, lampStateOf, lampGeometry, DRUM_BULGE, drumSectionPinY, drawTensionLamp } from './renderer.parts';
 import { WING_SIDE_MAX_RATIO, SLAT_OVER, SLAT_FLARE, STRIPE_H } from './params';
 import { init, reduce } from './logic';
 
@@ -1557,5 +1557,49 @@ describe('T2-16 その4a (巻き終えの黒い線を全部消す・竿の下の
     const center = rodHeight(-PIN_ANGLE0);
     const off = rodHeight(-PIN_ANGLE0 + 0.9);
     expect(Math.abs(center - off), '竿の長さの差').toBeLessThanOrEqual(1);
+  });
+});
+
+describe('winding renderer T2-22 (強く踏みすぎを数えているあいだ ▲ が点滅)', () => {
+  const fit = { scale: 1, offsetX: 0, offsetY: 0 };
+
+  function overState(overMs: number): WindingState {
+    // tick の dtMs は 100 で丸められるので 100ms ずつ進める
+    let s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 5 });
+    s = reduce(s, { type: 'setPedal', value: s.range.max + 2 });
+    const steps = Math.ceil(overMs / 100);
+    for (let i = 0; i < steps; i++) s = reduce(s, { type: 'tick', dtMs: 100 });
+    return s;
+  }
+
+  function symbols(s: WindingState, timeMs: number): string[] {
+    const { ctx, rec } = makeFakeCtx();
+    drawTensionLamp(ctx, fit, s, timeMs);
+    return rec.ops.filter((o) => o.k === 'fillText').map((o) => String(o.args?.[0]));
+  }
+
+  it('数えているあいだは時刻で ▲ が出たり消えたりする (0.25 秒ごと)', () => {
+    const s = overState(400);
+    expect(symbols(s, 0)).toContain('▲');
+    expect(symbols(s, 260)).not.toContain('▲');
+    expect(symbols(s, 510)).toContain('▲');
+  });
+
+  it('猶予の残りが 1 秒を切ると点滅が速くなる (0.12 秒ごと)', () => {
+    // レベル1 の猶予 3 秒。overMs 2500 で残り 0.5 秒 → 0.12 秒ごとの点滅になる
+    const s = overState(2500);
+    expect(symbols(s, 2500)).toContain('▲');
+    expect(symbols(s, 2620)).not.toContain('▲');
+  });
+
+  it('数えていないときは ▲ が常に見える (揺れで上に外れただけなら点滅しない)', () => {
+    // ペダルは上の端ちょうど (数えない)。揺れで張りだけが上に外れている状態
+    let s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 5 });
+    s = reduce(s, { type: 'setPedal', value: s.range.max });
+    s = { ...s, tension: s.range.max + 5, overMs: 0 };
+    expect(lampStateOf(s)).toBe('high');
+    expect(s.overMs).toBe(0);
+    expect(symbols(s, 0)).toContain('▲');
+    expect(symbols(s, 260)).toContain('▲');
   });
 });

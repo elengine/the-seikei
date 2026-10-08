@@ -1,6 +1,6 @@
 import type { WindingState } from './logic';
 import { COLORS, FONT_FAMILY } from '../../core/ui/tokens';
-import { SECTION_LENGTH, STRIPE_H, WING_OUT, WING_SIDE_MAX_RATIO, SLAT_OVER, SLAT_FLARE } from './params';
+import { SECTION_LENGTH, STRIPE_H, WING_OUT, WING_SIDE_MAX_RATIO, SLAT_OVER, SLAT_FLARE, OVER_GRACE_MS, OVER_BLINK_MS, OVER_BLINK_FAST_MS, YARN_FEEL } from './params';
 import type { StageFit } from '../../core/viewport/viewport';
 import { DRUM_AREA, fontPx, drumSectionY, threadY, CREEL_END_X, DRUM_END_X, surfaceY, DRUM_BULGE } from './geometry';
 export { DRUM_BULGE };
@@ -375,8 +375,9 @@ export function lampGeometry(fit: StageFit): { x: number; y: number; r: number }
   return { x: DRUM_AREA.x - SLAT_FLARE - 6 - r * 1.3, y: 45, r };
 }
 
-/** 張りのランプを描く (適正=緑「○」、強すぎ=橙「▲」、弱すぎ=橙「▼」、切れた=赤「✕」、巻いていない=消灯の灰色)。光っているときは外側に薄い輪 */
-export function drawTensionLamp(ctx: CanvasRenderingContext2D, fit: StageFit, s: WindingState): void {
+/** 張りのランプを描く (適正=緑「○」、強すぎ=橙「▲」、弱すぎ=橙「▼」、切れた=赤「✕」、巻いていない=消灯の灰色)。光っているときは外側に薄い輪。
+ * 強く踏みすぎを数えているあいだ (T2-22) は ▲ を点滅させる (0.25 秒ごと。猶予の残りが 1 秒を切ると 0.12 秒ごと) */
+export function drawTensionLamp(ctx: CanvasRenderingContext2D, fit: StageFit, s: WindingState, timeMs = 0): void {
   const state = lampStateOf(s);
   const { x, y, r } = lampGeometry(fit);
   const color =
@@ -400,6 +401,16 @@ export function drawTensionLamp(ctx: CanvasRenderingContext2D, fit: StageFit, s:
   }
   // 中の記号 (色だけに頼らない)
   const symbol = state === 'ok' ? '○' : state === 'high' ? '▲' : state === 'low' ? '▼' : '✕';
+  // 強く踏みすぎを数えているあいだは ▲ を点滅させる (色だけに頼らず点滅と記号で知らせる。T2-22)
+  let symbolVisible = true;
+  if (state === 'high' && s.overMs > 0 && s.spike.qty === 0) {
+    const grace = OVER_GRACE_MS(s.level) * YARN_FEEL[s.feel].overGraceMul;
+    const step = grace - s.overMs < 1000 ? OVER_BLINK_FAST_MS : OVER_BLINK_MS;
+    symbolVisible = Math.floor(timeMs / step) % 2 === 0;
+  }
+  if (!symbolVisible) {
+    return;
+  }
   ctx.fillStyle = COLORS.white;
   ctx.font = `bold ${Math.round(r * 1.3)}px ${FONT_FAMILY}`;
   ctx.textAlign = 'center';

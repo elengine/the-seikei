@@ -1,5 +1,4 @@
 import type { TensionParams } from '../../core/mechanics/pedal';
-import type { BreakParams } from '../../core/mechanics/breakage';
 /** 初級・中級・上級 */
 export type Level = 1 | 2 | 3;
 
@@ -74,15 +73,20 @@ export function SPIKE_COUNT_RANGE(level: Level): { min: number; max: number } {
 /** 張りの流れ・引っかかりのパラメータ (T2-09a・T2-16a・T2-16 その3)。引っかかりは +15〜25・0.5秒で上がり 2〜3秒で戻る (起きやすさはレベルで変わる) */
 export const MESSAGE_HOLD_MS = 500;
 
-/** 糸切れのしやすさ (範囲の上を1外れるごとの確率) */
-export function BREAK_RATE(level: Level): number {
-  return level === 1 ? 0.01 : level === 2 ? 0.02 : 0.04;
-}
-
 /** 単独で遊ぶときの柄 */
 export function STANDALONE_PATTERN(level: Level): string {
   return level === 1 ? 'p-pin-kon' : level === 2 ? 'p-chalk-char' : 'p-alt-kon';
 }
+
+/** 強く踏みすぎの猶予 (ms。T2-22。管理者の決定): ペダルの位置が範囲の上の端を超えている時間がこの値を超えると糸が切れる */
+export function OVER_GRACE_MS(level: Level): number {
+  return level === 1 ? 3000 : level === 2 ? 2500 : 2000;
+}
+
+/** 強く踏みすぎを数えているあいだの▲の点滅の間隔 (ms。T2-22) */
+export const OVER_BLINK_MS = 250;
+/** 猶予の残りが 1 秒を切ったときの▲の点滅の間隔 (ms。T2-22) */
+export const OVER_BLINK_FAST_MS = 120;
 
 /** 張りの計算の初期値 (T2-01・P2/README「ペダルと張りの計算」) */
 export const TENSION: TensionParams = {
@@ -95,15 +99,8 @@ export const TENSION: TensionParams = {
   range: { min: 30, max: 70 }, // 呼び出し側で難易度のものに差し替える
 };
 
-/** 糸切れの判定の初期値 (T2-02・P2/README「糸切れ」) */
-export const BREAK: BreakParams = {
-  checkMs: 500,
-  rate: 0.02, // 呼び出し側で難易度のものに差し替える
-  maxChance: 0.5,
-  threadCount: 8,
-  extraStep: 8, // 呼び出し側で難易度のものに差し替える (T2-09b)
-  maxThreads: 2, // 呼び出し側で難易度のものに差し替える (T2-09b)
-};
+/** 糸の本数 (切れた糸をどの糸にするかを選ぶ数。T2-22 で、どこからも使われていない確率の数を外した) */
+export const BREAK = { threadCount: 8 } as const;
 
 /** 切れる本数が 1本増える外れの量 (T2-09b。難易度ごと) */
 export function BREAK_EXTRA_STEP(level: Level): number {
@@ -148,16 +145,13 @@ export const PUZZLE_STAGE: Record<number, { sections: number; level: Level }> = 
 /** 糸の手応え (T2-14b)。standard=標準、fine=細い糸 (切れやすい)、thick=太い糸 (流れやすい) */
 export type YarnFeel = 'standard' | 'fine' | 'thick';
 
-/** 手応えごとのパラメータの倍率・差分 (T2-14b。初期値。管理者が遊んで調整する) */
+/** 手応えごとのパラメータの倍率 (T2-14b。T2-22 で強く踏みすぎの猶予の倍率だけになった) */
 export const YARN_FEEL: Record<YarnFeel, {
-  breakRateMul: number; // 糸切れのしやすさの倍率
-  breakExtraStepDelta: number; // 切れる本数が 1本増える外れの量の差分 (最小 4)
-  driftMul: number; // 張りの流れの速さの倍率
-  snagMul: number; // 引っかかりのしやすさの倍率
+  overGraceMul: number; // 強く踏みすぎの猶予の倍率 (細い糸は短く、太い糸は長い)
 }> = {
-  standard: { breakRateMul: 1, breakExtraStepDelta: 0, driftMul: 1, snagMul: 1 },
-  fine: { breakRateMul: 1.5, breakExtraStepDelta: -2, driftMul: 1, snagMul: 1 },
-  thick: { breakRateMul: 1, breakExtraStepDelta: 0, driftMul: 1.3, snagMul: 1.3 },
+  standard: { overGraceMul: 1 },
+  fine: { overGraceMul: 0.8 },
+  thick: { overGraceMul: 1.2 },
 };
 
 /** 帯の縞1本の高さ (論理座標。柄の並びを区画の中で繰り返す。T2-08 追加修正2) */
@@ -175,14 +169,12 @@ export function paramsOf(level: Level): {
   sections: number;
   rangeCenter: { min: number; max: number };
   rangeWidth: number;
-  breakRate: number;
   patternId: string;
 } {
   return {
     sections: SECTIONS(level),
     rangeCenter: RANGE_CENTER(level),
     rangeWidth: RANGE_WIDTH(level),
-    breakRate: BREAK_RATE(level),
     patternId: STANDALONE_PATTERN(level),
   };
 }

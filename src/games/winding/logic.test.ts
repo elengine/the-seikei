@@ -3,7 +3,7 @@ import { init, reduce, qualities, starsOf, isValidResume, lastTapResult, bandTar
 import { TIME_SCISSORS_TIE_MS, TIME_PER_SPIKE_MS, SPIKE_COUNT_RANGE } from './params';
 import * as params from './params';
 import { resultOf, guideFor } from './messages';
-import type { WindingState, Level } from './logic';
+import type { WindingState, Level, YarnFeel } from './logic';
 import { paramsOf, SECTION_LENGTH, MAX_SPEED, TENSION, RANGE_CENTER, RANGE_WIDTH, RANGE_REACHABLE } from './params';
 
 /** 20秒 + 少し の tick を送る (pedal 50 用)。pedal 40 など遅いときは、'cutting' まで続ける */
@@ -946,5 +946,150 @@ describe('T2-21: 制限時間の新しい計算 (二重に足さない・スパ�
         expect(s.elapsedMs, `L${level} seed ${seed}: ${(s.elapsedMs / 1000).toFixed(1)}秒 ≤ 目標 ${(s.targetMs / 1000).toFixed(1)}秒`).toBeLessThanOrEqual(s.targetMs);
       }
     }
+  });
+});
+
+describe('T2-22: ペダルを強く踏みすぎたまま猶予を過ぎると糸が切れる', () => {
+  const DT = 100;
+
+  /** ペダルを上の端より上に置いて ms だけ巻く (切れたら打ち切り) */
+  function runAbove(level: Level, feel: YarnFeel, ms: number, seed = 5): { s: WindingState; broke: boolean } {
+    let s = init({ level, patternId: 'p-pin-kon', sections: 3, seed, feel });
+    s = reduce(s, { type: 'setPedal', value: Math.min(100, s.range.max + 2) });
+    const steps = Math.ceil(ms / DT);
+    for (let i = 0; i < steps && s.phase === 'winding'; i++) {
+      s = reduce(s, { type: 'tick', dtMs: DT });
+    }
+    return { s, broke: s.phase === 'broken' };
+  }
+
+  it('1. レベル1 は 3 秒で切れる (2.9 秒では切れない)', () => {
+    expect(runAbove(1, 'standard', 2900).broke).toBe(false);
+    const r = runAbove(1, 'standard', 3000);
+    expect(r.broke).toBe(true);
+    expect(r.s.breaks).toBe(1);
+    expect(r.s.pedal.pedal).toBe(0); // 切れたらペダルは 0 (今の糸切れと同じ)
+  });
+
+  it('2. レベル2 は 2.5 秒・レベル3 は 2 秒で切れる', () => {
+    expect(runAbove(2, 'standard', 2400).broke).toBe(false);
+    expect(runAbove(2, 'standard', 2500).broke).toBe(true);
+    expect(runAbove(3, 'standard', 1900).broke).toBe(false);
+    expect(runAbove(3, 'standard', 2000).broke).toBe(true);
+  });
+
+  it('3. 細い糸は 0.8 倍 (2.4 秒)・太い糸は 1.2 倍 (3.6 秒) で切れる', () => {
+    expect(runAbove(1, 'fine', 2300).broke).toBe(false);
+    expect(runAbove(1, 'fine', 2400).broke).toBe(true);
+    expect(runAbove(1, 'thick', 3500).broke).toBe(false);
+    expect(runAbove(1, 'thick', 3600).broke).toBe(true);
+  });
+
+  it('4. 猶予の前に範囲の中へ戻すと切れず、数えた時間 (overMs) は 0 に戻る', () => {
+    // スパイクの無い帯の種だけ使う (スパイクが起きると T2-20 の決まりで数えないから)
+    let s: WindingState | null = null;
+    for (let seed = 1; seed <= 80; seed++) {
+      const s0 = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed });
+      if (s0.ranges[0]!.spikes === 0) {
+        s = s0;
+        break;
+      }
+    }
+    expect(s).not.toBeNull();
+    s = s!;
+    s = reduce(s, { type: 'setPedal', value: s.range.max + 2 });
+    for (let i = 0; i < 20; i++) s = reduce(s, { type: 'tick', dtMs: DT }); // 2 秒
+    expect(s.overMs).toBe(2000);
+    s = reduce(s, { type: 'setPedal', value: s.range.center });
+    s = reduce(s, { type: 'tick', dtMs: DT });
+    expect(s.overMs).toBe(0); // 範囲の中に戻したので 0 に戻る
+    // もう一度上の端より上へ。前に数えた時間は捨てているので、さらに 2 秒でもまだ切れない
+    s = reduce(s, { type: 'setPedal', value: s.range.max + 2 });
+    for (let i = 0; i < 20; i++) s = reduce(s, { type: 'tick', dtMs: DT }); // さらに 2 秒
+    expect(s.phase).not.toBe('broken');
+    expect(s.overMs).toBe(2000);
+  });
+
+  it('5. ペダルが上の端ちょうどでも、揺れで張りが上に外れても切れない (種 20 通り。スパイクの無い帯だけ)', () => {
+    let tested = 0;
+    let wentAbove = 0;
+    for (let seed = 1; seed <= 80 && tested < 20; seed++) {
+      const s0 = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed });
+      if (s0.ranges[0]!.spikes > 0) continue; // スパイクのある帯は T2-20 の決まりで切れるので外す
+      tested += 1;
+      let s = s0;
+      s = reduce(s, { type: 'setPedal', value: s.range.max });
+      for (let i = 0; i < 300 && s.phase === 'winding'; i++) {
+        s = reduce(s, { type: 'tick', dtMs: DT });
+        if (s.tension > s.range.max) wentAbove += 1; // 揺れで張りが上に外れたことがある
+      }
+      expect(s.phase, `seed ${seed}`).not.toBe('broken');
+    }
+    expect(tested).toBe(20);
+    expect(wentAbove).toBeGreaterThan(0); // 揺れで上に外れる場面が本当にあった
+  });
+
+  it('6. 範囲の真ん中で、スパイクに正しく反応する遊び方でも切れない (種 20 通り・3 レベル)', () => {
+    for (let seed = 1; seed <= 20; seed++) {
+      for (const level of [1, 2, 3] as Level[]) {
+        let s = init({ level, patternId: 'p-pin-kon', sections: 3, seed });
+        let cuttingMs = 0;
+        let guard = 0;
+        while (s.phase !== 'done' && guard < 60000) {
+          if (s.phase === 'ready') {
+            s = reduce(s, { type: 'setPedal', value: s.range.center });
+          } else if (s.phase === 'cutting') {
+            s = reduce(s, { type: 'tick', dtMs: DT });
+            cuttingMs += DT;
+            if (cuttingMs >= 3500) {
+              s = reduce(s, { type: 'cut' });
+              cuttingMs = 0;
+            }
+          } else if (s.phase === 'broken' && s.brk.kind === 'broken') {
+            for (const th of s.brk.threads) s = reduce(s, { type: 'tapThread', thread: th });
+          } else if (s.phase === 'winding') {
+            const pedal = s.spike.qty > 0 ? Math.max(0, s.spike.pedalAtStart - 10) : s.range.center;
+            s = reduce(s, { type: 'setPedal', value: pedal });
+            s = reduce(s, { type: 'tick', dtMs: DT });
+          }
+          guard += 1;
+        }
+        expect(s.phase, `L${level} seed ${seed}`).toBe('done');
+        expect(s.breaks, `L${level} seed ${seed}: 切れずに終わる`).toBe(0);
+      }
+    }
+  });
+
+  it('7. 範囲の下に外れていても切れない (数えない。スパイクの無い帯だけ)', () => {
+    let s: WindingState | null = null;
+    for (let seed = 1; seed <= 80; seed++) {
+      const s0 = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed });
+      if (s0.ranges[0]!.spikes === 0) {
+        s = s0;
+        break;
+      }
+    }
+    expect(s).not.toBeNull();
+    s = s!;
+    s = reduce(s, { type: 'setPedal', value: Math.max(1, s.range.min - 10) });
+    for (let i = 0; i < 300 && s.phase === 'winding'; i++) s = reduce(s, { type: 'tick', dtMs: DT });
+    expect(s.phase).not.toBe('broken');
+    expect(s.overMs).toBe(0);
+  });
+
+  it('8. スパイクのあいだは数えない (スパイクが起きている間 overMs は増えない。数え直しになる)', () => {
+    // 帯の始まりの3秒のまちのあとでスパイクを起こさせ、そのあいだペダルを上の端より上に置く
+    let s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 5 });
+    s = { ...s, phase: 'winding' as const, bandClockMs: 3500, spikePlan: { left: 1, atMs: 3500 } };
+    s = reduce(s, { type: 'setPedal', value: s.range.max + 2 });
+    s = reduce(s, { type: 'tick', dtMs: 100 });
+    expect(s.spike.qty).toBeGreaterThan(0);
+    expect(s.overMs).toBe(0);
+    // スパイクが無ければ同じ置き方で数える (比べるため)
+    let s2 = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 5 });
+    s2 = { ...s2, phase: 'winding' as const, bandClockMs: 3500, spikePlan: { left: 0, atMs: 0 } };
+    s2 = reduce(s2, { type: 'setPedal', value: s2.range.max + 2 });
+    s2 = reduce(s2, { type: 'tick', dtMs: 100 });
+    expect(s2.overMs).toBe(100);
   });
 });

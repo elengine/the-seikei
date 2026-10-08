@@ -9,14 +9,14 @@ import { initPedal, setPedal, speedOf } from '../../core/mechanics/pedal';
 import { initBreak, tapThread } from '../../core/mechanics/breakage';
 import {
   SECTION_LENGTH, TENSION, BREAK, MAX_TICK_MS, STARS3, STARS2,
-  WOBBLE_START_DELAY_MS, SPIKE_GRACE_MS,
+  WOBBLE_START_DELAY_MS, SPIKE_GRACE_MS, OVER_GRACE_MS, YARN_FEEL,
 } from './params';
 import type { Level, YarnFeel } from './params';
 import { resetWobble, resetSpike, planSpikes, stepWobble, stepSpike, makeRanges } from './tension';
 import { bandTargetMs, targetMsOf } from './timeLimit';
 import type { WindingState, WindingAction } from './state';
 
-export type { Level } from './params';
+export type { Level, YarnFeel } from './params';
 export type { RangeWithSpikes, WobbleState, SpikeState, SpikePlan } from './tension';
 export type { WindingState, WindingAction } from './state';
 export { makeRange, makeRanges } from './tension';
@@ -55,6 +55,7 @@ export function init(opts: { level: Level; patternId: string; sections: number; 
     spike: resetSpike(),
     spikePlan: p0.plan,
     bandClockMs: 0,
+    overMs: 0,
     spikeMs: new Array<number>(sections).fill(0),
     elapsedMs: 0,
     brk: initBreak(),
@@ -118,6 +119,7 @@ export function reduce(s: WindingState, a: WindingAction): WindingState {
         phase: 'winding',
         range: next,
         bandClockMs: 0,
+    overMs: 0,
         spikePlan: plan.plan,
         wobble: wob.wobble,
         spike: resetSpike(),
@@ -172,6 +174,10 @@ function tick(s: WindingState, dtMs: number): WindingState {
     // スパイクの猶予を過ぎたら切れる (2 秒以内にペダルを 10 以上下げれば切れない。T2-20a)
     if (spike.qty > 0 && spike.fallingMs < 0 && spike.elapsedMs >= SPIKE_GRACE_MS) spikeBroke = true;
   }
+  // 強く踏みすぎの数え (T2-22): ペダルの位置が範囲の上の端を超えているあいだ時間を数える。
+  // スパイクのあいだは数えない (スパイクは「2 秒以内に 10 下げる」の決まりだけ)。範囲の下は数えない (出来が下がるだけ)
+  const countingOver = !spikeBroke && spike.qty === 0 && pedalPos > range.max;
+  const overMs = countingOver ? s.overMs + dtClamped : 0;
   // 2. 張り = ペダルの位置 + 揺れの量 + スパイクの量 (T2-20a)
   const tension = pedalPos + wobble.qty + spike.qty;
   const cur: WindingState = {
@@ -184,8 +190,26 @@ function tick(s: WindingState, dtMs: number): WindingState {
     range,
     rng,
     bandClockMs: s.bandClockMs + dtClamped,
+    overMs,
   };
   let state = cur;
+  // 強く踏みすぎの猶予を過ぎたら糸が 1 本切れる (数えた時間は 0 に戻す。T2-22)
+  if (!spikeBroke && overMs >= OVER_GRACE_MS(s.level) * YARN_FEEL[s.feel].overGraceMul) {
+    const [pickRaw, pickNext] = nextFloat(state.rng);
+    const thread = Math.min(BREAK.threadCount - 1, Math.floor(pickRaw * BREAK.threadCount));
+    const wr = resetWobble(pickNext);
+    return {
+      ...state,
+      brk: { kind: 'broken', threads: [thread], tied: [] },
+      breaks: state.breaks + 1,
+      phase: 'broken',
+      pedal: setPedal(state.pedal, 0),
+      wobble: wr.wobble,
+      spike: resetSpike(),
+      rng: wr.rng,
+      overMs: 0,
+    };
+  }
   if (spikeBroke) {
     // 3. 切れたら 1 本切る (今の糸切れの扱いと同じ: タップでつなぐ)。揺れとスパイクは止める
     const [pickRaw, pickNext] = nextFloat(state.rng);

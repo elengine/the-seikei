@@ -63,7 +63,7 @@ export function drawBoard(
   drawTable(ctx, fit, s, opts.threadCount);
   drawDrum(ctx, fit, s, hexes, base, opts.tieProgress ?? 0, opts.drumAngle ?? 0);
   drawDial(ctx, fit, s);
-  drawTensionLamp(ctx, fit, s);
+  drawTensionLamp(ctx, fit, s, opts.timeMs);
   drawBrokenThread(ctx, fit, s, opts, base);
   // ハサミのアイコン (帯を巻き終えた 'cutting' のときだけ。いちばん上に重ねる。T2-16c)
   if (s.phase === 'cutting' && opts.scissors !== undefined) {
