@@ -1496,3 +1496,78 @@ describe('T2-19b: 100% になったとき帯留め (竿) が「手前側で左�
     }
   }, 60000);
 });
+
+describe('winding module T2-23 (最後の帯を結び終えたらクリアの音 fanfare)', () => {
+  let raf: ReturnType<typeof installFakeRaf>;
+  let plays: string[];
+
+  beforeEach(() => {
+    document.body.textContent = '';
+    raf = installFakeRaf();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  async function setup(resume: unknown): Promise<HTMLElement> {
+    const { deps, ctx } = await makeDeps();
+    plays = [];
+    const orig = ctx.audio.play.bind(ctx.audio);
+    ctx.audio.play = (n: string) => {
+      plays.push(n);
+      return orig(n as never);
+    };
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const module = createWindingModule(deps);
+    module.mount(container, makeProps({ resume }));
+    return container;
+  }
+
+  /** cutting の状態でハサミをつかんで糸の束の上で離し、結びの演出 (1秒) を終わらせる */
+  async function finishTie(container: HTMLElement, band: number): Promise<void> {
+    const rect = stageRect(container);
+    const { tableY, scissorsPos } = await import('./geometry');
+    const sp = scissorsPos();
+    stagePointer(container, rect, 'pointerdown', sp.x, sp.y);
+    stagePointer(container, rect, 'pointermove', 570, tableY(band, 3) + 145);
+    stagePointer(container, rect, 'pointerup', 570, tableY(band, 3) + 145);
+    raf.advance(120); // 閉じる動き (0.3秒) + 結びの演出 (1秒) が終わるまで
+  }
+
+  it('最後でない帯を結び終えたとき knot が1回鳴り、fanfare は鳴らない', async () => {
+    // jsdom では stage の clientWidth が 0 のため、盤面 1000×750 を返す (ハサミを押すときに使う)
+    const descW = Object.getOwnPropertyDescriptor(Element.prototype, 'clientWidth');
+    const descH = Object.getOwnPropertyDescriptor(Element.prototype, 'clientHeight');
+    Object.defineProperty(Element.prototype, 'clientWidth', { configurable: true, get(): number { return 1000; } });
+    Object.defineProperty(Element.prototype, 'clientHeight', { configurable: true, get(): number { return 750; } });
+    try {
+      const base = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 5 });
+      const container = await setup({ ...base, phase: 'cutting' as const, current: 0 });
+      await finishTie(container, 0);
+      expect(plays.filter((n) => n === 'knot')).toHaveLength(1);
+      expect(plays.includes('fanfare')).toBe(false);
+    } finally {
+      if (descW !== undefined) Object.defineProperty(Element.prototype, 'clientWidth', descW);
+      if (descH !== undefined) Object.defineProperty(Element.prototype, 'clientHeight', descH);
+    }
+  });
+
+  it('最後の帯を結び終えたとき (done になるとき) fanfare が1回鳴り、knot は鳴らない', async () => {
+    const descW = Object.getOwnPropertyDescriptor(Element.prototype, 'clientWidth');
+    const descH = Object.getOwnPropertyDescriptor(Element.prototype, 'clientHeight');
+    Object.defineProperty(Element.prototype, 'clientWidth', { configurable: true, get(): number { return 1000; } });
+    Object.defineProperty(Element.prototype, 'clientHeight', { configurable: true, get(): number { return 750; } });
+    try {
+      const base = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 5 });
+      const container = await setup({ ...base, phase: 'cutting' as const, current: 2 });
+      await finishTie(container, 2);
+      expect(plays.filter((n) => n === 'fanfare')).toHaveLength(1);
+      expect(plays.includes('knot')).toBe(false);
+    } finally {
+      if (descW !== undefined) Object.defineProperty(Element.prototype, 'clientWidth', descW);
+      if (descH !== undefined) Object.defineProperty(Element.prototype, 'clientHeight', descH);
+    }
+  });
+});

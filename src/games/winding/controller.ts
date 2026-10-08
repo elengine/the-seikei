@@ -270,7 +270,9 @@ let pinTurnGoal = 0; // ピン回しで回る量 (竿が「左から 40%」に�
       const wasRunning = tieRunning;
       stopTieAnimation();
       if (wasRunning) {
-        deps.audio.play('knot');
+        // 最後の帯を結び終えたとき (cut で done になるとき) はクリール立てと同じクリアの音。
+        // 最後でない帯は結ぶ音 (T2-23)
+        deps.audio.play(s.current >= s.sections - 1 ? 'fanfare' : 'knot');
         applyAction({ type: 'cut' });
       }
     }
