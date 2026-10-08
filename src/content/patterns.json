@@ -1,357 +1,377 @@
 [
- {
-  "id": "p-muji-kon",
-  "name": "紺の無地",
-  "plan": [
-   {
-    "yarn": "kon-a",
-    "count": 6
-   }
-  ],
-  "weft": "kon",
-  "era": {
-   "from": 1967,
-   "to": 2004
+  {
+    "id": "p-muji-kon",
+    "name": "紺の無地",
+    "plan": [
+      {
+        "yarn": "kon-a",
+        "count": 6
+      }
+    ],
+    "weft": "kon",
+    "era": {
+      "from": 1967,
+      "to": 2004
+    },
+    "description": "(P4で追記)",
+    "difficulty": 1
   },
-  "description": "(P4で追記)",
-  "difficulty": 1
- },
- {
-  "id": "p-pin-kon",
-  "name": "紺地のピンストライプ",
-  "plan": [
-   {
-    "yarn": "kon-a",
-    "count": 7
-   },
-   {
-    "yarn": "shiro-a",
-    "count": 1
-   }
-  ],
-  "weft": "kon",
-  "era": {
-   "from": 1967,
-   "to": 2004
+  {
+    "id": "p-pin-kon",
+    "name": "紺地のピンストライプ",
+    "plan": [
+      {
+        "yarn": "kon-a",
+        "count": 3
+      },
+      {
+        "yarn": "shiro-a",
+        "count": 1
+      },
+      {
+        "yarn": "kon-a",
+        "count": 4
+      }
+    ],
+    "weft": "kon",
+    "era": {
+      "from": 1967,
+      "to": 2004
+    },
+    "description": "(P4で追記)",
+    "difficulty": 1
   },
-  "description": "(P4で追記)",
-  "difficulty": 1
- },
- {
-  "id": "p-chalk-char",
-  "name": "チャコールのチョークストライプ",
-  "plan": [
-   {
-    "yarn": "charcoal-a",
-    "count": 6
-   },
-   {
-    "yarn": "hai-a",
-    "count": 2
-   }
-  ],
-  "weft": "charcoal",
-  "era": {
-   "from": 1967,
-   "to": 2004
+  {
+    "id": "p-chalk-char",
+    "name": "チャコールのチョークストライプ",
+    "plan": [
+      {
+        "yarn": "charcoal-a",
+        "count": 6
+      },
+      {
+        "yarn": "hai-a",
+        "count": 2
+      }
+    ],
+    "weft": "charcoal",
+    "era": {
+      "from": 1967,
+      "to": 2004
+    },
+    "description": "(P4で追記)",
+    "difficulty": 2
   },
-  "description": "(P4で追記)",
-  "difficulty": 2
- },
- {
-  "id": "p-shadow-kon",
-  "name": "紺のシャドーストライプ",
-  "plan": [
-   {
-    "yarn": "kon-a",
-    "count": 4
-   },
-   {
-    "yarn": "kon-c",
-    "count": 4
-   }
-  ],
-  "weft": "kon",
-  "era": {
-   "from": 1967,
-   "to": 2004
+  {
+    "id": "p-shadow-kon",
+    "name": "紺のシャドーストライプ",
+    "plan": [
+      {
+        "yarn": "kon-a",
+        "count": 4
+      },
+      {
+        "yarn": "kon-c",
+        "count": 4
+      }
+    ],
+    "weft": "kon",
+    "era": {
+      "from": 1967,
+      "to": 2004
+    },
+    "description": "(P4で追記)",
+    "difficulty": 2
   },
-  "description": "(P4で追記)",
-  "difficulty": 2
- },
- {
-  "id": "p-alt-kon",
-  "name": "紺のオルタネートストライプ",
-  "plan": [
-   {
-    "yarn": "kon-a",
-    "count": 5
-   },
-   {
-    "yarn": "kon-b",
-    "count": 1
-   },
-   {
-    "yarn": "kon-a",
-    "count": 5
-   },
-   {
-    "yarn": "mizu-a",
-    "count": 1
-   }
-  ],
-  "weft": "kon",
-  "era": {
-   "from": 1967,
-   "to": 2004
+  {
+    "id": "p-alt-kon",
+    "name": "紺のオルタネートストライプ",
+    "plan": [
+      {
+        "yarn": "kon-a",
+        "count": 5
+      },
+      {
+        "yarn": "kon-b",
+        "count": 1
+      },
+      {
+        "yarn": "kon-a",
+        "count": 5
+      },
+      {
+        "yarn": "mizu-a",
+        "count": 1
+      }
+    ],
+    "weft": "kon",
+    "era": {
+      "from": 1967,
+      "to": 2004
+    },
+    "description": "(P4で追記)",
+    "difficulty": 3
   },
-  "description": "(P4で追記)",
-  "difficulty": 3
- },
- {
-  "id": "p-muji-kuro",
-  "name": "黒の無地",
-  "plan": [
-   {
-    "yarn": "kuro-a",
-    "count": 6
-   }
-  ],
-  "weft": "kuro",
-  "era": {
-   "from": 1967,
-   "to": 2004
+  {
+    "id": "p-muji-kuro",
+    "name": "黒の無地",
+    "plan": [
+      {
+        "yarn": "kuro-a",
+        "count": 6
+      }
+    ],
+    "weft": "kuro",
+    "era": {
+      "from": 1967,
+      "to": 2004
+    },
+    "description": "(P4で追記)",
+    "difficulty": 1
   },
-  "description": "(P4で追記)",
-  "difficulty": 1
- },
- {
-  "id": "p-muji-cha",
-  "name": "茶の無地",
-  "plan": [
-   {
-    "yarn": "cha-a",
-    "count": 6
-   }
-  ],
-  "weft": "cha",
-  "era": {
-   "from": 1967,
-   "to": 2004
+  {
+    "id": "p-muji-cha",
+    "name": "茶の無地",
+    "plan": [
+      {
+        "yarn": "cha-a",
+        "count": 6
+      }
+    ],
+    "weft": "cha",
+    "era": {
+      "from": 1967,
+      "to": 2004
+    },
+    "description": "(P4で追記)",
+    "difficulty": 1
   },
-  "description": "(P4で追記)",
-  "difficulty": 1
- },
- {
-  "id": "p-pencil-kuro",
-  "name": "黒地のペンシルストライプ",
-  "plan": [
-   {
-    "yarn": "kuro-a",
-    "count": 7
-   },
-   {
-    "yarn": "hai-a",
-    "count": 1
-   }
-  ],
-  "weft": "kuro",
-  "era": {
-   "from": 1967,
-   "to": 2004
+  {
+    "id": "p-pencil-kuro",
+    "name": "黒地のペンシルストライプ",
+    "plan": [
+      {
+        "yarn": "kuro-a",
+        "count": 2
+      },
+      {
+        "yarn": "hai-a",
+        "count": 1
+      },
+      {
+        "yarn": "kuro-a",
+        "count": 4
+      },
+      {
+        "yarn": "hai-a",
+        "count": 1
+      }
+    ],
+    "weft": "kuro",
+    "era": {
+      "from": 1967,
+      "to": 2004
+    },
+    "description": "(P4で追記)",
+    "difficulty": 1
   },
-  "description": "(P4で追記)",
-  "difficulty": 1
- },
- {
-  "id": "p-pin-cha",
-  "name": "茶地のピンストライプ",
-  "plan": [
-   {
-    "yarn": "cha-a",
-    "count": 7
-   },
-   {
-    "yarn": "beige-a",
-    "count": 1
-   }
-  ],
-  "weft": "cha",
-  "era": {
-   "from": 1967,
-   "to": 2004
+  {
+    "id": "p-pin-cha",
+    "name": "茶地のピンストライプ",
+    "plan": [
+      {
+        "yarn": "cha-a",
+        "count": 3
+      },
+      {
+        "yarn": "beige-a",
+        "count": 1
+      },
+      {
+        "yarn": "cha-a",
+        "count": 3
+      },
+      {
+        "yarn": "beige-a",
+        "count": 1
+      }
+    ],
+    "weft": "cha",
+    "era": {
+      "from": 1967,
+      "to": 2004
+    },
+    "description": "(P4で追記)",
+    "difficulty": 1
   },
-  "description": "(P4で追記)",
-  "difficulty": 1
- },
- {
-  "id": "p-double-ao",
-  "name": "青地のダブルストライプ",
-  "plan": [
-   {
-    "yarn": "ao-a",
-    "count": 5
-   },
-   {
-    "yarn": "shiro-a",
-    "count": 1
-   },
-   {
-    "yarn": "ao-a",
-    "count": 1
-   },
-   {
-    "yarn": "shiro-a",
-    "count": 1
-   }
-  ],
-  "weft": "ao",
-  "era": {
-   "from": 1967,
-   "to": 2004
+  {
+    "id": "p-double-ao",
+    "name": "青地のダブルストライプ",
+    "plan": [
+      {
+        "yarn": "ao-a",
+        "count": 5
+      },
+      {
+        "yarn": "shiro-a",
+        "count": 1
+      },
+      {
+        "yarn": "ao-a",
+        "count": 1
+      },
+      {
+        "yarn": "shiro-a",
+        "count": 1
+      }
+    ],
+    "weft": "ao",
+    "era": {
+      "from": 1967,
+      "to": 2004
+    },
+    "description": "(P4で追記)",
+    "difficulty": 2
   },
-  "description": "(P4で追記)",
-  "difficulty": 2
- },
- {
-  "id": "p-stripe-midori",
-  "name": "深緑とえんじの縞",
-  "plan": [
-   {
-    "yarn": "midori-a",
-    "count": 5
-   },
-   {
-    "yarn": "enji-a",
-    "count": 1
-   },
-   {
-    "yarn": "beige-a",
-    "count": 2
-   }
-  ],
-  "weft": "midori",
-  "era": {
-   "from": 1967,
-   "to": 2004
+  {
+    "id": "p-stripe-midori",
+    "name": "深緑とえんじの縞",
+    "plan": [
+      {
+        "yarn": "midori-a",
+        "count": 5
+      },
+      {
+        "yarn": "enji-a",
+        "count": 1
+      },
+      {
+        "yarn": "beige-a",
+        "count": 2
+      }
+    ],
+    "weft": "midori",
+    "era": {
+      "from": 1967,
+      "to": 2004
+    },
+    "description": "(P4で追記)",
+    "difficulty": 2
   },
-  "description": "(P4で追記)",
-  "difficulty": 2
- },
- {
-  "id": "p-shadow-char",
-  "name": "チャコールのシャドーストライプ",
-  "plan": [
-   {
-    "yarn": "charcoal-a",
-    "count": 4
-   },
-   {
-    "yarn": "charcoal-b",
-    "count": 4
-   }
-  ],
-  "weft": "charcoal",
-  "era": {
-   "from": 1967,
-   "to": 2004
+  {
+    "id": "p-shadow-char",
+    "name": "チャコールのシャドーストライプ",
+    "plan": [
+      {
+        "yarn": "charcoal-a",
+        "count": 4
+      },
+      {
+        "yarn": "charcoal-b",
+        "count": 4
+      }
+    ],
+    "weft": "charcoal",
+    "era": {
+      "from": 1967,
+      "to": 2004
+    },
+    "description": "(P4で追記)",
+    "difficulty": 2
   },
-  "description": "(P4で追記)",
-  "difficulty": 2
- },
- {
-  "id": "p-shadow-hai",
-  "name": "灰のシャドーストライプ",
-  "plan": [
-   {
-    "yarn": "hai-a",
-    "count": 3
-   },
-   {
-    "yarn": "hai-b",
-    "count": 3
-   },
-   {
-    "yarn": "hai-a",
-    "count": 1
-   },
-   {
-    "yarn": "shiro-a",
-    "count": 1
-   }
-  ],
-  "weft": "hai",
-  "era": {
-   "from": 1967,
-   "to": 2004
+  {
+    "id": "p-shadow-hai",
+    "name": "灰のシャドーストライプ",
+    "plan": [
+      {
+        "yarn": "hai-a",
+        "count": 3
+      },
+      {
+        "yarn": "hai-b",
+        "count": 3
+      },
+      {
+        "yarn": "hai-a",
+        "count": 1
+      },
+      {
+        "yarn": "shiro-a",
+        "count": 1
+      }
+    ],
+    "weft": "hai",
+    "era": {
+      "from": 1967,
+      "to": 2004
+    },
+    "description": "(P4で追記)",
+    "difficulty": 2
   },
-  "description": "(P4で追記)",
-  "difficulty": 2
- },
- {
-  "id": "p-alt-char",
-  "name": "チャコールのオルタネートストライプ",
-  "plan": [
-   {
-    "yarn": "charcoal-a",
-    "count": 5
-   },
-   {
-    "yarn": "charcoal-b",
-    "count": 1
-   },
-   {
-    "yarn": "charcoal-a",
-    "count": 5
-   },
-   {
-    "yarn": "enji-a",
-    "count": 1
-   }
-  ],
-  "weft": "charcoal",
-  "era": {
-   "from": 1967,
-   "to": 2004
+  {
+    "id": "p-alt-char",
+    "name": "チャコールのオルタネートストライプ",
+    "plan": [
+      {
+        "yarn": "charcoal-a",
+        "count": 5
+      },
+      {
+        "yarn": "charcoal-b",
+        "count": 1
+      },
+      {
+        "yarn": "charcoal-a",
+        "count": 5
+      },
+      {
+        "yarn": "enji-a",
+        "count": 1
+      }
+    ],
+    "weft": "charcoal",
+    "era": {
+      "from": 1967,
+      "to": 2004
+    },
+    "description": "(P4で追記)",
+    "difficulty": 3
   },
-  "description": "(P4で追記)",
-  "difficulty": 3
- },
- {
-  "id": "p-multi-ao",
-  "name": "紺と青の多色縞",
-  "plan": [
-   {
-    "yarn": "kon-a",
-    "count": 4
-   },
-   {
-    "yarn": "ao-a",
-    "count": 1
-   },
-   {
-    "yarn": "kon-b",
-    "count": 1
-   },
-   {
-    "yarn": "ao-b",
-    "count": 1
-   },
-   {
-    "yarn": "kon-a",
-    "count": 4
-   },
-   {
-    "yarn": "shiro-a",
-    "count": 1
-   }
-  ],
-  "weft": "kon",
-  "era": {
-   "from": 1967,
-   "to": 2004
-  },
-  "description": "(P4で追記)",
-  "difficulty": 3
- }
+  {
+    "id": "p-multi-ao",
+    "name": "紺と青の多色縞",
+    "plan": [
+      {
+        "yarn": "kon-a",
+        "count": 4
+      },
+      {
+        "yarn": "ao-a",
+        "count": 1
+      },
+      {
+        "yarn": "kon-b",
+        "count": 1
+      },
+      {
+        "yarn": "ao-b",
+        "count": 1
+      },
+      {
+        "yarn": "kon-a",
+        "count": 4
+      },
+      {
+        "yarn": "shiro-a",
+        "count": 1
+      }
+    ],
+    "weft": "kon",
+    "era": {
+      "from": 1967,
+      "to": 2004
+    },
+    "description": "(P4で追記)",
+    "difficulty": 3
+  }
 ]

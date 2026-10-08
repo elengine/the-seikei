@@ -25,17 +25,19 @@ function stateOf(id: string): CreelState {
 }
 
 describe('createCreelPanel', () => {
-  it('s2 の状態で update すると、依頼書が2行 (W-4812 × 7、W-2200 × 1)', () => {
+  it('s2 の状態で update すると、依頼書が3行 (W-4812 × 3、W-2200 × 1、W-4812 × 4)。行数を変えた理由: T1-23 で並びを変えたため', () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);
     const panel = createCreelPanel(parent, { content, onAction: () => undefined });
     panel.update(s2State());
     const rows = Array.from(parent.querySelectorAll('[data-testid="creel-order-row"]'));
-    expect(rows).toHaveLength(2);
+    expect(rows).toHaveLength(3);
     expect(rows[0]!.textContent).toContain('W-4812');
-    expect(rows[0]!.textContent).toContain('× 7');
+    expect(rows[0]!.textContent).toContain('× 3');
     expect(rows[1]!.textContent).toContain('W-2200');
     expect(rows[1]!.textContent).toContain('× 1');
+    expect(rows[2]!.textContent).toContain('W-4812');
+    expect(rows[2]!.textContent).toContain('× 4');
     panel.destroy();
   });
 
@@ -284,10 +286,39 @@ describe('createCreelPanel', () => {
       panel.destroy();
     });
 
-    it('s2: 行が2つ (W-4812 × 7、W-2200 × 1)。くりかえしの行は無い', () => {
+    it('s2: 行が3つ (W-4812 × 3、W-2200 × 1、W-4812 × 4)。くりかえしの行は無い。行数を変えた理由: T1-23 で並びを変えたため', () => {
       const { parent, panel } = render('s2');
       const rows = Array.from(parent.querySelectorAll('[data-testid="creel-order-row"]'));
-      expect(rows.length).toBe(2);
+      expect(rows.length).toBe(3);
+      expect(parent.querySelector('[data-testid="creel-order-repeat"]')).toBeNull();
+      panel.destroy();
+    });
+
+    it('s2-3: 依頼書が 1リピート分 (W-8150 × 3、W-8260 × 1) と「↻ 2回繰り返す」になる (T1-23)', () => {
+      const { parent, panel } = render('s2-3');
+      const rows = Array.from(parent.querySelectorAll('[data-testid="creel-order-row"]'));
+      expect(rows).toHaveLength(2);
+      expect(rows[0]!.textContent).toContain('W-8150');
+      expect(rows[0]!.textContent).toContain('× 3');
+      expect(rows[1]!.textContent).toContain('W-8260');
+      expect(rows[1]!.textContent).toContain('× 1');
+      const rep = parent.querySelector('[data-testid="creel-order-repeat"]');
+      expect(rep?.textContent).toBe('↻ 2回繰り返す');
+      panel.destroy();
+    });
+
+    it('s2-2: 行が4つ (W-1200 × 2、W-2410 × 1、W-1200 × 4、W-2410 × 1)。くりかえしの行は無い (T1-23)', () => {
+      const { parent, panel } = render('s2-2');
+      const rows = Array.from(parent.querySelectorAll('[data-testid="creel-order-row"]'));
+      expect(rows).toHaveLength(4);
+      expect(rows[0]!.textContent).toContain('W-1200');
+      expect(rows[0]!.textContent).toContain('× 2');
+      expect(rows[1]!.textContent).toContain('W-2410');
+      expect(rows[1]!.textContent).toContain('× 1');
+      expect(rows[2]!.textContent).toContain('W-1200');
+      expect(rows[2]!.textContent).toContain('× 4');
+      expect(rows[3]!.textContent).toContain('W-2410');
+      expect(rows[3]!.textContent).toContain('× 1');
       expect(parent.querySelector('[data-testid="creel-order-repeat"]')).toBeNull();
       panel.destroy();
     });
@@ -516,7 +547,7 @@ describe('PU-09b: 詰めた形の操作欄 (依頼書を見る・箱の横送り
     expect(sheet.classList.contains('sheet--tall')).toBe(true); // 見出しの行の下から画面の下まで (PU-11b)
     expect(sheet.querySelector('.sheet__title')!.textContent).toBe('依頼書');
     const rows = sheet.querySelectorAll('[data-testid="creel-order-row"]');
-    expect(rows).toHaveLength(2);
+    expect(rows).toHaveLength(3); // 行数を変えた理由: T1-23 で s2 の並びを変えたため
     expect(rows[0]!.textContent).toContain('W-4812');
     sheet.querySelector<HTMLButtonElement>('.sheet__close')!.click();
     expect(c.frameEl.querySelector('.sheet')).toBeNull();
@@ -532,7 +563,7 @@ describe('PU-09b: 詰めた形の操作欄 (依頼書を見る・箱の横送り
     const c = compactPanel();
     Array.from(c.parent.querySelectorAll('button')).find((b) => b.textContent === '依頼書')!.click();
     c.panel.update(s2State());
-    expect(c.frameEl.querySelectorAll('.sheet [data-testid="creel-order-row"]')).toHaveLength(2);
+    expect(c.frameEl.querySelectorAll('.sheet [data-testid="creel-order-row"]')).toHaveLength(3); // T1-23 で s2 の並びを変えた
     c.panel.destroy();
     expect(c.frameEl.querySelector('.sheet')).toBeNull();
   });
@@ -544,7 +575,7 @@ describe('PU-09b: 詰めた形の操作欄 (依頼書を見る・箱の横送り
     await tick();
     expect(c.frameEl.querySelector('.sheet')).toBeNull();
     expect(Array.from(c.parent.querySelectorAll('button')).some((b) => b.textContent === '依頼書')).toBe(false);
-    expect(c.parent.querySelectorAll('[data-testid="creel-order-row"]')).toHaveLength(2);
+    expect(c.parent.querySelectorAll('[data-testid="creel-order-row"]')).toHaveLength(3); // T1-23 で s2 の並びを変えた
     // 戻ったら、また「依頼書を見る」になる
     c.frameEl.classList.add('game-frame--compact');
     await tick();
@@ -630,7 +661,7 @@ describe('PU-11b: 依頼書の行の文字の大きさ (PU-12c で型番を控�
     const panel = createCreelPanel(parent, { content, onAction: () => undefined });
     panel.update(s2State());
     const counts = Array.from(parent.querySelectorAll('.creel-order-row__count')).map((c) => c.textContent);
-    expect(counts).toEqual(['× 7', '× 1']);
+    expect(counts).toEqual(['× 3', '× 1', '× 4']); // 期待値を変えた理由: T1-23 で s2 の並びを変えたため
     panel.destroy();
   });
 });

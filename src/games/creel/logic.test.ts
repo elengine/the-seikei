@@ -247,3 +247,29 @@ describe('PU-07a: 引っぱる操作の reducer (place・removePeg・movePeg・p
     expect(reduce(s, { type: 'pressPeg', index: 0 })).toBe(s);
   });
 });
+
+
+describe('T1-23: クリール立てレベル2 の3題の並びに変化を付ける', () => {
+  function answerOf(id: string): string[] {
+    const puzzle = content.creelPuzzles.find((p) => p.id === id)!;
+    return init(puzzle, content).answer;
+  }
+
+  it('s2 の答えの並び (展開した 8 本) は 紺3・白1・紺4', () => {
+    expect(answerOf('s2')).toEqual([
+      'kon-a', 'kon-a', 'kon-a', 'shiro-a', 'kon-a', 'kon-a', 'kon-a', 'kon-a',
+    ]);
+  });
+
+  it('s2-2 の答えの並び (展開した 8 本) は 黒2・灰1・黒4・灰1', () => {
+    expect(answerOf('s2-2')).toEqual([
+      'kuro-a', 'kuro-a', 'hai-a', 'kuro-a', 'kuro-a', 'kuro-a', 'kuro-a', 'hai-a',
+    ]);
+  });
+
+  it('s2-3 の答えの並び (展開した 8 本) は 茶3・ベージュ1・茶3・ベージュ1', () => {
+    expect(answerOf('s2-3')).toEqual([
+      'cha-a', 'cha-a', 'cha-a', 'beige-a', 'cha-a', 'cha-a', 'cha-a', 'beige-a',
+    ]);
+  });
+});
