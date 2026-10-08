@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { init, reduce, qualities, starsOf, isValidResume, lastTapResult, bandTargetMs, targetMsOf } from './logic';
+import { resetWobble, stepWobble } from './tension';
+import { seedFrom } from '../../core/clock/clock';
 import { TIME_SCISSORS_TIE_MS, TIME_PER_SPIKE_MS, SPIKE_COUNT_RANGE } from './params';
 import * as params from './params';
 import { resultOf, guideFor } from './messages';
@@ -1014,7 +1016,7 @@ describe('T2-22: ペダルを強く踏みすぎたまま猶予を過ぎると糸
     let s = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed: 6 });
     s = reduce(s, { type: 'setPedal', value: s.range.max - 1 }); // ペダルは範囲の中
     // 揺れを峰 (範囲の幅の半分) まで上げる。張り = ペダル + 揺れ が上の端を超える
-    s = { ...s, wobble: { qty: 0, dir: 1, mag: s.range.width / 2, riseMs: 2000, fallMs: 2000, phase: 'up' as const, timerMs: 0, gapMs: 1000 } };
+    s = { ...s, wobble: { qty: 0, dir: 1, mag: s.range.width / 2, riseMs: 2000, fallMs: 2000, phase: 'up' as const, timerMs: 0, gapMs: 1000, holdMs: 0 } };
     let sawOver = false;
     for (let i = 0; i < 300; i++) {
       s = reduce(s, { type: 'tick', dtMs: DT });
@@ -1111,5 +1113,104 @@ describe('T2-22: ペダルを強く踏みすぎたまま猶予を過ぎると糸
     s2 = reduce(s2, { type: 'setPedal', value: s2.range.max + 2 });
     s2 = reduce(s2, { type: 'tick', dtMs: 100 });
     expect(s2.overMs).toBe(100);
+  });
+});
+
+describe('T2-22 追加修正2: 揺れのあいだ・向き・大きさと、山で止まる (案A)', () => {
+  const RANGE = { min: 35, max: 65 };
+  const LIMIT = (RANGE.max - RANGE.min) / 2;
+
+  it('1. 揺れのあいだは 1〜2.5 秒 (1000 回の範囲とばらつき)', () => {
+    let min = Infinity;
+    let max = -Infinity;
+    for (let i = 0; i < 1000; i++) {
+      const { wobble } = resetWobble(seedFrom(i + 1));
+      min = Math.min(min, wobble.gapMs);
+      max = Math.max(max, wobble.gapMs);
+      expect(wobble.gapMs).toBeGreaterThanOrEqual(1000);
+      expect(wobble.gapMs).toBeLessThanOrEqual(2500);
+    }
+    expect(max - min, 'ばらついている').toBeGreaterThan(1000);
+  });
+
+  it('2. 揺れの向きは増加 70%・減少 30% (1000 回で 70% ± 5%)', () => {
+    let up = 0;
+    for (let i = 0; i < 1000; i++) {
+      const w = { qty: 0, dir: 1 as const, mag: 0, riseMs: 1000, fallMs: 1000, phase: 'gap' as const, timerMs: 0, gapMs: 0, holdMs: 0 };
+      const r = stepWobble(w, seedFrom(i + 1), 50, RANGE, 100);
+      if (r.wobble.dir === 1) up += 1;
+    }
+    const ratio = up / 1000;
+    expect(ratio, `増加 ${Math.round(ratio * 100)}%`).toBeGreaterThan(0.65);
+    expect(ratio).toBeLessThan(0.75);
+  });
+
+  it('3. 揺れの大きさは限界の 60〜100% (1000 回の範囲とばらつき)', () => {
+    let min = Infinity;
+    let max = -Infinity;
+    for (let i = 0; i < 1000; i++) {
+      const w = { qty: 0, dir: 1 as const, mag: 0, riseMs: 1000, fallMs: 1000, phase: 'gap' as const, timerMs: 0, gapMs: 0, holdMs: 0 };
+      const r = stepWobble(w, seedFrom(i + 1), 50, RANGE, 100);
+      const ratio = r.wobble.mag / LIMIT;
+      min = Math.min(min, ratio);
+      max = Math.max(max, ratio);
+      expect(ratio).toBeGreaterThanOrEqual(0.6 - 1e-9);
+      expect(ratio).toBeLessThanOrEqual(1 + 1e-9);
+    }
+    expect(max - min, 'ばらついている').toBeGreaterThan(0.2);
+  });
+
+  it('4. 峰に達したら 1〜2 秒そのまま止まってから戻り始める (phase hold)', () => {
+    const w = { qty: 9.5, dir: 1 as const, mag: 10, riseMs: 1000, fallMs: 1000, phase: 'up' as const, timerMs: 950, gapMs: 0, holdMs: 0 };
+    const r = stepWobble(w, seedFrom(7), 50, RANGE, 100); // 峰に達する
+    expect(r.wobble.phase).toBe('hold');
+    expect(r.wobble.qty).toBe(10);
+    const holdMs = r.wobble.holdMs;
+    expect(holdMs).toBeGreaterThanOrEqual(1000);
+    expect(holdMs).toBeLessThanOrEqual(2000);
+    // 止まっているあいだ量は変わらない
+    let cur = r.wobble;
+    let rng = r.rng;
+    let elapsed = 0;
+    while (cur.phase === 'hold') {
+      const r2 = stepWobble(cur, rng, 50, RANGE, 50);
+      cur = r2.wobble;
+      rng = r2.rng;
+      elapsed += 50;
+      expect(cur.qty).toBe(10);
+    }
+    expect(cur.phase).toBe('down');
+    expect(elapsed, `峰で ${elapsed}ms 止まった (holdMs ${Math.round(holdMs)})`).toBeGreaterThanOrEqual(holdMs);
+    expect(elapsed).toBeLessThan(holdMs + 50);
+  });
+
+  it('5. ペダルを範囲の 80% に固定すると、レベル1 でも揺れにより糸切れが起きる (種 20 通りのうち少なくとも一部)', () => {
+    let breaks = 0;
+    let tested = 0;
+    for (let seed = 1; seed <= 200 && tested < 20; seed++) {
+      const s0 = init({ level: 1, patternId: 'p-pin-kon', sections: 3, seed });
+      if (s0.ranges[0]!.spikes > 0) continue; // スパイクの切れと混ぜないため外す
+      tested += 1;
+      let s = s0;
+      s = reduce(s, { type: 'setPedal', value: s.range.min + (s.range.max - s.range.min) * 0.8 });
+      let cuttingMs = 0;
+      let guard = 0;
+      while (s.phase !== 'done' && guard < 600) {
+        if (s.phase === 'cutting') {
+          s = reduce(s, { type: 'tick', dtMs: 100 });
+          cuttingMs += 100;
+          if (cuttingMs >= 3500) {
+            s = reduce(s, { type: 'cut' });
+            cuttingMs = 0;
+          }
+        } else if (s.phase === 'winding') {
+          s = reduce(s, { type: 'tick', dtMs: 100 });
+        }
+        guard += 1;
+      }
+      if (s.phase === 'broken') breaks += 1;
+    }
+    expect(tested).toBe(20);
+    expect(breaks, `20 のうち ${breaks} で揺れにより切れた`).toBeGreaterThanOrEqual(1);
   });
 });

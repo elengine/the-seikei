@@ -53,9 +53,14 @@ export const WOBBLE_RISE_MIN_MS = 1000; // 上がる時間の範囲 (1〜2 秒)
 export const WOBBLE_RISE_MAX_MS = 2000;
 export const WOBBLE_FALL_MIN_MS = 1000; // 戻る時間の範囲 (1〜2 秒)
 export const WOBBLE_FALL_MAX_MS = 2000;
-export const WOBBLE_GAP_MIN_MS = 1000; // 揺れと揺れのあいだ (1〜3 秒)
-export const WOBBLE_GAP_MAX_MS = 3000;
-export const WOBBLE_MAG_MIN = 0.4; // 揺れの大きさは限界の 40〜100% (乱数)
+export const WOBBLE_GAP_MIN_MS = 1000; // 揺れと揺れのあいだ (1〜2.5 秒。T2-22 追加修正2 で最大を 3 秒から短くした)
+export const WOBBLE_GAP_MAX_MS = 2500;
+/** 揺れの向きが増加 (上向き) になる割合 (T2-22 追加修正2。残りは減少) */
+export const WOBBLE_UP_RATIO = 0.7;
+export const WOBBLE_MAG_MIN = 0.6; // 揺れの大きさは限界の 60〜100% (乱数。T2-22 追加修正2・案A で 40% から上げた)
+/** 揺れが峰に達してから止まる時間の範囲 (1〜2 秒。T2-22 追加修正2・案A) */
+export const WOBBLE_HOLD_MIN_MS = 1000;
+export const WOBBLE_HOLD_MAX_MS = 2000;
 
 /** ---- スパイクの決まり (T2-20a) ---- */
 export const SPIKE_RISE_MS = 500; // +15〜+25 を 0.5 秒で上げる

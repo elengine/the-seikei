@@ -8,7 +8,7 @@ import { nextFloat } from '../../core/clock/clock';
 import {
   RANGE_WIDTH, RANGE_CENTER, RANGE_SHIFT_ON_SECTION, RANGE_REACHABLE,
   WOBBLE_START_DELAY_MS, WOBBLE_RISE_MIN_MS, WOBBLE_RISE_MAX_MS, WOBBLE_FALL_MIN_MS, WOBBLE_FALL_MAX_MS,
-  WOBBLE_GAP_MIN_MS, WOBBLE_GAP_MAX_MS, WOBBLE_MAG_MIN,
+  WOBBLE_GAP_MIN_MS, WOBBLE_GAP_MAX_MS, WOBBLE_UP_RATIO, WOBBLE_MAG_MIN, WOBBLE_HOLD_MIN_MS, WOBBLE_HOLD_MAX_MS,
   SPIKE_RISE_MS, SPIKE_FALL_MS, SPIKE_QTY_MIN, SPIKE_QTY_MAX, SPIKE_RELIEF, SPIKE_GAP_MS, SPIKE_COUNT_RANGE,
 } from './params';
 import type { Level } from './params';
@@ -30,7 +30,9 @@ export interface WobbleState {
   mag: number;
   riseMs: number;
   fallMs: number;
-  phase: 'gap' | 'up' | 'down';
+  phase: 'gap' | 'up' | 'hold' | 'down';
+  /** 峰で止まる時間 (ms。phase 'hold' で使う。T2-22 追加修正2・案A) */
+  holdMs: number;
   timerMs: number;
   /** 次の揺れまでのあいだ (1〜3 秒)。phase 'gap' で timerMs がこれを超えると揺れが始まる */
   gapMs: number;
@@ -63,7 +65,7 @@ function nextGapMs(rng: RngState): { ms: number; rng: RngState } {
 /** 揺れを初期化する (量 0・あいだを乱数で決める) */
 export function resetWobble(rng: RngState): { wobble: WobbleState; rng: RngState } {
   const g = nextGapMs(rng);
-  return { wobble: { qty: 0, dir: 1, mag: 0, riseMs: 0, fallMs: 0, phase: 'gap', timerMs: 0, gapMs: g.ms }, rng: g.rng };
+  return { wobble: { qty: 0, dir: 1, mag: 0, riseMs: 0, fallMs: 0, phase: 'gap', holdMs: 0, timerMs: 0, gapMs: g.ms }, rng: g.rng };
 }
 
 /** スパイクを初期化する (量 0) */
@@ -89,12 +91,12 @@ export function stepWobble(
   if (w.phase === 'gap') {
     const timerMs = w.timerMs + dtMs;
     if (timerMs >= w.gapMs) {
-      // 新しい揺れ: 向きと大きさ (限界の 40〜100%) と上がる時間 (1〜2 秒) を乱数で決める
+      // 新しい揺れ: 向き (増加 70%・減少 30%) と大きさ (限界の 60〜100%) と上がる時間 (1〜2 秒) を乱数で決める
       const [r1, r2] = nextFloat(rng);
       const [r3, r4] = nextFloat(r2);
       const [r5, r6] = nextFloat(r4);
       return {
-        wobble: { qty: 0, dir: r1 < 0.5 ? 1 : -1, mag: limit * (WOBBLE_MAG_MIN + (1 - WOBBLE_MAG_MIN) * r3), riseMs: WOBBLE_RISE_MIN_MS + (WOBBLE_RISE_MAX_MS - WOBBLE_RISE_MIN_MS) * r5, fallMs: w.fallMs, phase: 'up', timerMs: 0, gapMs: w.gapMs },
+        wobble: { qty: 0, dir: r1 < WOBBLE_UP_RATIO ? 1 : -1, mag: limit * (WOBBLE_MAG_MIN + (1 - WOBBLE_MAG_MIN) * r3), riseMs: WOBBLE_RISE_MIN_MS + (WOBBLE_RISE_MAX_MS - WOBBLE_RISE_MIN_MS) * r5, fallMs: w.fallMs, phase: 'up', holdMs: 0, timerMs: 0, gapMs: w.gapMs },
         rng: r6,
       };
     }
@@ -104,11 +106,23 @@ export function stepWobble(
     const step = w.mag * (dtMs / Math.max(1, w.riseMs));
     const qty = w.dir === 1 ? Math.min(w.mag, w.qty + step) : Math.max(-w.mag, w.qty - step);
     if (qty === w.dir * w.mag) {
-      // 峰に達したら、いまのペダルの位置へ戻る (戻る時間 1〜2 秒を乱数で決める)
-      const [raw, next] = nextFloat(rng);
-      return { wobble: { ...w, qty, phase: 'down', timerMs: 0, fallMs: WOBBLE_FALL_MIN_MS + (WOBBLE_FALL_MAX_MS - WOBBLE_FALL_MIN_MS) * raw }, rng: next };
+      // 峰に達したら 1〜2 秒そのまま止まってから戻る (止まる時間と戻る時間を乱数で決める。T2-22 追加修正2・案A)
+      const [r1, r2] = nextFloat(rng);
+      const [r3, next] = nextFloat(r2);
+      return {
+        wobble: { ...w, qty, phase: 'hold', timerMs: 0, holdMs: WOBBLE_HOLD_MIN_MS + (WOBBLE_HOLD_MAX_MS - WOBBLE_HOLD_MIN_MS) * r1, fallMs: WOBBLE_FALL_MIN_MS + (WOBBLE_FALL_MAX_MS - WOBBLE_FALL_MIN_MS) * r3 },
+        rng: next,
+      };
     }
     return { wobble: { ...w, qty }, rng };
+  }
+  if (w.phase === 'hold') {
+    // 峰でそのままの量で止まっている (ペダルが範囲の外に出たら、上の外れチェックで量 0 に戻る)
+    const timerMs = w.timerMs + dtMs;
+    if (timerMs >= w.holdMs) {
+      return { wobble: { ...w, timerMs: 0, phase: 'down' }, rng };
+    }
+    return { wobble: { ...w, timerMs }, rng };
   }
   // down: 0 (今のペダルの位置) へ戻る
   const step = w.mag * (dtMs / Math.max(1, w.fallMs));
