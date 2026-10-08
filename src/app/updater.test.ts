@@ -7,6 +7,8 @@ import {
   isUpdateReady,
   resetUpdaterForTest,
   setReloadForTest,
+  readUpdateLogs,
+  clearUpdateLogsForTest,
 } from './updater';
 
 /** 偽の Service Worker の登録。update() のあとに waiting が現れる (newVersion) か、現れない */
@@ -177,18 +179,18 @@ describe('PU-10f: 「アップデートする」で確実に切り替える', ()
     expect(reload).toHaveBeenCalledTimes(1);
   });
 
-  it('5 秒たっても切り替わらなければ、再読み込みせず false を返す (画面に案内を出すため)。何度でも押し直せる', async () => {
+  it('installed のまま (5 秒 + 送り直して 10 秒) 切り替わらなければ、再読み込みせず false を返す (画面に案内を出すため。PU-23b)。何度でも押し直せる', async () => {
     vi.useFakeTimers();
     const w = new FakeWorker('installed');
     fakeRegistration({ waiting: w });
     const done = applyUpdate();
-    await vi.advanceTimersByTimeAsync(5100);
+    await vi.advanceTimersByTimeAsync(15100);
     await expect(done).resolves.toBe(false);
     expect(reload).not.toHaveBeenCalled();
     const again = applyUpdate();
-    await vi.advanceTimersByTimeAsync(5100);
+    await vi.advanceTimersByTimeAsync(15100);
     await expect(again).resolves.toBe(false);
-    expect(w.postMessage).toHaveBeenCalledTimes(2);
+    expect(w.postMessage).toHaveBeenCalledTimes(4); // 1 回ごとに 2 回 (最初と送り直し)
   });
 
   it('registerSW の更新の関数が記録されていても、待っている版があればそれに直接 SKIP_WAITING を送る (関数には頼らない)', async () => {
@@ -275,7 +277,7 @@ describe('PU-19b: 切り替えに失敗したら、新しい版を見つけ直�
     expect(reload).toHaveBeenCalledTimes(1);
   });
 
-  it('5 秒たっても切り替わらず、そのとき別の版が waiting にあれば、その版でもう 1 回やり直す', async () => {
+  it('切り替わらず (installed のまま 15 秒)、そのとき別の版が waiting にあれば、その版でもう 1 回やり直す', async () => {
     vi.useFakeTimers();
     const old = new FakeWorker('installed');
     const next = new FakeWorker('installed');
@@ -283,7 +285,7 @@ describe('PU-19b: 切り替えに失敗したら、新しい版を見つけ直�
     const done = applyUpdate();
     await vi.advanceTimersByTimeAsync(100);
     reg.waiting = next;
-    await vi.advanceTimersByTimeAsync(5100);
+    await vi.advanceTimersByTimeAsync(15100);
     expect(next.postMessage).toHaveBeenCalledTimes(1);
     next.setState('activated');
     await expect(done).resolves.toBe(true);
@@ -341,5 +343,198 @@ describe('PU-19b: 切り替えに失敗したら、新しい版を見つけ直�
     await vi.advanceTimersByTimeAsync(10);
     await expect(done).resolves.toBe(false);
     expect(reload).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('PU-23a: 「アップデートする」の流れの記録 (経過ミリ秒つき・直近 3 回)', () => {
+  let reload: ReturnType<typeof vi.fn<() => void>>;
+  beforeEach(() => {
+    reload = vi.fn<() => void>();
+    setReloadForTest(reload);
+    clearUpdateLogsForTest();
+  });
+  afterEach(() => {
+    setReloadForTest(null);
+    vi.useRealTimers();
+    clearUpdateLogsForTest();
+  });
+
+  it('1. 押した時の各部の状態・SKIP_WAITING を送った時刻・待っていた版の状態の変わり目・読み込み直したことが、経過ミリ秒つきで順に残る', async () => {
+    vi.useFakeTimers();
+    const w = new FakeWorker('installed');
+    fakeRegistration({ waiting: w });
+    const done = applyUpdate();
+    await vi.advanceTimersByTimeAsync(1200);
+    w.setState('activating');
+    await vi.advanceTimersByTimeAsync(1800);
+    w.setState('activated');
+    await expect(done).resolves.toBe(true);
+    const logs = readUpdateLogs();
+    expect(logs).toHaveLength(1);
+    const ev = logs[0]!.events;
+    expect(ev.map((e) => e.label.split(':')[0])).toEqual(['押した', 'SKIP_WAITING を送った', 'installed → activating', 'activating → activated', '読み込み直した']);
+    expect(ev[0]!.ms).toBe(0);
+    expect(ev[0]!.label).toContain('待っている版=installed');
+    expect(ev[0]!.label).toContain('active=なし');
+    expect(ev[0]!.label).toContain('controller=');
+    expect(ev[1]!.ms).toBeLessThan(50);
+    expect(ev[2]!.ms).toBeGreaterThanOrEqual(1200);
+    expect(ev[2]!.ms).toBeLessThan(1300);
+    expect(ev[3]!.ms).toBeGreaterThanOrEqual(3000);
+    expect(logs[0]!.result).toBe('reloaded');
+    expect(typeof logs[0]!.at).toBe('string');
+  });
+
+  it('2. controllerchange の時刻も残る', async () => {
+    vi.useFakeTimers();
+    const w = new FakeWorker('installed');
+    const { swc } = fakeRegistration({ waiting: w });
+    const done = applyUpdate();
+    await vi.advanceTimersByTimeAsync(700);
+    swc.dispatchEvent(new Event('controllerchange'));
+    await done;
+    const ev = readUpdateLogs()[0]!.events;
+    const cc = ev.find((e) => e.label.startsWith('controllerchange'))!;
+    expect(cc.ms).toBeGreaterThanOrEqual(700);
+  });
+
+  it('3. 5 秒の時点の状態が残り、案内を出した (失敗) ときも記録が残る (result は failed)', async () => {
+    vi.useFakeTimers();
+    const w = new FakeWorker('installed');
+    fakeRegistration({ waiting: w });
+    const done = applyUpdate();
+    await vi.advanceTimersByTimeAsync(20000);
+    await expect(done).resolves.toBe(false);
+    const logs = readUpdateLogs();
+    expect(logs[0]!.result).toBe('failed');
+    const labels = logs[0]!.events.map((e) => e.label);
+    expect(labels.some((l) => l.startsWith('5 秒の時点') && l.includes('待っている版=installed'))).toBe(true);
+    expect(labels[labels.length - 1]).toBe('案内を出した');
+  });
+
+  it('4. 直近 3 回分だけ残す (4 回目で一番古いものが消える)。新しいものが先頭', async () => {
+    vi.useFakeTimers();
+    for (let k = 0; k < 4; k++) {
+      const w = new FakeWorker('installed');
+      fakeRegistration({ waiting: w });
+      const done = applyUpdate();
+      await vi.advanceTimersByTimeAsync(100 + k);
+      w.setState('activated');
+      await done;
+      vi.setSystemTime(Date.now() + 60000);
+    }
+    const logs = readUpdateLogs();
+    expect(logs).toHaveLength(3);
+    expect(new Date(logs[0]!.at).getTime()).toBeGreaterThan(new Date(logs[2]!.at).getTime());
+  });
+
+  it('5. localStorage が使えなくても (読み書きで例外) 動く。記録は残らないだけ', async () => {
+    vi.useFakeTimers();
+    const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('quota');
+    });
+    const getSpy = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('blocked');
+    });
+    const w = new FakeWorker('installed');
+    fakeRegistration({ waiting: w });
+    const done = applyUpdate();
+    await vi.advanceTimersByTimeAsync(100);
+    w.setState('activated');
+    await expect(done).resolves.toBe(true);
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(readUpdateLogs()).toEqual([]);
+    spy.mockRestore();
+    getSpy.mockRestore();
+  });
+});
+
+describe('PU-23b: 5 秒であきらめない (activating は最長 20 秒・installed は SKIP_WAITING をもう 1 回)', () => {
+  let reload: ReturnType<typeof vi.fn<() => void>>;
+  beforeEach(() => {
+    reload = vi.fn<() => void>();
+    setReloadForTest(reload);
+    clearUpdateLogsForTest();
+  });
+  afterEach(() => {
+    setReloadForTest(null);
+    vi.useRealTimers();
+    clearUpdateLogsForTest();
+  });
+
+  it('6. 5 秒の時点で activating → あきらめず、8 秒で activated になったら読み込み直す (案内は出さない)', async () => {
+    vi.useFakeTimers();
+    const w = new FakeWorker('installed');
+    fakeRegistration({ waiting: w });
+    const done = applyUpdate();
+    await vi.advanceTimersByTimeAsync(1000);
+    w.setState('activating');
+    await vi.advanceTimersByTimeAsync(4500); // 5.5 秒: まだ activating
+    expect(reload).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(2500); // 8 秒
+    w.setState('activated');
+    await expect(done).resolves.toBe(true);
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(w.postMessage).toHaveBeenCalledTimes(1); // activating のときは送り直さない
+    const labels = readUpdateLogs()[0]!.events.map((e) => e.label);
+    expect(labels.some((l) => l.startsWith('5 秒の時点') && l.includes('待っている版=activating'))).toBe(true);
+  });
+
+  it('7. activating のまま 25 秒 (5 秒 + 20 秒) たっても activated にならなければ案内 (false)', async () => {
+    vi.useFakeTimers();
+    const w = new FakeWorker('installed');
+    fakeRegistration({ waiting: w });
+    const done = applyUpdate();
+    await vi.advanceTimersByTimeAsync(500);
+    w.setState('activating');
+    await vi.advanceTimersByTimeAsync(24000);
+    expect(reload).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1500);
+    await expect(done).resolves.toBe(false);
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it('8. 5 秒の時点で installed のまま (動いていない) → SKIP_WAITING をもう 1 回だけ送り、7 秒で activated → 読み込み直す', async () => {
+    vi.useFakeTimers();
+    const w = new FakeWorker('installed');
+    fakeRegistration({ waiting: w });
+    const done = applyUpdate();
+    await vi.advanceTimersByTimeAsync(5100);
+    expect(w.postMessage).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1900);
+    w.setState('activated');
+    await expect(done).resolves.toBe(true);
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(w.postMessage).toHaveBeenCalledTimes(2); // 3 回目は送らない
+    const labels = readUpdateLogs()[0]!.events.map((e) => e.label);
+    expect(labels.filter((l) => l.startsWith('SKIP_WAITING')).length).toBe(2);
+  });
+
+  it('9. installed のまま、さらに 10 秒 (合計 15 秒) たっても動かなければ案内。SKIP_WAITING は 2 回だけ', async () => {
+    vi.useFakeTimers();
+    const w = new FakeWorker('installed');
+    fakeRegistration({ waiting: w });
+    const done = applyUpdate();
+    await vi.advanceTimersByTimeAsync(14900);
+    expect(reload).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(300);
+    await expect(done).resolves.toBe(false);
+    expect(w.postMessage).toHaveBeenCalledTimes(2);
+  });
+
+  it('10. 5 秒の時点で reg.active がすでに新しい版 (activated。印の取りこぼし) なら、すぐ読み込み直す', async () => {
+    vi.useFakeTimers();
+    const oldActive = new FakeWorker('activated');
+    const w = new FakeWorker('installed');
+    const { reg } = fakeRegistration({ waiting: w });
+    (reg as unknown as { active: FakeWorker }).active = oldActive;
+    const done = applyUpdate();
+    await vi.advanceTimersByTimeAsync(3000);
+    (reg as unknown as { active: FakeWorker }).active = new FakeWorker('activated'); // 印 (statechange・controllerchange) が来ないまま入れ替わった
+    await vi.advanceTimersByTimeAsync(2100);
+    await expect(done).resolves.toBe(true);
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(w.postMessage).toHaveBeenCalledTimes(1);
   });
 });

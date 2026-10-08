@@ -90,8 +90,12 @@ export async function checkForUpdate(): Promise<UpdateResult> {
   return 'latest';
 }
 
-/** 切り替えの完了を待つ最長の時間 (ミリ秒)。これを過ぎても切り替わらなければ失敗とする */
+/** 切り替えの完了をまず待つ時間 (ミリ秒)。この時点で切り替わっていなければ、状態を見て延長するかあきらめる */
 const SWITCH_WAIT_MS = 5000;
+/** 5 秒の時点で activating (切り替えの途中) のときに、さらに待つ最長の時間 (ミリ秒。PU-23b) */
+const ACTIVATING_EXTRA_MS = 20000;
+/** 5 秒の時点で installed (動いていない) のとき、SKIP_WAITING をもう一度送って、さらに待つ最長の時間 (ミリ秒。PU-23b) */
+const INSTALLED_EXTRA_MS = 10000;
 
 let reloadFn: () => void = () => window.location.reload();
 
@@ -100,25 +104,102 @@ export function setReloadForTest(fn: (() => void) | null): void {
   reloadFn = fn ?? (() => window.location.reload());
 }
 
+// ---- 「アップデートする」の流れの記録 (PU-23a。診断用。直近 3 回を localStorage に置き、管理者メニューで見せる) ----
+
+export interface UpdateLogEvent {
+  /** 押した時刻からの経過ミリ秒 */
+  ms: number;
+  label: string;
+}
+
+export interface UpdateLogEntry {
+  /** 押した時刻 (ISO) */
+  at: string;
+  events: UpdateLogEvent[];
+  /** reloaded = 読み込み直した / failed = 案内を出した */
+  result: 'reloaded' | 'failed';
+}
+
+const UPDATE_LOG_KEY = 'seikei-update-log';
+const UPDATE_LOG_KEEP = 3;
+
+/** 直近の記録 (新しい順)。読めない・壊れているときは空 */
+export function readUpdateLogs(): UpdateLogEntry[] {
+  try {
+    const raw = window.localStorage.getItem(UPDATE_LOG_KEY);
+    if (raw === null) {
+      return [];
+    }
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as UpdateLogEntry[]).slice(0, UPDATE_LOG_KEEP) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeUpdateLog(entry: UpdateLogEntry): void {
+  try {
+    const next = [entry, ...readUpdateLogs()].slice(0, UPDATE_LOG_KEEP);
+    window.localStorage.setItem(UPDATE_LOG_KEY, JSON.stringify(next));
+  } catch {
+    // 保存できなくても、切り替えは続ける
+  }
+}
+
+/** テスト用: 記録を消す */
+export function clearUpdateLogsForTest(): void {
+  try {
+    window.localStorage.removeItem(UPDATE_LOG_KEY);
+  } catch {
+    // 何もしない
+  }
+}
+
+/** 1 回の「アップデートする」の記録を取る。finish で保存する (読み込み直しの前に呼ぶ) */
+function startRun(): { add(label: string): void; finish(result: UpdateLogEntry['result']): void } {
+  const t0 = Date.now();
+  const at = new Date(t0).toISOString();
+  const events: UpdateLogEvent[] = [];
+  return {
+    add(label: string): void {
+      events.push({ ms: Date.now() - t0, label });
+    },
+    finish(result: UpdateLogEntry['result']): void {
+      events.push({ ms: Date.now() - t0, label: result === 'reloaded' ? '読み込み直した' : '案内を出した' });
+      writeUpdateLog({ at, events, result });
+    },
+  };
+}
+
+type Run = ReturnType<typeof startRun>;
+
+/** 各部の状態の 1 行 (待っている版・active・waiting・installing・controller) */
+function describeStates(w: ServiceWorker, reg: ServiceWorkerRegistration, swc: ServiceWorkerContainer): string {
+  const st = (x: ServiceWorker | null | undefined): string => (x === null || x === undefined ? 'なし' : x.state);
+  return `待っている版=${w.state} / active=${st(reg.active)} / waiting=${st(reg.waiting)} / installing=${st(reg.installing)} / controller=${swc.controller ? 'あり' : 'なし'}`;
+}
+
 /**
- * 待っている版に SKIP_WAITING を送り、切り替わったら読み込み直す。切り替わった印は 2 つ:
- * controllerchange (この画面の担当が変わった) と、待っていた版が activated になること (クライアントを引き継がない
- * Service Worker では controllerchange が来ないことがあるため)。どちらが先でも、再読み込みは 1 回。
- * 5 秒たっても切り替わらなければ、読み込み直さず false を返す。待っていた版が捨てられた (redundant) ときは、
- * 5 秒を待たずに false を返す (呼び出し側が新しい版を見つけ直す。PU-19b)。
+ * 待っている版に SKIP_WAITING を送り、切り替わったら読み込み直す。切り替わった印は 3 つ:
+ * controllerchange (この画面の担当が変わった)、待っていた版が activated になること、5 秒の時点で reg.active が
+ * すでに新しい版 (activated) になっていること (印の取りこぼし)。どれが先でも、再読み込みは 1 回。
+ * 待っていた版が捨てられた (redundant) ときは、すぐ false を返す (呼び出し側が新しい版を見つけ直す。PU-19b)。
+ * 5 秒の時点で切り替わっていなければ (PU-23b):
+ *   activating (切り替えの途中) なら、あきらめずに最長 20 秒待つ。
+ *   installed (動いていない) なら、SKIP_WAITING をもう一度だけ送り、さらに最長 10 秒待つ。
+ * それでも切り替わらなければ、読み込み直さず false を返す。経過は run に記録する (PU-23a)。
  */
-function switchTo(w: ServiceWorker, swc: ServiceWorkerContainer): Promise<boolean> {
+function switchTo(w: ServiceWorker, swc: ServiceWorkerContainer, reg: ServiceWorkerRegistration, run: Run): Promise<boolean> {
   return new Promise((resolve) => {
     let finished = false;
-    const timer = setTimeout(() => {
-      if (w.state === 'activated') {
-        finish(true); // 印を取りこぼしていても、切り替わっていれば読み込み直す
-      } else {
-        finish(false);
-      }
-    }, SWITCH_WAIT_MS);
+    let prevState = w.state;
+    const activeAtStart = reg.active;
+    let timer: ReturnType<typeof setTimeout> | null = setTimeout(onFirstDeadline, SWITCH_WAIT_MS);
     function cleanup(): void {
-      clearTimeout(timer);
+      if (timer !== null) {
+        clearTimeout(timer);
+        timer = null;
+      }
       swc.removeEventListener('controllerchange', onChange);
       w.removeEventListener('statechange', onState);
     }
@@ -129,14 +210,46 @@ function switchTo(w: ServiceWorker, swc: ServiceWorkerContainer): Promise<boolea
       finished = true;
       cleanup();
       if (ok) {
+        run.finish('reloaded'); // 読み込み直しの前に保存する
         reloadFn();
+      } else {
+        run.add('この版の切り替えをあきらめた');
       }
       resolve(ok);
     }
+    /** 印を取りこぼして、すでに新しい版が動いているか */
+    function activeIsNew(): boolean {
+      return w.state === 'activated' || (reg.active !== null && reg.active !== activeAtStart && reg.active.state === 'activated');
+    }
+    function onFirstDeadline(): void {
+      timer = null;
+      run.add(`5 秒の時点: ${describeStates(w, reg, swc)}`);
+      if (activeIsNew()) {
+        finish(true);
+      } else if (w.state === 'activating') {
+        run.add(`activating のまま。最長 ${ACTIVATING_EXTRA_MS / 1000} 秒待つ`);
+        timer = setTimeout(onFinalDeadline, ACTIVATING_EXTRA_MS);
+      } else if (w.state === 'installed') {
+        run.add('installed のまま。SKIP_WAITING をもう一度送る');
+        w.postMessage({ type: 'SKIP_WAITING' });
+        run.add('SKIP_WAITING を送った (2 回目)');
+        timer = setTimeout(onFinalDeadline, INSTALLED_EXTRA_MS);
+      } else {
+        finish(false);
+      }
+    }
+    function onFinalDeadline(): void {
+      timer = null;
+      run.add(`延長の終わり: ${describeStates(w, reg, swc)}`);
+      finish(activeIsNew());
+    }
     function onChange(): void {
+      run.add('controllerchange');
       finish(true);
     }
     function onState(): void {
+      run.add(`${prevState} → ${w.state}`);
+      prevState = w.state;
       if (w.state === 'activated') {
         finish(true);
       } else if (w.state === 'redundant') {
@@ -146,6 +259,7 @@ function switchTo(w: ServiceWorker, swc: ServiceWorkerContainer): Promise<boolea
     swc.addEventListener('controllerchange', onChange);
     w.addEventListener('statechange', onState);
     w.postMessage({ type: 'SKIP_WAITING' });
+    run.add('SKIP_WAITING を送った');
   });
 }
 
@@ -167,6 +281,7 @@ async function findNewer(reg: ServiceWorkerRegistration, prev: ServiceWorker): P
  * 関数は、待っている版が見つからないときの代わり)。
  */
 export async function applyUpdate(): Promise<boolean> {
+  const run = startRun();
   const swc = typeof navigator !== 'undefined' ? navigator.serviceWorker : undefined;
   if (swc !== undefined) {
     const reg = await swc.getRegistration();
@@ -177,24 +292,35 @@ export async function applyUpdate(): Promise<boolean> {
         w = reg.waiting;
       }
       if (w !== null) {
-        if (await switchTo(w, swc)) {
+        run.add(`押した: ${describeStates(w, reg, swc)}`);
+        if (await switchTo(w, swc, reg, run)) {
           return true;
         }
         // 切り替え中にさらに新しい版が入って待っていた版が捨てられた、または別の版が待っている・入れている途中:
         // 新しい版を見つけ直して、1 回だけやり直す。それでも切り替わらなければ false (案内を出す)
         const next = await findNewer(reg, w);
         if (next === null) {
+          run.finish('failed');
           return false;
         }
         waiting = next;
-        return switchTo(next, swc);
+        run.add(`新しい版を見つけ直した: ${describeStates(next, reg, swc)}`);
+        const ok = await switchTo(next, swc, reg, run);
+        if (!ok) {
+          run.finish('failed');
+        }
+        return ok;
       }
     }
   }
   if (isUpdateAvailable()) {
+    run.add('押した: registerSW の更新の関数で切り替える');
+    run.finish('reloaded');
     await applyUpdateNow(); // registerSW の更新の関数 (reload=true)
     return true;
   }
+  run.add('押した: 待っている版が見つからない');
+  run.finish('reloaded');
   reloadFn(); // 待っている版が無い: ほかの画面ですでに切り替わっているかもしれない。読み込み直して今の版にそろえる
   return true;
 }
