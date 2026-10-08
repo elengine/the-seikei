@@ -143,37 +143,30 @@ describe('creel tutorial (PU-11c: 今の画面に合わせる)', () => {
 });
 
 describe('creel tutorial (PU-13d: 今の画面の文)', () => {
-  it('ページの文に「依頼書」「確認」があり、1 ページ目は「依頼書」を押す説明、4 ページ目は「確認に2回失敗すると『ヒント』」', () => {
+  it('ページの文に「依頼書」「確認」があり、1 ページ目は『依頼書』を押す説明、4 ページ目は「確認に2回失敗すると『ヒント』」(T1-24 で文と記号を変えた)', () => {
     const all = creelTutorial.pages.map((p) => p.text).join('\n');
     expect(all).toContain('依頼書');
     expect(all).toContain('確認');
-    expect(creelTutorial.pages[0]!.text).toContain('「依頼書」を押すと');
-    expect(creelTutorial.pages[2]!.text).toContain('「確認」を押します');
-    expect(creelTutorial.pages[3]!.text).toContain('確認に2回失敗すると「ヒント」が使えます');
+    expect(creelTutorial.pages[0]!.text).toContain('『依頼書』を押すと');
+    expect(creelTutorial.pages[2]!.text).toContain('『確認』を押します');
+    expect(creelTutorial.pages[3]!.text).toContain('確認に2回失敗すると『ヒント』が使えます');
     expect(creelTutorial.pages[3]!.text).toContain('星は1つ');
   });
 });
 
 describe('creel tutorial (PU-17c: 今の画面に合わせる 2)', () => {
-  it('文に「メッセージ」が無い。2 ページ目に「上へ」引っぱると、箱の列を横に送れる説明がある。1 ページ目に「2回繰り返す」がある', () => {
+  it('文に「メッセージ」が無い。「上へ」「バー」「2回繰り返す」の細かい操作の説明は T1-24 で無くなった (画面を見れば分かるので書かない)', () => {
     for (const p of creelTutorial.pages) {
       expect(p.text).not.toContain('メッセージ');
       expect(p.text).not.toContain('依頼書を見る');
       expect(p.text).not.toContain('完了');
     }
-    const second = creelTutorial.pages[1]!.text;
-    expect(second).toContain('上へ');
-    expect(second).toContain('バー'); // PU-20: 箱の列はスクロールバーで送る
-    expect(creelTutorial.pages[0]!.text).toContain('2回繰り返す');
   });
 
-  it('PU-20: 2 ページ目の文に、箱の列のバーで送ることと、箱の上はどの向きになぞってもコーンが出ることがある。絵に「バー」の字がある', () => {
-    const t = creelTutorial.pages[1]!.text;
-    expect(t).toContain('箱の列');
-    expect(t).toContain('バー');
-    expect(t).toContain('どの向き');
-    expect(t).not.toContain('横に送');
+  it('PU-20: 2 ページ目の絵に「バー」の字がある。文のバー・なぞっての説明は T1-24 で無くなった (絵と画面で分かるので書かない)', () => {
     expect(record(creelTutorial.pages[1]!.draw).texts.some((x) => x.includes('バー'))).toBe(true);
+    const t = creelTutorial.pages[1]!.text;
+    expect(t).not.toContain('横に送');
   });
 
   it('2 ページ目の絵は箱の帯 (段ボールの箱が 3 つ並ぶ)。「上へ引っぱる」の字と矢印 (藍)。3 ページ目の絵は「ヒント」「確認」が 1 行に並ぶ (今の画面の下の行)', () => {
@@ -183,5 +176,22 @@ describe('creel tutorial (PU-17c: 今の画面に合わせる 2)', () => {
     const r3 = record(creelTutorial.pages[2]!.draw);
     expect(r3.texts).toContain('確認');
     expect(r3.texts).toContain('ヒント');
+  });
+});
+
+describe('creel tutorial T1-24 (遊び方を遊ぶ人向けの短い文に)', () => {
+  it('4ページの文が仕様書のとおり (呼び名は {{…}} のまま。絵は今のまま)', () => {
+    const texts = creelTutorial.pages.map((p) => p.text);
+    expect(texts[0]).toBe('『依頼書』を押すと、立てる{{cone}}と本数が出ます');
+    expect(texts[1]).toBe('箱から{{cone}}を引っぱって、{{spindle}}の丸に入れます。外すときは、{{creel}}の外へ引っぱります');
+    expect(texts[2]).toBe('全部立てたら『確認』を押します。間違った所には ✕ が出ます');
+    expect(texts[3]).toBe('確認に2回失敗すると『ヒント』が使えます。ヒントを使うと星は1つになります');
+  });
+
+  it('画面を見れば分かる細かい操作の言葉 (「なぞって」「バー」「2回繰り返す」「嵌め」) は無い', () => {
+    const all = creelTutorial.pages.map((p) => p.text).join('\n');
+    for (const w of ['なぞって', 'バー', '2回繰り返す', '嵌め']) {
+      expect(all, w).not.toContain(w);
+    }
   });
 });

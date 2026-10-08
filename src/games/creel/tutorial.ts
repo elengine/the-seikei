@@ -207,12 +207,12 @@ function drawHint(ctx: Ctx, w: number, h: number): void {
 
 export const creelTutorial: TutorialSpec = {
   pages: [
-    { draw: (ctx, w, h) => drawOrder(ctx, w, h), text: '「依頼書」を押すと、立てる{{cone}}の絵と型番と本数が出ます。繰り返しがあるときは「2回繰り返す」と出ます' },
-    { draw: (ctx, w, h) => drawPlace(ctx, w, h), text: '段ボールの箱の上から、どの向きになぞっても{{cone}}が出ます。上へ引っぱって、{{spindle}}の丸に嵌めます。箱の列が全部見えないときは、箱の列のそばのバーを引っぱって送ります。外すときは、{{cone}}を{{creel}}の外へ引っぱります' },
-    { draw: (ctx, w, h) => drawDone(ctx, w, h), text: '全部立てたら「確認」を押します。間違いは ✕ で示されるので、箱から引っぱり直します' },
+    { draw: (ctx, w, h) => drawOrder(ctx, w, h), text: '『依頼書』を押すと、立てる{{cone}}と本数が出ます' },
+    { draw: (ctx, w, h) => drawPlace(ctx, w, h), text: '箱から{{cone}}を引っぱって、{{spindle}}の丸に入れます。外すときは、{{creel}}の外へ引っぱります' },
+    { draw: (ctx, w, h) => drawDone(ctx, w, h), text: '全部立てたら『確認』を押します。間違った所には ✕ が出ます' },
     {
       draw: (ctx, w, h) => drawHint(ctx, w, h),
-      text: '確認に2回失敗すると「ヒント」が使えます(ヒントを使うと星は1つになります)',
+      text: '確認に2回失敗すると『ヒント』が使えます。ヒントを使うと星は1つになります',
     },
   ],
 };
