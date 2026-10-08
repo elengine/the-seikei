@@ -7,7 +7,7 @@ import type { BeamingState, BeamingAction } from './logic';
 /**
  * ビーム巻きの操作欄のテスト (P3 T3-03a)。
  * 幅合わせの段階: 円盤を動かす4つのボタンが1行 (4列の格子)・今と目標の幅。
- * 巻き返しの段階: 張りのメーター・ペダル・寄せる2つ (1行)・巻いた割合と時間。
+ * 巻き返しの段階: 巻き量の帯と表示・巻いた割合と時間 (寄せるは T3-05 で無し)。
  */
 
 const terms = { t: (k: string) => k, render: (x: string) => x };
@@ -44,35 +44,23 @@ describe('beaming panel T3-03a (操作欄)', () => {
     p.destroy();
   });
 
-  it('3. 巻き返しの段階: メーターとペダルと寄せる2つ (1行に2つ)。幅合わせのボタンは隠れる', () => {
-    // 2列の格子は base.css のビーム巻きの節で決める
-    const css = readFileSync('src/styles/base.css', 'utf8');
-    const grid2 = /\.beaming-panel__shift\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/;
-    expect(grid2.test(css), 'shift').toBe(true);
+  it('3. 巻き返しの段階: 「寄せる」のボタンと入れ物は無い (T3-05 で寄せるをやめた)。幅合わせのボタンは隠れる', () => {
     const p = createBeamingPanel(host, { terms, onAction: () => undefined });
     p.update(beaming());
-    const shift = host.querySelector('.beaming-panel__shift');
-    expect(shift).toBeDefined();
-    expect(shift!.querySelectorAll('button').length).toBe(2);
-    expect(host.querySelector('.beaming-panel__pedal')).toBeDefined();
+    expect(host.querySelector('.beaming-panel__shift')).toBeNull();
+    expect(host.textContent).not.toContain('寄せる');
     // 幅合わせの入れ物 (block) ごと隠れる
     const setupBlock = host.querySelector('.beaming-panel__info')!.closest('.beaming-panel__block') as HTMLElement;
     expect(setupBlock.style.display).toBe('none');
     p.destroy();
   });
 
-  it('4. 寄せるボタンで nudge が送られる (◀ 寄せる は -1 方向)', () => {
-    const actions: BeamingAction[] = [];
-    const p = createBeamingPanel(host, { terms, onAction: (a) => actions.push(a) });
-    p.update(beaming());
-    const btn = (text: string): HTMLButtonElement | undefined =>
-      Array.from(host.querySelectorAll('button')).find((b) => b.textContent === text);
-    btn('◀ 寄せる')!.click();
-    btn('寄せる ▶')!.click();
-    expect(actions).toEqual([
-      { type: 'nudge', dir: -1 },
-      { type: 'nudge', dir: 1 },
-    ]);
+  it('4. 巻き量の表示は切り捨て (100.99% は 100%。T3-05)', () => {
+    const p = createBeamingPanel(host, { terms, onAction: () => undefined });
+    p.update({ ...beaming(), progress: 1.0099 });
+    expect(host.textContent).toContain('巻き量 100%');
+    p.update({ ...beaming(), progress: 0.995 });
+    expect(host.textContent).toContain('巻き量 99%');
     p.destroy();
   });
 
@@ -140,16 +128,10 @@ describe('PU-15c: 操作欄の整理 (戻す・踏み込む・速さ・経過時
     p.destroy();
   });
 
-  it('巻き返しの段階でも「◀ 寄せる」「寄せる ▶」はある (レバーで速さを変えるので速さのボタンは無い。T3-04b)', () => {
-    const actions: unknown[] = [];
-    const p = createBeamingPanel(host, { terms, onAction: (a) => actions.push(a) });
+  it('巻き返しの段階に「寄せる」は無い (T3-05 でやめた。速さは盤面のレバーで変える)', () => {
+    const p = createBeamingPanel(host, { terms, onAction: () => undefined });
     p.update(beaming());
-    const shift = host.querySelector('.beaming-panel__shift') as HTMLElement;
-    expect(shift).not.toBeNull();
-    const btns = Array.from(shift.querySelectorAll('button')) as HTMLButtonElement[];
-    expect(btns.map((b) => b.textContent)).toEqual(['◀ 寄せる', '寄せる ▶']);
-    btns[1]!.click();
-    expect(actions[actions.length - 1]).toEqual({ type: 'nudge', dir: 1 });
+    expect(host.textContent).not.toContain('寄せる');
     p.destroy();
   });
   it('巻き量は 32px 以上の太字 (base.css)', () => {

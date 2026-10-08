@@ -30,7 +30,7 @@ export function resultOf(s: BeamingState, mode: GameProps['mode'], finishedAt: s
     stats: { [`level:${s.level}`]: starsFor },
     unlockedPatternIds: [],
     resultLines: lines,
-    starHint: '適正な速さ8割以上・止めた位置99%以上・微調整2回以下・幅1cm以内・中央8割以上で星3です',
+    starHint: '適正な速さ8割以上・止めた位置99%以上・微調整2回以下・幅1cm以内で星3です',
     summary: lines.map((l) => `${l.label} ${l.value}`),
     finishedAt,
   };

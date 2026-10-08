@@ -134,18 +134,13 @@ export function drawPage2(ctx: CanvasRenderingContext2D, w: number, h: number): 
   ctx.fill();
 }
 
-/** 3ページ目: 偏りと乗り上げ (シートが右に寄って円盤に乗り上げている) */
+/** 3ページ目: 止めるタイミング (確認のボタンと 100% の目印) */
 export function drawPage3(ctx: CanvasRenderingContext2D, w: number, h: number): void {
   drawBoardSketch(ctx, w, h, w * 0.06, false);
-  // 乗り上げ: 右の円盤の縁を朱で示す
+  // 100% ちょうどの目印 (巻き量の帯の右端)
   ctx.fillStyle = COLORS.shu;
-  ctx.strokeStyle = COLORS.shu;
-  ctx.lineWidth = 5;
-  ctx.beginPath();
-  ctx.ellipse(w * 0.78, h * 0.68, w * 0.02, h * 0.13, 0, 0, Math.PI * 2);
-  ctx.stroke();
-  drawText(ctx, '乗り上げ', w * 0.62, h * 0.48);
-  drawText(ctx, '寄せる', w * 0.12, h * 0.96);
+  ctx.fillRect(w * 0.79, h * 0.3, 4, h * 0.45);
+  drawText(ctx, '100%', w * 0.7, h * 0.26);
   // 確認のボタン (95% を超えたら止めて確認する)
   const cX = w * 0.62;
   const cY = h * 0.9;
@@ -163,11 +158,11 @@ export const beamingTutorial: TutorialSpec = {
     },
     {
       draw: (ctx, w, h) => drawPage2(ctx, w, h),
-      text: 'ビームの上のレバーで速さを変えます (停止・50%・100%)。巻き量ごとに適正な速さが違い、枠と緑のランプで分かります。止めずに 100% を超えると糸が切れます',
+      text: 'ビームの上のレバーで速さを変えます (停止・50%・100%)。巻き量ごとに適正な速さが違い、枠と緑のランプで分かります。止めずに 101% に届くと糸が切れます',
     },
     {
       draw: (ctx, w, h) => drawPage3(ctx, w, h),
-      text: '糸が左右に寄ります。寄せるボタンで中央に保ち、円盤に乗り上げないようにします。95% を超えたらレバーを停止にして「確認」を押します',
+      text: '巻き量が 95% を超えたらレバーを停止にして「確認」を押します。100% ちょうどで止めると一番よい結果です',
     },
   ],
 };

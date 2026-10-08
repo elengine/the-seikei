@@ -40,7 +40,7 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
   const startState = opts.resume as BeamingState | undefined;
   let s: BeamingState =
     startState !== undefined
-      ? reduce(startState, { type: 'setSpeed', speed: 0 }) // 再開のときはレバーを停止に
+      ? reduce(startState, { type: 'setSpeed', value: 0 }) // 再開のときはレバーを停止に
       : init({
           level: opts.level,
           widthCm: opts.widthCm,
@@ -159,7 +159,7 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
       leverDragX = null;
       leverDragId = -1;
       if (next !== s.speed) {
-        dispatch({ type: 'setSpeed', speed: next });
+        dispatch({ type: 'setSpeed', value: next });
       }
       render();
       return;
@@ -392,7 +392,7 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
   function onVisibilityChange(): void {
     if (document.visibilityState === 'hidden') {
       stopLoop();
-      const next = reduce(s, { type: 'setSpeed', speed: 0 });
+      const next = reduce(s, { type: 'setSpeed', value: 0 });
       if (next !== s) {
         s = next;
         refresh();

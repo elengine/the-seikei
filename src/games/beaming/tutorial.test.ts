@@ -5,12 +5,16 @@ import { beamingTutorial } from './tutorial';
  * ビーム巻きの遊び方のテスト (P3 T3-03b)。3ページ。
  */
 describe('ビーム巻きの遊び方 T3-03b (3ページ)', () => {
-  it('3ページあり、文は幅合わせ・レバーと適正な速さ・偏りと乗り上げと確認の順', () => {
+  it('3ページあり、文は幅合わせ・レバーと適正な速さ・止めるタイミングと確認の順。寄せる・偏りの説明は無い (T3-05)', () => {
     expect(beamingTutorial.pages).toHaveLength(3);
     expect(beamingTutorial.pages[0]!.text).toContain('引っぱ');
     expect(beamingTutorial.pages[1]!.text).toContain('レバー');
-    expect(beamingTutorial.pages[2]!.text).toContain('寄せる');
-    expect(beamingTutorial.pages[2]!.text).toContain('乗り上げ');
+    expect(beamingTutorial.pages[2]!.text).toContain('確認');
+    expect(beamingTutorial.pages[2]!.text).toContain('100% ちょうど');
+    const all = beamingTutorial.pages.map((p) => p.text).join('\n');
+    for (const w of ['寄せる', '乗り上げ', '偏り']) {
+      expect(all, w).not.toContain(w);
+    }
   });
 
   it('各ページに絵がある (draw が呼べる。文字は 20px 以上)', () => {
@@ -79,10 +83,10 @@ describe('T3-04c (遊び方をレバーに合わせる)', () => {
     expect(p2).not.toContain('メーター');
   });
 
-  it('どこかに「確認」があり、100% を超えると糸が切れることが分かる', () => {
+  it('どこかに「確認」があり、101% に届くと糸が切れることが分かる (T3-05)', () => {
     const all = beamingTutorial.pages.map((p) => p.text).join('\n');
     expect(all).toContain('確認');
-    expect(all).toContain('100%');
+    expect(all).toContain('101%');
     expect(all).toContain('切れ');
   });
 });

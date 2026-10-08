@@ -215,27 +215,6 @@ describe('beaming controller T3-03a (プレイ画面)', () => {
     instance.unmount();
   }, 60000);
 
-  it('2. 寄せるボタンで偏りが戻る (偏りが出たら反対へ寄せて、偏りが小さくなる)', async () => {
-    const { instance } = await startAligned(setupAligned());
-    Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める')!.click();
-    pressLeverOn(container, raf, 100 as 0 | 50 | 100);
-    const shift = (): number => (instance.suspend() as BeamingState).shiftCm;
-    // 偏るまで進める
-    await vi.waitFor(
-      () => {
-        raf.advance(100);
-        expect(Math.abs(shift())).toBeGreaterThan(1.5);
-      },
-      { timeout: 60000, interval: 100 },
-    );
-    const before = Math.abs(shift());
-    const nudgeBtn = (): HTMLButtonElement | undefined =>
-      Array.from(container.querySelectorAll('button')).find((b) => b.textContent === (shift() > 0 ? '◀ 寄せる' : '寄せる ▶'));
-    nudgeBtn()!.click();
-    nudgeBtn()!.click();
-    expect(Math.abs(shift())).toBeLessThan(before);
-    instance.unmount();
-  }, 60000);
 
   it('3. unmount で rAF が止まり、盤面の描画も止まる', async () => {
     const { instance, finished } = await startAligned(setupAligned());
@@ -574,13 +553,13 @@ describe('T3-04c (糸切れの結果の画面)', () => {
     stage.dispatchEvent(new PointerEvent('pointerup', { clientX: at.x, clientY: at.y, bubbles: true, pointerId: 21, button: 0 }));
   }
 
-  it('1. 止めずに 100% を超えると「糸が切れました」の画面 (星は無い・もう一度と一覧)。結果のコールバックは呼ばない', async () => {
+  it('1. 止めずに 101% に届くと「糸が切れました」の画面 (星は無い・もう一度と一覧)。結果のコールバックは呼ばない (T3-05)', async () => {
     const onBack = vi.fn();
     const { instance, finished } = await mountAligned(() => onBack());
     Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める')!.click();
     const { toScreen } = showBoardOn(container, raf);
     pressLever(toScreen, 100);
-    // 30 秒以上巻いて 100% を超える (16ms × 2000 フレーム = 32 秒)
+    // 30 秒以上巻いて 101% に届かせる (16ms × 2000 フレーム = 32 秒)
     await vi.waitFor(
       () => {
         raf.advance(200);
@@ -594,7 +573,7 @@ describe('T3-04c (糸切れの結果の画面)', () => {
         const dlg = container.querySelector('.dialog-backdrop');
         expect(dlg).not.toBeNull();
         expect(dlg!.textContent).toContain('糸が切れました');
-        expect(dlg!.textContent).toContain('巻き量が 100% を超えました');
+        expect(dlg!.textContent).toContain('巻き量が 101% に届きました');
       },
       { timeout: 5000, interval: 100 },
     );
@@ -680,6 +659,7 @@ describe('T2-17 (遊び方を開いているあいだの一時停止)', () => {
     pressLeverOn(container, raf, 50);
     raf.advance(30);
     const before = instance.suspend() as { progress: number; windMs: number };
+    console.log('DBG T2-17 state', JSON.stringify(before).slice(0, 300));
     expect(before.progress).toBeGreaterThan(0);
     helpBtn(container)!.click();
     await vi.waitFor(() => expect(container.querySelector('.dialog-backdrop')).not.toBeNull());

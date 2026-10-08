@@ -81,21 +81,13 @@ export function createBeamingPanel(
   setupBlock.appendChild(widthText);
   root.appendChild(setupBlock);
 
-  // 3. 巻き返しの段階: 速さのメーター・ペダル・寄せる2つ (1行に2つ) + 巻いた割合と時間
+  // 3. 巻き返しの段階: 速さの見出しと巻いた割合と時間。速さは盤面で変え、寄せるボタンは無い (T3-05)
   const beamBlock = document.createElement('section');
   beamBlock.className = 'beaming-panel__block';
   beamBlock.setAttribute('aria-label', opts.terms.t('speed'));
   beamBlock.appendChild(createSectionHeading(opts.terms.t('speed')));
   const meterHost = document.createElement('div');
   meterHost.className = 'beaming-panel__meter';
-  // 速さは盤面のレバーで変える (T3-04b)。操作欄のボタンは無い
-  const shift = document.createElement('div');
-  shift.className = 'beaming-panel__shift';
-  const mkNudgeBtn = (label: string, dir: -1 | 1): HTMLButtonElement =>
-    createButton({ label, onClick: () => opts.onAction({ type: 'nudge', dir }) });
-  shift.appendChild(mkNudgeBtn('◀ 寄せる', -1));
-  shift.appendChild(mkNudgeBtn('寄せる ▶', 1));
-  beamBlock.appendChild(shift);
   root.appendChild(beamBlock);
 
   // 4. 一番下の主な操作 (巻き返しの段階は主な操作が無いので、行を詰める)
@@ -149,7 +141,7 @@ export function createBeamingPanel(
       confirmBtn.style.display = canConfirm ? '' : 'none';
       confirmBtn.setAttribute('aria-disabled', String(!confirmStopped));
       confirmBtn.classList.toggle('beaming-panel__main--locked', !confirmStopped);
-      amount.textContent = `巻き量 ${Math.round(s.progress * 100)}%`;
+      amount.textContent = `巻き量 ${Math.floor(s.progress * 100)}%`; // 表示は切り捨て (T3-05)
       bandMark.style.left = `${Math.min(100, Math.max(0, s.progress * 100))}%`;
       // 巻き返しの段階の下の行は空 (ボタンが無いので行を低くする)
       buttonRow.style.minHeight = isSetup ? '' : '0';
