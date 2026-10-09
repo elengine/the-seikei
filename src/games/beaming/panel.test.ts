@@ -192,7 +192,7 @@ describe('T3-04c (完了のボタン。T3-06 で「確認」から名前を変�
     expect(btn!.getAttribute('aria-disabled')).toBe('true');
     btn!.click();
     expect(actions).not.toContainEqual({ type: 'confirm' });
-    expect(notices).toContain('レバーを左端まで戻して止めてから、完了を押します');
+    expect(notices).toContain('木の棒を左端まで戻して止めてから、完了を押します');
     p.destroy();
   });
 });
@@ -319,7 +319,7 @@ describe('PU-27: 依頼票 (柄の名前・巻き幅・帯の数)', () => {
   });
 
   it('1. 札に「依頼票」の見出し・柄の色の四角・柄の名前・「巻き幅 60cm」・「帯 3本」がある', () => {
-    const p = createBeamingPanel(host, { terms, onAction: () => undefined, puzzle: { bands: 3, patternName: '紺の無地' }, patternHex: '#1f3a5f' });
+    const p = createBeamingPanel(host, { terms, onAction: () => undefined, puzzle: { bands: 3, patternName: '紺の無地' }, patternStripes: [{ hex: '#1f3a5f', frac: 3 / 8 }, { hex: '#f4efe0', frac: 1 / 8 }, { hex: '#1f3a5f', frac: 4 / 8 }] });
     p.update(make());
     const t = host.querySelector('.order-ticket') as HTMLElement;
     expect(t).not.toBeNull();
@@ -327,7 +327,7 @@ describe('PU-27: 依頼票 (柄の名前・巻き幅・帯の数)', () => {
     expect(t.querySelector('.order-ticket__name')!.textContent).toBe('紺の無地');
     expect(t.querySelector('.order-ticket__width')!.textContent).toBe('巻き幅 60cm');
     expect(t.querySelector('.order-ticket__bands')!.textContent).toBe('帯 3本');
-    expect((t.querySelector('.order-ticket__swatch') as HTMLElement).style.background).not.toBe('');
+    expect(t.querySelectorAll('.order-ticket__swatch > span')).toHaveLength(3); // 柄の縦縞の見本
     p.destroy();
   });
 

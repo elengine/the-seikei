@@ -3,7 +3,8 @@ import { readFileSync } from 'node:fs';
 import { drawBoard, mainHex } from './renderer';
 import { init, reduce } from './logic';
 import type { BeamingState } from './logic';
-import { cmToX, BOARD, setBoardHeight, FLANGE_RX, DRUM_X, DRUM_W, woundRadius, lampX, lampY, speedBarCenterX, SPEED_BAR_W, ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX, sheetTopY, sheetDropEndY, pxPerCm, BEAM_CENTER_X, THREAD_BAR_MARGIN, BOARD_W } from './geometry';
+import { cmToX, BOARD, setBoardHeight, FLANGE_RX, DRUM_X, DRUM_W, woundRadius, lampX, lampY, speedBarCenterX, SPEED_BAR_W, ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX, sheetTopY, sheetDropEndY, pxPerCm, BEAM_CENTER_X, THREAD_BAR_MARGIN } from './geometry';
+import { stripeRunsOf, stripeStrips } from './renderer';
 import { DRUM_SURFACE_SIGN, BEAM_SURFACE_SIGN, DRUM_FLANGE_SIGN, BEAM_FLANGE_SIGN } from './params';
 import { getContent } from '../../core/content/content';
 import { COLORS } from '../../core/ui/tokens';
@@ -170,14 +171,14 @@ describe('beaming renderer PU-15a (盤面。実物の写真に寄せた絵)', ()
     expect(straight.length).toBe(0);
   });
 
-  it('6. ドラムから降りる糸のシートの手前に、速さのレバーの溝 (横に長い長方形) がある (PU-27。茶色の細い横棒から作り直した)', () => {
+  it('6. ドラムから降りる糸のシートの手前に、速さの木の棒 (横に長い赤茶の角材) がある (PU-28)', () => {
     const rec = draw(beamState());
-    const groove = rec.ops
-      .filter((o) => o.k === 'fillRect')
-      .map((o) => o.args as number[])
-      .find((a) => Math.abs(a[1]! + a[3]! / 2 - BOARD.guideY) < 1 && a[2]! > 300);
-    expect(groove).toBeDefined();
-    expect(groove![3]!).toBeLessThan(24);
+    const bar = rec.ops
+      .map((o, i) => ({ o, style: styleBefore(rec.ops, i) }))
+      .filter((e) => e.o.k === 'fillRect' && e.style === COLORS.beamBar)
+      .map((e) => e.o.args as number[])
+      .find((a) => a[2]! > 300);
+    expect(bar).toBeDefined();
   });
 
   it('7. 乗り上げの表示は無い (T3-05 で偏りが無くなる。PU-24a): 糸が円盤に寄っていても、円盤の縁は朱にならず「乗り上げ」の文字も出ない', () => {
@@ -215,66 +216,65 @@ describe('beaming renderer PU-15a (盤面。実物の写真に寄せた絵)', ()
   });
 });
 
-describe('PU-24b・PU-27 (速さのレバー・ランプ)', () => {
-  /** レバーの溝 (幅 SPEED_BAR_W の長方形で、中心 y が guideY) */
-  const grooveRect = (rec: FakeRecorder): number[] | undefined =>
-    rec.ops.filter((o) => o.k === 'fillRect').map((o) => o.args as number[]).find((a) => Math.abs(a[1]! + a[3]! / 2 - BOARD.guideY) < 1 && Math.abs(a[2]! - SPEED_BAR_W) < 1e-6);
-  /** つまみ (中心 y が guideY で、幅・高さが画面上 64px 以上の長方形) */
-  const handleRect = (rec: FakeRecorder, scale: number): number[] | undefined =>
+describe('PU-24b・PU-28 (速さの木の棒・ランプ)', () => {
+  const body = (rec: FakeRecorder): number[] | undefined =>
     rec.ops
-      .filter((o) => o.k === 'fillRect')
-      .map((o) => o.args as number[])
-      .find((a) => Math.abs(a[1]! + a[3]! / 2 - BOARD.guideY) < 1 && a[2]! * scale >= 64 - 1e-6 && a[3]! * scale >= 64 - 1e-6 && a[2]! < 300);
-  const drawWith = (s: BeamingState, scale = 1, lever?: { active: boolean; hintMs: number | null }): FakeRecorder => {
+      .map((o, i) => ({ o, style: styleBefore(rec.ops, i) }))
+      .filter((e) => e.o.k === 'fillRect' && e.style === COLORS.beamBar)
+      .map((e) => e.o.args as number[])
+      .find((a) => Math.abs(a[2]! - SPEED_BAR_W) < 1e-6);
+  const top = (rec: FakeRecorder): number[] | undefined =>
+    rec.ops
+      .map((o, i) => ({ o, style: styleBefore(rec.ops, i) }))
+      .filter((e) => e.o.k === 'fillRect' && e.style === COLORS.beamBarTop)
+      .map((e) => e.o.args as number[])
+      .find((a) => Math.abs(a[2]! - SPEED_BAR_W) < 1e-6);
+  const drawWith = (s: BeamingState, scale = 1, lever?: { active: boolean }): FakeRecorder => {
     const { ctx, rec } = makeFakeCtx();
     drawBoard(ctx, { scale, offsetX: 0, offsetY: 0 }, s, content, 0, null, 0, lever);
     return rec;
   };
 
-  it('1. レバーの溝は盤面の中心の左右に固定の長さで描き、つまみの中心は speedBarCenterX(速さ)。つまみは画面上 64px 以上 (縮尺 1 と 393×852 相当の 0.39)。巻く段階だけつまみを出す', () => {
+  it('1. 木の棒は、手前の面 (濃い赤茶) と上の面 (明るい赤茶) の 2 面。棒全体の x の真ん中が speedBarCenterX(速さ)、長さは固定。厚み (2 面の合計) は画面上 28px 以上 (縮尺 1 と 0.39)', () => {
     for (const scale of [1, 0.39]) {
       for (const sp of [0, 30, 100]) {
         const rec = drawWith(beamState({ speed: sp }), scale);
-        const g = grooveRect(rec)!;
-        expect(g, `溝 scale=${scale}`).toBeDefined();
-        expect(g[0]! + g[2]! / 2).toBeCloseTo(BOARD_W / 2, 6);
-        const h = handleRect(rec, scale)!;
-        expect(h, `つまみ scale=${scale} 速さ=${sp}`).toBeDefined();
-        expect(h[0]! + h[2]! / 2).toBeCloseTo(speedBarCenterX(sp), 6);
+        const f = body(rec)!;
+        const t = top(rec)!;
+        expect(f, `手前の面 scale=${scale}`).toBeDefined();
+        expect(t, `上の面 scale=${scale}`).toBeDefined();
+        expect(f[0]! + f[2]! / 2).toBeCloseTo(speedBarCenterX(sp), 6);
+        expect(t[0]! + t[2]! / 2).toBeCloseTo(speedBarCenterX(sp), 6);
+        expect(t[1]! + t[3]!).toBeCloseTo(f[1]!, 6); // 上の面は手前の面のすぐ上
+        expect((f[3]! + t[3]!) * scale).toBeGreaterThanOrEqual(28 - 1e-6);
+        expect(t[1]! + (t[3]! + f[3]!) / 2).toBeCloseTo(BOARD.guideY, 6); // 2 面の真ん中の高さがガイドの位置
       }
     }
-    // 幅合わせ・糸を付ける段階: 溝と目盛りだけをうすく描き、つまみは出さない (押せない形。糸の束に重ならない)
-    for (const st of [init({ level: 1, widthCm: 60, seed: 42, puzzleId: 's1', patternId: 'p-muji-kon' }), beamState({ phase: 'attach', progress: 0, speed: 0 })]) {
-      const early = drawWith(st);
-      expect(grooveRect(early)).toBeDefined();
-      expect(handleRect(early, 1)).toBeUndefined();
-      expect(early.ops.some((o) => o.k === 'globalAlpha' && Number(o.v) < 1)).toBe(true);
-    }
+    expect(body(drawWith(beamState({ speed: 0 })))![0]!).toBeLessThan(body(drawWith(beamState({ speed: 100 })))![0]!);
   });
 
-  it('2. 溝の左の端に「止」、右の端に「速」(画面上 20px 以上)、0・50・100 の短い目盛り 3 本。つまみに縦の溝 (滑り止め) が 3 本', () => {
-    const scale = 0.39;
-    const rec = drawWith(beamState({ speed: 40 }), scale);
-    const texts = rec.ops.filter((o) => o.k === 'fillText');
-    const stop = texts.find((o) => String(o.args![0]) === '止');
-    const fast = texts.find((o) => String(o.args![0]) === '速');
-    expect(stop, '止').toBeDefined();
-    expect(fast, '速').toBeDefined();
-    expect(Number(stop!.args![1])).toBeLessThan(Number(fast!.args![1])); // 左 < 右
-    const fonts = rec.ops.filter((o) => o.k === 'font').map((o) => Number(/([0-9.]+)px/.exec(String(o.v))![1]));
-    expect(Math.max(...fonts) * scale).toBeGreaterThanOrEqual(20 - 1e-6);
-    const st = strokes(rec);
-    const ticks = st.filter((g) => g.pts.length === 2 && g.pts[0]!.x === g.pts[1]!.x && [0, 50, 100].some((v) => Math.abs(g.pts[0]!.x - speedBarCenterX(v)) < 1e-6) && Math.abs(g.pts[0]!.y - BOARD.guideY) < 60 / scale && Math.abs(g.pts[1]!.y - g.pts[0]!.y) < 60 / scale);
-    expect(new Set(ticks.map((g) => Math.round(g.pts[0]!.x))).size).toBe(3);
-    const h = handleRect(rec, scale)!;
-    const grips = st.filter((g) => g.pts.length === 2 && g.pts[0]!.x === g.pts[1]!.x && g.pts[0]!.x > h[0]! && g.pts[0]!.x < h[0]! + h[2]! && g.pts[0]!.y >= h[1]! && g.pts[1]!.y <= h[1]! + h[3]! + 1e-6 && Math.abs(g.pts[1]!.y - g.pts[0]!.y) > h[3]! * 0.3);
-    expect(grips.length).toBe(3);
+  it('2. 「止」「速」「→」の字・溝・つまみは無い。両端に灰色の金属の金具 (steel の小さな四角)。棒の下の左右の端に止め金具', () => {
+    const rec = drawWith(beamState({ speed: 40 }), 0.39);
+    const texts = rec.ops.filter((o) => o.k === 'fillText').map((o) => String(o.args![0]));
+    for (const t of ['止', '速', '→']) expect(texts, t).not.toContain(t);
+    const f = body(rec)!;
+    const caps = rec.ops
+      .map((o, i) => ({ o, style: styleBefore(rec.ops, i) }))
+      .filter((e) => e.o.k === 'fillRect' && e.style === COLORS.steel)
+      .map((e) => e.o.args as number[])
+      .filter((a) => a[2]! < 80 && a[3]! < 200 && Math.abs(a[1]! + a[3]! / 2 - (f[1]! + f[3]! / 2)) < f[3]!);
+    expect(caps.some((a) => a[0]! <= f[0]! + 1 && a[0]! + a[2]! > f[0]!), '左の金具').toBe(true);
+    expect(caps.some((a) => a[0]! + a[2]! >= f[0]! + f[2]! - 1 && a[0]! < f[0]! + f[2]!), '右の金具').toBe(true);
+    const stops = rec.ops
+      .map((o, i) => ({ o, style: styleBefore(rec.ops, i) }))
+      .filter((e) => e.o.k === 'fillRect' && e.style === COLORS.steel)
+      .map((e) => e.o.args as number[])
+      .filter((a) => a[1]! > f[1]! + f[3]! && a[1]! < f[1]! + f[3]! + 120 && a[2]! < 80);
+    expect(stops.length).toBeGreaterThanOrEqual(2); // 左右の止め金具
   });
 
-  it('3. 引っぱっている間は、つまみの縁を藍で太く (線の太さ 4 以上)、少し大きく (1.1 倍) 見せる', () => {
-    const idle = drawWith(beamState({ speed: 40 }), 1, { active: false, hintMs: null });
-    const held = drawWith(beamState({ speed: 40 }), 1, { active: true, hintMs: null });
-    const aiStrokeWidths = (rec: FakeRecorder): number[] => {
+  it('3. 引っぱっている間は、棒の縁を藍で細く囲む (線の太さ 1〜3)。引っぱっていないときは藍の縁は無い', () => {
+    const widths = (rec: FakeRecorder): number[] => {
       const out: number[] = [];
       let w = 0;
       let style = '';
@@ -285,37 +285,22 @@ describe('PU-24b・PU-27 (速さのレバー・ランプ)', () => {
       }
       return out;
     };
-    expect(Math.max(0, ...aiStrokeWidths(idle))).toBeLessThan(4);
-    expect(Math.max(...aiStrokeWidths(held))).toBeGreaterThanOrEqual(4);
-    const hi = handleRect(idle, 1)!;
-    const hh = rec_find_handle(held);
-    expect(hh[2]! / hi[2]!).toBeCloseTo(1.1, 3);
-    function rec_find_handle(rec: FakeRecorder): number[] {
-      return handleRect(rec, 1)!;
+    expect(widths(drawWith(beamState({ speed: 40 }), 1, { active: false }))).toHaveLength(0);
+    const held = widths(drawWith(beamState({ speed: 40 }), 1, { active: true }));
+    expect(held.length).toBeGreaterThan(0);
+    for (const w of held) {
+      expect(w).toBeGreaterThanOrEqual(1);
+      expect(w).toBeLessThanOrEqual(3);
     }
   });
 
-  it('4. はじめて触る人への案内: hintMs が数のあいだだけ、つまみの右に「→」を出す (1 秒ごとに左右に揺れる)。null (一度動かした) なら出さない', () => {
-    const arrowsAt = (ms: number | null): number[] =>
-      drawWith(beamState({ speed: 0 }), 1, { active: false, hintMs: ms })
-        .ops.filter((o) => o.k === 'fillText' && String(o.args![0]) === '→')
-        .map((o) => Number(o.args![1]));
-    expect(arrowsAt(null)).toHaveLength(0);
-    const a0 = arrowsAt(0);
-    const a1 = arrowsAt(250);
-    expect(a0).toHaveLength(1);
-    expect(a1).toHaveLength(1);
-    expect(a0[0]!).toBeGreaterThan(speedBarCenterX(0)); // つまみの右
-    expect(a1[0]!).not.toBeCloseTo(a0[0]!, 3); // 揺れる
-    expect(arrowsAt(1000)[0]!).toBeCloseTo(a0[0]!, 6); // 1 秒で一巡
-  });
-
-  it('1b. 茶色の長い棒 (幅 740) はもう無い', () => {
-    const rec = drawWith(beamState({ speed: 40 }));
-    const wide = rec.ops
-      .map((o, i) => ({ o, style: styleBefore(rec.ops, i) }))
-      .filter((e) => e.o.k === 'fillRect' && e.style === COLORS.wood && Number((e.o.args as number[])[2]) > 600);
-    expect(wide).toHaveLength(0);
+  it('4. 幅合わせ・糸を付ける段階では、棒は左端 (速さ 0 の位置) で少し暗く描く (押せない形)', () => {
+    for (const st of [init({ level: 1, widthCm: 60, seed: 42, puzzleId: 's1', patternId: 'p-muji-kon' }), beamState({ phase: 'attach', progress: 0, speed: 0 })]) {
+      const rec = drawWith(st);
+      const f = body(rec)!;
+      expect(f[0]! + f[2]! / 2).toBeCloseTo(speedBarCenterX(0), 6);
+      expect(rec.ops.some((o) => o.k === 'globalAlpha' && Number(o.v) < 1)).toBe(true);
+    }
   });
 
   it('2. 3 つの丸いボタン (停止・50%・100%) と「適正」の札は盤面に無い', () => {
@@ -398,26 +383,29 @@ describe('PU-26: ドラムをドラム巻きと同じ見た目で大きく・回
     expect(nearest(0)).toBe(y0);
   });
 
-  it('4. 角度が進むと、ビームの巻いた糸の流れる筋が下へ動く (巻き量があるとき)。円盤の穴も回る', () => {
+  it('4. 角度が進むと、ビームの巻いた糸の上の明るさの帯 (薄い白の長方形) が下へ動く (巻き量があるとき)。円盤の穴も回る。横の線は描かない (PU-28)', () => {
     const r = woundRadius(0.5);
-    const nearest = (angle: number): number => {
-      const ys = strokes(draw(beamState({ progress: 0.5 }), angle, ))
-        .filter((g) => g.style === COLORS.white && g.pts.length === 2 && g.pts[0]!.y === g.pts[1]!.y)
-        .map((g) => g.pts[0]!.y);
-      return ys.reduce((best, y) => (Math.abs(y - BOARD.axisY) < Math.abs(best - BOARD.axisY) ? y : best), Infinity);
+    const leftX = cmToX(60, -30);
+    const rightX = cmToX(60, 30);
+    const bands = (angle: number): number[] => {
+      const { ctx, rec } = makeFakeCtx();
+      drawBoard(ctx, fit, beamState({ progress: 0.5 }), content, 0, null, angle);
+      return rec.ops
+        .map((o, i) => ({ o, style: styleBefore(rec.ops, i) }))
+        .filter((e) => e.o.k === 'fillRect' && e.style === COLORS.white && Math.abs(Number((e.o.args as number[])[2]) - (rightX - leftX)) < 1e-6)
+        .map((e) => Number((e.o.args as number[])[1]) + Number((e.o.args as number[])[3]) / 2);
     };
-    const y0 = nearest(0);
+    const nearest = (ys: number[]): number => ys.reduce((best, y) => (Math.abs(y - BOARD.axisY) < Math.abs(best - BOARD.axisY) ? y : best), Infinity);
+    const y0 = nearest(bands(0));
     expect(y0).toBeCloseTo(BOARD.axisY, 6);
-    const y1 = nearest(0);
-    expect(y1).toBe(y0);
+    const y1 = nearest(bands(0.1));
+    expect(y1).toBeGreaterThan(y0); // 下へ
+    expect(y1).toBeCloseTo(BOARD.axisY + BEAM_SURFACE_SIGN * r * Math.sin(0.1), 6);
+    // 巻いた糸の上に、横いっぱいの線は無い (2 点の水平な線で、長さが巻いた糸の幅の 8 割以上)
     const { ctx, rec } = makeFakeCtx();
-    drawBoard(ctx, fit, beamState({ progress: 0.5 }), content, 0, null, 0.1);
-    const ys = strokes(rec)
-      .filter((g) => g.style === COLORS.white && g.pts.length === 2 && g.pts[0]!.y === g.pts[1]!.y)
-      .map((g) => g.pts[0]!.y);
-    const near = ys.reduce((best, y) => (Math.abs(y - BOARD.axisY) < Math.abs(best - BOARD.axisY) ? y : best), Infinity);
-    expect(near).toBeGreaterThan(y0); // 下へ
-    expect(near).toBeCloseTo(BOARD.axisY + BEAM_SURFACE_SIGN * r * Math.sin(0.1), 6);
+    drawBoard(ctx, fit, beamState({ progress: 0.5 }), content, 0, null, 0.3);
+    const wide = strokes(rec).filter((g) => g.pts.length === 2 && g.pts[0]!.y === g.pts[1]!.y && Math.abs(g.pts[1]!.x - g.pts[0]!.x) >= 0.8 * (rightX - leftX) && Math.abs(g.pts[0]!.y - BOARD.axisY) <= r + 1);
+    expect(wide).toHaveLength(0);
   });
 
   it('5. 描画に色の直書きが無い (renderer.ts に #xxxxxx や rgb( が無い)', () => {
@@ -550,10 +538,13 @@ describe('PU-27: 端の円盤の回る向き (胴はそのまま)', () => {
     const streak = (angle: number): number => {
       const { ctx, rec } = makeFakeCtx();
       drawBoard(ctx, fit, beamState({ progress: 0.5 }), content, 0, null, angle);
-      const ys = strokes(rec).filter((g) => g.style === COLORS.white && g.pts.length === 2 && g.pts[0]!.y === g.pts[1]!.y).map((g) => g.pts[0]!.y);
+      const ys = rec.ops
+        .map((o, i) => ({ o, style: styleBefore(rec.ops, i) }))
+        .filter((e) => e.o.k === 'fillRect' && e.style === COLORS.white && Math.abs(Number((e.o.args as number[])[2]) - (cmToX(60, 30) - cmToX(60, -30))) < 1e-6)
+        .map((e) => Number((e.o.args as number[])[1]) + Number((e.o.args as number[])[3]) / 2);
       return ys.reduce((best, y) => (Math.abs(y - BOARD.axisY) < Math.abs(best - BOARD.axisY) ? y : best), Infinity);
     };
-    expect(streak(0.1)).toBeGreaterThan(streak(0)); // 胴の筋は下へ (変えない)
+    expect(streak(0.1)).toBeGreaterThan(streak(0)); // 胴の光の帯は下へ (変えない)
   });
 });
 
@@ -566,5 +557,84 @@ describe('PU-26 追加修正: 張りのランプの大きさ (ドラム巻きの
     expect(Math.min(...arc) * scale).toBeGreaterThanOrEqual(16 - 1e-6);
     const fonts = rec.ops.filter((o) => o.k === 'font').map((o) => /([0-9.]+)px/.exec(String(o.v))![1]!);
     expect(Math.max(...fonts.map(Number)) * scale).toBeGreaterThanOrEqual(20 - 1e-6);
+  });
+});
+
+describe('PU-28: 柄の縞を縦縞で描く (糸のシート・ドラム・ビーム)', () => {
+  const pin = (over?: Partial<BeamingState>): BeamingState => {
+    let st = init({ level: 1, widthCm: 60, seed: 42, puzzleId: 's1', patternId: 'p-pin-kon' });
+    st = reduce(st, { type: 'moveFlange', side: 'left', deltaCm: -30 - st.leftCm });
+    st = reduce(st, { type: 'moveFlange', side: 'right', deltaCm: 30 - st.rightCm });
+    st = reduce(st, { type: 'finishSetup' });
+    st = reduce(st, { type: 'attachThread' });
+    st = reduce(st, { type: 'setSpeed', value: 50 });
+    return { ...st, progress: 0.4, ...over };
+  };
+  const kon = (): string => stripeRunsOf(content, 'p-pin-kon')[0]!.hex;
+  const shiro = (): string => stripeRunsOf(content, 'p-pin-kon')[1]!.hex;
+
+  it('1. stripeRunsOf: 柄の 1 リピートの色の並びと割合。ピンストライプは 地・線・地 の 3 つ (3:1:4 の割合)。stripeStrips: リピート回数ぶん繰り返して x の範囲を割る', () => {
+    const runs = stripeRunsOf(content, 'p-pin-kon');
+    expect(runs).toHaveLength(3);
+    expect(runs[0]!.hex).toBe(runs[2]!.hex);
+    expect(runs[0]!.hex).not.toBe(runs[1]!.hex);
+    expect(runs.map((r) => r.frac)).toEqual([3 / 8, 1 / 8, 4 / 8]);
+    const strips = stripeStrips(runs, 2, 100, 500);
+    expect(strips).toHaveLength(6);
+    expect(strips[0]!.x0).toBe(100);
+    expect(strips[5]!.x1).toBeCloseTo(500, 9);
+    expect(strips[1]!.x1 - strips[1]!.x0).toBeCloseTo(400 / 2 / 8, 9); // 線は 1 リピートの 1/8
+    for (let i = 1; i < strips.length; i++) expect(strips[i]!.x0).toBeCloseTo(strips[i - 1]!.x1, 9);
+  });
+
+  it('2. 糸のシート: 同じ y の横の並びに地の色と線の色の両方がある。縦 (同じ x の上下) は 1 色 (縦縞)', () => {
+    const rec = (() => {
+      const { ctx, rec: r } = makeFakeCtx();
+      drawBoard(ctx, fit, pin(), content, 0, null, 0, undefined, 3);
+      return r;
+    })();
+    const topY = sheetTopY(0.4);
+    const bottomY = BOARD.axisY - woundRadius(0.4);
+    const strips = rec.ops
+      .map((o, i) => ({ o, style: styleBefore(rec.ops, i) }))
+      .filter((e) => e.o.k === 'fillRect' || false);
+    void strips;
+    // シートの帯 (柄の色の長方形の fill): 上の端 topY・下の端 bottomY
+    const paths = fillPaths(rec).filter((f) => f.pts.length === 4 && f.pts.some((p) => Math.abs(p.y - topY) < 1e-6) && f.pts.some((p) => Math.abs(p.y - bottomY) < 1e-6));
+    const colors = new Set(paths.map((f) => f.style));
+    expect(colors.has(kon())).toBe(true);
+    expect(colors.has(shiro())).toBe(true);
+    for (const f of paths) {
+      const xs = f.pts.map((p) => p.x);
+      const left = f.pts.filter((p) => p.x === Math.min(...xs));
+      expect(left.length).toBe(2); // 縦の辺 (上と下で x が同じ)
+    }
+    // 線の色の帯は 3 リピートぶん (3 本)
+    expect(paths.filter((f) => f.style === shiro())).toHaveLength(3);
+  });
+
+  it('3. ドラムとビームの巻いた糸にも、地と線の縦縞が出る。ドラムの木の桟は、巻いた糸の幅の外にだけ描く', () => {
+    const { ctx, rec } = makeFakeCtx();
+    drawBoard(ctx, fit, pin({ progress: 0.4 }), content, 0, null, 0, undefined, 3);
+    const beamStrips = rec.ops
+      .map((o, i) => ({ o, style: styleBefore(rec.ops, i) }))
+      .filter((e) => e.o.k === 'fillRect' && Math.abs(Number((e.o.args as number[])[1]) + Number((e.o.args as number[])[3]) / 2 - BOARD.axisY) < 1e-6 && Number((e.o.args as number[])[3]) > 20);
+    const beamColors = new Set(beamStrips.map((e) => e.style));
+    expect(beamColors.has(kon())).toBe(true);
+    expect(beamColors.has(shiro())).toBe(true);
+    const half = (60 * pxPerCm(60)) / 2;
+    const w0 = BEAM_CENTER_X - half;
+    const w1 = BEAM_CENTER_X + half;
+    const slats = strokes(rec).filter((g) => g.style === COLORS.woodLight && g.pts.length === 2 && g.pts[0]!.y === g.pts[1]!.y && g.pts[0]!.y > BOARD.drumY && g.pts[0]!.y < BOARD.drumY + BOARD.drumH);
+    expect(slats.length).toBeGreaterThan(0);
+    for (const g of slats) {
+      const [a, b] = [Math.min(g.pts[0]!.x, g.pts[1]!.x), Math.max(g.pts[0]!.x, g.pts[1]!.x)];
+      expect(b <= w0 + 1e-6 || a >= w1 - 1e-6, `桟 ${a}〜${b} は巻いた糸 ${w0}〜${w1} に重ならない`).toBe(true);
+    }
+  });
+
+  it('4. 無地の柄は今までどおり 1 色 (縞は 1 本)', () => {
+    expect(stripeRunsOf(content, 'p-muji-kon')).toHaveLength(1);
+    expect(stripeRunsOf(content, 'p-muji-kon')[0]!.frac).toBe(1);
   });
 });

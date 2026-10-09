@@ -67,6 +67,9 @@ export const BEAM_TURN_RATE = 0.25;
 export const DRUM_FLANGE_SIGN = -DRUM_SURFACE_SIGN;
 export const BEAM_FLANGE_SIGN = -BEAM_SURFACE_SIGN;
 
+/** 柄の縞を描くときの、巻き幅いっぱいに並べる柄のくり返しの数の標準 (帯の数が分かるときはそれを使う。PU-28) */
+export const PATTERN_REPEATS = 3;
+
 /** 糸の束の先の木の棒が、離したあと (付かなかったとき) に垂れた位置へ戻る時間 (ミリ秒。見た目だけ。PU-27) */
 export const THREAD_RETURN_MS = 200;
 

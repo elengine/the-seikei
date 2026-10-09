@@ -120,19 +120,18 @@ describe('PU-15b: 円盤を引っぱる (当たり判定・1cm 単位の吸い�
   });
 });
 
-describe('PU-24b・PU-27 (速さのレバーとランプの座標)', () => {
-  it('1. レバーのつまみの中心の x: 速さ 0 で盤面の中心より SPEED_BAR_SHIFT_MAX だけ左、100 で同じだけ右、50 で中心。速さに比例して右へ動く。溝 (SPEED_BAR_W) は盤面の中に収まり、つまみの動く範囲を含む', () => {
-    expect(SPEED_BAR_SHIFT_MAX).toBeGreaterThan(200); // 溝を長くした (つまみの動く長さ = 2 × SHIFT)
+describe('PU-24b・PU-28 (速さの木の棒とランプの座標)', () => {
+  it('1. 木の棒の真ん中の x: 速さ 0 で盤面の中心より SPEED_BAR_SHIFT_MAX だけ左、100 で同じだけ右、50 で中心。棒全体が速さに比例して右へ動く。棒は盤面の中に収まる', () => {
+    expect(SPEED_BAR_SHIFT_MAX).toBeGreaterThan(40);
     expect(speedBarCenterX(0)).toBe(BOARD_W / 2 - SPEED_BAR_SHIFT_MAX);
     expect(speedBarCenterX(50)).toBe(BOARD_W / 2);
     expect(speedBarCenterX(100)).toBe(BOARD_W / 2 + SPEED_BAR_SHIFT_MAX);
     expect(speedBarCenterX(25) - speedBarCenterX(0)).toBeCloseTo(speedBarCenterX(50) - speedBarCenterX(25), 9);
-    expect(SPEED_BAR_W).toBeGreaterThan(2 * SPEED_BAR_SHIFT_MAX);
-    expect(BOARD_W / 2 + SPEED_BAR_W / 2).toBeLessThanOrEqual(BOARD_W);
-    expect(BOARD_W / 2 - SPEED_BAR_W / 2).toBeGreaterThanOrEqual(0);
+    expect(speedBarCenterX(100) + SPEED_BAR_W / 2).toBeLessThanOrEqual(BOARD_W);
+    expect(speedBarCenterX(0) - SPEED_BAR_W / 2).toBeGreaterThanOrEqual(0);
   });
 
-  it('2. speedFromBarDrag(始めの速さ, 動いた x): 動いた分に比例して 0〜100 に丸める (つまみは指と同じだけ動く)。範囲の外は 0・100', () => {
+  it('2. speedFromBarDrag(始めの速さ, 動いた x): 動いた分に比例して 0〜100 に丸める (棒は指と同じだけ動く)。範囲の外は 0・100', () => {
     const per = (2 * SPEED_BAR_SHIFT_MAX) / 100; // 速さ 1 あたりの x
     expect(speedFromBarDrag(30, 0)).toBe(30);
     expect(speedFromBarDrag(30, 10 * per)).toBe(40);
@@ -143,19 +142,17 @@ describe('PU-24b・PU-27 (速さのレバーとランプの座標)', () => {
     expect(speedFromBarDrag(20, speedBarCenterX(70) - speedBarCenterX(20))).toBe(70);
   });
 
-  it('3. レバーの当たり判定: つまみだけでなく溝のどこでも押さえられる (溝の長さ + 左右のつまみの半分)。縦は上下 32px (画面上 64px 以上。縮尺が小さいときはもっと広い)。離れると false', () => {
+  it('3. 棒の当たり判定: 今の位置の棒の上下 32px (画面上 64px 以上。縮尺が小さいときは画面上 ±32px になるよう広げる)、横は棒の長さ。離れると false', () => {
     const y = BOARD.guideY;
-    const x0 = BOARD_W / 2 - SPEED_BAR_W / 2;
-    const x1 = BOARD_W / 2 + SPEED_BAR_W / 2;
-    expect(hitSpeedBar({ x: speedBarCenterX(40), y }, 40)).toBe(true);
-    expect(hitSpeedBar({ x: x0 + 4, y }, 90)).toBe(true); // つまみから離れた溝の左の端でも
-    expect(hitSpeedBar({ x: x1 - 4, y: y + 30 }, 10)).toBe(true);
-    expect(hitSpeedBar({ x: BOARD_W / 2, y: y + 33 }, 40)).toBe(false);
-    expect(hitSpeedBar({ x: BOARD_W / 2, y: y - 33 }, 40)).toBe(false);
-    expect(hitSpeedBar({ x: x0 - 80, y }, 40)).toBe(false);
-    expect(hitSpeedBar({ x: x1 + 80, y }, 40)).toBe(false);
-    expect(hitSpeedBar({ x: BOARD_W / 2, y: y + 50 }, 40, 0.5)).toBe(true); // 縮尺 0.5: 画面上 ±25px = 論理 ±50
-    expect(hitSpeedBar({ x: BOARD_W / 2, y: y + 66 }, 40, 0.5)).toBe(false);
+    const cx = speedBarCenterX(40);
+    expect(hitSpeedBar({ x: cx, y }, 40)).toBe(true);
+    expect(hitSpeedBar({ x: cx - SPEED_BAR_W / 2 + 4, y: y + 30 }, 40)).toBe(true);
+    expect(hitSpeedBar({ x: cx + SPEED_BAR_W / 2 - 4, y: y - 30 }, 40)).toBe(true);
+    expect(hitSpeedBar({ x: cx, y: y + 33 }, 40)).toBe(false);
+    expect(hitSpeedBar({ x: cx, y: y - 33 }, 40)).toBe(false);
+    expect(hitSpeedBar({ x: cx + SPEED_BAR_W / 2 + 5, y }, 40)).toBe(false);
+    expect(hitSpeedBar({ x: cx, y: y + 50 }, 40, 0.5)).toBe(true); // 縮尺 0.5: 画面上 ±25px = 論理 ±50... ではなく 32px ぶん = 64
+    expect(hitSpeedBar({ x: cx, y: y + 66 }, 40, 0.5)).toBe(false);
     expect(64).toBeLessThanOrEqual(2 * 32);
   });
 

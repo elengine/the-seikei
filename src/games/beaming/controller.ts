@@ -2,10 +2,10 @@ import type { GameDeps, GameInstance, GameProps, TutorialSpec } from '../../core
 import type { StageFit } from '../../core/viewport/viewport';
 import { createGameFrame } from '../../core/ui/gameFrame';
 import { createButton, createDialogShell } from '../../core/ui/widgets';
-import { setBoardHeight, flangeHit, dragCm, hitSpeedBar, speedFromBarDrag, hitSheetEdge, sheetDropEndY, clampThreadBarY, threadAttachY, BEAM_CENTER_X } from './geometry';
+import { setBoardHeight, BOARD_W, flangeHit, dragCm, hitSpeedBar, speedFromBarDrag, hitSheetEdge, sheetDropEndY, clampThreadBarY, threadAttachY, BEAM_CENTER_X } from './geometry';
 import { logicalHeightFor } from '../winding/geometry';
 import { showTutorial } from '../../core/ui/tutorialOverlay';
-import { drawBoard, mainHex } from './renderer';
+import { drawBoard, stripeRunsOf } from './renderer';
 import { createBeamingPanel } from './panel';
 import { getContent } from '../../core/content/content';
 import { init, reduce, resultLines } from './logic';
@@ -49,6 +49,8 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
           patternId: opts.patternId,
         });
   let lastFit: StageFit = { scale: 1, offsetX: 0, offsetY: 0 };
+  /** 枠が決めた盤面の当てはめ (縦長で上の帯がある間は、これから帯の高さを引いた lastFit を作る。PU-28) */
+  let frameFit: StageFit = { scale: 1, offsetX: 0, offsetY: 0 };
   let disposed = false;
   let finished = false;
   let rafId: number | null = null;
@@ -57,8 +59,6 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
   let doneTimer: ReturnType<typeof setTimeout> | null = null;
   let drumAngle = 0; // ドラムが回って見える角度 (見た目だけの値。State には入らない)
   let beamAngle = 0; // ビームが回って見える角度 (同じ。PU-26)
-  let leverTouched = false; // 巻き始めてから一度でもレバーを動かしたか (はじめて触る人への案内を消す。PU-27)
-  let leverHintMs = 0; // 巻く段階に入ってからの経過時間 (案内の「→」を揺らす。見た目だけ)
   let ready = false;
 
   const content = getContent();
@@ -85,6 +85,7 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
     },
     portraitStageRatio: 0.4,
     onStageResize: (fit) => {
+      frameFit = fit;
       lastFit = fit;
       if (ready) {
         refresh();
@@ -193,7 +194,6 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
     if (barDrag !== null && e.pointerId === barDrag.id) {
       const v = speedFromBarDrag(barDrag.startSpeed, logicalOf(e).x - barDrag.startX);
       if (v !== s.speed) {
-        leverTouched = true; // 一度動かしたら案内は消える
         dispatch({ type: 'setSpeed', value: v });
       }
       return;
@@ -270,8 +270,32 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
       opts.bands !== undefined && opts.puzzleName !== undefined
         ? { bands: opts.bands, patternName: opts.puzzleName }
         : undefined,
-    patternHex: mainHex(content, opts.patternId),
+    patternStripes: stripeRunsOf(content, opts.patternId),
   });
+
+  // ---- 縦長のとき、見る情報を盤面の上の帯に置く (PU-28 決まり1。指で隠れないように) ----
+  // 帯は盤面の Canvas の入れ物の中の、Canvas より前に置く (枠の部品には手を入れない)。盤面は帯の高さを引いた残りに当てはめ直す
+  const band = document.createElement('div');
+  band.className = 'beaming-top';
+  const stageBox = frame.stage.parentElement;
+  stageBox?.insertBefore(band, frame.stage);
+  function layoutTop(): void {
+    const portrait = frame.layout() === 'portrait';
+    panel.placeTop(portrait ? band : null);
+    band.style.display = portrait ? '' : 'none';
+    const w = stageBox?.clientWidth ?? 0;
+    const h = stageBox?.clientHeight ?? 0;
+    const bandH = portrait ? band.offsetHeight : 0;
+    if (bandH > 0 && w > 0 && h - bandH > 50) {
+      const availH = h - bandH;
+      const H = logicalHeightFor(w, availH);
+      setBoardHeight(H);
+      const scale = Math.min(w / BOARD_W, availH / H);
+      lastFit = { scale, offsetX: (w - BOARD_W * scale) / 2, offsetY: bandH + (availH - H * scale) / 2 };
+    } else {
+      lastFit = frameFit;
+    }
+  }
 
   // ---- 描画 ----
   function render(): void {
@@ -279,16 +303,14 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
     if (ctx === null) {
       return;
     }
-    drawBoard(ctx, lastFit, s, content, drumAngle, threadForDraw(), beamAngle, {
-      active: barDrag !== null,
-      hintMs: s.phase === 'beaming' && !leverTouched ? leverHintMs : null,
-    });
+    drawBoard(ctx, lastFit, s, content, drumAngle, threadForDraw(), beamAngle, { active: barDrag !== null }, opts.bands);
   }
 
   // ---- 画面の更新 ----
   function refresh(): void {
-    render();
     panel.update(s);
+    layoutTop(); // 段階が変わると帯の高さも変わる
+    render();
   }
 
   // ---- 完了処理 ----
@@ -356,8 +378,6 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
     finished = false;
     drumAngle = 0;
     beamAngle = 0;
-    leverTouched = false;
-    leverHintMs = 0;
     startLoop();
     refresh();
   }
@@ -403,9 +423,6 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
     lastFrameMs = ms;
     if (dtMs > 0) {
       // ドラムとビームが回って見える角度 (巻いている速さに合わせる。速さ 0 では止まる。PU-26)
-      if (s.phase === 'beaming' && !leverTouched) {
-        leverHintMs += dtMs;
-      }
       if (s.phase === 'beaming' && s.speed > 0) {
         drumAngle += s.speed * DRUM_TURN_RATE * (dtMs / 1000);
         beamAngle += s.speed * BEAM_TURN_RATE * (dtMs / 1000);

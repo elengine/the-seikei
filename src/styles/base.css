@@ -2571,10 +2571,31 @@ button {
 }
 
 .order-ticket__swatch {
+  display: flex;
   flex: 0 0 auto;
-  width: 20px;
+  width: 36px;
   height: 20px;
   border: 1px solid var(--c-line);
+}
+
+/* 縦長のとき、見る情報を盤面の上に置く帯 (指で隠れないように。PU-28)。盤面の入れ物の上に重ね、帯の高さぶん盤面を下へずらす */
+.game-frame__stage:has(.beaming-top) {
+  position: relative;
+}
+
+.beaming-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-1) var(--sp-2);
+  pointer-events: none;
+  background: var(--c-white);
+  border-bottom: 1px solid var(--c-line);
 }
 
 .order-ticket__detail {

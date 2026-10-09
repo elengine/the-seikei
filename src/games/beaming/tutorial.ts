@@ -40,7 +40,7 @@ function drawBoardSketch(
   h: number,
   s: BeamingState,
   threadDrag: { x: number; y: number } | null = null,
-  lever: { active: boolean; hintMs: number | null } = { active: false, hintMs: null },
+  lever: { active: boolean } = { active: false },
 ): (x: number, y: number) => { x: number; y: number } {
   const areaH = h * 0.82;
   const scale = Math.min(w / BOARD_W, areaH / BOARD.H);
@@ -85,10 +85,10 @@ function drawMeter(ctx: CanvasRenderingContext2D, w: number, h: number): void {
   ctx.strokeRect(mX, mY, mW, h * 0.05);
 }
 
-/** 3ページ目: 速さのレバー (右へ引っぱる。つまみの右の「→」) と張りのランプ・張りのメーター (緑の範囲は巻き量で動く) */
+/** 3ページ目: 速さの木の棒 (右へ引っぱる) と張りのランプ・張りのメーター (緑の範囲は巻き量で動く) */
 export function drawPage3(ctx: CanvasRenderingContext2D, w: number, h: number): void {
-  // つまみの右の「→」は、盤面のはじめての案内と同じ (レバーを右へ引っぱる)
-  drawBoardSketch(ctx, w, h, sketchState('beaming', { progress: 0.4, speed: 0, tension: 60 }), null, { active: false, hintMs: 0 });
+  // 速さの木の棒 (止まっている左端の位置)。右へ引っぱると速くなる
+  drawBoardSketch(ctx, w, h, sketchState('beaming', { progress: 0.4, speed: 0, tension: 60 }));
   drawMeter(ctx, w, h);
   drawText(ctx, '張りのメーター', w * 0.32, h * 0.84);
 }
@@ -123,11 +123,11 @@ export const beamingTutorial: TutorialSpec = {
     },
     {
       draw: (ctx, w, h) => drawPage3(ctx, w, h),
-      text: 'レバーを右へ引っぱると巻き始めます。張りのメーターの緑の範囲に入るように、速さを合わせます。緑の範囲は、巻き量に合わせて動きます',
+      text: '木の棒を右へ引っぱると巻き始めます。張りのメーターの緑の範囲に入るように、速さを合わせます。緑の範囲は、巻き量に合わせて動きます',
     },
     {
       draw: (ctx, w, h) => drawPage4(ctx, w, h),
-      text: '巻き量が 95% を超えたら、レバーを左端まで戻して止め、『完了』を押します。100% で止めるといちばんよい結果です。101% に届くと糸が切れます',
+      text: '巻き量が 95% を超えたら、木の棒を左端まで戻して止め、『完了』を押します。100% で止めるといちばんよい結果です。101% に届くと糸が切れます',
     },
   ],
 };

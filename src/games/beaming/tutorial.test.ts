@@ -88,10 +88,10 @@ describe('T3-06 (遊び方を4ページに。3つの作業と張りのメータ�
     const [p1, p2, p3, p4] = texts();
     expect(p1).toBe('ビームの両端の円盤を左右に引っぱって、巻き幅に合わせます。合わせたら『円盤調整完了』を押します');
     expect(p2).toBe('ドラムの糸の束の先の木の棒を、指でビームまで引っぱって離すと、糸がビームに付きます');
-    expect(p3).toBe('レバーを右へ引っぱると巻き始めます。張りのメーターの緑の範囲に入るように、速さを合わせます。緑の範囲は、巻き量に合わせて動きます');
-    expect(p4).toBe('巻き量が 95% を超えたら、レバーを左端まで戻して止め、『完了』を押します。100% で止めるといちばんよい結果です。101% に届くと糸が切れます');
+    expect(p3).toBe('木の棒を右へ引っぱると巻き始めます。張りのメーターの緑の範囲に入るように、速さを合わせます。緑の範囲は、巻き量に合わせて動きます');
+    expect(p4).toBe('巻き量が 95% を超えたら、木の棒を左端まで戻して止め、『完了』を押します。100% で止めるといちばんよい結果です。101% に届くと糸が切れます');
     const all = texts().join('\n');
-    for (const w of ['停止', '50%', '{{pedal}}', '速さの目標', '巻き始める']) { // 「レバー」は PU-27 から速さのレバーの呼び名
+    for (const w of ['レバー', '停止', '50%', '{{pedal}}', '速さの目標', '巻き始める']) { // 速さの部品の呼び名は「木の棒」(PU-28)
       expect(all, w).not.toContain(w);
     }
   });
@@ -161,5 +161,16 @@ describe('PU-26 追加修正: 遊び方の絵のドラムは盤面と同じ', ()
     beamingTutorial.pages[1]!.draw(ctx, 600, 450);
     const texts = rec.ops.filter((o) => o.k === 'fillText').map((o) => String((o.args as unknown[])[0]));
     expect(texts.some((t) => t.includes('引っぱる'))).toBe(true);
+  });
+});
+
+describe('PU-28: 遊び方 3 ページ目の絵は木の棒 (止・速の字が無い)', () => {
+  it('3 ページ目の絵に「止」「速」「→」の字が無く、文に「木の棒」がある', () => {
+    const { ctx, rec } = makeFakeCtx();
+    beamingTutorial.pages[2]!.draw(ctx, 600, 450);
+    const texts = rec.ops.filter((o) => o.k === 'fillText').map((o) => String((o.args as unknown[])[0]));
+    for (const t of ['止', '速', '→']) expect(texts, t).not.toContain(t);
+    expect(beamingTutorial.pages[2]!.text).toContain('木の棒');
+    expect(beamingTutorial.pages[2]!.text).not.toContain('レバー');
   });
 });

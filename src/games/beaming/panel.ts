@@ -16,6 +16,8 @@ import { CONFIRM_MIN } from './params';
 
 export interface BeamingPanel {
   update(s: BeamingState): void;
+  /** 縦長のとき、見る情報 (巻き量・円盤調整の目標と今の幅・糸を付ける案内・張りのメーター) を盤面の上の帯へ移す。null で操作欄に戻す (PU-28) */
+  placeTop(top: HTMLElement | null): void;
   destroy(): void;
 }
 
@@ -38,8 +40,8 @@ export function createBeamingPanel(
     onNotice?: (text: string) => void;
     /** 依頼書の情報 (帯の数と柄の名前。巻き幅は State にある) */
     puzzle?: { bands: number; patternName: string };
-    /** 依頼票の柄の色の四角の色 (柄でいちばん多く使う糸の色) */
-    patternHex?: string;
+    /** 依頼票の柄の見本 (縦縞): 柄の 1 リピートの色と割合 (PU-28) */
+    patternStripes?: Array<{ hex: string; frac: number }>;
   },
 ): BeamingPanel {
   const root = document.createElement('div');
@@ -95,8 +97,11 @@ export function createBeamingPanel(
   ticketMain.className = 'order-ticket__main';
   const swatch = document.createElement('span');
   swatch.className = 'order-ticket__swatch';
-  if (opts.patternHex !== undefined) {
-    swatch.style.background = opts.patternHex;
+  for (const run of opts.patternStripes ?? []) {
+    const stripe = document.createElement('span');
+    stripe.style.backgroundColor = run.hex;
+    stripe.style.flex = `${run.frac} 1 0`;
+    swatch.appendChild(stripe);
   }
   const ticketName = document.createElement('span');
   ticketName.className = 'order-ticket__name';
@@ -135,7 +140,7 @@ export function createBeamingPanel(
     variant: 'primary',
     onClick: () => {
       if (!confirmStopped) {
-        opts.onNotice?.('レバーを左端まで戻して止めてから、完了を押します');
+        opts.onNotice?.('木の棒を左端まで戻して止めてから、完了を押します');
         return;
       }
       opts.onAction({ type: 'confirm' });
@@ -148,8 +153,20 @@ export function createBeamingPanel(
   root.appendChild(buttonRow);
 
   parent.appendChild(root);
+  /** 縦長で盤面の上の帯へ移す部品 (操作欄の中の並び順) */
+  const topParts: HTMLElement[] = [amount, setupBlock, attachBlock, beamBlock];
 
   return {
+    placeTop(top: HTMLElement | null): void {
+      // 操作欄の中の元の並び (巻き量・円盤調整・糸を付ける案内・張りのメーター) のまま、上の帯と操作欄のあいだを移す
+      for (const el of topParts) {
+        if (top !== null) {
+          top.appendChild(el);
+        } else if (el.parentElement !== root) {
+          root.insertBefore(el, ticket);
+        }
+      }
+    },
     update(s: BeamingState): void {
       // 依頼票: 巻き幅は State から (柄の名前と帯の数は作るときに決まっている)
       ticketWidth.textContent = `巻き幅 ${s.widthCm}cm`;

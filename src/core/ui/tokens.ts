@@ -14,6 +14,9 @@ export const COLORS = {
   aiTint: '#DCE3EC',
   wood: '#8A5A3B',
   woodLight: '#B08A5E',
+  beamBar: '#6B2E22', // 速さの木の棒の手前の面 (使い込んだ濃い赤茶。PU-28)
+  beamBarTop: '#A4573F', // 同じ棒の上の面 (光を受けて明るい赤茶)
+  beamBarGloss: '#D18F72', // 上の面と手前の面の境目のつや
   gold: '#B07A1E',
   starOff: '#E2DBC8',
   shu: '#A33A22',

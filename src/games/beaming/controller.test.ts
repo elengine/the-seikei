@@ -626,14 +626,14 @@ describe('T3-04b (盤面の速さのレバー)', () => {
     instance.unmount();
   });
 
-  it('PU-27 5. はじめて触る人への案内: beaming に入って一度もレバーを動かしていない間は盤面に案内 (hintMs が数)。一度動かすと null で、止めても出ない。つまみを引っぱっている間は active', async () => {
+  it('PU-28: つまみの案内 (→) は無い (hintMs は渡さない)。木の棒をつかんでいる間は active、離すと戻る', async () => {
     const { instance } = await mountAligned(setupWound());
     startWinding(instance);
     const { toScreen } = showBoardOn(container, raf);
-    const lever = (): { active: boolean; hintMs: number | null } => drawBoardCalls[drawBoardCalls.length - 1]![7] as { active: boolean; hintMs: number | null };
+    const lever = (): { active: boolean; hintMs?: number | null } => drawBoardCalls[drawBoardCalls.length - 1]![7] as { active: boolean; hintMs?: number | null };
     raf.advance(10);
-    expect(typeof lever().hintMs).toBe('number'); // まだ動かしていない
     expect(lever().active).toBe(false);
+    expect(lever().hintMs).toBeUndefined();
     const stage = container.querySelector('canvas')!;
     const a = toScreen(speedBarCenterX(0), BOARD.guideY);
     const b = toScreen(speedBarCenterX(30), BOARD.guideY);
@@ -642,11 +642,7 @@ describe('T3-04b (盤面の速さのレバー)', () => {
     stage.dispatchEvent(new PointerEvent('pointermove', { clientX: b.x, clientY: b.y, bubbles: true, pointerId: 1, button: 0 }));
     stage.dispatchEvent(new PointerEvent('pointerup', { clientX: b.x, clientY: b.y, bubbles: true, pointerId: 1, button: 0 }));
     raf.advance(5);
-    expect(lever().hintMs).toBeNull(); // 一度動かしたら消える
     expect(lever().active).toBe(false);
-    dragBarSpeed(stage, toScreen, 30, 0);
-    raf.advance(5);
-    expect(lever().hintMs).toBeNull(); // 止めても出ない
     instance.unmount();
   });
 
@@ -935,4 +931,67 @@ describe('T2-17 (遊び方を開いているあいだの一時停止)', () => {
     raf.advance(30);
     expect(drawBoardCalls.length).toBe(draws);
   }, 30000);
+});
+
+describe('PU-28 1: 縦長では見る情報を盤面の上の帯 (.beaming-top) に置く', () => {
+  let raf: ReturnType<typeof installFakeRaf>;
+  let container: HTMLElement;
+  async function mountIn(w: number, h: number, resume?: BeamingState): Promise<{ instance: { unmount(): void; suspend(): unknown } }> {
+    Object.defineProperty(container, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({ x: 0, y: 0, left: 0, top: 0, right: w, bottom: h, width: w, height: h }),
+    });
+    const { deps } = await makeDeps();
+    const props = makeProps();
+    const instance = createBeamingController(container, deps, props, {
+      level: 1, widthCm: 60, puzzleId: 's1', patternId: 'p-pin-kon', puzzleName: '紺地のピンストライプ', bands: 4, resume, tutorial, onBack: () => undefined,
+    });
+    return { instance };
+  }
+  beforeEach(() => {
+    document.body.textContent = '';
+    raf = installFakeRaf();
+    drawBoardCalls.length = 0;
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ canvas: document.createElement('canvas') } as unknown as CanvasRenderingContext2D);
+    container = document.createElement('div');
+    document.body.appendChild(container);
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+  const before = (a: Element, b: Element): boolean => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+
+  it('縦長 (400×900): setup の「目標・いま」は盤面の canvas より前 (上) の帯に入る。巻き量と張りのメーターも (beaming)。依頼票とボタンは操作欄に残る', async () => {
+    const { instance } = await mountIn(400, 900, setupAligned());
+    raf.advance(2);
+    const canvas = container.querySelector('canvas')!;
+    const top = container.querySelector('.beaming-top')!;
+    expect(top).not.toBeNull();
+    expect(before(top, canvas)).toBe(true);
+    expect(top.contains(container.querySelector('.beaming-panel__setup'))).toBe(true);
+    expect(top.textContent).toContain('目標 60cm');
+    expect(top.contains(container.querySelector('.order-ticket'))).toBe(false);
+    expect(container.querySelector('.beaming-panel')!.contains(container.querySelector('.order-ticket'))).toBe(true);
+    expect(container.querySelector('.beaming-panel')!.textContent).toContain('円盤調整完了');
+    instance.unmount();
+    document.body.textContent = '';
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    const m = await mountIn(400, 900, setupWound());
+    raf.advance(2);
+    const top2 = container.querySelector('.beaming-top')!;
+    expect(top2.querySelector('.beaming-panel__amount')).not.toBeNull();
+    expect(top2.querySelector('.tension-meter')).not.toBeNull();
+    expect(before(top2, container.querySelector('canvas')!)).toBe(true);
+    m.instance.unmount();
+  });
+
+  it('横長 (900×400): 帯は使わず、今のまま操作欄の中に置く', async () => {
+    const { instance } = await mountIn(900, 400, setupAligned());
+    raf.advance(2);
+    const top = container.querySelector('.beaming-top');
+    expect(top === null || top.childElementCount === 0).toBe(true);
+    expect(container.querySelector('.beaming-panel')!.contains(container.querySelector('.beaming-panel__setup'))).toBe(true);
+    instance.unmount();
+  });
 });
