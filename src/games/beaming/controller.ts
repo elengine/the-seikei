@@ -1,8 +1,9 @@
 import type { GameDeps, GameInstance, GameProps, TutorialSpec } from '../../core/game/types';
 import type { StageFit } from '../../core/viewport/viewport';
 import { createGameFrame } from '../../core/ui/gameFrame';
+import { setupCanvas } from '../../core/viewport/viewport';
 import { createButton, createDialogShell } from '../../core/ui/widgets';
-import { setBoardHeight, BOARD_W, flangeHit, dragCm, hitSpeedBar, speedFromBarDrag, hitSheetEdge, sheetDropEndY, clampThreadBarY, threadAttachY, BEAM_CENTER_X } from './geometry';
+import { setBoardHeight, flangeHit, dragCm, hitSpeedBar, speedFromBarDrag, hitSheetEdge, sheetDropEndY, clampThreadBarY, threadAttachY, BEAM_CENTER_X } from './geometry';
 import { logicalHeightFor } from '../winding/geometry';
 import { showTutorial } from '../../core/ui/tutorialOverlay';
 import { drawBoard, stripeRunsOf } from './renderer';
@@ -88,6 +89,7 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
       frameFit = fit;
       lastFit = fit;
       if (ready) {
+        captureBase(); // 枠が高さを決め直した (回転など)。帯の高さはこのあと refresh で足し直す
         refresh();
       }
     },
@@ -274,27 +276,41 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
   });
 
   // ---- 縦長のとき、見る情報を盤面の上の帯に置く (PU-28 決まり1。指で隠れないように) ----
-  // 帯は盤面の Canvas の入れ物の中の、Canvas より前に置く (枠の部品には手を入れない)。盤面は帯の高さを引いた残りに当てはめ直す
+  // 帯は盤面の Canvas の入れ物の中の、Canvas より前に置く (枠の部品 gameFrame.ts には手を入れない)。
+  // 帯の高さぶん、盤面の入れ物と Canvas を縦に広げ (操作欄をその分縮める)、盤面は同じ大きさのまま帯の下へずらす。
+  // 枠は回転・大きさの変化のたびに高さを決め直して onStageResize を呼ぶので、そのたびに base を取り直して、帯の高さを足し直す
   const band = document.createElement('div');
   band.className = 'beaming-top';
   const stageBox = frame.stage.parentElement;
+  const stageCol = stageBox?.parentElement ?? null;
   stageBox?.insertBefore(band, frame.stage);
+  let base: { colH: number; boxH: number; panelH: number; w: number } | null = null;
+  let appliedExtra = 0;
+  function captureBase(): void {
+    if (stageBox === null || stageCol === null) return;
+    const px = (e: HTMLElement): number => parseFloat(e.style.height) || e.offsetHeight;
+    base = { colH: px(stageCol), boxH: px(stageBox), panelH: px(frame.panel), w: stageBox.clientWidth };
+    appliedExtra = 0;
+  }
   function layoutTop(): void {
     const portrait = frame.layout() === 'portrait';
     panel.placeTop(portrait ? band : null);
     band.style.display = portrait ? '' : 'none';
-    const w = stageBox?.clientWidth ?? 0;
-    const h = stageBox?.clientHeight ?? 0;
     const bandH = portrait ? band.offsetHeight : 0;
-    if (bandH > 0 && w > 0 && h - bandH > 50) {
-      const availH = h - bandH;
-      const H = logicalHeightFor(w, availH);
-      setBoardHeight(H);
-      const scale = Math.min(w / BOARD_W, availH / H);
-      lastFit = { scale, offsetX: (w - BOARD_W * scale) / 2, offsetY: bandH + (availH - H * scale) / 2 };
-    } else {
-      lastFit = frameFit;
+    if (base !== null && stageBox !== null && stageCol !== null && base.w > 0) {
+      stageCol.style.height = `${base.colH + bandH}px`;
+      stageBox.style.height = `${base.boxH + bandH}px`;
+      frame.panel.style.height = `${Math.max(0, base.panelH - bandH)}px`;
+      if (bandH !== appliedExtra) {
+        try {
+          setupCanvas(frame.stage, base.w, base.boxH + bandH);
+        } catch {
+          // Canvas が使えない環境 (テスト等) では、そのまま
+        }
+        appliedExtra = bandH;
+      }
     }
+    lastFit = { ...frameFit, offsetY: frameFit.offsetY + bandH };
   }
 
   // ---- 描画 ----
@@ -503,6 +519,7 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
   if (s.phase !== 'done') {
     startLoop();
   }
+  captureBase(); // 最初の大きさ (枠が決めたまま)
   ready = true;
   refresh();
   if (s.phase === 'setup') {
