@@ -724,4 +724,19 @@ describe('PU-32: 糸の帯・隠れる順・盤面に収まる', () => {
     expect(Math.min(...wide.map((e) => e.x0))).toBeCloseTo(Math.min(...normal.map((e) => e.x0)), 6);
     expect(Math.max(...wide.map((e) => e.x1))).toBeCloseTo(Math.max(...normal.map((e) => e.x1)), 6);
   });
+
+  it('16. ドラムの糸の束の断面 (管理者の図): 上の輪郭は軸と平行で、羽の所だけ持ち上がらない。巻いた糸の多角形の上の端 (y の最小) はどれも同じ高さ。左は羽の斜面の上へ伸び、右は斜めに細くなって胴へ下りる', () => {
+    for (const p of [0.1, 0.5, 0.9]) {
+      const rec = draw(pinState({ progress: p }));
+      const polys = fillPolys(rec).filter((f) => (f.style === kon() || f.style === shiro()) && f.pts.length > 6 && f.pts.length % 2 === 1 && ext(f.pts).y0 < BOARD.H * 0.4);
+      expect(polys.length, `p=${p}`).toBeGreaterThan(1);
+      const tops = polys.map((f) => ext(f.pts).y0);
+      expect(Math.max(...tops) - Math.min(...tops), `p=${p}: 上の輪郭が水平`).toBeLessThan(1.5);
+    }
+    // 巻き始め (糸が厚い) は、左の端が幅の左の端より外 (羽の斜面の上) まで伸びる
+    const half = (60 * 700 / 60) / 2;
+    const w0px = pt0(500 - half, SIDE.drum.z, SIDE.drum.h).x;
+    const polys0 = fillPolys(draw(pinState({ progress: 0.1 }))).filter((f) => (f.style === kon() || f.style === shiro()) && f.pts.length > 6 && f.pts.length % 2 === 1 && ext(f.pts).y0 < BOARD.H * 0.4);
+    expect(Math.min(...polys0.map((f) => ext(f.pts).x0))).toBeLessThan(w0px - 5);
+  });
 });

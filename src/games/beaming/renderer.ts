@@ -270,6 +270,12 @@ export function drawDrum(ctx: CanvasRenderingContext2D, runs: Array<{ hex: strin
   const half = (s.widthCm * pxPerCm(s.widthCm)) / 2;
   const w0 = BEAM_CENTER_X - half;
   const w1 = BEAM_CENTER_X + half;
+  // 糸の束の断面 (管理者の図): 上の輪郭は軸と平行 (半径 yarn.r のまま)。左は羽の斜面の上で終わり (climb だけ左へ)、右は斜めに細くなって胴へ下りる (taper)
+  const rise = Math.max(0, yarn.r - frame.r);
+  const climb = Math.min(DRUM_WING_LEN, DRUM_WING_LEN * (rise / Math.max(1, yarn.r * DRUM_WING_FLARE + rise)));
+  const taper = Math.min((w1 - w0) * 0.4, rise * 1.2);
+  const yx0 = w0 - climb;
+  const yx1 = w1 - taper;
   // 胴 (機械の緑。上下を暗く、上寄りを明るく)
   const edge = visArc(xl, frame).map((q) => q.y);
   const grad = ctx.createLinearGradient(0, Math.min(...edge), 0, Math.max(...edge));
@@ -300,11 +306,12 @@ export function drawDrum(ctx: CanvasRenderingContext2D, runs: Array<{ hex: strin
   }
   ctx.globalAlpha = 1;
   // 柄の縞: 円周の向き (画面では丸みに沿った縦の縞) に色が並ぶ
-  for (const st of stripeStrips(runs, repeats, w0, w1)) {
+  const strips = stripeStrips(runs, repeats, w0, w1);
+  strips.forEach((st, i) => {
     ctx.fillStyle = st.hex;
-    bandPath(ctx, st.x0, st.x1, yarn);
+    bandPath(ctx, i === 0 ? yx0 : st.x0, i === strips.length - 1 ? yx1 : st.x1, yarn);
     ctx.fill();
-  }
+  });
   // 丸み: 巻いた糸の面の上のほうを明るく、下のほうを暗くする (手前へ丸く盛り上がって見える。写真のドラムの上の半分)
   const yEdge = visArc(w0, yarn).map((q) => q.y);
   const shade = ctx.createLinearGradient(0, Math.min(...yEdge), 0, Math.max(...yEdge));
@@ -312,7 +319,7 @@ export function drawDrum(ctx: CanvasRenderingContext2D, runs: Array<{ hex: strin
   shade.addColorStop(1, COLORS.sumi);
   ctx.globalAlpha = 0.14;
   ctx.fillStyle = shade;
-  bandPath(ctx, w0, w1, yarn);
+  bandPath(ctx, yx0, yx1, yarn);
   ctx.fill();
   // 糸の筋 (円周の向きの細い線。写真のように細く、長さと濃さにむらがある。規則正しい輪にしない)
   ctx.strokeStyle = COLORS.sumi;
@@ -348,25 +355,18 @@ export function drawDrum(ctx: CanvasRenderingContext2D, runs: Array<{ hex: strin
     ctx.closePath();
     ctx.fill();
   }
-  // 帯が羽の斜面に乗る所: 帯の左の端から、羽の斜面に沿って外へ少し (斜めの円すいの側面)。いちばん端の帯の色
-  const climb = DRUM_WING_LEN * 0.5;
-  const rClimb = yarn.r * (1 + DRUM_WING_FLARE * 0.5);
-  const a1 = arcScreen(w0, yarn, ALPHA - Math.PI / 2, ALPHA + Math.PI / 2, 24);
-  const b1 = arcScreen(w0 - climb, { z: yarn.z, h: yarn.h, r: rClimb }, ALPHA - Math.PI / 2, ALPHA + Math.PI / 2, 24);
-  ctx.fillStyle = runs[0]!.hex;
+  // 糸の右の端: 斜めに細くなって胴へ下りる (円すいの側面。最後の帯の色)。端の面は胴の半径
+  const ra = arcScreen(yx1, yarn, ALPHA - Math.PI / 2, ALPHA + Math.PI / 2, 24);
+  const rb = arcScreen(w1, frame, ALPHA - Math.PI / 2, ALPHA + Math.PI / 2, 24);
+  ctx.fillStyle = runs[runs.length - 1]!.hex;
   ctx.beginPath();
-  ctx.moveTo(a1[0]!.x, a1[0]!.y);
-  for (const q of a1) ctx.lineTo(q.x, q.y);
-  for (let i = b1.length - 1; i >= 0; i--) ctx.lineTo(b1[i]!.x, b1[i]!.y);
+  ctx.moveTo(ra[0]!.x, ra[0]!.y);
+  for (const q of ra) ctx.lineTo(q.x, q.y);
+  for (let i = rb.length - 1; i >= 0; i--) ctx.lineTo(rb[i]!.x, rb[i]!.y);
   ctx.closePath();
   ctx.fill();
-  // 糸の右の端の面 (巻き芯のまわりの糸の輪。糸の外側の半径は胴より大きい)
-  ctx.fillStyle = runs[runs.length - 1]!.hex;
-  facePath(ctx, w1, yarn);
-  ctx.fill();
   ctx.fillStyle = COLORS.sumi;
-  ctx.globalAlpha = 0.25;
-  facePath(ctx, w1, yarn);
+  ctx.globalAlpha = 0.2;
   ctx.fill();
   ctx.globalAlpha = 1;
   // 右の端の面 (灰色の金属。円全体を写した楕円) と、回る放射状の腕
