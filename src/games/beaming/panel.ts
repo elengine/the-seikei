@@ -53,16 +53,19 @@ export function createBeamingPanel(
   root.appendChild(amount);
 
 
-  // 2. 円盤調整の段階 (setup): 目標と今の幅を大きく (PU-27)。円盤は絵の上で引っぱって動かす (ボタンは無い。PU-15b)
+  // 2. 円盤調整の段階 (setup): 「目標」と「いま」を横並びにし、差の文をその下の行に (PU-28b)。円盤は絵の上で引っぱって動かす (ボタンは無い。PU-15b)
   const setupBlock = document.createElement('section');
   setupBlock.className = 'beaming-panel__setup';
   setupBlock.setAttribute('aria-label', '円盤調整');
+  const setupRow = document.createElement('div');
+  setupRow.className = 'beaming-panel__setup-row';
   const targetLine = createSetupLine('目標');
   const nowLine = createSetupLine('いま');
+  setupRow.appendChild(targetLine.root);
+  setupRow.appendChild(nowLine.root);
   const diffLine = document.createElement('div');
   diffLine.className = 'beaming-panel__setup-line beaming-panel__setup-diff';
-  setupBlock.appendChild(targetLine.root);
-  setupBlock.appendChild(nowLine.root);
+  setupBlock.appendChild(setupRow);
   setupBlock.appendChild(diffLine);
   root.appendChild(setupBlock);
 

@@ -2522,11 +2522,17 @@ button {
   max-width: 100%;
 }
 
-/* 円盤調整 (setup): 目標と今の幅を大きく。数字は 40px 以上、見出しと単位と差は 24px 以上 (PU-27) */
+/* 円盤調整 (setup): 「目標」と「いま」を横並びにし、差の文を下の行に (PU-28b)。数字は 32px 以上、見出しと単位は 22px 以上、差の文は 28px 以上 */
 .beaming-panel__setup {
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+.beaming-panel__setup-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
 }
 
 .beaming-panel__setup-line {
@@ -2536,10 +2542,21 @@ button {
 }
 
 .beaming-panel__setup-num {
-  font-size: 40px;
+  font-size: 32px;
   font-weight: bold;
   line-height: 1.1;
   color: var(--c-ai);
+}
+
+/* 差の文 (「あと Ncm 狭く」など): 目立たせる (生成りの地の帯 + 枠。色は既存の変数。PU-28b) */
+.beaming-panel__setup-diff {
+  font-size: 28px;
+  line-height: 1.2;
+  align-self: flex-start;
+  padding: 2px var(--sp-1);
+  background: var(--c-kinari);
+  border: 1px solid var(--c-line);
+  border-radius: 4px;
 }
 
 .beaming-panel__setup-line--ok {
@@ -2571,6 +2588,16 @@ button {
   align-items: center;
   gap: var(--sp-1);
   overflow-wrap: anywhere;
+}
+
+/* 柄の名前は 24px 以上、「巻き幅」「帯」は 22px 以上 (PU-28b)。折り返して切らない */
+.order-ticket__name {
+  font-size: 24px;
+}
+
+.order-ticket__width,
+.order-ticket__bands {
+  font-size: 22px;
 }
 
 .order-ticket__swatch {

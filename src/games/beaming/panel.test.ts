@@ -296,10 +296,10 @@ describe('PU-27: 円盤調整の目標と今の幅を大きく (setup)', () => {
     p.destroy();
   });
 
-  it('3. 数字は 40px 以上、見出しと単位と差の行は 24px 以上 (base.css)。ほかの段階では出さない', () => {
+  it('3. 数字は 40px 以上、見出しと単位と差の行は 24px 以上 (base.css)。ほかの段階では出さない (数字は PU-28b で 32px 以上に変わったため、その分だけ直した)', () => {
     const css = readFileSync('src/styles/base.css', 'utf8');
     const num = css.match(/\.beaming-panel__setup-num\s*\{([^}]*)\}/)![1]!;
-    expect(parseInt(num.match(/font-size:\s*(\d+)px/)![1]!, 10)).toBeGreaterThanOrEqual(40);
+    expect(parseInt(num.match(/font-size:\s*(\d+)px/)![1]!, 10)).toBeGreaterThanOrEqual(32);
     const line = css.match(/\.beaming-panel__setup-line\s*\{([^}]*)\}/)![1]!;
     expect(parseInt(line.match(/font-size:\s*(\d+)px/)![1]!, 10)).toBeGreaterThanOrEqual(24);
     const p = createBeamingPanel(host, { terms, onAction: () => undefined });
@@ -344,5 +344,65 @@ describe('PU-27: 依頼票 (柄の名前・巻き幅・帯の数)', () => {
     expect(parseInt(body.match(/font-size:\s*(\d+)px/)![1]!, 10)).toBeGreaterThanOrEqual(20);
     // 横長の低い画面 (915×412・852×393) では巻き幅と帯の数を札ごと省く (柄の名前は残す)
     expect(css).toMatch(/@media[^{]*max-height[^{]*\{[^@]*\.order-ticket__detail/);
+  });
+
+  it('3. 柄の名前は 24px 以上、「巻き幅」「帯」は 22px 以上 (base.css。PU-28b)。折り返しの指定は残す', () => {
+    const css = readFileSync('src/styles/base.css', 'utf8');
+    const name = css.match(/\.order-ticket__name\s*\{([^}]*)\}/)![1]!;
+    expect(parseInt(name.match(/font-size:\s*(\d+)px/)![1]!, 10)).toBeGreaterThanOrEqual(24);
+    const detail = css.match(/\.order-ticket__width,\s*\.order-ticket__bands\s*\{([^}]*)\}/)![1]!;
+    expect(parseInt(detail.match(/font-size:\s*(\d+)px/)![1]!, 10)).toBeGreaterThanOrEqual(22);
+    const main = css.match(/\.order-ticket__main\s*\{([^}]*)\}/)![1]!;
+    expect(main).toContain('overflow-wrap'); // 名前は折り返す (切らない・… で省かない)
+  });
+});
+
+describe('PU-28b 3: 円盤調整の「目標・いま」を横並びに', () => {
+  let host: HTMLElement;
+  beforeEach(() => {
+    document.body.textContent = '';
+    host = document.createElement('div');
+    document.body.appendChild(host);
+  });
+  const setupWith = (left: number, right: number): BeamingState => ({ ...make(), leftCm: left, rightCm: right });
+
+  it('1. 「目標」と「いま」は同じ行 (同じ親 .beaming-panel__setup-row)。差の文はその下の別の行', () => {
+    const p = createBeamingPanel(host, { terms, onAction: () => undefined });
+    p.update(setupWith(-33, 33));
+    const [target, now, diff] = Array.from(host.querySelectorAll('.beaming-panel__setup-line')) as [HTMLElement, HTMLElement, HTMLElement];
+    expect(target).toBeDefined();
+    expect(now).toBeDefined();
+    expect(diff).toBeDefined();
+    expect(target.parentElement).toBe(now.parentElement);
+    expect(target.parentElement!.className).toBe('beaming-panel__setup-row');
+    expect(diff.parentElement).toBe(target.parentElement!.parentElement); // 行の入れ物 (.beaming-panel__setup) の直下
+    expect(diff.previousElementSibling).toBe(target.parentElement);
+    p.destroy();
+  });
+
+  it('2. 行の入れ物は横並び (flex-direction: row)。数字は 32px 以上・見出しと単位は 22px 以上・差の文は 28px 以上 (base.css。PU-28b で仕様が変わった)', () => {
+    const css = readFileSync('src/styles/base.css', 'utf8');
+    const row = css.match(/\.beaming-panel__setup-row\s*\{([^}]*)\}/)![1]!;
+    expect(row).toContain('display: flex');
+    expect(row).not.toContain('column');
+    const num = css.match(/\.beaming-panel__setup-num\s*\{([^}]*)\}/)![1]!;
+    expect(parseInt(num.match(/font-size:\s*(\d+)px/)![1]!, 10)).toBeGreaterThanOrEqual(32);
+    const line = css.match(/\.beaming-panel__setup-line\s*\{([^}]*)\}/)![1]!;
+    expect(parseInt(line.match(/font-size:\s*(\d+)px/)![1]!, 10)).toBeGreaterThanOrEqual(22);
+    const diff = css.match(/\.beaming-panel__setup-diff\s*\{([^}]*)\}/)![1]!;
+    expect(parseInt(diff.match(/font-size:\s*(\d+)px/)![1]!, 10)).toBeGreaterThanOrEqual(28);
+  });
+
+  it('3. 差の文は目立たせる (枠か背景の帯がある。色は既存の変数だけ)。ぴったりだけ藍の印', () => {
+    const css = readFileSync('src/styles/base.css', 'utf8');
+    const diff = css.match(/\.beaming-panel__setup-diff\s*\{([^}]*)\}/)![1]!;
+    expect(/border|background/.test(diff)).toBe(true);
+    expect(/#[0-9a-fA-F]{3,8}\b/.test(diff)).toBe(false);
+    const p = createBeamingPanel(host, { terms, onAction: () => undefined });
+    p.update(setupWith(-33, 33)); // いま 66cm、目標 60cm → 差あり
+    expect(host.querySelector('.beaming-panel__setup-line--ok')).toBeNull();
+    p.update(setupWith(-30, 30)); // ぴったり
+    expect(host.querySelector('.beaming-panel__setup-line--ok')).not.toBeNull();
+    p.destroy();
   });
 });
