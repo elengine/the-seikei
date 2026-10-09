@@ -240,10 +240,12 @@ describe('beaming controller T3-03a (プレイ画面)', () => {
     s = instance.suspend() as BeamingState;
     expect(s.phase).toBe('beaming'); // 糸が付いた
     pressLeverOn(container, raf, 100 as 0 | 50 | 100); // 全速
-    // 95% まで巻く (速さ 100 は 25〜75% だけ適正。結果の星は問わない)
+    // 95% まで巻く (速さ 100 は 25〜75% だけ適正。結果の星は問わない)。
+    // 1回の advance は 50 フレーム (0.8 秒 = 巻き量 3.8%)。T3-10 で 21 秒になったので
+    // 大きく進めると 95% を超えるのと同じ進みで 101% に届いて切れてしまう
     await vi.waitFor(
       () => {
-        raf.advance(300);
+        raf.advance(50);
         const st = instance.suspend() as BeamingState | null;
         expect((st?.progress ?? 0)).toBeGreaterThanOrEqual(0.95);
       },
@@ -840,7 +842,7 @@ describe('T3-04c (糸切れの結果の画面)', () => {
     const { instance, finished } = await mountAligned(() => onBack());
     const { toScreen } = showBoardOn(container, raf);
     pressLever(toScreen, 100);
-    // 30 秒以上巻いて 101% に届かせる (16ms × 2000 フレーム = 32 秒)
+    // 21 秒以上巻いて 101% に届かせる (16ms × 2000 フレーム = 32 秒。T3-10 で 21 秒になった)
     await vi.waitFor(
       () => {
         raf.advance(200);

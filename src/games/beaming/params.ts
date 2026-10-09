@@ -11,7 +11,7 @@ export type Level = 1 | 2 | 3;
 export const BEAM_LENGTH = 1;
 
 /** 速さ 100 (レバー右) で 0 から 1 まで巻くにかかる秒数 (T3-04a)。50 はその半分の速さ */
-export const FULL_WIND_SEC_AT_100 = 30;
+export const FULL_WIND_SEC_AT_100 = 21; // T3-10: 30 から 21 (今の 70%)。速さ 100 で 21 秒で巻き量 100%
 
 /**
  * 巻き量 (%) ごとの速さの目標の表 (T3-07 で張りをやめ、速さそのものの目標に)。点を直線で結んだ値が目標。

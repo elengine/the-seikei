@@ -76,7 +76,7 @@ describe('beaming logic T3-01 (ルール)', () => {
   it("6. 止めずに 101% に届くと糸が切れて失敗 (broken・phase 'done'・星なし)。100.99 までは切れない (T3-05)", () => {
     const s = setupExact(make());
     const w = act(s, [{ type: 'setSpeed', value: 100 }]);
-    // 100% を超えるまで巻く (30秒 + 余裕)
+    // 100% を超えるまで巻く (21秒 + 余裕)
     let after = w;
     for (let i = 0; i < 310; i++) {
       after = reduce(after, { type: 'tick', dtMs: 100 });
@@ -89,35 +89,52 @@ describe('beaming logic T3-01 (ルール)', () => {
     expect(resultLines(after).some((l) => l.value.includes('101% に届'))).toBe(true);
   });
 
-  it('7. 速さ 100 で 30 秒で巻き終わる。止めずに 101% に届くと切れる。50 はその半分の速さ (T3-05)', () => {
-    expect(FULL_WIND_SEC_AT_100).toBe(30);
+  it('7. 速さ 100 で 21 秒で巻き終わる。止めずに 101% に届くと切れる。50 はその半分の速さ (T3-05。T3-10 で 30 秒から 21 秒に変えた)', () => {
+    expect(FULL_WIND_SEC_AT_100).toBe(21);
     let s = setupExact(make());
     s = act(s, [{ type: 'setSpeed', value: 100 }]);
-    for (let i = 0; i < 299; i++) {
+    for (let i = 0; i < 209; i++) {
       s = reduce(s, { type: 'tick', dtMs: 100 });
     }
-    expect(s.phase).toBe('beaming'); // まだ 29.9 秒 (巻き量 99.7%)
+    expect(s.phase).toBe('beaming'); // まだ 20.9 秒 (巻き量 99.5%)
     expect(s.progress).toBeGreaterThan(0.99);
     for (let i = 0; i < 3; i++) {
       s = reduce(s, { type: 'tick', dtMs: 100 });
     }
-    expect(s.phase).toBe('beaming'); // 30.2 秒 = 巻き量 100.7%。まだ切れない (100.99 まで)
+    expect(s.phase).toBe('beaming'); // 21.2 秒 = 巻き量 100.9%。まだ切れない (100.99 まで)
     for (let i = 0; i < 2; i++) {
       s = reduce(s, { type: 'tick', dtMs: 100 });
     }
-    expect(s.phase).toBe('done'); // 30.4 秒で 101% に届いたので失敗で終わる (小数の誤差で 30.3 秒は 100.999…%)
+    expect(s.phase).toBe('done'); // 21.4 秒で 101% に届いたので失敗で終わる (小数の誤差で 21.3 秒は 100.999…%)
     expect(s.broken).toBe(true);
-    // 50 は 100 の半分の速さ: 15秒 (150tick) で 4分の1・30秒で半分
+    // 50 は 100 の半分の速さ: 10.5秒 (105tick) で 4分の1・21秒で半分
     let half = setupExact(make());
     half = act(half, [{ type: 'setSpeed', value: 50 }]);
-    for (let i = 0; i < 150; i++) {
+    for (let i = 0; i < 105; i++) {
       half = reduce(half, { type: 'tick', dtMs: 100 });
     }
     expect(half.progress).toBeCloseTo(0.25, 1);
-    for (let i = 0; i < 150; i++) {
+    for (let i = 0; i < 105; i++) {
       half = reduce(half, { type: 'tick', dtMs: 100 });
     }
     expect(half.progress).toBeCloseTo(0.5, 1);
+  });
+
+  it('T3-10: 速さ 100 で 21 秒巻くと巻き量はほぼ 100% (±0.5%)。速さ 50 で 21 秒なら約 50%', () => {
+    let s = setupExact(make());
+    s = act(s, [{ type: 'setSpeed', value: 100 }]);
+    for (let i = 0; i < 210; i++) {
+      s = reduce(s, { type: 'tick', dtMs: 100 });
+    }
+    expect(s.phase, '21 秒ちょうどはまだ切れない (100.99 まで)').toBe('beaming');
+    expect(s.progress).toBeGreaterThan(0.995);
+    expect(s.progress).toBeLessThan(1.005);
+    let half = setupExact(make());
+    half = act(half, [{ type: 'setSpeed', value: 50 }]);
+    for (let i = 0; i < 210; i++) {
+      half = reduce(half, { type: 'tick', dtMs: 100 });
+    }
+    expect(half.progress, '半分の速さなら 21 秒で半分').toBeCloseTo(0.5, 2);
   });
 
   it('8. 採点の境目: 星3 (適正0.8・止めた位置99以上・微調整2回以下・幅1cm)、星2 (適正0.6・97以上・幅3cm)、星1、失敗は星なし。中央は採点に入れない (T3-05)', () => {
@@ -246,8 +263,8 @@ describe('beaming logic T3-01 (ルール)', () => {
   it("11c. 巻き量 95% を超えてから停止 → 速さを 0 より大きく戻すと restarts が増える。確認は 95% 以上・停止のときだけ (T3-05)", () => {
     let s = setupExact(make());
     s = act(s, [{ type: 'setSpeed', value: 100 }]);
-    // 95% まで巻く
-    for (let i = 0; i < 286; i++) {
+    // 95% まで巻く (T3-10 で 21 秒になったので 200tick = 20 秒 = 95.2%)
+    for (let i = 0; i < 200; i++) {
       s = reduce(s, { type: 'tick', dtMs: 100 });
     }
     expect(s.progress).toBeGreaterThanOrEqual(0.95);
@@ -316,11 +333,11 @@ describe('T3-05 (揺れをやめる・速さを連続に・止める判定を表
     expect(s.speed).toBe(37.25);
     // 速さ 37.25 のときの 1tick (0.1秒) の巻き量
     s = reduce(s, { type: 'tick', dtMs: 100 });
-    expect(s.progress).toBeCloseTo((37.25 / 100 / 30) * 0.1, 6);
-    // 速さ 25 は 100 の4分の1: 30 秒で 4 分の 1 巻ける
+    expect(s.progress).toBeCloseTo((37.25 / 100 / 21) * 0.1, 6); // T3-10 で 30 から 21 に
+    // 速さ 25 は 100 の4分の1: 21 秒で 4 分の 1 巻ける
     let q = setupExact(make());
     q = reduce(q, { type: 'setSpeed', value: 25 });
-    for (let i = 0; i < 300; i++) {
+    for (let i = 0; i < 210; i++) {
       q = reduce(q, { type: 'tick', dtMs: 100 });
     }
     expect(q.progress).toBeCloseTo(0.25, 2);
