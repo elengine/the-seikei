@@ -7,7 +7,7 @@ import type { GameDeps, GameProps, TutorialSpec } from '../../core/game/types';
 import { createAppContext } from '../../app/context';
 import type { AppContext } from '../../app/context';
 import { createFixedClock } from '../../core/clock/clock';
-import { cmToX, pxPerCm, BOARD, BEAM_CENTER_X, DRUM_X } from './geometry';
+import { cmToX, pxPerCm, BOARD, BEAM_CENTER_X, sheetDropEndY, threadAttachY, woundRadius } from './geometry';
 import { logicalHeightFor } from '../winding/geometry';
 import { speedBarCenterX, SPEED_BAR_SHIFT_MAX } from './geometry';
 import { fitStage } from '../../core/viewport/viewport';
@@ -130,10 +130,10 @@ const TEST_FIT = (): { toScreen: (x: number, y: number) => { x: number; y: numbe
   return { toScreen: (x: number, y: number) => ({ x: x * fit.scale + fit.offsetX, y: y * fit.scale + fit.offsetY }) };
 };
 
-/** ドラムの下の端の糸の当たり判定の位置 (画面の座標。T3-06) */
+/** 糸の束の先の木の棒 (垂れた位置) の画面の座標 (T3-06・PU-27) */
 function sheetEdgePoint(): { x: number; y: number } {
   const { toScreen } = TEST_FIT();
-  return toScreen(DRUM_X, BOARD.drumY + BOARD.drumH);
+  return toScreen(BEAM_CENTER_X, sheetDropEndY(0));
 }
 
 /** ビームの上 (巻いた面) の位置 (画面の座標。T3-06) */
@@ -148,10 +148,10 @@ if (typeof Element !== 'undefined' && !Element.prototype.setPointerCapture) {
   Element.prototype.releasePointerCapture = function releasePointerCapture(): void {};
 }
 
-/** 画面の「速さ N」の今の値 (操作欄。無ければ 0) */
-function currentSpeedOf(container: HTMLElement): number {
-  const m = /速さ\s*(\d+)/.exec(container.querySelector('.beaming-panel__speed')?.textContent ?? '');
-  return m === null ? 0 : Number(m[1]);
+/** 今の速さ (盤面に最後に渡された状態から。操作欄の「速さ」の行は PU-27 で無くなった) */
+function currentSpeedOf(): number {
+  const last = drawBoardCalls[drawBoardCalls.length - 1];
+  return last === undefined ? 0 : ((last[2] as BeamingState).speed ?? 0);
 }
 
 /** 茶色の棒を from の速さの位置から to の速さの位置まで引っぱる (pointerdown → pointermove → pointerup。PU-24b) */
@@ -183,7 +183,7 @@ function pressLeverOn(container: HTMLElement, raf: { advance(n: number): void },
     raf.advance(3);
     const fit = fitStage(1000, logicalHeightFor(600, 400), 600, 400);
     const toScreen = (x: number, y: number): { x: number; y: number } => ({ x: x * fit.scale + fit.offsetX, y: y * fit.scale + fit.offsetY });
-    dragBarSpeed(stage, toScreen, currentSpeedOf(container), sp);
+    dragBarSpeed(stage, toScreen, currentSpeedOf(), sp);
   }
 }
 
@@ -225,9 +225,9 @@ describe('beaming controller T3-03a (プレイ画面)', () => {
     return { instance, finished: (props as GameProps & { finished: unknown[] }).finished };
   }
 
-  it('1. 幅を合わせて「ビーム設定OK」→ 糸を付けて棒を引っぱって偽の rAF で進めると結果の画面 (幅の誤差 0cm)', async () => {
+  it('1. 幅を合わせて「円盤調整完了」→ 糸を付けて棒を引っぱって偽の rAF で進めると結果の画面 (幅の誤差 0cm)', async () => {
     const { instance, finished } = await startAligned(setupAligned());
-    const start = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'ビーム設定OK');
+    const start = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '円盤調整完了');
     expect(start).toBeDefined();
     start!.click();
     showBoardOn(container, raf); // fit を立ててから糸を引っぱる
@@ -309,10 +309,10 @@ describe('beaming controller T3-03a (プレイ画面)', () => {
   });
 
   describe('PU-26 決まり5: 糸を引っぱる操作の不足分', () => {
-    /** 幅合わせ → 「ビーム設定OK」→ attach の状態にして、盤面を 600×400 に見せる */
+    /** 幅合わせ → 「円盤調整完了」→ attach の状態にして、盤面を 600×400 に見せる */
     async function startAttach(): Promise<{ instance: { unmount(): void; suspend(): unknown } }> {
       const { instance } = await startAligned(setupAligned());
-      const start = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'ビーム設定OK');
+      const start = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '円盤調整完了');
       start!.click();
       showBoardOn(container, raf);
       expect((instance.suspend() as BeamingState).phase).toBe('attach');
@@ -329,6 +329,7 @@ describe('beaming controller T3-03a (プレイ画面)', () => {
       expect(lastThread()).not.toBeNull(); // 引っぱっているあいだは線を描く
       fireAt(container, away, 'pointerup');
       expect((instance.suspend() as BeamingState).phase).toBe('attach');
+      raf.advance(30); // 棒は 0.2 秒で垂れた位置へ戻る (PU-27)
       expect(lastThread()).toBeNull();
       instance.unmount();
     });
@@ -340,9 +341,55 @@ describe('beaming controller T3-03a (プレイ画面)', () => {
       expect(lastThread()).not.toBeNull();
       fireAt(container, beamWindPoint(), 'pointercancel');
       expect((instance.suspend() as BeamingState).phase).toBe('attach');
+      raf.advance(30);
       expect(lastThread()).toBeNull();
       fireAt(container, beamWindPoint(), 'pointerup');
       expect((instance.suspend() as BeamingState).phase).toBe('attach');
+      instance.unmount();
+    });
+
+    it('PU-27 1. 棒をつかんで下へ動かすと、棒の y が指の y になり x は変わらない。垂れた位置より上・ビームの軸より下へは行かない', async () => {
+      const { instance } = await startAttach();
+      const { toScreen } = TEST_FIT();
+      const bar = (): { x: number; y: number } => lastThread() as { x: number; y: number };
+      fireAt(container, sheetEdgePoint(), 'pointerdown');
+      const mid = (sheetDropEndY(0) + BOARD.axisY) / 2;
+      fireAt(container, toScreen(BEAM_CENTER_X + 120, mid), 'pointermove'); // 指が横にずれても x は動かない
+      expect(bar().y).toBeCloseTo(mid, 6);
+      expect(bar().x).toBeCloseTo(BEAM_CENTER_X, 6);
+      fireAt(container, toScreen(BEAM_CENTER_X, sheetDropEndY(0) - 80), 'pointermove'); // 上へは行かない
+      expect(bar().y).toBeCloseTo(sheetDropEndY(0), 6);
+      fireAt(container, toScreen(BEAM_CENTER_X, BOARD.axisY + 100), 'pointermove'); // 軸より下へは行かない
+      expect(bar().y).toBeCloseTo(BOARD.axisY, 6);
+      fireAt(container, toScreen(BEAM_CENTER_X, BOARD.axisY + 100), 'pointercancel');
+      instance.unmount();
+    });
+
+    it('PU-27 2. 円筒の上の端 − 32px より下で離すと beaming (棒は消える)。それより上で離すと attach のまま、棒は 0.2 秒で垂れた位置へ戻る', async () => {
+      const { toScreen } = TEST_FIT();
+      const y = threadAttachY(0);
+      {
+        const { instance } = await startAttach();
+        fireAt(container, sheetEdgePoint(), 'pointerdown');
+        fireAt(container, toScreen(BEAM_CENTER_X, y - 6), 'pointermove');
+        fireAt(container, toScreen(BEAM_CENTER_X, y - 6), 'pointerup');
+        expect((instance.suspend() as BeamingState).phase).toBe('attach'); // 上 (届かない)
+        const mid = lastThread() as { y: number } | null;
+        expect(mid).not.toBeNull(); // 戻っている途中は描く
+        expect(mid!.y).toBeLessThanOrEqual(y - 6 + 1e-6);
+        raf.advance(30);
+        expect(lastThread()).toBeNull();
+        instance.unmount();
+        document.body.textContent = '';
+        container = document.createElement('div');
+        document.body.appendChild(container);
+      }
+      const { instance } = await startAttach();
+      fireAt(container, sheetEdgePoint(), 'pointerdown');
+      fireAt(container, toScreen(BEAM_CENTER_X, y + 6), 'pointermove');
+      fireAt(container, toScreen(BEAM_CENTER_X, y + 6), 'pointerup');
+      expect((instance.suspend() as BeamingState).phase).toBe('beaming'); // 付いた
+      expect(woundRadius(0)).toBeGreaterThan(0);
       instance.unmount();
     });
 
@@ -450,8 +497,8 @@ describe('PU-15b: 円盤を絵の上で引っぱって合わせる', () => {
     expect(labels.some((l) => /円盤を(左|右)へ/.test(l))).toBe(false);
     expect(container.querySelectorAll('.game-frame__notice')).toHaveLength(1);
     expect(container.querySelector('.game-frame__notice')!.textContent).toBe('円盤を左右に引っぱって、巻き幅に合わせます');
-    // ビーム設定OK のあとは動かない (attach 段階。円盤は引っぱれない)
-    Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'ビーム設定OK')!.click();
+    // 円盤調整完了 のあとは動かない (attach 段階。円盤は引っぱれない)
+    Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '円盤調整完了')!.click();
     const l0 = leftCm(instance);
     const start = px(fit, cmToX(60, l0), BOARD.axisY);
     fire(stage, 'pointerdown', start);
@@ -531,7 +578,7 @@ describe('T3-04b (盤面の速さのレバー)', () => {
     if (s.phase !== 'attach') return;
     const { toScreen } = showBoardOn(container, raf);
     const stage = container.querySelector('canvas')!;
-    const a = toScreen(DRUM_X, BOARD.drumY + BOARD.drumH);
+    const a = toScreen(BEAM_CENTER_X, sheetDropEndY(0));
     const b = toScreen(BEAM_CENTER_X, BOARD.axisY);
     stage.dispatchEvent(new PointerEvent('pointerdown', { clientX: a.x, clientY: a.y, bubbles: true, pointerId: 41, button: 0 }));
     stage.dispatchEvent(new PointerEvent('pointermove', { clientX: b.x, clientY: b.y, bubbles: true, pointerId: 41, button: 0 }));
@@ -767,11 +814,11 @@ describe('T3-04c (糸切れの結果の画面)', () => {
     const dlg = container.querySelector('.dialog-backdrop')!;
     const again = Array.from(dlg.querySelectorAll('button')).find((b) => b.textContent?.trim() === 'もう一度')!;
     again.click();
-    // 幅合わせの段階に戻る (巻き量 0%・ビーム設定OKのボタン)
+    // 幅合わせの段階に戻る (巻き量 0%・円盤調整完了のボタン)
     const st = instance.suspend() as BeamingState;
     expect(st.phase).toBe('setup');
     expect(st.progress).toBe(0);
-    expect(Array.from(container.querySelectorAll('button')).some((b) => b.textContent === 'ビーム設定OK')).toBe(true);
+    expect(Array.from(container.querySelectorAll('button')).some((b) => b.textContent === '円盤調整完了')).toBe(true);
     instance.unmount();
   }, 60000);
 });

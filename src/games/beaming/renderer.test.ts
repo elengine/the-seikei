@@ -3,8 +3,8 @@ import { readFileSync } from 'node:fs';
 import { drawBoard, mainHex } from './renderer';
 import { init, reduce } from './logic';
 import type { BeamingState } from './logic';
-import { cmToX, BOARD, setBoardHeight, FLANGE_RX, DRUM_X, DRUM_W, woundRadius, lampX, lampY, speedBarCenterX, SPEED_BAR_W, ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX, sheetTopY, sheetDropEndY, pxPerCm, BEAM_CENTER_X } from './geometry';
-import { DRUM_SURFACE_SIGN, BEAM_SURFACE_SIGN } from './params';
+import { cmToX, BOARD, setBoardHeight, FLANGE_RX, DRUM_X, DRUM_W, woundRadius, lampX, lampY, speedBarCenterX, SPEED_BAR_W, ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX, sheetTopY, sheetDropEndY, pxPerCm, BEAM_CENTER_X, THREAD_BAR_MARGIN } from './geometry';
+import { DRUM_SURFACE_SIGN, BEAM_SURFACE_SIGN, DRUM_FLANGE_SIGN, BEAM_FLANGE_SIGN } from './params';
 import { getContent } from '../../core/content/content';
 import { COLORS } from '../../core/ui/tokens';
 import { makeFakeCtx } from '../winding/renderer.test.helpers';
@@ -389,17 +389,93 @@ describe('PU-26 追加修正: 糸のシートは setup・attach では短く垂�
     expect(sheetBottom(s)).toBeCloseTo(BOARD.axisY - woundRadius(0.3), 6);
   });
 
-  it('3. 糸を引っぱっている間は、シートの幅の帯 (柄の色の台形) が垂れた端から指の位置まで。太さ 6 の線 1 本ではない', () => {
-    const s = beamState({ phase: 'attach', progress: 0, speed: 0 });
-    const finger = { x: BEAM_CENTER_X + 40, y: BOARD.axisY - 10 };
-    const { ctx, rec } = makeFakeCtx();
-    drawBoard(ctx, fit, s, content, 0, finger);
+  /** 糸の束の先の木の棒 (wood の長方形で、横が束の幅 + 左右の余り) */
+  function threadBars(rec: FakeRecorder, widthCm: number): Array<[number, number, number, number]> {
+    const half = (widthCm * pxPerCm(widthCm)) / 2;
+    return rec.ops
+      .map((o, i) => ({ o, style: styleBefore(rec.ops, i) }))
+      .filter((e) => e.o.k === 'fillRect' && e.style === COLORS.wood && Math.abs(Number((e.o.args as number[])[2]) - (2 * half + 2 * THREAD_BAR_MARGIN)) < 1e-6)
+      .map((e) => e.o.args as [number, number, number, number]);
+  }
+
+  it('3. setup・attach の糸の束の先に木の棒がある (束の幅より左右に長い・太さは画面上 12px 以上)。beaming・done では描かない (ビームに巻き込まれた)', () => {
     const half = (60 * pxPerCm(60)) / 2;
-    const band = fillPaths(rec).find((f) => f.style === hex && f.pts.some((p) => p.y === finger.y) && f.pts.some((p) => Math.abs(p.y - sheetDropEndY(0)) < 1e-6));
-    expect(band, '帯').toBeDefined();
-    const top = band!.pts.filter((p) => Math.abs(p.y - sheetDropEndY(0)) < 1e-6);
-    expect(Math.max(...top.map((p) => p.x)) - Math.min(...top.map((p) => p.x))).toBeCloseTo(2 * half, 6); // 上の幅はシートの幅
-    expect(rec.ops.some((o) => o.k === 'lineWidth' && o.v === 6)).toBe(false);
+    for (const phase of ['attach', 'setup'] as const) {
+      const s = phase === 'attach' ? beamState({ phase: 'attach', progress: 0, speed: 0 }) : init({ level: 1, widthCm: 60, seed: 42, puzzleId: 's1', patternId: 'p-muji-kon' });
+      const bars = threadBars(draw(s), 60);
+      expect(bars.length, phase).toBe(1);
+      const [x, y, w, h] = bars[0]!;
+      expect(x + w / 2, phase).toBeCloseTo(BEAM_CENTER_X, 9);
+      expect(w, phase).toBeCloseTo(2 * half + 2 * THREAD_BAR_MARGIN, 9);
+      expect(y + h / 2, phase).toBeCloseTo(sheetDropEndY(0), 9); // 垂れた位置
+      expect(h, phase).toBeGreaterThanOrEqual(12);
+    }
+    // 縮尺が小さい (393×852 相当) ときも、太さは画面上 12px 以上
+    const { ctx, rec } = makeFakeCtx();
+    drawBoard(ctx, { scale: 0.39, offsetX: 0, offsetY: 0 }, beamState({ phase: 'attach', progress: 0, speed: 0 }), content, 0);
+    expect(threadBars(rec, 60)[0]![3] * 0.39).toBeGreaterThanOrEqual(12 - 1e-6);
+    expect(threadBars(draw(beamState({ progress: 0.3 })), 60).length).toBe(0);
+  });
+
+  it('4. 引っぱっている間は、棒は水平のまま指の y に動き (x は動かない)、束は幅を変えずにドラムの下から棒まで伸びる (台形にしない)', () => {
+    const s = beamState({ phase: 'attach', progress: 0, speed: 0 });
+    const barY = sheetDropEndY(0) + 120;
+    const { ctx, rec } = makeFakeCtx();
+    drawBoard(ctx, fit, s, content, 0, { x: BEAM_CENTER_X + 300, y: barY }); // x は無視される
+    const [x, y, w, h] = threadBars(rec, 60)[0]!;
+    expect(y + h / 2).toBeCloseTo(barY, 9);
+    expect(x + w / 2).toBeCloseTo(BEAM_CENTER_X, 9);
+    // 束の縦の筋は、どれも真下へ (x が同じ 2 点) で、下の端が棒の y
+    const half = (60 * pxPerCm(60)) / 2;
+    const vs = strokes(rec).filter((g) => g.style === COLORS.sumi && g.pts.length === 2 && g.pts[0]!.x === g.pts[1]!.x && g.pts[1]!.y > g.pts[0]!.y);
+    expect(vs.length).toBeGreaterThan(0);
+    for (const g of vs) {
+      expect(g.pts[1]!.y).toBeCloseTo(barY, 9);
+      expect(Math.abs(g.pts[0]!.x - BEAM_CENTER_X)).toBeLessThanOrEqual(half + 1e-9);
+    }
+    // 束の面 (柄の色の多角形) の下の辺の幅は、上の辺の幅と同じ (台形ではない)
+    const sheet = fillPaths(rec).find((f) => f.style === hex && f.pts.length === 4 && f.pts.some((p) => Math.abs(p.y - barY) < 1e-6));
+    expect(sheet, '束').toBeDefined();
+    const bottom = sheet!.pts.filter((p) => Math.abs(p.y - barY) < 1e-6).map((p) => p.x);
+    const top = sheet!.pts.filter((p) => Math.abs(p.y - barY) >= 1e-6).map((p) => p.x);
+    expect(Math.max(...bottom) - Math.min(...bottom)).toBeCloseTo(Math.max(...top) - Math.min(...top), 9);
+  });
+});
+
+describe('PU-27: 端の円盤の回る向き (胴はそのまま)', () => {
+  it('ドラムの端の円盤の腕: 角度が進むと腕の先が下へ動く (PU-26 追加修正のときと逆)。符号は胴と別の定数', () => {
+    expect(DRUM_FLANGE_SIGN).toBe(-DRUM_SURFACE_SIGN);
+    expect(BEAM_FLANGE_SIGN).toBe(-BEAM_SURFACE_SIGN);
+    const cy = BOARD.drumY + BOARD.drumH / 2;
+    const tipY = (angle: number): number => {
+      const arm = strokes(draw(beamState({ progress: 0 }), angle)).find(
+        (g) => g.style === COLORS.sumiSub && g.pts.length === 2 && Math.abs(g.pts[0]!.x - (DRUM_X + DRUM_W)) < 1e-6 && Math.abs(g.pts[0]!.y - cy) < 1e-6,
+      )!;
+      return arm.pts[1]!.y;
+    };
+    expect(tipY(0.1)).toBeGreaterThan(tipY(0)); // 下へ
+  });
+
+  it('ビームの円盤の穴: 角度が進むと内側の輪の穴が上へ動く (逆)。胴の筋 (糸の流れ) は今のまま下へ', () => {
+    const holeY = (angle: number): number => {
+      const { ctx, rec } = makeFakeCtx();
+      drawBoard(ctx, fit, beamState({ progress: 0.5 }), content, 0, null, angle);
+      const cx = cmToX(60, -30);
+      const kx = FLANGE_RX / BOARD.flangeR;
+      const a = rec.ops
+        .filter((o) => o.k === 'arc' && (o.args as number[])[2] === 4)
+        .map((o) => o.args as number[])
+        .filter((g) => Math.abs(g[0]! - (cx + 0.4 * BOARD.flangeR * kx * Math.cos(BEAM_FLANGE_SIGN * angle))) < 1e-6);
+      return a[0]![1]!;
+    };
+    expect(holeY(0.1)).toBeLessThan(holeY(0)); // 逆の向き (0.3.59 は下へ)
+    const streak = (angle: number): number => {
+      const { ctx, rec } = makeFakeCtx();
+      drawBoard(ctx, fit, beamState({ progress: 0.5 }), content, 0, null, angle);
+      const ys = strokes(rec).filter((g) => g.style === COLORS.white && g.pts.length === 2 && g.pts[0]!.y === g.pts[1]!.y).map((g) => g.pts[0]!.y);
+      return ys.reduce((best, y) => (Math.abs(y - BOARD.axisY) < Math.abs(best - BOARD.axisY) ? y : best), Infinity);
+    };
+    expect(streak(0.1)).toBeGreaterThan(streak(0)); // 胴の筋は下へ (変えない)
   });
 });
 

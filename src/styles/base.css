@@ -2464,22 +2464,6 @@ button {
   color: var(--c-ai);
 }
 
-/* 速さ: 「巻き量」の下。32px の太字。適正は藍、外れは朱 (▲ 速すぎ・▼ 遅すぎを文字に添える。PU-24b) */
-.beaming-panel__speed {
-  font-size: 32px;
-  font-weight: bold;
-  line-height: 1.2;
-  color: var(--c-sumi);
-}
-
-.beaming-panel__speed--good {
-  color: var(--c-ai);
-}
-
-.beaming-panel__speed--bad {
-  color: var(--c-shu);
-}
-
 .beaming-panel__order {
   font-size: var(--fs-body);
   color: var(--c-sumi);

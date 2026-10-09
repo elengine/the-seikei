@@ -191,10 +191,12 @@ describe('beaming logic T3-01 (ルール)', () => {
   });
 
   it('11. 張りの目標 (TARGET_POINTS を直線で結ぶ) と適正範囲 (目標から揺らぎを引いた値 ± レベルの幅。0〜100 に収める) (T3-06)', () => {
-    expect(TARGET_POINTS).toEqual([[0, 0], [30, 50], [35, 100], [70, 100], [75, 50], [100, 0]]);
+    expect(TARGET_POINTS).toEqual([[0, 0], [10, 50], [30, 50], [35, 100], [70, 100], [75, 50], [100, 0]]); // PU-27: 0〜10% で 50 に上がる
     // 仕様書の点 (追記): 0%→0、15%→25、30%→50、32.5%→75、50%→100、72.5%→75、87.5%→25、100%→0
     expect(targetOf(0)).toBe(0);
-    expect(targetOf(0.15)).toBe(25);
+    expect(targetOf(0.05)).toBe(25);
+    expect(targetOf(0.10)).toBe(50);
+    expect(targetOf(0.15)).toBe(50);
     expect(targetOf(0.30)).toBe(50);
     expect(targetOf(0.325)).toBe(75);
     expect(targetOf(0.50)).toBe(100);

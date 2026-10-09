@@ -20,10 +20,10 @@ export const FULL_WIND_SEC_AT_100 = 30;
 
 /**
  * 巻き量 (%) ごとの張りの目標の表 (T3-06)。点を直線で結んだ値が目標。
- * (0,0) → 30% まで 0 から 50 へ上がり、35% で 100、70% まで 100、75% で 50、100% で 0。
+ * (0,0) → 10% で 50 (PU-27 で速くした)、30% まで 50、35% で 100、70% まで 100、75% で 50、100% で 0。
  */
 export const TARGET_POINTS: ReadonlyArray<readonly [number, number]> = [
-  [0, 0], [30, 50], [35, 100], [70, 100], [75, 50], [100, 0],
+  [0, 0], [10, 50], [30, 50], [35, 100], [70, 100], [75, 50], [100, 0],
 ];
 
 /** 張りが速さに遅れて付いていく時定数 (ms。T3-06) */
@@ -63,6 +63,12 @@ export const DRUM_SURFACE_SIGN = -1;
 export const BEAM_SURFACE_SIGN = 1;
 export const DRUM_TURN_RATE = 0.15;
 export const BEAM_TURN_RATE = 0.25;
+/** 端の円盤 (楕円) の回る向き (胴の符号の逆。PU-27: 管理者が実機で「円盤の回る向きが逆」と判断した。胴はそのまま) */
+export const DRUM_FLANGE_SIGN = -DRUM_SURFACE_SIGN;
+export const BEAM_FLANGE_SIGN = -BEAM_SURFACE_SIGN;
+
+/** 糸の束の先の木の棒が、離したあと (付かなかったとき) に垂れた位置へ戻る時間 (ミリ秒。見た目だけ。PU-27) */
+export const THREAD_RETURN_MS = 200;
 
 /** 1回の tick の dtMs の上限 (Safari 対策。ドラム巻きと同じ) */
 export const MAX_TICK_MS = 100;

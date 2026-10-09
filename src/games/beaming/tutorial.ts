@@ -130,11 +130,11 @@ export const beamingTutorial: TutorialSpec = {
   pages: [
     {
       draw: (ctx, w, h) => drawPage1(ctx, w, h),
-      text: 'ビームの両端の円盤を左右に引っぱって、巻き幅に合わせます。合わせたら『ビーム設定OK』を押します',
+      text: 'ビームの両端の円盤を左右に引っぱって、巻き幅に合わせます。合わせたら『円盤調整完了』を押します',
     },
     {
       draw: (ctx, w, h) => drawPage2(ctx, w, h),
-      text: 'ドラムの糸の端を、指でビームまで引っぱって離すと、糸がビームに付きます',
+      text: 'ドラムの糸の束の先の木の棒を、指でビームまで引っぱって離すと、糸がビームに付きます',
     },
     {
       draw: (ctx, w, h) => drawPage3(ctx, w, h),

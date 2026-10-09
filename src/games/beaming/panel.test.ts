@@ -65,12 +65,12 @@ describe('beaming panel T3-03a (操作欄)', () => {
     p.destroy();
   });
 
-  it('5. 「ビーム設定OK」は幅合わせの段階だけ出る (押すと finishSetup)。巻き返しの段階では主な操作は無し (T3-06 で名前を変えた)', () => {
+  it('5. 「円盤調整完了」は幅合わせの段階だけ出る (押すと finishSetup)。巻き返しの段階では主な操作は無し (T3-06 で名前を変えた)', () => {
     const actions: BeamingAction[] = [];
     const p = createBeamingPanel(host, { terms, onAction: (a) => actions.push(a) });
     p.update(make());
     const start = (): HTMLButtonElement | undefined =>
-      Array.from(host.querySelectorAll('button')).find((b) => b.textContent === 'ビーム設定OK');
+      Array.from(host.querySelectorAll('button')).find((b) => b.textContent === '円盤調整完了');
     expect(start()).toBeDefined();
     start()!.click();
     expect(actions).toEqual([{ type: 'finishSetup' }]);
@@ -194,7 +194,7 @@ describe('T3-04c (完了のボタン。T3-06 で「確認」から名前を変�
   });
 });
 
-describe('PU-24b: 操作欄の「速さ N」', () => {
+describe('PU-27: 操作欄に「速さ」の行は無い', () => {
   let host: HTMLElement;
   beforeEach(() => {
     document.body.textContent = '';
@@ -202,37 +202,18 @@ describe('PU-24b: 操作欄の「速さ N」', () => {
     document.body.appendChild(host);
   });
 
-  const speedEl = (): HTMLElement => host.querySelector<HTMLElement>('.beaming-panel__speed')!;
-
-  it('1. 「巻き量」の下に「速さ N」(0〜100 の整数) が出る。速さが変わると数字も変わる。小数は丸める', () => {
+  it('どの段階でも「速さ」の字も .beaming-panel__speed も無い。巻き量は残る。ボタンの名前は「円盤調整完了」で「ビーム設定OK」はどこにも無い', () => {
     const p = createBeamingPanel(host, { terms, onAction: () => undefined });
-    p.update({ ...beaming(), progress: 0.5, speed: 63 });
-    expect(speedEl().textContent).toMatch(/^速さ 63/); // 外れていれば ▲▼ が付く (次のテスト)
-    expect(host.querySelector('.beaming-panel__amount')!.nextElementSibling).toBe(speedEl());
-    p.update({ ...beaming(), progress: 0.5, speed: 62.6 });
-    expect(speedEl().textContent).toMatch(/^速さ 63/);
-    p.update({ ...beaming(), progress: 0.5, speed: 0 });
-    expect(speedEl().textContent).toMatch(/^速さ 0/);
-    p.destroy();
-  });
-
-  it('2. ▲▼ の記号と色の区別は無い (T3-06 で張りはメーターと盤面のランプで示す)。幅合わせの段階は数字だけ', () => {
-    const p = createBeamingPanel(host, { terms, onAction: () => undefined });
-    p.update({ ...beaming(), progress: 0.5, speed: 100 });
-    expect(speedEl().textContent).toBe('速さ 100');
-    expect(speedEl().className).not.toContain('beaming-panel__speed--good');
-    expect(speedEl().className).not.toContain('beaming-panel__speed--bad');
+    for (const st of [make(), { ...beaming(), phase: 'attach' as const }, { ...beaming(), progress: 0.5, speed: 63 }]) {
+      p.update(st);
+      expect(host.querySelector('.beaming-panel__speed')).toBeNull();
+      expect(host.textContent).not.toContain('速さ');
+      expect(host.textContent).not.toContain('ビーム設定OK');
+    }
+    expect(host.querySelector('.beaming-panel__amount')!.textContent).toContain('巻き量');
     p.update(make());
-    expect(speedEl().textContent).toBe('速さ 0');
+    expect(Array.from(host.querySelectorAll('button')).some((b) => b.textContent === '円盤調整完了')).toBe(true);
     p.destroy();
-  });
-
-  it('3. base.css: 速さの数字は 32px 以上。適正は藍 (--c-ai)、外れは朱 (--c-shu)', () => {
-    const css = readFileSync('src/styles/base.css', 'utf8');
-    const base = css.match(/\n\.beaming-panel__speed\s*\{([^}]*)\}/)![1]!;
-    expect(parseInt(base.match(/font-size:\s*(\d+)px/)![1]!, 10)).toBeGreaterThanOrEqual(32);
-    expect(css.match(/\.beaming-panel__speed--good\s*\{([^}]*)\}/)![1]).toContain('var(--c-ai)');
-    expect(css.match(/\.beaming-panel__speed--bad\s*\{([^}]*)\}/)![1]).toContain('var(--c-shu)');
   });
 });
 
@@ -258,23 +239,14 @@ describe('T3-06 (張りのメーターと糸を付ける段階の操作欄)', ()
     p.destroy();
   });
 
-  it('速さの数字に ▲▼ の記号と色の区別は無い (張りはメーターとランプで示す)', () => {
-    const p = createBeamingPanel(host, { terms, onAction: () => undefined });
-    p.update({ ...beaming(), phase: 'beaming', progress: 0.5, speed: 30, tension: 95 });
-    const speedEl = host.querySelector('.beaming-panel__speed')!;
-    expect(speedEl.textContent).toBe('速さ 30');
-    expect(speedEl.className).not.toContain('beaming-panel__speed--bad');
-    p.destroy();
-  });
-
-  it('attach の段階では案内の1行が出る (「ビーム設定OK」も「完了」も出ない)', () => {
+  it('attach の段階では案内の1行が出る (「円盤調整完了」も「完了」も出ない)', () => {
     const p = createBeamingPanel(host, { terms, onAction: () => undefined });
     p.update({ ...beaming(), phase: 'attach' });
     expect(host.textContent).toContain('ドラムの糸を、ビームまで引っぱってください');
     const labels = Array.from(host.querySelectorAll('button'))
       .filter((b) => (b as HTMLElement).style.display !== 'none')
       .map((b) => b.textContent?.trim());
-    expect(labels).not.toContain('ビーム設定OK');
+    expect(labels).not.toContain('円盤調整完了');
     expect(labels).not.toContain('完了');
     p.destroy();
   });

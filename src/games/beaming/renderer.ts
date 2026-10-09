@@ -2,11 +2,11 @@ import type { Content } from '../../core/content/content';
 import { COLORS } from '../../core/ui/tokens';
 import type { StageFit } from '../../core/viewport/viewport';
 import {
-  BOARD, BEAM_CENTER_X, DRUM_X, DRUM_W, CORE_R, ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX, FLANGE_RX, woundRadius, woundTopY, sheetTopY, sheetDropEndY, lampR, cmToX, pxPerCm,
+  BOARD, BEAM_CENTER_X, DRUM_X, DRUM_W, CORE_R, ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX, FLANGE_RX, woundRadius, woundTopY, sheetTopY, sheetDropEndY, lampR, threadBarRange, cmToX, pxPerCm,
   speedBarCenterX, SPEED_BAR_W, lampX, lampY,
 } from './geometry';
 import { okRangeOf } from './logic';
-import { DRUM_SURFACE_SIGN, BEAM_SURFACE_SIGN } from './params';
+import { DRUM_SURFACE_SIGN, BEAM_SURFACE_SIGN, DRUM_FLANGE_SIGN, BEAM_FLANGE_SIGN } from './params';
 import { FONT_FAMILY } from '../../core/ui/tokens';
 import type { BeamingState } from './logic';
 
@@ -47,7 +47,7 @@ export function drawBoard(
   s: BeamingState,
   content: Content,
   drumAngle: number,
-  /** 糸を引っぱっている指の位置 (attach の段階。無ければ null。T3-06) */
+  /** 糸の束の先の木の棒の位置 (attach の段階で引っぱっている間と、戻る間。y だけが使われる。無ければ垂れた位置。T3-06・PU-27) */
   threadDrag?: { x: number; y: number } | null,
   /** ビームが回って見える角度 (controller が時間で進める。PU-26) */
   beamAngle = 0,
@@ -65,7 +65,7 @@ export function drawBoard(
   drawDrum(ctx, hex, drumAngle, s);
 
   // 2. 糸のシート (ドラムの下側から手前へ降りる。柄の色の縦の筋)
-  drawSheet(ctx, s, hex);
+  drawSheet(ctx, s, hex, s.phase === 'attach' && threadDrag ? threadDrag.y : null);
 
   // 3. ガイドの棒 (茶色の細い横棒。シートがくぐる)
   drawGuide(ctx, s);
@@ -78,19 +78,9 @@ export function drawBoard(
     drawTarget(ctx, s);
   }
 
-  // 糸を付ける段階: 垂れた糸の端から指まで、シートの幅の帯 (柄の色の台形。指の位置へ細くなる) を描く (T3-06・PU-26 追加修正)
-  if (s.phase === 'attach' && threadDrag) {
-    const half = (s.widthCm * pxPerCm(s.widthCm)) / 2;
-    const endY = sheetDropEndY(s.progress);
-    const tip = 14; // 指の位置での帯の半分の幅
-    ctx.fillStyle = hex;
-    ctx.beginPath();
-    ctx.moveTo(BEAM_CENTER_X - half, endY);
-    ctx.lineTo(BEAM_CENTER_X + half, endY);
-    ctx.lineTo(threadDrag.x + tip, threadDrag.y);
-    ctx.lineTo(threadDrag.x - tip, threadDrag.y);
-    ctx.closePath();
-    ctx.fill();
+  // 糸の束の先の木の棒 (糸を付けるまで。巻き始めたらビームに巻き込まれて見えない。PU-27)
+  if (s.phase === 'setup' || s.phase === 'attach') {
+    drawThreadBar(ctx, fit, s, s.phase === 'attach' && threadDrag ? threadDrag.y : sheetDropEndY(s.progress));
   }
 
   // 張りのランプ (ドラムの上。ドラム巻きと同じ見た目。T3-06 追記)
@@ -192,7 +182,7 @@ export function drawDrum(ctx: CanvasRenderingContext2D, hex: string, drumAngle: 
   ctx.lineWidth = 2;
   ctx.stroke();
   for (let a = 0; a < DRUM_ARMS; a++) {
-    const ang = DRUM_SURFACE_SIGN * drumAngle + (Math.PI * 2 * a) / DRUM_ARMS;
+    const ang = DRUM_FLANGE_SIGN * drumAngle + (Math.PI * 2 * a) / DRUM_ARMS;
     ctx.beginPath();
     ctx.moveTo(x1, cy);
     ctx.lineTo(x1 + Math.cos(ang) * DRUM_TILT_RX * 0.85, cy + Math.sin(ang) * half * 0.85);
@@ -200,14 +190,26 @@ export function drawDrum(ctx: CanvasRenderingContext2D, hex: string, drumAngle: 
   }
 }
 
+/** 糸の束の先の木の棒 (水平。束の幅より左右に長く、端は丸い。太さは画面上 12px 以上。PU-27) */
+function drawThreadBar(ctx: CanvasRenderingContext2D, fit: StageFit, s: BeamingState, y: number): void {
+  const r = threadBarRange(s.widthCm);
+  const h = Math.max(14, 12 / fit.scale);
+  ctx.fillStyle = COLORS.wood;
+  ctx.fillRect(r.x0, y - h / 2, r.x1 - r.x0, h);
+  ctx.beginPath();
+  ctx.arc(r.x0, y, h / 2, 0, Math.PI * 2);
+  ctx.arc(r.x1, y, h / 2, 0, Math.PI * 2);
+  ctx.fill();
+}
+
 /**
- * 糸のシート。上はドラムの下端 (中央)。下は、糸を付けるまで (setup・attach) は短く垂れた端 (sheetDropEndY)、
+ * 糸のシート。上はドラムの下端 (中央)。下は、糸を付けるまで (setup・attach) は木の棒の位置 (垂れた端 sheetDropEndY。attach で引っぱっている間は棒の y。束の幅は変わらない)、
  * 巻いている間 (beaming・done) は巻いた糸の円筒の上端 (中央)。柄の色の縦の筋が上から下へ走る
  */
-function drawSheet(ctx: CanvasRenderingContext2D, s: BeamingState, hex: string): void {
+function drawSheet(ctx: CanvasRenderingContext2D, s: BeamingState, hex: string, barY: number | null): void {
   const half = (s.widthCm * pxPerCm(s.widthCm)) / 2;
   const topY = sheetTopY(s.progress);
-  const bottomY = s.phase === 'setup' || s.phase === 'attach' ? sheetDropEndY(s.progress) : woundTopY(s.progress);
+  const bottomY = s.phase === 'setup' ? sheetDropEndY(s.progress) : s.phase === 'attach' ? (barY ?? sheetDropEndY(s.progress)) : woundTopY(s.progress);
   const cx = BEAM_CENTER_X; // シートはいつも中心 (偏りは無い。T3-05)
   ctx.fillStyle = hex;
   ctx.beginPath();
@@ -273,7 +275,7 @@ function drawFlange(ctx: CanvasRenderingContext2D, x: number, beamAngle: number)
   ctx.fillStyle = COLORS.flangeHole;
   for (const ring of HOLE_RINGS) {
     for (let i = 0; i < ring.count; i++) {
-      const th = (Math.PI * 2 * i) / ring.count + BEAM_SURFACE_SIGN * beamAngle;
+      const th = (Math.PI * 2 * i) / ring.count + BEAM_FLANGE_SIGN * beamAngle;
       ctx.beginPath();
       ctx.arc(x + Math.cos(th) * ring.frac * R * kx, axisY + Math.sin(th) * ring.frac * R, 4, 0, Math.PI * 2);
       ctx.fill();

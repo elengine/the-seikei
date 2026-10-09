@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import {
   pxPerCm, cmToX, xToCm, BEAM_W_PX, BOARD_W, BEAM_CENTER_X, woundRadius, setBoardHeight, BOARD, drawnExtent, FLANGE_RX, CORE_R,
-  ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX, flangeHit, dragCm, FLANGE_HIT_MIN_PX, lampX, lampY, SPEED_BAR_SHIFT_MAX, speedBarCenterX, speedFromBarDrag, hitSpeedBar, SPEED_BAR_W, DRUM_X, hitSheetEdge, hitBeamWind, sheetTopY, DRUM_W, sheetDropEndY, lampR } from './geometry';
+  ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX, flangeHit, dragCm, FLANGE_HIT_MIN_PX, lampX, lampY, SPEED_BAR_SHIFT_MAX, speedBarCenterX, speedFromBarDrag, hitSpeedBar, SPEED_BAR_W, DRUM_X, hitSheetEdge, hitBeamWind, sheetTopY, sheetDropEndY, lampR, THREAD_BAR_MARGIN, threadBarRange, clampThreadBarY, threadAttachY } from './geometry';
 import { logicalHeightFor } from '../winding/geometry';
 import { DRUM_SURFACE_SIGN, BEAM_SURFACE_SIGN, DRUM_TURN_RATE, BEAM_TURN_RATE } from './params';
 
@@ -188,15 +188,20 @@ function wind(widthCm: number, progress: number, over?: { leftCm?: number; right
 const LAMP_R = 22;
 
 describe('T3-06 (糸を付ける作業の当たり判定)', () => {
-  it('押さえる所はドラムの下の端: 横はドラムの幅 (DRUM_X〜DRUM_X+DRUM_W)、縦は上下 32px。外れると false', () => {
+  it('押さえる所は糸の束の先の木の棒 (と束): 横は棒の長さ (束の幅 + 左右 THREAD_BAR_MARGIN)、縦は束の上端から棒の下 32px まで。外れると false (PU-27)', () => {
     const widthCm = 60;
-    const y = sheetDropEndY(0); // 短く垂れた端 (PU-26 追加修正)
-    expect(hitSheetEdge({ x: DRUM_X + DRUM_W / 2, y }, widthCm, 0)).toBe(true);
-    expect(hitSheetEdge({ x: DRUM_X + 5, y: y + 30 }, widthCm, 0)).toBe(true);
-    expect(hitSheetEdge({ x: DRUM_X - 5, y }, widthCm, 0)).toBe(false); // 横に外れる (ドラムの左)
-    expect(hitSheetEdge({ x: DRUM_X + DRUM_W + 5, y }, widthCm, 0)).toBe(false); // 横に外れる (ドラムの右)
-    expect(hitSheetEdge({ x: DRUM_X + DRUM_W / 2, y: y - 33 }, widthCm, 0)).toBe(false); // 上に外れる
-    expect(hitSheetEdge({ x: DRUM_X + DRUM_W / 2, y: y + 33 }, widthCm, 0)).toBe(false); // 下に外れる
+    const y = sheetDropEndY(0); // 垂れた位置の棒
+    const r = threadBarRange(widthCm);
+    expect(r.x1 - r.x0).toBeCloseTo(widthCm * pxPerCm(widthCm) + 2 * THREAD_BAR_MARGIN, 9);
+    expect(hitSheetEdge({ x: BEAM_CENTER_X, y }, widthCm, 0)).toBe(true);
+    expect(hitSheetEdge({ x: r.x0 + 2, y: y + 30 }, widthCm, 0)).toBe(true); // 棒の下 32px まで
+    expect(hitSheetEdge({ x: BEAM_CENTER_X, y: sheetTopY(0) + 5 }, widthCm, 0)).toBe(true); // 束の途中でもつかめる
+    expect(hitSheetEdge({ x: r.x0 - 5, y }, widthCm, 0)).toBe(false); // 横に外れる
+    expect(hitSheetEdge({ x: r.x1 + 5, y }, widthCm, 0)).toBe(false);
+    expect(hitSheetEdge({ x: BEAM_CENTER_X, y: y + 33 }, widthCm, 0)).toBe(false); // 下に外れる
+    expect(hitSheetEdge({ x: BEAM_CENTER_X, y: sheetTopY(0) - 5 }, widthCm, 0)).toBe(false); // 束の上 (ドラムの中) は外れる
+    // 棒が下へ動いたら、押さえる所も棒について動く
+    expect(hitSheetEdge({ x: BEAM_CENTER_X, y: y + 100 }, widthCm, 0, y + 100)).toBe(true);
   });
 
   it('離してよい所はビームの軸と巻いた糸の円筒: 円盤の間で、上下 32px の余裕', () => {
@@ -284,5 +289,21 @@ describe('PU-26 追加修正: 糸のシートは短く垂れる・ランプの�
       }
     }
     setBoardHeight(750);
+  });
+});
+
+describe('PU-27: 糸の束の先の木の棒の動く範囲と付く条件', () => {
+  it('棒は垂れた位置 (sheetDropEndY) より上へ行かず、ビームの軸 (axisY) より下へ行かない', () => {
+    for (const p of [0, 0.5]) {
+      expect(clampThreadBarY(-1000, p)).toBe(sheetDropEndY(p));
+      expect(clampThreadBarY(100000, p)).toBe(BOARD.axisY);
+      const mid = (sheetDropEndY(p) + BOARD.axisY) / 2;
+      expect(clampThreadBarY(mid, p)).toBe(mid);
+    }
+  });
+
+  it('付く条件の y (threadAttachY) は、巻いた糸の円筒の上の端から上へ 32px。垂れた位置より下', () => {
+    expect(threadAttachY(0)).toBeCloseTo(BOARD.axisY - woundRadius(0) - 32, 9);
+    expect(threadAttachY(0)).toBeGreaterThan(sheetDropEndY(0));
   });
 });

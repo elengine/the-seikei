@@ -10,7 +10,7 @@ import { CONFIRM_MIN } from './params';
  * ビーム巻きの操作欄 (P3 T3-03a)。
  * 上から: 「巻き量 N%」(1 か所だけ、大きく。PU-15c)、依頼書 (巻き幅・帯の数・柄の名前)、
  * 幅合わせの段階 (今と目標の幅。円盤は絵の上で引っぱる)、巻き返しの段階 (速さのメーター・ペダルの溝・寄せる2つ)、主な操作。
- * ペダルの「戻す」「踏み込む」・速さの数・経過時間は無い (速さは盤面の茶色の棒を左右に引っぱって変える。PU-24b)。メッセージ欄は無い (理由は onNotice → お知らせ)。
+ * ペダルの「戻す」「踏み込む」・速さの数・経過時間は無い (速さは盤面の茶色の棒を左右に引っぱって変える。PU-24b。「速さ N」の表示は PU-27 で消した)。メッセージ欄は無い (理由は onNotice → お知らせ)。
  * メーターの範囲は State のもの (range {center, width} を min/max に直して渡す)。
  */
 
@@ -37,11 +37,6 @@ export function createBeamingPanel(
   const amount = document.createElement('div');
   amount.className = 'beaming-panel__amount';
   root.appendChild(amount);
-
-  // 0a. 速さ (「巻き量」の下。0〜100 の整数。適正は藍、外れは朱に ▲ か ▼。PU-24b)
-  const speedEl = document.createElement('div');
-  speedEl.className = 'beaming-panel__speed';
-  root.appendChild(speedEl);
 
 
   // 1. 依頼書 (巻き幅・帯の数・柄の名前)
@@ -84,7 +79,7 @@ export function createBeamingPanel(
   const buttonRow = document.createElement('div');
   buttonRow.className = 'beaming-panel__actions';
   const startBtn = createButton({
-    label: 'ビーム設定OK',
+    label: '円盤調整完了',
     variant: 'primary',
     onClick: () => opts.onAction({ type: 'finishSetup' }),
   });
@@ -133,9 +128,6 @@ export function createBeamingPanel(
       confirmBtn.setAttribute('aria-disabled', String(!confirmStopped));
       confirmBtn.classList.toggle('beaming-panel__main--locked', !confirmStopped);
       amount.textContent = `巻き量 ${Math.floor(s.progress * 100)}%`; // 表示は切り捨て (T3-05)
-      // 速さ: ふつうの文字色で数字だけ (張りの判断はメーターとランプで示す。T3-06)
-      speedEl.classList.remove('beaming-panel__speed--good', 'beaming-panel__speed--bad');
-      speedEl.textContent = `速さ ${Math.round(s.speed)}`;
       // 張りのメーター: 範囲は巻き量と揺らぎで動く (T3-06)
       meter.update(s.tension, okRangeOf(s.progress, s.level, s.dip));
       // 巻き返しの段階の下の行は空 (ボタンが無いので行を低くする)

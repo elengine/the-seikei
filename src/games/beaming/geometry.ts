@@ -121,9 +121,32 @@ export function sheetDropEndY(progress: number): number {
   return top + (BOARD.guideY - top) * 0.4;
 }
 
-/** 押さえる所: 垂れた糸の下の端 (sheetDropEndY)。横はドラムの幅、縦は上下 32px ずつ (画面上 64px 以上。T3-06) */
-export function hitSheetEdge(p: { x: number; y: number }, widthCm: number, progress: number): boolean {
-  return p.x >= DRUM_X && p.x <= DRUM_X + DRUM_W && Math.abs(p.y - sheetDropEndY(progress)) <= 32;
+/** 糸の束の先の木の棒が、束の幅より左右に長い分 (px。PU-27) */
+export const THREAD_BAR_MARGIN = 24;
+
+/** 木の棒の横の範囲 (束の幅 + 左右 THREAD_BAR_MARGIN。中心は盤面の中心) */
+export function threadBarRange(widthCm: number): { x0: number; x1: number } {
+  const half = (widthCm * pxPerCm(widthCm)) / 2 + THREAD_BAR_MARGIN;
+  return { x0: BEAM_CENTER_X - half, x1: BEAM_CENTER_X + half };
+}
+
+/** 棒の y を、動ける範囲 (垂れた位置〜ビームの軸) に収める */
+export function clampThreadBarY(y: number, progress: number): number {
+  return Math.min(BOARD.axisY, Math.max(sheetDropEndY(progress), y));
+}
+
+/** 離したとき糸が付く y: 巻いた糸の円筒の上の端から上へ 32px。これより下で離すと付く (PU-27) */
+export function threadAttachY(progress: number): number {
+  return BOARD.axisY - woundRadius(progress) - 32;
+}
+
+/**
+ * 押さえる所: 糸の束の先の木の棒 (barY。省くと垂れた位置) と束。横は棒の長さ、縦は束の上端から棒の下 32px まで
+ * (棒の上下 32px ずつ = 画面上 64px 以上。束の途中を押さえても棒をつかんだことにする。T3-06・PU-27)
+ */
+export function hitSheetEdge(p: { x: number; y: number }, widthCm: number, progress: number, barY: number = sheetDropEndY(progress)): boolean {
+  const r = threadBarRange(widthCm);
+  return p.x >= r.x0 && p.x <= r.x1 && p.y >= sheetTopY(progress) && p.y <= barY + 32;
 }
 
 /** 離してよい所: ビームの軸と巻いた糸の円筒。円盤の間で、上下 32px の余裕 (T3-06) */
