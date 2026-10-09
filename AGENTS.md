@@ -213,6 +213,8 @@
 
 ### 確認役の作業のやり方(引き継ぎ用)
 
+- **Discord に送ったら、必ず画面を見て「送られた」ことを確かめる**(2026-10-09 19:20 ごろ、PU-29 の指示と追記の2通が入力欄に残ったまま送られていなかった。管理者の念押しで発覚し、19:32 に送り直した)。送信のあとに画面を撮り、自分の投稿が流れの中にあり、入力欄が空であることを見る。
+
 - **Discord**:ルビーのスレッド `https://discord.com/channels/1542858642670223483/1554000251822805135` を Claude in Chrome で読む。タブは閉じずに使い回す。ルビーへの指示は、確認役が文面を見せ、**管理者の承認を1通ごとに得てから**確認役が送る(メンションは `@ルビー` と打って Tab キーで候補を選ぶ。本文は paste イベントで貼る。送る前に入力欄の残りの文字を消す)。
 - **報告の見張り**:バックグラウンドで5分ごとに `git fetch` し、コミットの件名に「報告」が出たら確認する(最長30分で打ち切り、また始める)。30分動きが無ければ Discord を見る。ルビーは、報告をコミットにだけ書いて Discord に出さないことや、一時ファイルを残すことがあるので、差分と `git status` を必ず見る。
 - **環境**:Node は `C:\Users\kurod\AppData\Local\Microsoft\WinGet\Packages\OpenJS.NodeJS.22_Microsoft.Winget.Source_8wekyb3d8bbwe\node-v22.23.2-win-x64`(PATH に無いことがある)。画面の確認は `npm run build` のあと `node node_modules/vite/bin/vite.js preview --port 4173 --strictPort` を立て、内蔵ブラウザで `http://localhost:4173/the-seikei/`。最初に Service Worker とキャッシュを消す。お題の解放は IndexedDB `seikei-game` の `recs` に records の行を書く。内蔵ブラウザは画面が見えていないと requestAnimationFrame が止まるので、スクリーンショットを撮って描き直させてから測る。確認が終わったらサーバーを止め、画面の大きさを desktop に戻す。
