@@ -3,9 +3,9 @@ import { readFileSync } from 'node:fs';
 import { drawBoard, mainHex } from './renderer';
 import { init, reduce } from './logic';
 import type { BeamingState } from './logic';
-import { cmToX, BOARD, setBoardHeight, FLANGE_RX, DRUM_X, DRUM_W, woundRadius, lampX, lampY, speedBarCenterX, SPEED_BAR_W, ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX, sheetTopY, sheetDropEndY, pxPerCm, BEAM_CENTER_X, THREAD_BAR_MARGIN, sheetTiltX, woundTopY, wrapTiltX } from './geometry';
+import { cmToX, BOARD, setBoardHeight, FLANGE_RX, DRUM_X, DRUM_W, woundRadius, lampX, lampY, speedBarCenterX, SPEED_BAR_W, ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX, sheetTopY, sheetDropEndY, pxPerCm, BEAM_CENTER_X, THREAD_BAR_MARGIN, sheetShiftX, woundTopY, threadBarRange } from './geometry';
 import { stripeRunsOf, stripeStrips } from './renderer';
-import { DRUM_SURFACE_SIGN, BEAM_SURFACE_SIGN, DRUM_FLANGE_SIGN, BEAM_FLANGE_SIGN } from './params';
+import { DRUM_SURFACE_SIGN, BEAM_SURFACE_SIGN, DRUM_FLANGE_SIGN, BEAM_FLANGE_SIGN, DRUM_DEPTH_SHIFT } from './params';
 import { getContent } from '../../core/content/content';
 import { COLORS } from '../../core/ui/tokens';
 import { makeFakeCtx } from '../winding/renderer.test.helpers';
@@ -161,10 +161,10 @@ describe('beaming renderer PU-15a (盤面。実物の写真に寄せた絵)', ()
     const cy = BOARD.drumY + BOARD.drumH / 2;
     const ends = ellipses(rec).filter((e) => Math.abs(e.y - cy) < 1 && e.fill === COLORS.steel);
     expect(ends).toHaveLength(1); // 片側だけ
-    expect(ends[0]!.x).toBe(DRUM_X + DRUM_W);
+    expect(ends[0]!.x, 'ドラムの右の端の円盤もドラム一式の奥行きぶん右 (PU-29 追加修正)').toBe(DRUM_X + DRUM_W + DRUM_DEPTH_SHIFT);
     expect(ends[0]!.rx).toBe(DRUM_TILT_RX);
     // 筋: 同じ軸の位置の点が、真ん中 (y = 中心) で x = 軸の位置 − DRUM_TILT_RX (丸みで左へふくらむ)、上下の端で x = 軸の位置
-    const xs = DRUM_X + 12 + 14 * 10;
+    const xs = DRUM_X + DRUM_DEPTH_SHIFT + 12 + 14 * 10;
     const pts: Array<{ x: number; y: number }> = [];
     for (const o of rec.ops) {
       if ((o.k === 'moveTo' || o.k === 'lineTo') && o.args) pts.push({ x: Number(o.args[0]), y: Number(o.args[1]) });
@@ -172,7 +172,7 @@ describe('beaming renderer PU-15a (盤面。実物の写真に寄せた絵)', ()
     expect(pts.some((p) => Math.abs(p.x - drumArcX(xs, 0)) < 1e-6 && Math.abs(p.y - cy) < 1)).toBe(true);
     expect(pts.some((p) => Math.abs(p.x - xs) < 1e-6 && p.y < cy - BOARD.drumH * 0.3)).toBe(true);
     // 縦のまっすぐな筋 (x が同じ 2 点の線。胴の右の輪郭 x = 右の端を除く) で描いていない
-    const straight = segments(rec).filter((g) => g.x1 === g.x2 && g.x1 >= DRUM_X && g.x1 < DRUM_X + DRUM_W && Math.min(g.y1, g.y2) >= BOARD.drumY && Math.max(g.y1, g.y2) <= BOARD.drumY + BOARD.drumH + 1 && Math.abs(g.y2 - g.y1) > BOARD.drumH * 0.5);
+    const straight = segments(rec).filter((g) => g.x1 === g.x2 && g.x1 >= DRUM_X + DRUM_DEPTH_SHIFT && g.x1 < DRUM_X + DRUM_W + DRUM_DEPTH_SHIFT && Math.min(g.y1, g.y2) >= BOARD.drumY && Math.max(g.y1, g.y2) <= BOARD.drumY + BOARD.drumH + 1 && Math.abs(g.y2 - g.y1) > BOARD.drumH * 0.5);
     expect(straight.length).toBe(0);
   });
 
@@ -362,13 +362,13 @@ describe('PU-26: ドラムをドラム巻きと同じ見た目で大きく・回
     const stops = rec.ops.filter((o) => o.k === 'addColorStop').map((o) => String((o.args as unknown[])[1]));
     expect(stops).toEqual(expect.arrayContaining([COLORS.machineDark, COLORS.machineLight, COLORS.machine]));
     const cy = BOARD.drumY + BOARD.drumH / 2;
-    const arms = strokes(rec).filter((g) => g.style === COLORS.sumiSub && g.pts.length === 2 && Math.abs(g.pts[0]!.x - (DRUM_X + DRUM_W)) < 1e-6 && Math.abs(g.pts[0]!.y - cy) < 1e-6);
+    const arms = strokes(rec).filter((g) => g.style === COLORS.sumiSub && g.pts.length === 2 && Math.abs(g.pts[0]!.x - (DRUM_X + DRUM_W + DRUM_DEPTH_SHIFT)) < 1e-6 && Math.abs(g.pts[0]!.y - cy) < 1e-6);
     expect(arms.length).toBe(6);
   });
 
   it('2. ドラムの描く範囲の高さは、ビームの円盤の直径の 1.5 倍以上 (ドラムのほうが大きい)', () => {
     const rec = draw(beamState());
-    const end = ellipses(rec).find((e) => e.fill === COLORS.steel && e.x === DRUM_X + DRUM_W)!;
+    const end = ellipses(rec).find((e) => e.fill === COLORS.steel && e.x === DRUM_X + DRUM_W + DRUM_DEPTH_SHIFT)!;
     expect(end.ry * 2).toBeGreaterThanOrEqual(1.5 * 2 * BOARD.flangeR);
   });
 
@@ -476,7 +476,7 @@ describe('PU-26 追加修正: 糸のシートは setup・attach では短く垂�
       const bars = threadBars(draw(s), 60);
       expect(bars.length, phase).toBe(1);
       const [x, y, w, h] = bars[0]!;
-      expect(x + w / 2, phase).toBeCloseTo(BEAM_CENTER_X, 9);
+      expect(x + w / 2, `${phase} 棒の中心はその高さのシートのずれぶん右 (PU-29 追加修正)`).toBeCloseTo(BEAM_CENTER_X + sheetShiftX(sheetDropEndY(0), 0), 9);
       expect(w, phase).toBeCloseTo(2 * half + 2 * THREAD_BAR_MARGIN, 9);
       expect(y + h / 2, phase).toBeCloseTo(sheetDropEndY(0), 9); // 垂れた位置
       expect(h, phase).toBeGreaterThanOrEqual(12);
@@ -495,15 +495,15 @@ describe('PU-26 追加修正: 糸のシートは setup・attach では短く垂�
     drawBoard(ctx, fit, s, content, 0, { x: BEAM_CENTER_X + 300, y: barY }); // x は無視される
     const [x, y, w, h] = threadBars(rec, 60)[0]!;
     expect(y + h / 2).toBeCloseTo(barY, 9);
-    expect(x + w / 2).toBeCloseTo(BEAM_CENTER_X, 9);
+    expect(x + w / 2, '棒の中心は、その高さのシートのずれぶん右 (ドラムの奥行き。PU-29 追加修正)').toBeCloseTo(BEAM_CENTER_X + sheetShiftX(barY, 0), 9);
     // 束の縦の筋は、手まえ (下) ほど左へずれる斜めの線 (ずれの大きさはどれも同じ = 幅は変わらない。PU-29) で、下の端が棒の y
     const half = (60 * pxPerCm(60)) / 2;
     const vs = strokes(rec).filter((g) => g.style === COLORS.sumi && g.pts.length === 2 && g.pts[1]!.y > g.pts[0]!.y && g.pts[0]!.y === sheetTopY(0));
     expect(vs.length).toBeGreaterThan(0);
     for (const g of vs) {
       expect(g.pts[1]!.y).toBeCloseTo(barY, 9);
-      expect(g.pts[0]!.x - g.pts[1]!.x, 'ずれはどの筋も同じ (台形にしない)').toBeCloseTo(sheetTiltX(barY, 0), 6);
-      expect(Math.abs(g.pts[0]!.x - BEAM_CENTER_X)).toBeLessThanOrEqual(half + 1e-9);
+      expect(g.pts[0]!.x - g.pts[1]!.x, 'ずれはどの筋も同じ (台形にしない)').toBeCloseTo(sheetShiftX(sheetTopY(0), 0) - sheetShiftX(barY, 0), 6);
+      expect(Math.abs(g.pts[0]!.x - (BEAM_CENTER_X + sheetShiftX(sheetTopY(0), 0)))).toBeLessThanOrEqual(half + 1e-9);
     }
     // 束の面 (柄の色の多角形) の下の辺の幅は、上の辺の幅と同じ (台形ではない)
     const sheet = fillPaths(rec).find((f) => f.style === hex && f.pts.length === 4 && f.pts.some((p) => Math.abs(p.y - barY) < 1e-6));
@@ -521,7 +521,7 @@ describe('PU-27: 端の円盤の回る向き (胴はそのまま)', () => {
     const cy = BOARD.drumY + BOARD.drumH / 2;
     const tipY = (angle: number): number => {
       const arm = strokes(draw(beamState({ progress: 0 }), angle)).find(
-        (g) => g.style === COLORS.sumiSub && g.pts.length === 2 && Math.abs(g.pts[0]!.x - (DRUM_X + DRUM_W)) < 1e-6 && Math.abs(g.pts[0]!.y - cy) < 1e-6,
+        (g) => g.style === COLORS.sumiSub && g.pts.length === 2 && Math.abs(g.pts[0]!.x - (DRUM_X + DRUM_W + DRUM_DEPTH_SHIFT)) < 1e-6 && Math.abs(g.pts[0]!.y - cy) < 1e-6,
       )!;
       return arm.pts[1]!.y;
     };
@@ -610,7 +610,7 @@ describe('PU-28: 柄の縞を縦縞で描く (糸のシート・ドラム・ビ�
       const topMin = Math.min(...f.pts.filter((p) => Math.abs(p.y - topY) < 1e-6).map((p) => p.x));
       const bottomMin = Math.min(...f.pts.filter((p) => Math.abs(p.y - bottomY) < 1e-6).map((p) => p.x));
       expect(bottomMin, '手まえ (下) ほど左へずれる (PU-29)').toBeLessThan(topMin);
-      expect(topMin - bottomMin, 'ずれはシートの上端で 0、下端で SHEET_TILT_RX の 4 割 (巻き量 0.4)').toBeCloseTo(sheetTiltX(bottomY, 0.4), 6);
+      expect(topMin - bottomMin, 'ずれはシートの上端 (ドラムの下の端) で DRUM_DEPTH_SHIFT、下端で 0 (ドラムの奥行き。PU-29 追加修正)').toBeCloseTo(sheetShiftX(topY, 0.4) - sheetShiftX(bottomY, 0.4), 6);
     }
     // 線の色の帯は 3 リピートぶん (3 本)
     expect(paths.filter((f) => f.style === shiro())).toHaveLength(3);
@@ -637,8 +637,8 @@ describe('PU-28: 柄の縞を縦縞で描く (糸のシート・ドラム・ビ�
       expect(midX, '縞の真ん中は上下の端より左 (「(」の曲線。PU-29)').toBeLessThan(endX);
     }
     const half = (60 * pxPerCm(60)) / 2;
-    const w0 = BEAM_CENTER_X - half;
-    const w1 = BEAM_CENTER_X + half;
+    const w0 = BEAM_CENTER_X - half + DRUM_DEPTH_SHIFT; // ドラムの巻いた糸はドラムと同じだけ右へずれる (PU-29 追加修正)
+    const w1 = BEAM_CENTER_X + half + DRUM_DEPTH_SHIFT;
     const slats = strokes(rec).filter((g) => g.style === COLORS.woodLight && g.pts.length === 2 && g.pts[0]!.y === g.pts[1]!.y && g.pts[0]!.y > BOARD.drumY && g.pts[0]!.y < BOARD.drumY + BOARD.drumH);
     expect(slats.length).toBeGreaterThan(0);
     for (const g of slats) {
@@ -695,7 +695,7 @@ describe('PU-29 b: 円筒に沿う「(」の曲線・糸の通り道 (盤面の�
     expect(topX - midX).toBeCloseTo(DRUM_TILT_RX, 6);
   });
 
-  it('2. ビームの巻いた糸の左の端も「(」の曲線: 上の端は糸のシートの下の端 (SHEET_TILT_RX だけ左) につながり、真ん中 (巻いた糸の半径ぶんのふくらみ) がいちばん左', () => {
+  it('2. ビームの巻いた糸の左の端も「(」の曲線: 上の端は糸のシートの下の端 (ずれ 0) につながり、真ん中 (巻いた糸の半径ぶんのふくらみ) がいちばん左 (PU-29 追加修正: つなぎのずれ wrapTiltX はやめ、シートの下の端のずれは 0)', () => {
     const rec = draw(wound());
     const leftX = cmToX(60, -30);
     const r = woundRadius(0.9);
@@ -705,7 +705,7 @@ describe('PU-29 b: 円筒に沿う「(」の曲線・糸の通り道 (盤面の�
     const topY = BOARD.axisY - r;
     const topX = Math.min(...left.pts.filter((p) => Math.abs(p.y - topY) < 1e-6).map((p) => p.x));
     const midX = Math.min(...left.pts.filter((p) => Math.abs(p.y - BOARD.axisY) < 1e-6).map((p) => p.x));
-    expect(topX, '上の端はシートの下の端につながる (wrapTiltX ぶんだけ左)').toBeCloseTo(leftX - wrapTiltX(r), 6);
+    expect(topX, '上の端はシートの下の端につながる (ずれ 0。PU-29 追加修正)').toBeCloseTo(leftX, 6);
     expect(midX, '真ん中のふくらみは FLANGE_RX × (巻いた半径 ÷ 円盤の半径)').toBeCloseTo(leftX - FLANGE_RX * (r / BOARD.flangeR), 6);
     expect(midX).toBeLessThan(topX); // 「(」の形
   });
@@ -744,7 +744,62 @@ describe('PU-29 b: 円筒に沿う「(」の曲線・糸の通り道 (盤面の�
     expect(streaks.length).toBeGreaterThan(0);
     for (const g of streaks) {
       expect(g.pts[1]!.x, '下の端のほうが左').toBeLessThan(g.pts[0]!.x);
-      expect(g.pts[0]!.x - g.pts[1]!.x).toBeCloseTo(sheetTiltX(bottomY, 0.4), 6);
+      expect(g.pts[0]!.x - g.pts[1]!.x, '上端はドラムの下の端のずれ、下端は 0 (PU-29 追加修正)').toBeCloseTo(sheetShiftX(topY, 0.4) - sheetShiftX(bottomY, 0.4), 6);
     }
+  });
+});
+
+describe('PU-29 追加修正: ドラム一式 (胴・巻いた糸・桟・右の端の円盤・ランプ) を DRUM_DEPTH_SHIFT だけ右へずらす', () => {
+  it('1. ドラムの胴の左の端 (描く所) は DRUM_X + DRUM_DEPTH_SHIFT。右の端の円盤 (楕円) も同じだけ右', () => {
+    const rec = draw(beamState({ progress: 0 }));
+    const cy = BOARD.drumY + BOARD.drumH / 2;
+    const top = BOARD.drumY;
+    const body = fillPaths(rec).find(
+      (f) =>
+        f.pts.some((p) => Math.abs(p.x - (DRUM_X + DRUM_DEPTH_SHIFT)) < 1e-6 && Math.abs(p.y - top) < 1e-6) &&
+        f.pts.some((p) => Math.abs(p.x - (DRUM_X + DRUM_W + DRUM_DEPTH_SHIFT)) < 1e-6 && Math.abs(p.y - top) < 1e-6),
+    );
+    expect(body, '胴の塗り (左の端 = DRUM_X + DRUM_DEPTH_SHIFT)').toBeDefined();
+    const disk = rec.ops.find(
+      (o) =>
+        o.k === 'ellipse' &&
+        Array.isArray(o.args) &&
+        Math.abs((o.args as number[])[0]! - (DRUM_X + DRUM_W + DRUM_DEPTH_SHIFT)) < 1e-6 &&
+        Math.abs((o.args as number[])[1]! - cy) < 1e-6,
+    );
+    expect(disk, 'ドラムの右の端の円盤').toBeDefined();
+  });
+
+  it('2. ドラムの巻いた糸の左の端も同じだけ右: 端 (t=±1) の x は BEAM_CENTER_X − 幅の半分 + DRUM_DEPTH_SHIFT (ドラムの左の端の当たり判定と同じ式)', () => {
+    const rec = draw(beamState({ progress: 0.4 }));
+    const cy = BOARD.drumY + BOARD.drumH / 2;
+    const half = (BOARD.drumH / 2) * (1 - 0.3 * 0.4);
+    const yarnPaths = fillPaths(rec).filter((f) => {
+      const ys = f.pts.map((p) => p.y);
+      const mid = (Math.max(...ys) + Math.min(...ys)) / 2;
+      return Math.max(...ys) - Math.min(...ys) > 20 && Math.abs(mid - cy) < 1e-6 && f.style === mainHex(content, 'p-muji-kon');
+    });
+    expect(yarnPaths.length).toBeGreaterThan(0);
+    const wHalf = (60 * pxPerCm(60)) / 2;
+    // いちばん左の縞の左の辺で確かめる
+    const edge = yarnPaths.reduce((a, b) => (Math.min(...b.pts.map((p) => p.x)) < Math.min(...a.pts.map((p) => p.x)) ? b : a));
+    const topX = Math.min(...edge.pts.filter((p) => Math.abs(p.y - (cy - half)) < 1e-6).map((p) => p.x));
+    const bottomX = Math.min(...edge.pts.filter((p) => Math.abs(p.y - (cy + half)) < 1e-6).map((p) => p.x));
+    expect(topX).toBeCloseTo(BEAM_CENTER_X - wHalf + DRUM_DEPTH_SHIFT, 6);
+    expect(bottomX).toBeCloseTo(BEAM_CENTER_X - wHalf + DRUM_DEPTH_SHIFT, 6);
+    const leftmost = Math.min(...edge.pts.map((p) => p.x));
+    expect(leftmost, '真ん中の高さは「(」にふくらむぶん左').toBeLessThan(topX);
+  });
+
+  it('3. 糸の束の先の木の棒も、その高さのシートのずれぶん右 (当たり判定と同じ式)', () => {
+    const s = beamState({ phase: 'attach', progress: 0, speed: 0 });
+    const barY = sheetDropEndY(0) + 120;
+    const { ctx, rec } = makeFakeCtx();
+    drawBoard(ctx, fit, s, content, 0, { x: BEAM_CENTER_X, y: barY });
+    const bar = rec.ops
+      .map((o, i) => ({ o, style: styleBefore(rec.ops, i) }))
+      .filter((e) => e.o.k === 'fillRect' && e.style === COLORS.wood && Number((e.o.args as number[])[2]) > 100)[0]!;
+    const x = (bar.o.args as number[])[0]!;
+    expect(x).toBeCloseTo(threadBarRange(60).x0 + sheetShiftX(barY, 0), 6);
   });
 });

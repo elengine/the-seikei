@@ -1,4 +1,4 @@
-import { SHEET_TILT_RX } from './params';
+import { DRUM_DEPTH_SHIFT } from './params';
 
 /**
  * ビーム巻きの盤面の座標 (P3 T3-02。PU-15a で実物の写真に寄せて組み直した)。論理座標は幅 1000・高さ BOARD.H。
@@ -147,11 +147,13 @@ export function threadAttachY(progress: number): number {
 
 /**
  * 押さえる所: 糸の束の先の木の棒 (barY。省くと垂れた位置) と束。横は棒の長さ、縦は束の上端から棒の下 32px まで
- * (棒の上下 32px ずつ = 画面上 64px 以上。束の途中を押さえても棒をつかんだことにする。T3-06・PU-27)
+ * (棒の上下 32px ずつ = 画面上 64px 以上。束の途中を押さえても棒をつかんだことにする。T3-06・PU-27)。
+ * 横の範囲は、その高さのシートのずれ (sheetShiftX) ぶん右へずらす (描く所と同じ式。PU-29 追加修正)。
  */
 export function hitSheetEdge(p: { x: number; y: number }, widthCm: number, progress: number, barY: number = sheetDropEndY(progress)): boolean {
   const r = threadBarRange(widthCm);
-  return p.x >= r.x0 && p.x <= r.x1 && p.y >= sheetTopY(progress) && p.y <= barY + 32;
+  const s = sheetShiftX(p.y, progress);
+  return p.x >= r.x0 + s && p.x <= r.x1 + s && p.y >= sheetTopY(progress) && p.y <= barY + 32;
 }
 
 /** 離してよい所: ビームの軸と巻いた糸の円筒。円盤の間で、上下 32px の余裕 (T3-06) */
@@ -165,9 +167,9 @@ export function hitBeamWind(
   return p.x > leftX && p.x < rightX && Math.abs(p.y - BOARD.axisY) <= woundRadius(progress) + 32;
 }
 
-/** 張りのランプ (ドラムの上の空き。ドラムの胴に重ならない。ドラム巻きと同じ考え。T3-06 追記・PU-26) */
+/** 張りのランプ (ドラムの上の空き。ドラムの胴に重ならない。ドラム巻きと同じ考え。T3-06 追記・PU-26)。ランプもドラム一式なので奥行きぶん右へ (PU-29 追加修正) */
 export function lampX(): number {
-  return BOARD_W * 0.2;
+  return BOARD_W * 0.2 + DRUM_DEPTH_SHIFT;
 }
 export function lampY(): number {
   return BOARD.drumY * 0.5;
@@ -246,39 +248,19 @@ export function beamArcX(xs: number, t: number, r: number): number {
 }
 
 /**
- * ビームの上に乗る所での糸のシートのずれの大きさ (px)。巻いた糸が太るほど大きくなり、巻ききったとき
- * SHEET_TILT_RX。円筒の「(」の曲線のふくらみ (FLANGE_RX × (r ÷ 円盤の半径)) より小さく保ち、
- * 曲線がつぶれないようにする (PU-29)。
+ * 糸のシートの奥行きのずれの大きさ (px)。ドラムはビームより奥にあるので、ドラムの下の端 (sheetTopY) では
+ * DRUM_DEPTH_SHIFT だけ右へ、ビームの上の端 (woundTopY) では 0。あいだは直線で補間する (PU-29 追加修正)。
  */
-export function wrapTiltX(r: number): number {
-  return Math.min(SHEET_TILT_RX, (SHEET_TILT_RX * r) / (BOARD.flangeR * 0.8));
-}
-
-/**
- * ビームの縞の境界の x (PU-29)。上下の端 (t=±1) は糸のシートの下の端の x (wrapTiltX ぶんだけ左) で、
- * 真ん中 (t=0) は beamArcX そのもの (FLANGE_RX × (巻いた半径 ÷ 円盤の半径) だけ左)。
- * 糸のシートとビームの手前の面がひと続きになる (境目に横の線や段差を描かない)。
- */
-export function beamWrapX(xs: number, t: number, r: number): number {
-  const bulge = FLANGE_RX * (r / BOARD.flangeR);
-  const j = wrapTiltX(r);
-  return xs - j - (bulge - j) * Math.sqrt(Math.max(0, 1 - t * t));
-}
-
-/**
- * 糸のシートの手まえへのずれの大きさ (px)。y での補間: ドラムの下の端 (sheetTopY) では 0、
- * ビームの上の端 (woundTopY) では wrapTiltX (巻いた糸が太るほど大きい)。手まえに近づくほど左へずれる (PU-29)。
- */
-export function sheetTiltX(y: number, progress: number): number {
+export function sheetShiftX(y: number, progress: number): number {
   const top = sheetTopY(progress);
   const beamTop = woundTopY(progress);
   const k = Math.min(1, Math.max(0, (y - top) / Math.max(1, beamTop - top)));
-  return wrapTiltX(woundRadius(progress)) * k;
+  return DRUM_DEPTH_SHIFT * (1 - k);
 }
 
-/** 糸のシートの縦の筋と左右の端の x。手まえに近づくほど sheetTiltX ぶんだけ左へずれる (PU-29) */
+/** 糸のシートの縦の筋と左右の端の x。ドラムの下の端 (奥) ほど DRUM_DEPTH_SHIFT ぶん右へずれ、ビームの上に乗る所 (手まえ) で 0 になる (PU-29 追加修正) */
 export function sheetEdgeX(baseX: number, y: number, progress: number): number {
-  return baseX - sheetTiltX(y, progress);
+  return baseX + sheetShiftX(y, progress);
 }
 
 /** 上の設定表示の位置 (画面 px で描く) */

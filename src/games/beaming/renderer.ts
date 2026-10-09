@@ -2,9 +2,10 @@ import type { Content } from '../../core/content/content';
 import { COLORS } from '../../core/ui/tokens';
 import type { StageFit } from '../../core/viewport/viewport';
 import {
-  BOARD, BEAM_CENTER_X, DRUM_X, DRUM_W, CORE_R, ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX, FLANGE_RX, woundRadius, woundTopY, sheetTopY, sheetDropEndY, lampR, threadBarRange, cmToX, pxPerCm, beamWrapX, sheetEdgeX,
+  BOARD, BEAM_CENTER_X, DRUM_X, DRUM_W, CORE_R, ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX, FLANGE_RX, woundRadius, woundTopY, sheetTopY, sheetDropEndY, lampR, threadBarRange, cmToX, pxPerCm, sheetShiftX, sheetEdgeX, beamArcX,
   speedBarCenterX, SPEED_BAR_W, lampX, lampY,
 } from './geometry';
+import { DRUM_DEPTH_SHIFT } from './params';
 import { okRangeOf } from './logic';
 import { DRUM_SURFACE_SIGN, BEAM_SURFACE_SIGN, DRUM_FLANGE_SIGN, BEAM_FLANGE_SIGN, PATTERN_REPEATS } from './params';
 import { expandPlan, toRuns } from '../../core/domain/stripe';
@@ -140,8 +141,9 @@ export function drawDrum(ctx: CanvasRenderingContext2D, runs: Array<{ hex: strin
   const half = (BOARD.drumH / 2) * (1 - 0.3 * Math.min(1, Math.max(0, s.progress))); // 巻き取られて細る
   const top = cy - half;
   const bottom = cy + half;
-  const x0 = DRUM_X;
-  const x1 = DRUM_X + DRUM_W;
+  const dx = DRUM_DEPTH_SHIFT; // ドラムはビームより奥にあるので、少し右から見ると右へずれて見える (PU-29 追加修正)
+  const x0 = DRUM_X + dx;
+  const x1 = DRUM_X + DRUM_W + dx;
   // 胴 (機械の緑。上下を暗く、上寄りを明るく)。上の線 → 右の端 → 下の線 → 左の輪郭 (丸みの曲線)
   const grad = ctx.createLinearGradient(0, top, 0, bottom);
   grad.addColorStop(0, COLORS.machineDark);
@@ -163,8 +165,8 @@ export function drawDrum(ctx: CanvasRenderingContext2D, runs: Array<{ hex: strin
   ctx.fill();
   // 巻かれた糸 (柄の色。胴の中ほど = 糸のシートの幅。丸みに沿った円周の筋で描く)
   const wHalf = (s.widthCm * pxPerCm(s.widthCm)) / 2;
-  const w0 = Math.max(x0, BEAM_CENTER_X - wHalf);
-  const w1 = Math.min(x1, BEAM_CENTER_X + wHalf);
+  const w0 = Math.max(x0, BEAM_CENTER_X - wHalf + dx); // ドラムの巻いた糸もドラムと同じだけ右へ (PU-29 追加修正)
+  const w1 = Math.min(x1, BEAM_CENTER_X + wHalf + dx);
   // 柄の縞: 円周の向き (画面では丸みに沿った縦の縞) に色が並ぶ。1 本ずつ、左右の縁を円周の筋と同じ丸みで切る
   for (const st of stripeStrips(runs, repeats, w0, w1)) {
     ctx.fillStyle = st.hex;
@@ -231,15 +233,16 @@ export function drawDrum(ctx: CanvasRenderingContext2D, runs: Array<{ hex: strin
   }
 }
 
-/** 糸の束の先の木の棒 (水平。束の幅より左右に長く、端は丸い。太さは画面上 12px 以上。PU-27) */
+/** 糸の束の先の木の棒 (水平。束の幅より左右に長く、端は丸い。太さは画面上 12px 以上。PU-27)。x はその高さのシートのずれぶん右 (当たり判定と同じ式。PU-29 追加修正) */
 function drawThreadBar(ctx: CanvasRenderingContext2D, fit: StageFit, s: BeamingState, y: number): void {
   const r = threadBarRange(s.widthCm);
+  const dx = sheetShiftX(y, s.progress);
   const h = Math.max(14, 12 / fit.scale);
   ctx.fillStyle = COLORS.wood;
-  ctx.fillRect(r.x0, y - h / 2, r.x1 - r.x0, h);
+  ctx.fillRect(r.x0 + dx, y - h / 2, r.x1 - r.x0, h);
   ctx.beginPath();
-  ctx.arc(r.x0, y, h / 2, 0, Math.PI * 2);
-  ctx.arc(r.x1, y, h / 2, 0, Math.PI * 2);
+  ctx.arc(r.x0 + dx, y, h / 2, 0, Math.PI * 2);
+  ctx.arc(r.x1 + dx, y, h / 2, 0, Math.PI * 2);
   ctx.fill();
 }
 
@@ -415,13 +418,13 @@ function drawBeam(ctx: CanvasRenderingContext2D, s: BeamingState, runs: Array<{ 
       ctx.beginPath();
       for (let i = 0; i <= steps; i++) {
         const t = -1 + (2 * i) / steps;
-        const x = beamWrapX(st.x1, t, r);
+        const x = beamArcX(st.x1, t, r);
         if (i === 0) ctx.moveTo(x, axisY + r * t);
         else ctx.lineTo(x, axisY + r * t);
       }
       for (let i = steps; i >= 0; i--) {
         const t = -1 + (2 * i) / steps;
-        ctx.lineTo(beamWrapX(st.x0, t, r), axisY + r * t);
+        ctx.lineTo(beamArcX(st.x0, t, r), axisY + r * t);
       }
       ctx.closePath();
       ctx.fill();
