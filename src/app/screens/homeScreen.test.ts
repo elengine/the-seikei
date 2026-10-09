@@ -127,7 +127,7 @@ describe('ホーム画面 (PU-03a)', () => {
     expect(creel.querySelector('.game-card__name')!.classList.contains('font-heading')).toBe(true);
     expect(creel.querySelector('.game-card__summary')!.textContent).toBe('依頼書のとおりにコーンを立てる');
     expect(creel.querySelector('.game-card__status')!.textContent).toMatch(/^お題 \d+$/);
-    expect(cards[1]!.querySelector('.game-card__status')!.textContent).toBe('初級・中級・上級');
+    expect(cards[1]!.querySelector('.game-card__status')!.textContent).toMatch(/^お題 \d+$/); // PU-34: ドラム巻きも「お題 N」になった
     expect(creel.querySelector('.game-card__art')).not.toBeNull();
     creel.click();
     expect(navigate).toHaveBeenCalledWith('/games/creel');

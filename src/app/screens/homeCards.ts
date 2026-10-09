@@ -1,5 +1,8 @@
 import { COLORS } from '../../core/ui/tokens';
 import { getContent } from '../../core/content/content';
+import { windingPuzzles } from '../../games/winding/puzzles';
+import { beamingPuzzles } from '../../games/beaming/puzzles';
+import { itowariPuzzles } from '../../games/itowari/puzzles';
 
 const NS = 'http://www.w3.org/2000/svg';
 
@@ -107,13 +110,13 @@ export function gameStatusText(id: string): string {
     return `お題 ${getContent().creelPuzzles.length}`;
   }
   if (id === 'winding') {
-    return '初級・中級・上級';
+    return `お題 ${windingPuzzles(getContent()).length}`; // PU-34: 初級・中級・上級 から お題 N に変えた
   }
   if (id === 'beaming') {
-    return `お題 ${getContent().creelPuzzles.length}`;
+    return `お題 ${beamingPuzzles(getContent()).length}`;
   }
   if (id === 'itowari') {
-    return `お題 ${getContent().creelPuzzles.length}`;
+    return `お題 ${itowariPuzzles(getContent()).length}`;
   }
   return '';
 }
