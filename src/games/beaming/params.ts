@@ -91,3 +91,35 @@ export const STAR_WIDTH2 = 3;
 /** 幅合わせが「合いました」になる誤差 (cm) */
 export const WIDTH_OK_CM = 1;
 
+
+/**
+ * 横から見た機械の形 (PU-32)。管理者の横から見た図 (ドラム・糸の向きを変える鉄の棒 2 本・ビーム・速さの木の棒) を、
+ * 図のピクセルの比率のまま持つ。z = 奥行き (手前が +。図の右)、h = 高さ (上が +。図の y を逆にした値)。単位は図のピクセル。
+ * 正面の絵は、ここから SIDE_PROJECTION の式で計算で作る (side.ts)。
+ */
+export const SIDE = {
+  drum: { z: 290, h: -380, r: 180 }, // ドラム (青)
+  bar1: { z: 705, h: -340, r: 25 }, // 糸の向きを変える鉄の棒 1 (黄の左)
+  bar2: { z: 840, h: -340, r: 20 }, // 鉄の棒 2 (黄の右)
+  beam: { z: 880, h: -490, r: 80 }, // ビームの円盤 (緑)
+  wood: { z: 845, h: -205 }, // 速さの木の棒 (茶。断面の中心)
+} as const;
+
+/** ドラムが巻き取られて細る割合 (巻き量 100% で半径が 1 − この値)。ドラムの枠 (胴・桟) は変わらない */
+export const SIDE_DRUM_SHRINK = 0.3;
+/** ビームに巻いた糸の半径 (円盤の半径に対する割合): 巻き量 0 で SIDE_WOUND_MIN、100% で SIDE_WOUND_MAX */
+export const SIDE_WOUND_MIN = 0.128;
+export const SIDE_WOUND_MAX = 0.8;
+/** 糸を付ける前に、鉄の棒 2 から垂れる糸の長さ (図のピクセル) */
+export const SIDE_DROP0 = 35;
+
+/**
+ * 横から見た形 (z, h) を正面の絵へ写す式の係数 (手前の少し上・少し右から見た形):
+ *   画面の y = Y0 + S × (KH × (−h) + KZ × z)  (奥ほど上に見える)
+ *   画面の x = (幅の位置の x) + KX × (SIDE_Z_REF − z)  (手前ほど左に見える。奥のドラムは右へずれる)
+ * S は盤面の高さ H に比例 (ドラムの上の端がランプの空き SIDE_TOP_FRAC × H、ビームの円盤の下の端が SIDE_BOTTOM_FRAC × H に来る)。
+ */
+export const SIDE_PROJECTION = { KH: 1, KZ: 0.38, KX: 0.17 } as const;
+export const SIDE_Z_REF = 880;
+export const SIDE_TOP_FRAC = 0.15;
+export const SIDE_BOTTOM_FRAC = 0.915;
