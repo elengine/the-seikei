@@ -2550,12 +2550,6 @@ button {
 }
 
 /* 目標値・現在値の小さな札 (薄い生成りの地。角を少し丸く。色は既存の変数。PU-29) */
-.beaming-panel__setup-plaque {
-  padding: 2px var(--sp-1);
-  background: var(--c-kinari);
-  border-radius: 6px;
-}
-
 .beaming-panel__setup-num {
   font-size: 36px;
   font-weight: bold;
@@ -2677,6 +2671,12 @@ button {
 .beaming-panel__info,
 .beaming-panel__shift .btn {
   font-size: min(var(--fs-body), 20px);
+}
+
+/* 糸を付ける段階の案内 (「ドラムの糸を、ビームまで引っぱってください」): 差の文と同じくらい目立つ 28px 以上。地と枠は無い (PU-30 2) */
+.beaming-panel__attach-guide {
+  font-size: 28px;
+  line-height: 1.25;
 }
 
 .beaming-panel .tension-meter,

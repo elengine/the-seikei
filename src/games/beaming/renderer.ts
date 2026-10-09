@@ -2,7 +2,7 @@ import type { Content } from '../../core/content/content';
 import { COLORS } from '../../core/ui/tokens';
 import type { StageFit } from '../../core/viewport/viewport';
 import {
-  BOARD, BEAM_CENTER_X, DRUM_X, DRUM_W, CORE_R, ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX, FLANGE_RX, woundRadius, woundTopY, sheetTopY, sheetDropEndY, lampR, threadBarRange, cmToX, pxPerCm, sheetShiftX, sheetEdgeX, beamArcX,
+  BOARD, BEAM_CENTER_X, DRUM_X, DRUM_W, CORE_R, ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX, FLANGE_RX, woundRadius, woundTopY, sheetTopY, sheetDropEndY, lampR, threadBarRange, cmToX, pxPerCm, sheetShiftX, sheetEdgeX,
   speedBarCenterX, SPEED_BAR_W, lampX, lampY,
 } from './geometry';
 import { DRUM_DEPTH_SHIFT } from './params';
@@ -99,14 +99,17 @@ export function drawBoard(
   // 1. 奥: ドラム (横に寝た円筒。糸の筋は縦。巻き取られて少しずつ細る)
   drawDrum(ctx, runs, repeats, drumAngle, s);
 
-  // 2. 糸のシート (ドラムの下側から手前へ降りる。柄の色の縦の筋)
+  // 2. ビームの奥の部分 (軸と左の円盤。左の円盤は糸のシートより奥。PU-30 4)
+  drawBeamBack(ctx, s, beamAngle);
+
+  // 3. 糸のシート (ドラムの下側から手前へ降りる。柄の色の縦の筋)
   drawSheet(ctx, s, runs, repeats, s.phase === 'attach' && threadDrag ? threadDrag.y : null);
 
-  // 3. 速さの木の棒 (シートがくぐる位置。横に渡した赤茶の角材)
+  // 4. 速さの木の棒 (シートがくぐる位置。横に渡した赤茶の角材)
   drawLever(ctx, fit, s, lever);
 
-  // 4. 手前: ビーム (巻いた糸の円筒・左右の円盤・飛び出す軸)
-  drawBeam(ctx, s, runs, repeats, beamAngle);
+  // 5. 手前: ビームの手前の部分 (巻いた糸の円筒・右の円盤・右に出る軸。PU-30 4)
+  drawBeamFront(ctx, s, runs, repeats, beamAngle);
 
   // 5. 幅合わせの段階: 目標の巻き幅の点線と目盛り (cm)、円盤の内側の印
   if (s.phase === 'setup') {
@@ -206,8 +209,8 @@ export function drawDrum(ctx: CanvasRenderingContext2D, runs: Array<{ hex: strin
     const y = cy + DRUM_SURFACE_SIGN * half * Math.sin(th);
     const t = (y - cy) / half;
     ctx.lineWidth = Math.max(1.5, 5 * cosT);
-    // 巻いた糸の幅の外 (胴の見えている所) にだけ描く。巻いた糸の上には横の線を引かない (PU-28)
-    for (const [sa, sb] of [[drumArcX(x0, t), w0], [w1, x1]] as const) {
+    // 巻いた糸の上には描かない (PU-28・PU-30 3)。桟の線の端は、その高さの巻いた糸の縁の曲線 (drumArcX の「(」) で止める
+    for (const [sa, sb] of [[drumArcX(x0, t), drumArcX(w0, t)], [drumArcX(w1, t), x1]] as const) {
       if (sb <= sa) continue;
       ctx.beginPath();
       ctx.moveTo(sa, y);
@@ -396,57 +399,83 @@ function drawFlange(ctx: CanvasRenderingContext2D, x: number, beamAngle: number)
  * 少し斜めの構図で右を向いた面が見える。奥 (左) から手前 (右) の順に: 軸全体 → 左の円盤 → 軸の手前側 → 巻いた糸の円筒 →
  * 右の円盤 → 右の円盤の手前に出る軸と端のつまみ。巻いた糸は軸を中心に上下に太り、円盤と同じ向きの楕円の端を持つ。
  */
-function drawBeam(ctx: CanvasRenderingContext2D, s: BeamingState, runs: Array<{ hex: string; frac: number }>, repeats: number, beamAngle: number): void {
+/** ビームの奥の部分: 軸の全体と左の円盤、円盤のあいだの軸。糸のシートより奥に描く (PU-30 4) */
+function drawBeamBack(ctx: CanvasRenderingContext2D, s: BeamingState, beamAngle: number): void {
+  const leftX = cmToX(s.widthCm, s.leftCm);
+  const rightX = cmToX(s.widthCm, s.rightCm);
+  const rodY = BOARD.axisY - CORE_R;
+  // 軸の全体 (長さは固定) と左端のつまみ
+  ctx.fillStyle = COLORS.steel;
+  ctx.fillRect(ROD_X0, rodY, ROD_X1 - ROD_X0, CORE_R * 2);
+  ctx.fillStyle = COLORS.sumi;
+  ctx.fillRect(ROD_X0 - 4, rodY - 5, 12, CORE_R * 2 + 10);
+  // 左の円盤 (軸はこの円盤の中心を貫く。円盤の面の手前 (右) に軸が出る)
+  drawFlange(ctx, leftX, beamAngle);
+  ctx.fillStyle = COLORS.steel;
+  ctx.fillRect(leftX, rodY, Math.max(0, rightX - leftX), CORE_R * 2);
+}
+
+/** ビームの手前の部分: 巻いた糸の円筒・回る光の帯・右の円盤と右に出る軸・つまみ (PU-30 4) */
+function drawBeamFront(ctx: CanvasRenderingContext2D, s: BeamingState, runs: Array<{ hex: string; frac: number }>, repeats: number, beamAngle: number): void {
   const leftX = cmToX(s.widthCm, s.leftCm);
   const rightX = cmToX(s.widthCm, s.rightCm);
   const axisY = BOARD.axisY;
   const rodY = axisY - CORE_R;
-  // 1. 軸の全体 (長さは固定)
-  ctx.fillStyle = COLORS.steel;
-  ctx.fillRect(ROD_X0, rodY, ROD_X1 - ROD_X0, CORE_R * 2);
-  // 2. 左の円盤 (軸はこの円盤の中心を貫く。円盤の面の手前 (右) に軸が出る)
-  drawFlange(ctx, leftX, beamAngle);
-  ctx.fillStyle = COLORS.steel;
-  ctx.fillRect(leftX, rodY, Math.max(0, rightX - leftX), CORE_R * 2);
-  // 3. 巻いた糸 (円盤のあいだ。軸を中心に上下に同じだけ太る円筒。円周の線はドラムと同じ「(」の曲線。PU-29)
   if (s.phase !== 'setup' && s.progress > 0) {
     const r = woundRadius(s.progress);
-    // 柄の縞 (縦。巻いた糸の円周の向き。1 本ずつ、円筒に沿った「(」の曲線の帯。上の端は糸のシートの下の端につながる)
+    // 柄の縞 (縦。巻いた糸の円周の向き。1 本ずつ、縁の曲線の帯。上の端は糸のシートの下の端につながる。
+    // 縁はシートの直線からビームの真ん中へ、角の無い1本のなめらかな曲線 (yarnEdgeX。PU-30 6))
     const steps = 16;
     for (const st of stripeStrips(runs, repeats, leftX, rightX)) {
       ctx.fillStyle = st.hex;
       ctx.beginPath();
       for (let i = 0; i <= steps; i++) {
         const t = -1 + (2 * i) / steps;
-        const x = beamArcX(st.x1, t, r);
-        if (i === 0) ctx.moveTo(x, axisY + r * t);
-        else ctx.lineTo(x, axisY + r * t);
+        const y = axisY + r * t;
+        const x = yarnEdgeX(st.x1, y, s.progress, r);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
       }
       for (let i = steps; i >= 0; i--) {
         const t = -1 + (2 * i) / steps;
-        ctx.lineTo(beamArcX(st.x0, t, r), axisY + r * t);
+        ctx.lineTo(yarnEdgeX(st.x0, axisY + r * t, s.progress, r), axisY + r * t);
       }
       ctx.closePath();
       ctx.fill();
     }
-    // 回っていることが分かる光の帯 (薄い明るさの反射。手前 (cos > 0) だけ。beamAngle が増えると下へ流れる。BEAM_SURFACE_SIGN)。横の線は引かない
+    // 回っていることが分かる光の帯 (薄い明るさの反射。手前 (cos > 0) だけ。beamAngle が増えると下へ流れる。BEAM_SURFACE_SIGN)。
+    // 帯の両端は、その高さの巻いた糸の縁の曲線の上 (弓なり。PU-30 5)。横の線は引かない
     ctx.fillStyle = COLORS.white;
     ctx.globalAlpha = 0.2;
+    const bh = r * 0.3;
     for (let k = 0; k < BEAM_STREAKS; k++) {
       const th = beamAngle + (Math.PI * 2 * k) / BEAM_STREAKS;
       if (Math.cos(th) <= 0) continue;
-      const bh = r * 0.3;
-      const y = axisY + BEAM_SURFACE_SIGN * r * Math.sin(th);
-      ctx.fillRect(leftX, y - bh / 2, rightX - leftX, bh);
+      const yc = axisY + BEAM_SURFACE_SIGN * r * Math.sin(th);
+      const y0 = Math.max(axisY - r, yc - bh / 2);
+      const y1 = Math.min(axisY + r, yc + bh / 2);
+      const steps = 6;
+      ctx.beginPath();
+      for (let i = 0; i <= steps; i++) {
+        const y = y0 + ((y1 - y0) * i) / steps;
+        const x = yarnEdgeX(leftX, y, s.progress, r);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      for (let i = steps; i >= 0; i--) {
+        const y = y0 + ((y1 - y0) * i) / steps;
+        ctx.lineTo(yarnEdgeX(rightX, y, s.progress, r), y);
+      }
+      ctx.closePath();
+      ctx.fill();
     }
     ctx.globalAlpha = 1;
   }
-  // 4. 右の円盤と、その手前 (右) に出る軸・端のつまみ
+  // 右の円盤と、その手前 (右) に出る軸・端のつまみ
   drawFlange(ctx, rightX, beamAngle);
   ctx.fillStyle = COLORS.steel;
   ctx.fillRect(rightX, rodY, Math.max(0, ROD_X1 - rightX), CORE_R * 2);
   ctx.fillStyle = COLORS.sumi;
-  ctx.fillRect(ROD_X0 - 4, rodY - 5, 12, CORE_R * 2 + 10);
   ctx.fillRect(ROD_X1 - 8, rodY - 5, 12, CORE_R * 2 + 10);
 }
 
@@ -521,3 +550,35 @@ function drawTensionLamp(ctx: CanvasRenderingContext2D, fit: StageFit, s: Beamin
   ctx.fillText(symbol, x, y + r * 0.05);
 }
 
+/**
+ * 巻いた糸の帯の縁の曲線 (PU-30 6)。上端 (woundTopY) では糸のシートの縁の直線 (sheetShiftX の傾き) につながり、
+ * ビームの真ん中の高さ (BOARD.axisY) でいちばん左 (beamArcX と同じふくらみ FLANGE_RX × r ÷ 円盤の半径)、
+ * 下端 (axisY + r) で xs に戻る。3点を通る単調な3次エルミートで、つなぎ目で傾きがそろう (角が無い)。
+ * シートの縞とビームの縞も、xs をずらした同じ曲線でつなぐ。
+ */
+export function yarnEdgeX(xs: number, y: number, progress: number, r: number): number {
+  const yTop = woundTopY(progress);
+  if (y <= yTop) return xs + sheetShiftX(y, progress); // シートの直線部分 (傾きもそろう)
+  const axisY = BOARD.axisY;
+  const yMid = axisY;
+  const yBot = axisY + r;
+  const B = FLANGE_RX * (r / BOARD.flangeR); // 真ん中でのふくらみ (beamArcX と同じ)
+  const sec1 = yMid - yTop;
+  const sec2 = yBot - yMid;
+  // シートの直線の傾き (dx/dy)。単調になるよう3次の制限 (3×割線) で丸める
+  let m0 = (0 - DRUM_DEPTH_SHIFT) / (yTop - sheetTopY(progress));
+  const d1 = -B / sec1; // 区間1の割線 (左へ下がる)
+  if (m0 < 0) m0 = Math.max(m0, 3 * d1); // 同じ向きで強すぎたら丸める
+  if (y <= yMid) {
+    return hermite(y, yTop, sec1, xs, xs - B, m0, 0);
+  }
+  return hermite(y, yMid, sec2, xs - B, xs, 0, B / sec2);
+}
+
+/** 3次エルミート (区間 [y0, y0+h]。両端の値と傾き) */
+function hermite(y: number, y0: number, h: number, p0: number, p1: number, m0: number, m1: number): number {
+  const t = (y - y0) / h;
+  const t2 = t * t;
+  const t3 = t2 * t;
+  return (2 * t3 - 3 * t2 + 1) * p0 + (t3 - 2 * t2 + t) * h * m0 + (-2 * t3 + 3 * t2) * p1 + (t3 - t2) * h * m1;
+}

@@ -418,18 +418,27 @@ describe('PU-28b 3: 円盤調整の「目標・いま」を横並びに', () => 
     expect(parseInt(diff.match(/font-size:\s*(\d+)px/)![1]!, 10)).toBeGreaterThanOrEqual(28);
   });
 
-  it('3. 目標値と現在値は薄い生成りの地の小さな札 (角を少し丸く)。色は既存の変数だけ (札は PU-29 で足した)', () => {
+  it('3. 目標値と現在値の地 (背景の色) と角の丸みは無い (PU-30 1。文字の大きさ・太さ・並びは今のまま)。色は既存の変数だけ', () => {
     const css = readFileSync('src/styles/base.css', 'utf8');
-    const plaque = css.match(/\.beaming-panel__setup-plaque\s*\{([^}]*)\}/)![1]!;
-    expect(plaque).toContain('var(--c-kinari)');
-    expect(plaque).toContain('border-radius');
-    expect(/#[0-9a-fA-F]{3,8}\b/.test(plaque)).toBe(false);
+    expect(css.match(/\.beaming-panel__setup-plaque\s*\{[^}]*background/), '札の地の色は無い (PU-30 1)').toBeNull();
+    expect(css.match(/\.beaming-panel__setup-plaque\s*\{[^}]*border-radius/), '札の角の丸みは無い (PU-30 1)').toBeNull();
     const p = createBeamingPanel(host, { terms, onAction: () => undefined });
     p.update(setupWith(-33, 33));
     const plaques = host.querySelectorAll('.beaming-panel__setup-plaque');
     expect(plaques).toHaveLength(2); // 目標値と現在値の 2 つ
     expect((plaques[0] as HTMLElement).textContent).toBe('目標値 60cm');
     expect((plaques[1] as HTMLElement).textContent).toBe('現在値 66cm');
+    p.destroy();
+  });
+
+  it('4. 案内「ドラムの糸を、ビームまで引っぱってください」は 28px 以上 (差の文と同じくらい目立つ。PU-30 2)', () => {
+    const css = readFileSync('src/styles/base.css', 'utf8');
+    const guide = css.match(/\.beaming-panel__attach-guide\s*\{([^}]*)\}/)![1]!;
+    expect(parseInt(guide.match(/font-size:\s*(\d+)px/)![1]!, 10)).toBeGreaterThanOrEqual(28);
+    const p = createBeamingPanel(host, { terms, onAction: () => undefined });
+    p.update({ ...beaming(), phase: 'attach' });
+    const el = host.querySelector('.beaming-panel__attach-guide') as HTMLElement;
+    expect(el.textContent).toBe('ドラムの糸を、ビームまで引っぱってください');
     p.destroy();
   });
 });

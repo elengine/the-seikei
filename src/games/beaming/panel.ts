@@ -112,7 +112,7 @@ export function createBeamingPanel(
   attachBlock.className = 'beaming-panel__block';
   attachBlock.setAttribute('aria-label', '糸を付ける');
   const attachText = document.createElement('div');
-  attachText.className = 'beaming-panel__info';
+  attachText.className = 'beaming-panel__info beaming-panel__attach-guide'; // 案内は大きく (28px 以上。PU-30 2)
   attachText.textContent = 'ドラムの糸を、ビームまで引っぱってください';
   attachBlock.appendChild(attachText);
   root.appendChild(attachBlock);
