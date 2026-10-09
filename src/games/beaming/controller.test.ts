@@ -491,12 +491,12 @@ describe('PU-15b: 円盤を絵の上で引っぱって合わせる', () => {
     instance.unmount();
   });
 
-  it('円盤を動かすボタン (◀▶) は無い。最初に「円盤を左右に引っぱって、巻き幅に合わせます」のお知らせが 1 回出る。巻き返しに入ると円盤は引っぱれない', async () => {
+  it('円盤を動かすボタン (◀▶) は無い。最初に「円盤を左右に動かして目標値に合わせます」のお知らせが 1 回出る (文は PU-29 で変えた)。巻き返しに入ると円盤は引っぱれない', async () => {
     const { instance, stage, fit } = await open();
     const labels = Array.from(container.querySelectorAll('button')).map((b) => b.getAttribute('aria-label') ?? b.textContent ?? '');
     expect(labels.some((l) => /円盤を(左|右)へ/.test(l))).toBe(false);
     expect(container.querySelectorAll('.game-frame__notice')).toHaveLength(1);
-    expect(container.querySelector('.game-frame__notice')!.textContent).toBe('円盤を左右に引っぱって、巻き幅に合わせます');
+    expect(container.querySelector('.game-frame__notice')!.textContent).toBe('円盤を左右に動かして目標値に合わせます'); // 文は PU-29 で変えた
     // 円盤調整完了 のあとは動かない (attach 段階。円盤は引っぱれない)
     Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '円盤調整完了')!.click();
     const l0 = leftCm(instance);
@@ -969,9 +969,10 @@ describe('PU-28 1: 縦長では見る情報を盤面の上の帯 (.beaming-top) 
     expect(top).not.toBeNull();
     expect(before(top, canvas)).toBe(true);
     expect(top.contains(container.querySelector('.beaming-panel__setup'))).toBe(true);
-    expect(top.textContent).toContain('目標 60cm');
-    expect(top.contains(container.querySelector('.order-ticket'))).toBe(false);
-    expect(container.querySelector('.beaming-panel')!.contains(container.querySelector('.order-ticket'))).toBe(true);
+    expect(top.textContent).toContain('目標値 60cm');
+    // 依頼票は帯のいちばん上 (PU-29)。操作欄には残らない
+    expect(top.firstElementChild!.className).toBe('order-ticket');
+    expect(container.querySelector('.beaming-panel')!.contains(container.querySelector('.order-ticket'))).toBe(false);
     expect(container.querySelector('.beaming-panel')!.textContent).toContain('円盤調整完了');
     instance.unmount();
     document.body.textContent = '';
@@ -986,12 +987,13 @@ describe('PU-28 1: 縦長では見る情報を盤面の上の帯 (.beaming-top) 
     m.instance.unmount();
   });
 
-  it('横長 (900×400): 帯は使わず、今のまま操作欄の中に置く', async () => {
+  it('横長 (900×400): 帯は使わず、今のまま操作欄の中に置く。依頼票は操作欄のいちばん上 (PU-29)', async () => {
     const { instance } = await mountIn(900, 400, setupAligned());
     raf.advance(2);
     const top = container.querySelector('.beaming-top');
     expect(top === null || top.childElementCount === 0).toBe(true);
     expect(container.querySelector('.beaming-panel')!.contains(container.querySelector('.beaming-panel__setup'))).toBe(true);
+    expect((container.querySelector('.beaming-panel') as HTMLElement).firstElementChild!.className).toBe('order-ticket');
     instance.unmount();
   });
 });

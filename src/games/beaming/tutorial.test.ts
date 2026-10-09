@@ -9,7 +9,7 @@ import { COLORS } from '../../core/ui/tokens';
 describe('ビーム巻きの遊び方 T3-03b (3ページ)', () => {
   it('4ページあり、文は幅合わせ・糸を付ける・張りで巻く・止めて完了の順。寄せる・偏りの説明は無い (T3-06)', () => {
     expect(beamingTutorial.pages).toHaveLength(4);
-    expect(beamingTutorial.pages[0]!.text).toContain('引っぱ');
+    expect(beamingTutorial.pages[0]!.text).toContain('動かして'); // 1 ページ目の文は PU-29 で変えた (「引っぱって」→「動かして」)
     expect(beamingTutorial.pages[0]!.text).toContain('円盤調整完了');
     expect(beamingTutorial.pages[1]!.text).toContain('引っぱって離す');
     expect(beamingTutorial.pages[2]!.text).toContain('張りのメーター');
@@ -86,7 +86,7 @@ describe('T3-06 (遊び方を4ページに。3つの作業と張りのメータ�
 
   it('4ページの文が決めたとおり。大人向けの文で、絵は今の盤面に合わせる', () => {
     const [p1, p2, p3, p4] = texts();
-    expect(p1).toBe('ビームの両端の円盤を左右に引っぱって、巻き幅に合わせます。合わせたら『円盤調整完了』を押します');
+    expect(p1).toBe('ビームの両端の円盤を左右に動かして、目標値に合わせます。合わせたら『円盤調整完了』を押します'); // 文は PU-29 で変えた
     expect(p2).toBe('ドラムの糸の束の先の木の棒を、指でビームまで引っぱって離すと、糸がビームに付きます');
     expect(p3).toBe('木の棒を右へ引っぱると巻き始めます。張りのメーターの緑の範囲に入るように、速さを合わせます。緑の範囲は、巻き量に合わせて動きます');
     expect(p4).toBe('巻き量が 95% を超えたら、木の棒を左端まで戻して止め、『完了』を押します。100% で止めるといちばんよい結果です。101% に届くと糸が切れます');

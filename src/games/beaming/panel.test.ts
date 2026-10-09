@@ -41,8 +41,8 @@ describe('beaming panel T3-03a (操作欄)', () => {
     const labels = Array.from(host.querySelectorAll('button')).map((b) => b.getAttribute('aria-label') ?? b.textContent);
     expect(labels.some((l) => /円盤を(左|右)へ/.test(String(l)))).toBe(false);
     expect(host.textContent).not.toContain('◀ 左');
-    expect(host.textContent).toContain('目標 60cm'); // 目標と今の幅の数字 (PU-27 で大きく)
-    expect(host.textContent).toMatch(/いま \d+cm/);
+    expect(host.textContent).toContain('目標値 60cm'); // 目標値と現在値の数字 (PU-27 で大きく・呼び名は PU-29)
+    expect(host.textContent).toMatch(/現在値 \d+cm/);
     p.destroy();
   });
 
@@ -80,7 +80,7 @@ describe('beaming panel T3-03a (操作欄)', () => {
     p.destroy();
   });
 
-  it('6. 「巻き量」は操作欄の一番上に 1 か所だけ。依頼票は 1 つ (柄の名前・巻き幅・帯の数。PU-27)', () => {
+  it('6. 依頼票は 1 つ (柄の名前・巻き幅・帯の数) で操作欄のいちばん上、「巻き量」はその次に 1 か所だけ (並びは PU-29 で変えた)', () => {
     const p = createBeamingPanel(host, {
       terms,
       onAction: () => undefined,
@@ -93,7 +93,9 @@ describe('beaming panel T3-03a (操作欄)', () => {
     p.update(beaming());
     const amounts = host.querySelectorAll('.beaming-panel__amount');
     expect(amounts).toHaveLength(1);
-    expect(host.querySelector('.beaming-panel')!.firstElementChild).toBe(amounts[0]);
+    const panel = host.querySelector('.beaming-panel') as HTMLElement;
+    expect(panel.firstElementChild!.className).toBe('order-ticket'); // 依頼票はいちばん上 (PU-29)
+    expect(panel.children[1]).toBe(amounts[0]); // 巻き量はその次
     expect(amounts[0]!.textContent).toBe('巻き量 0%');
     expect((host.textContent ?? '').match(/巻き量/g)).toHaveLength(1); // 依頼票の「巻き幅」は別の言葉
     expect(host.textContent).not.toContain('巻いた');
@@ -274,12 +276,12 @@ describe('PU-27: 円盤調整の目標と今の幅を大きく (setup)', () => {
   const setupWith = (left: number, right: number): BeamingState => ({ ...make(), leftCm: left, rightCm: right });
   const lines = (): string[] => Array.from(host.querySelectorAll('.beaming-panel__setup-line')).map((e) => e.textContent ?? '');
 
-  it('1. 1 行目「目標 60cm」、2 行目「いま 66cm」、3 行目は差。巻き量の行 (setup では 0) は出さない', () => {
+  it('1. 1 行目「目標値 60cm」、2 行目「現在値 66cm」、3 行目は差。巻き量の行 (setup では 0) は出さない (呼び名は PU-29 で変えた)', () => {
     const p = createBeamingPanel(host, { terms, onAction: () => undefined });
-    p.update(setupWith(-33, 33)); // いま 66cm、目標 60cm
+    p.update(setupWith(-33, 33)); // 現在値 66cm、目標値 60cm
     const [l1, l2, l3] = lines();
-    expect(l1).toBe('目標 60cm');
-    expect(l2).toBe('いま 66cm');
+    expect(l1).toBe('目標値 60cm');
+    expect(l2).toBe('現在値 66cm');
     expect(l3).toBe('あと 6cm 狭く ◀▶');
     expect((host.querySelector('.beaming-panel__amount') as HTMLElement).style.display).toBe('none');
     p.destroy();
@@ -380,11 +382,13 @@ describe('PU-28b 3: 円盤調整の「目標・いま」を横並びに', () => 
     p.destroy();
   });
 
-  it('2. 行の入れ物は横並び (flex-direction: row)。数字は 32px 以上・見出しと単位は 22px 以上・差の文は 28px 以上 (base.css。PU-28b で仕様が変わった)', () => {
+  it('2. 行の入れ物は横並び (縦長の帯 .beaming-top では flex-direction: row)・縦並び (横長の操作欄の既定は column)。数字は 32px 以上・見出しと単位は 22px 以上・差の文は 28px 以上 (base.css。並びの向きは PU-29 で変えた: 横長は縦並び)', () => {
     const css = readFileSync('src/styles/base.css', 'utf8');
     const row = css.match(/\.beaming-panel__setup-row\s*\{([^}]*)\}/)![1]!;
     expect(row).toContain('display: flex');
-    expect(row).not.toContain('column');
+    expect(row).toContain('column'); // 横長 (操作欄) は縦並び (PU-29)
+    const topRow = css.match(/\.beaming-top \.beaming-panel__setup-row\s*\{([^}]*)\}/)![1]!;
+    expect(topRow).toContain('row'); // 縦長 (盤面の上の帯) は横並び (PU-29)
     const num = css.match(/\.beaming-panel__setup-num\s*\{([^}]*)\}/)![1]!;
     expect(parseInt(num.match(/font-size:\s*(\d+)px/)![1]!, 10)).toBeGreaterThanOrEqual(32);
     const line = css.match(/\.beaming-panel__setup-line\s*\{([^}]*)\}/)![1]!;
@@ -393,16 +397,81 @@ describe('PU-28b 3: 円盤調整の「目標・いま」を横並びに', () => 
     expect(parseInt(diff.match(/font-size:\s*(\d+)px/)![1]!, 10)).toBeGreaterThanOrEqual(28);
   });
 
-  it('3. 差の文は目立たせる (枠か背景の帯がある。色は既存の変数だけ)。ぴったりだけ藍の印', () => {
+  it('3. 目標値と現在値は薄い生成りの地の小さな札 (角を少し丸く)。色は既存の変数だけ (札は PU-29 で足した)', () => {
+    const css = readFileSync('src/styles/base.css', 'utf8');
+    const plaque = css.match(/\.beaming-panel__setup-plaque\s*\{([^}]*)\}/)![1]!;
+    expect(plaque).toContain('var(--c-kinari)');
+    expect(plaque).toContain('border-radius');
+    expect(/#[0-9a-fA-F]{3,8}\b/.test(plaque)).toBe(false);
+    const p = createBeamingPanel(host, { terms, onAction: () => undefined });
+    p.update(setupWith(-33, 33));
+    const plaques = host.querySelectorAll('.beaming-panel__setup-plaque');
+    expect(plaques).toHaveLength(2); // 目標値と現在値の 2 つ
+    expect((plaques[0] as HTMLElement).textContent).toBe('目標値 60cm');
+    expect((plaques[1] as HTMLElement).textContent).toBe('現在値 66cm');
+    p.destroy();
+  });
+});
+
+describe('PU-29 a: 依頼票をいちばん上へ・目標値と現在値を大きく', () => {
+  let host: HTMLElement;
+  beforeEach(() => {
+    document.body.textContent = '';
+    host = document.createElement('div');
+    document.body.appendChild(host);
+  });
+  const setupWith = (left: number, right: number): BeamingState => ({ ...make(), leftCm: left, rightCm: right });
+
+  it('1. 依頼票は操作欄のいちばん上 (最初の要素)。盤面の上の帯へ移すと、帯のいちばん上になる (PU-29)', () => {
+    const p = createBeamingPanel(host, { terms, onAction: () => undefined, puzzle: { bands: 3, patternName: '紺の無地' } });
+    p.update(make());
+    const panel = host.querySelector('.beaming-panel') as HTMLElement;
+    expect(panel.firstElementChild!.className).toBe('order-ticket');
+    const band = document.createElement('div');
+    p.placeTop(band);
+    expect(band.firstElementChild!.className).toBe('order-ticket');
+    // 帯の中の並び: 依頼票 → 巻き量 → 円盤調整 → 糸を付ける案内 → 張りのメーター
+    expect(Array.from(band.children).map((e) => e.className)).toEqual([
+      'order-ticket',
+      'beaming-panel__amount',
+      'beaming-panel__setup',
+      'beaming-panel__block',
+      'beaming-panel__block',
+    ]);
+    p.placeTop(null);
+    expect((host.querySelector('.beaming-panel') as HTMLElement).firstElementChild!.className).toBe('order-ticket');
+    p.destroy();
+  });
+
+  it('2. 「目標値」「現在値」の数字は 36px 以上の太字 (藍)。見出しと単位は 22px 以上 (base.css。PU-29)', () => {
+    const css = readFileSync('src/styles/base.css', 'utf8');
+    const num = css.match(/\.beaming-panel__setup-num\s*\{([^}]*)\}/)![1]!;
+    expect(parseInt(num.match(/font-size:\s*(\d+)px/)![1]!, 10)).toBeGreaterThanOrEqual(36);
+    expect(num).toContain('font-weight: bold');
+    expect(num).toContain('var(--c-ai)');
+    const line = css.match(/\.beaming-panel__setup-line\s*\{([^}]*)\}/)![1]!;
+    expect(parseInt(line.match(/font-size:\s*(\d+)px/)![1]!, 10)).toBeGreaterThanOrEqual(22);
+  });
+
+  it('3. 差の文は 32px 以上で、枠と地の色は無い (PU-29)。ぴったりだけ藍の太字', () => {
     const css = readFileSync('src/styles/base.css', 'utf8');
     const diff = css.match(/\.beaming-panel__setup-diff\s*\{([^}]*)\}/)![1]!;
-    expect(/border|background/.test(diff)).toBe(true);
-    expect(/#[0-9a-fA-F]{3,8}\b/.test(diff)).toBe(false);
+    expect(parseInt(diff.match(/font-size:\s*(\d+)px/)![1]!, 10)).toBeGreaterThanOrEqual(32);
+    expect(diff).not.toContain('background');
+    expect(diff).not.toContain('border');
     const p = createBeamingPanel(host, { terms, onAction: () => undefined });
-    p.update(setupWith(-33, 33)); // いま 66cm、目標 60cm → 差あり
+    p.update(setupWith(-33, 33));
     expect(host.querySelector('.beaming-panel__setup-line--ok')).toBeNull();
-    p.update(setupWith(-30, 30)); // ぴったり
+    p.update(setupWith(-30, 30));
     expect(host.querySelector('.beaming-panel__setup-line--ok')).not.toBeNull();
     p.destroy();
+  });
+
+  it('4. 帯の中の依頼票は 1 行の形 (見本・名前・巻き幅・帯の数を横に並べ、折り返す)。見出しは出さない (base.css。PU-29)', () => {
+    const css = readFileSync('src/styles/base.css', 'utf8');
+    const bandTicket = css.match(/\.beaming-top \.order-ticket\s*\{([^}]*)\}/)![1]!;
+    expect(bandTicket).toContain('row');
+    expect(bandTicket).toContain('wrap');
+    expect(css).toMatch(/\.beaming-top \.order-ticket__title\s*\{[^}]*display:\s*none/);
   });
 });

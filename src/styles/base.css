@@ -2522,7 +2522,8 @@ button {
   max-width: 100%;
 }
 
-/* 円盤調整 (setup): 「目標」と「いま」を横並びにし、差の文を下の行に (PU-28b)。数字は 32px 以上、見出しと単位は 22px 以上、差の文は 28px 以上 */
+/* 円盤調整 (setup): 「目標値」「現在値」を札に入れ、差の文を下の行に (PU-29)。
+   縦長 (盤面の上の帯) では横並び、横長 (操作欄) では縦並び。数字は 36px 以上、見出しと単位は 22px 以上、差の文は 32px 以上 */
 .beaming-panel__setup {
   display: flex;
   flex-direction: column;
@@ -2531,8 +2532,15 @@ button {
 
 .beaming-panel__setup-row {
   display: flex;
+  flex-direction: column; /* 横長 (操作欄) は縦並び (PU-29) */
+  align-items: flex-start;
+  gap: var(--sp-1);
+}
+
+/* 縦長の盤面の上の帯では横並び (PU-29) */
+.beaming-top .beaming-panel__setup-row {
+  flex-direction: row;
   align-items: baseline;
-  gap: var(--sp-2);
 }
 
 .beaming-panel__setup-line {
@@ -2541,22 +2549,24 @@ button {
   color: var(--c-sumi);
 }
 
+/* 目標値・現在値の小さな札 (薄い生成りの地。角を少し丸く。色は既存の変数。PU-29) */
+.beaming-panel__setup-plaque {
+  padding: 2px var(--sp-1);
+  background: var(--c-kinari);
+  border-radius: 6px;
+}
+
 .beaming-panel__setup-num {
-  font-size: 32px;
+  font-size: 36px;
   font-weight: bold;
   line-height: 1.1;
   color: var(--c-ai);
 }
 
-/* 差の文 (「あと Ncm 狭く」など): 目立たせる (生成りの地の帯 + 枠。色は既存の変数。PU-28b) */
+/* 差の文 (「あと Ncm 狭く」など): 大きく、枠と地の色は無い (PU-29)。ぴったりだけ藍の太字 (--ok) */
 .beaming-panel__setup-diff {
-  font-size: 28px;
+  font-size: 32px;
   line-height: 1.2;
-  align-self: flex-start;
-  padding: 2px var(--sp-1);
-  background: var(--c-kinari);
-  border: 1px solid var(--c-line);
-  border-radius: 4px;
 }
 
 .beaming-panel__setup-line--ok {
@@ -2626,6 +2636,23 @@ button {
   pointer-events: none;
   background: var(--c-white);
   border-bottom: 1px solid var(--c-line);
+}
+
+/* 帯の中の依頼票は 1 行の形: 見本・名前・巻き幅・帯の数を横に並べ、入りきらなければ折り返す。見出しは出さない (PU-29) */
+.beaming-top .order-ticket {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--sp-2);
+}
+
+.beaming-top .order-ticket__title {
+  display: none;
+}
+
+.beaming-top .order-ticket__detail {
+  flex-direction: row;
+  align-items: baseline;
 }
 
 .order-ticket__detail {

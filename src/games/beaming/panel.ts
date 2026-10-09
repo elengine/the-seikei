@@ -21,10 +21,10 @@ export interface BeamingPanel {
   destroy(): void;
 }
 
-/** 「目標 60cm」「いま 66cm」の 1 行 (数字だけ大きく) */
+/** 「目標値 60cm」「現在値 66cm」の 1 行 (生成りの地の小さな札に入る。数字だけ大きく。PU-29) */
 function createSetupLine(label: string): { root: HTMLElement; num: HTMLElement } {
   const root = document.createElement('div');
-  root.className = 'beaming-panel__setup-line';
+  root.className = 'beaming-panel__setup-line beaming-panel__setup-plaque';
   const num = document.createElement('span');
   num.className = 'beaming-panel__setup-num';
   root.append(`${label} `, num, 'cm');
@@ -47,50 +47,7 @@ export function createBeamingPanel(
   const root = document.createElement('div');
   root.className = 'beaming-panel';
 
-  // 0. 巻き量 (操作欄の一番上に 1 か所だけ。大きな太字)
-  const amount = document.createElement('div');
-  amount.className = 'beaming-panel__amount';
-  root.appendChild(amount);
-
-
-  // 2. 円盤調整の段階 (setup): 「目標」と「いま」を横並びにし、差の文をその下の行に (PU-28b)。円盤は絵の上で引っぱって動かす (ボタンは無い。PU-15b)
-  const setupBlock = document.createElement('section');
-  setupBlock.className = 'beaming-panel__setup';
-  setupBlock.setAttribute('aria-label', '円盤調整');
-  const setupRow = document.createElement('div');
-  setupRow.className = 'beaming-panel__setup-row';
-  const targetLine = createSetupLine('目標');
-  const nowLine = createSetupLine('いま');
-  setupRow.appendChild(targetLine.root);
-  setupRow.appendChild(nowLine.root);
-  const diffLine = document.createElement('div');
-  diffLine.className = 'beaming-panel__setup-line beaming-panel__setup-diff';
-  setupBlock.appendChild(setupRow);
-  setupBlock.appendChild(diffLine);
-  root.appendChild(setupBlock);
-
-  // 2a. 糸を付ける段階: 案内の1行 (T3-06)
-  const attachBlock = document.createElement('section');
-  attachBlock.className = 'beaming-panel__block';
-  attachBlock.setAttribute('aria-label', '糸を付ける');
-  const attachText = document.createElement('div');
-  attachText.className = 'beaming-panel__info';
-  attachText.textContent = 'ドラムの糸を、ビームまで引っぱってください';
-  attachBlock.appendChild(attachText);
-  root.appendChild(attachBlock);
-
-  // 3. 巻く段階: 張りのメーター (ドラム巻きと同じ部品。範囲は巻き量で動く。T3-06)
-  const beamBlock = document.createElement('section');
-  beamBlock.className = 'beaming-panel__block';
-  beamBlock.setAttribute('aria-label', opts.terms.t('tension'));
-  beamBlock.appendChild(createSectionHeading(opts.terms.t('tension')));
-  const meterHost = document.createElement('div');
-  meterHost.className = 'beaming-panel__meter';
-  const meter: TensionMeter = createTensionMeter(meterHost, { label: '', showState: false }); // 状態の文は出さない (盤面のランプで示す)
-  beamBlock.appendChild(meter.root);
-  root.appendChild(beamBlock);
-
-  // 3a. 依頼票 (柄の名前・巻き幅・帯の数。小さな紙の札。横長の低い画面では巻き幅と帯の数を省く。PU-27)
+  // 0. 依頼票 (いちばん上。縦長では盤面の上の帯のいちばん上、横長では操作欄のいちばん上。PU-29)
   const ticket = document.createElement('div');
   ticket.className = 'order-ticket';
   const ticketTitle = document.createElement('div');
@@ -127,6 +84,52 @@ export function createBeamingPanel(
   ticket.appendChild(ticketDetail);
   root.appendChild(ticket);
 
+  // 1. 巻き量 (操作欄の一番上に 1 か所だけ。大きな太字)
+  const amount = document.createElement('div');
+  amount.className = 'beaming-panel__amount';
+  root.appendChild(amount);
+
+
+  // 2. 円盤調整の段階 (setup): 「目標値」「現在値」を札に入れ、差の文をその下の行に (PU-29)。
+  // 縦長 (盤面の上の帯) では横並び、横長 (操作欄) では縦並び (向きは base.css)。円盤は絵の上で引っぱって動かす (ボタンは無い。PU-15b)
+  const setupBlock = document.createElement('section');
+  setupBlock.className = 'beaming-panel__setup';
+  setupBlock.setAttribute('aria-label', '円盤調整');
+  const setupRow = document.createElement('div');
+  setupRow.className = 'beaming-panel__setup-row';
+  const targetLine = createSetupLine('目標値');
+  const nowLine = createSetupLine('現在値');
+  setupRow.appendChild(targetLine.root);
+  setupRow.appendChild(nowLine.root);
+  const diffLine = document.createElement('div');
+  diffLine.className = 'beaming-panel__setup-line beaming-panel__setup-diff';
+  setupBlock.appendChild(setupRow);
+  setupBlock.appendChild(diffLine);
+  root.appendChild(setupBlock);
+
+  // 2a. 糸を付ける段階: 案内の1行 (T3-06)
+  const attachBlock = document.createElement('section');
+  attachBlock.className = 'beaming-panel__block';
+  attachBlock.setAttribute('aria-label', '糸を付ける');
+  const attachText = document.createElement('div');
+  attachText.className = 'beaming-panel__info';
+  attachText.textContent = 'ドラムの糸を、ビームまで引っぱってください';
+  attachBlock.appendChild(attachText);
+  root.appendChild(attachBlock);
+
+  // 3. 巻く段階: 張りのメーター (ドラム巻きと同じ部品。範囲は巻き量で動く。T3-06)
+  const beamBlock = document.createElement('section');
+  beamBlock.className = 'beaming-panel__block';
+  beamBlock.setAttribute('aria-label', opts.terms.t('tension'));
+  beamBlock.appendChild(createSectionHeading(opts.terms.t('tension')));
+  const meterHost = document.createElement('div');
+  meterHost.className = 'beaming-panel__meter';
+  const meter: TensionMeter = createTensionMeter(meterHost, { label: '', showState: false }); // 状態の文は出さない (盤面のランプで示す)
+  beamBlock.appendChild(meter.root);
+  root.appendChild(beamBlock);
+
+  // 3a. 依頼票はいちばん上に移動した (PU-29)
+
   // 4. 一番下の主な操作 (巻き返しの段階は主な操作が無いので、行を詰める)
   const buttonRow = document.createElement('div');
   buttonRow.className = 'beaming-panel__actions';
@@ -156,17 +159,17 @@ export function createBeamingPanel(
   root.appendChild(buttonRow);
 
   parent.appendChild(root);
-  /** 縦長で盤面の上の帯へ移す部品 (操作欄の中の並び順) */
-  const topParts: HTMLElement[] = [amount, setupBlock, attachBlock, beamBlock];
+  /** 縦長で盤面の上の帯へ移す部品 (依頼票をいちばん上に。PU-29) */
+  const topParts: HTMLElement[] = [ticket, amount, setupBlock, attachBlock, beamBlock];
 
   return {
     placeTop(top: HTMLElement | null): void {
-      // 操作欄の中の元の並び (巻き量・円盤調整・糸を付ける案内・張りのメーター) のまま、上の帯と操作欄のあいだを移す
+      // 依頼票・巻き量・円盤調整・糸を付ける案内・張りのメーターの並びのまま、上の帯と操作欄のあいだを移す (PU-29)
       for (const el of topParts) {
         if (top !== null) {
           top.appendChild(el);
         } else if (el.parentElement !== root) {
-          root.insertBefore(el, ticket);
+          root.insertBefore(el, buttonRow);
         }
       }
     },

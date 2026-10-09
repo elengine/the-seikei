@@ -115,7 +115,7 @@ export const beamingTutorial: TutorialSpec = {
   pages: [
     {
       draw: (ctx, w, h) => drawPage1(ctx, w, h),
-      text: 'ビームの両端の円盤を左右に引っぱって、巻き幅に合わせます。合わせたら『円盤調整完了』を押します',
+      text: 'ビームの両端の円盤を左右に動かして、目標値に合わせます。合わせたら『円盤調整完了』を押します', // 文は PU-29 で変えた
     },
     {
       draw: (ctx, w, h) => drawPage2(ctx, w, h),

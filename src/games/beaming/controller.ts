@@ -523,7 +523,7 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
   ready = true;
   refresh();
   if (s.phase === 'setup') {
-    frame.notify('円盤を左右に引っぱって、巻き幅に合わせます'); // 最初の 1 回
+    frame.notify('円盤を左右に動かして目標値に合わせます'); // 最初の 1 回 (文は PU-29)
   }
 
   return {
