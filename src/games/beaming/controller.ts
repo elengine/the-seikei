@@ -12,7 +12,7 @@ import { init, reduce, resultLines } from './logic';
 import { seedFromText } from '../winding/logic';
 import { resultOf } from './messages';
 import type { BeamingState, BeamingAction, Level } from './logic';
-import { DRUM_TURN_PER_SPEED } from '../winding/params';
+import { DRUM_TURN_RATE, BEAM_TURN_RATE } from './params';
 
 const LEVEL_NAMES: Record<Level, string> = { 1: '初級', 2: '中級', 3: '上級' };
 const DONE_WAIT_MS = 1500; // done のあと結果を出すまでの見せる時間
@@ -56,6 +56,7 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
   let saveTimer: ReturnType<typeof setInterval> | null = null;
   let doneTimer: ReturnType<typeof setTimeout> | null = null;
   let drumAngle = 0; // ドラムが回って見える角度 (見た目だけの値。State には入らない)
+  let beamAngle = 0; // ビームが回って見える角度 (同じ。PU-26)
   let ready = false;
 
   const content = getContent();
@@ -179,7 +180,7 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
       const wasDragging = e.pointerId === threadDrag.id;
       const p = logicalOf(e);
       threadDrag = null;
-      if (wasDragging && s.phase === 'attach' && hitBeamWind(p, s.widthCm, s.progress)) {
+      if (wasDragging && s.phase === 'attach' && hitBeamWind(p, s)) {
         dispatch({ type: 'attachThread' });
       }
       render();
@@ -248,7 +249,7 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
     if (ctx === null) {
       return;
     }
-    drawBoard(ctx, lastFit, s, content, drumAngle, threadDrag);
+    drawBoard(ctx, lastFit, s, content, drumAngle, threadDrag, beamAngle);
   }
 
   // ---- 画面の更新 ----
@@ -321,6 +322,7 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
     });
     finished = false;
     drumAngle = 0;
+    beamAngle = 0;
     startLoop();
     refresh();
   }
@@ -365,10 +367,10 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
     const dtMs = lastFrameMs === null ? 0 : Math.max(0, ms - lastFrameMs);
     lastFrameMs = ms;
     if (dtMs > 0) {
-      // ドラムが回って見える角度 (巻いている速さに合わせる)
-      // ドラムが回って見える角度 (レバーの速さに合わせる。T3-04a)
+      // ドラムとビームが回って見える角度 (巻いている速さに合わせる。速さ 0 では止まる。PU-26)
       if (s.phase === 'beaming' && s.speed > 0) {
-        drumAngle += s.speed * DRUM_TURN_PER_SPEED * (dtMs / 1000);
+        drumAngle += s.speed * DRUM_TURN_RATE * (dtMs / 1000);
+        beamAngle += s.speed * BEAM_TURN_RATE * (dtMs / 1000);
       }
       const prev = s;
       const next = reduce(s, { type: 'tick', dtMs });

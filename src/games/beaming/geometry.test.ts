@@ -3,6 +3,7 @@ import {
   pxPerCm, cmToX, xToCm, BEAM_W_PX, BOARD_W, BEAM_CENTER_X, woundRadius, setBoardHeight, BOARD, drawnExtent, FLANGE_RX, CORE_R,
   ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX, flangeHit, dragCm, FLANGE_HIT_MIN_PX, lampX, lampY, SPEED_BAR_SHIFT_MAX, speedBarCenterX, speedFromBarDrag, hitSpeedBar, SPEED_BAR_W, DRUM_X, hitSheetEdge, hitBeamWind, sheetTopY, DRUM_W } from './geometry';
 import { logicalHeightFor } from '../winding/geometry';
+import { DRUM_SURFACE_SIGN, BEAM_SURFACE_SIGN, DRUM_TURN_RATE, BEAM_TURN_RATE } from './params';
 
 describe('beaming geometry T3-02 (座標)', () => {
   it('1. cm → 論理座標 → cm の往復が一致する', () => {
@@ -156,8 +157,9 @@ describe('PU-24b (茶色の棒の速さとランプの座標)', () => {
   it('4. ランプはビームの上の左寄り', () => {
     expect(lampX()).toBeLessThan(BOARD_W / 2);
     expect(lampX()).toBeGreaterThan(DRUM_X);
-    expect(lampY()).toBeGreaterThan(BOARD.drumY); // ドラムの上に置く (T3-06 追記)
-    expect(lampY()).toBeLessThan(BOARD.drumY + BOARD.drumH);
+    // ドラムの胴に重ならない所 (ドラムの上の空き。PU-26 決まり5。T3-06 は胴の真ん中に置いていた)
+    expect(lampY() + LAMP_R * 1.3).toBeLessThanOrEqual(BOARD.drumY);
+    expect(lampY() - LAMP_R * 1.3).toBeGreaterThanOrEqual(0);
   });
 });
 
@@ -179,6 +181,12 @@ describe('PU-24a: 立体に見える絵の座標 (軸の長さは固定・ドラ
   });
 });
 
+/** hitBeamWind に渡す状態 (目標どおりの円盤の位置) */
+function wind(widthCm: number, progress: number, over?: { leftCm?: number; rightCm?: number }): { widthCm: number; leftCm: number; rightCm: number; progress: number } {
+  return { widthCm, leftCm: over?.leftCm ?? -widthCm / 2, rightCm: over?.rightCm ?? widthCm / 2, progress };
+}
+const LAMP_R = 22;
+
 describe('T3-06 (糸を付ける作業の当たり判定)', () => {
   it('押さえる所はドラムの下の端: 横はドラムの幅 (DRUM_X〜DRUM_X+DRUM_W)、縦は上下 32px。外れると false', () => {
     const widthCm = 60;
@@ -196,10 +204,49 @@ describe('T3-06 (糸を付ける作業の当たり判定)', () => {
     const left = cmToX(widthCm, -widthCm / 2);
     const right = cmToX(widthCm, widthCm / 2);
     const y = BOARD.axisY;
-    expect(hitBeamWind({ x: BEAM_CENTER_X, y }, widthCm, 0)).toBe(true);
-    expect(hitBeamWind({ x: left + 5, y: y - 30 }, widthCm, 0)).toBe(true);
-    expect(hitBeamWind({ x: left - 5, y }, widthCm, 0)).toBe(false); // 左の円盤より外
-    expect(hitBeamWind({ x: right + 5, y }, widthCm, 0)).toBe(false); // 右の円盤より外
-    expect(hitBeamWind({ x: BEAM_CENTER_X, y: y - woundRadius(0) - 33 }, widthCm, 0)).toBe(false); // 上に外れる
+    expect(hitBeamWind({ x: BEAM_CENTER_X, y }, wind(widthCm, 0))).toBe(true);
+    expect(hitBeamWind({ x: left + 5, y: y - 30 }, wind(widthCm, 0))).toBe(true);
+    expect(hitBeamWind({ x: left - 5, y }, wind(widthCm, 0))).toBe(false); // 左の円盤より外
+    expect(hitBeamWind({ x: right + 5, y }, wind(widthCm, 0))).toBe(false); // 右の円盤より外
+    expect(hitBeamWind({ x: BEAM_CENTER_X, y: y - woundRadius(0) - 33 }, wind(widthCm, 0))).toBe(false); // 上に外れる
+  });
+});
+
+describe('PU-26: ドラムはビームの円盤より大きい・糸を離してよい所は実際の円盤の位置', () => {
+  it('ドラムの直径 (BOARD.drumH) はビームの円盤の直径 (2 × flangeR) の 1.5 倍以上。盤面の高さがどれでも', () => {
+    for (const h of [750, 900, 1100, 1500]) {
+      setBoardHeight(h);
+      expect(BOARD.drumH, `H=${h}`).toBeGreaterThanOrEqual(1.5 * 2 * BOARD.flangeR);
+    }
+    setBoardHeight(750);
+  });
+
+  it('縦の並び: ランプ < ドラム < 糸のシート(ガイドの棒) < ビームの円盤 < 目標の点線。描いた範囲が盤面の高さに収まる', () => {
+    for (const h of [750, 1100]) {
+      setBoardHeight(h);
+      expect(lampY()).toBeLessThan(BOARD.drumY);
+      expect(BOARD.drumY + BOARD.drumH).toBeLessThan(BOARD.guideY);
+      expect(BOARD.guideY).toBeLessThan(BOARD.axisY - BOARD.flangeR);
+      expect(BOARD.axisY + BOARD.flangeR).toBeLessThan(BOARD.targetY);
+      expect(BOARD.targetY + 28).toBeLessThanOrEqual(BOARD.H);
+    }
+    setBoardHeight(750);
+  });
+
+  it('hitBeamWind は目標の巻き幅ではなく、実際の円盤の位置 (leftCm・rightCm) の間で判定する', () => {
+    const y = BOARD.axisY;
+    const moved = wind(60, 0, { leftCm: -20, rightCm: 25 });
+    expect(hitBeamWind({ x: cmToX(60, -25), y }, moved)).toBe(false); // 目標では内側でも、実際の左の円盤の外
+    expect(hitBeamWind({ x: cmToX(60, -15), y }, moved)).toBe(true);
+    expect(hitBeamWind({ x: cmToX(60, 27), y }, moved)).toBe(false); // 実際の右の円盤の外
+    expect(hitBeamWind({ x: cmToX(60, 22), y }, moved)).toBe(true);
+    expect(hitBeamWind({ x: cmToX(60, 27), y }, wind(60, 0, { leftCm: -20, rightCm: 30 }))).toBe(true);
+  });
+
+  it('回る向きの符号: ドラムの手前の面は下から上へ (負)、ビームの手前の面は上から下へ (正)。回る速さは速さ 0 のとき 0', () => {
+    expect(DRUM_SURFACE_SIGN).toBe(-1);
+    expect(BEAM_SURFACE_SIGN).toBe(1);
+    expect(DRUM_TURN_RATE).toBeGreaterThan(0);
+    expect(BEAM_TURN_RATE).toBeGreaterThan(0);
   });
 });

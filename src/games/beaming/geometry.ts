@@ -74,12 +74,14 @@ export const BOARD: BoardLayout = { H: BOARD_H, drumY: 0, drumH: 0, guideY: 0, a
 export function setBoardHeight(height: number): void {
   const H = Math.max(BOARD_H, height);
   BOARD.H = H;
-  BOARD.drumY = H * 0.06;
-  BOARD.drumH = H * 0.2;
-  BOARD.guideY = H * 0.5;
-  BOARD.axisY = H * 0.75;
-  BOARD.flangeR = H * 0.16;
-  BOARD.targetY = H * 0.93;
+  // 実物はビームよりドラムのほうが大きい: ドラムの直径 (drumH) は円盤の直径 (2 × flangeR) の 1.5 倍以上 (PU-26)。
+  // ドラムの上にはランプを置く空きをあける
+  BOARD.drumY = H * 0.1;
+  BOARD.drumH = H * 0.36;
+  BOARD.guideY = H * 0.56;
+  BOARD.axisY = H * 0.79;
+  BOARD.flangeR = H * 0.115;
+  BOARD.targetY = H * 0.95;
 }
 setBoardHeight(BOARD_H);
 
@@ -116,18 +118,22 @@ export function hitSheetEdge(p: { x: number; y: number }, widthCm: number, progr
 }
 
 /** 離してよい所: ビームの軸と巻いた糸の円筒。円盤の間で、上下 32px の余裕 (T3-06) */
-export function hitBeamWind(p: { x: number; y: number }, widthCm: number, progress: number): boolean {
-  const leftX = cmToX(widthCm, -widthCm / 2);
-  const rightX = cmToX(widthCm, widthCm / 2);
+export function hitBeamWind(
+  p: { x: number; y: number },
+  s: { widthCm: number; leftCm: number; rightCm: number; progress: number },
+): boolean {
+  const { widthCm, progress } = s;
+  const leftX = cmToX(widthCm, s.leftCm); // 実際の円盤の位置 (目標の巻き幅ではない。PU-26)
+  const rightX = cmToX(widthCm, s.rightCm);
   return p.x > leftX && p.x < rightX && Math.abs(p.y - BOARD.axisY) <= woundRadius(progress) + 32;
 }
 
-/** 張りのランプ (ドラムの上。ドラム巻きと同じ考え。T3-06 追記) */
+/** 張りのランプ (ドラムの上の空き。ドラムの胴に重ならない。ドラム巻きと同じ考え。T3-06 追記・PU-26) */
 export function lampX(): number {
   return BOARD_W * 0.2;
 }
 export function lampY(): number {
-  return BOARD.drumY + BOARD.drumH * 0.5;
+  return BOARD.drumY * 0.5;
 }
 export function hitLamp(p: { x: number; y: number }): boolean {
   return Math.hypot(p.x - lampX(), p.y - lampY()) <= 36;

@@ -54,6 +54,16 @@ export const STOP2 = 0.97;
 /** 星3の微調整の回数の上限 */
 export const RESTARTS_OK = 2;
 
+/**
+ * 回って見える向きと速さ (見た目だけ。PU-26)。面の位置は y = 中心 + 符号 × 半径 × sin(角度)。
+ * ドラムの手前の面は下から上へ (符号 −1)、ビームの手前の面は上から下へ (符号 +1)。単位は rad/秒 (速さ 1 あたり)。
+ * ドラムはビームより大きいので、同じ糸の速さでは回りがゆっくりになる。
+ */
+export const DRUM_SURFACE_SIGN = -1;
+export const BEAM_SURFACE_SIGN = 1;
+export const DRUM_TURN_RATE = 0.15;
+export const BEAM_TURN_RATE = 0.25;
+
 /** 1回の tick の dtMs の上限 (Safari 対策。ドラム巻きと同じ) */
 export const MAX_TICK_MS = 100;
 

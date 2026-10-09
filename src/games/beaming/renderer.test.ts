@@ -4,6 +4,7 @@ import { drawBoard, mainHex } from './renderer';
 import { init, reduce } from './logic';
 import type { BeamingState } from './logic';
 import { cmToX, BOARD, setBoardHeight, FLANGE_RX, DRUM_X, DRUM_W, woundRadius, lampX, lampY, speedBarCenterX, SPEED_BAR_W, ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX } from './geometry';
+import { DRUM_SURFACE_SIGN, BEAM_SURFACE_SIGN } from './params';
 import { getContent } from '../../core/content/content';
 import { COLORS } from '../../core/ui/tokens';
 import { makeFakeCtx } from '../winding/renderer.test.helpers';
@@ -270,5 +271,80 @@ describe('PU-24b (茶色の棒・ランプ)', () => {
     // attach の段階 → ランプは描かない
     const rec4 = draw(beamState({ phase: 'attach' }));
     expect(rec4.ops.some((o) => o.k === 'arc' && Math.abs(((o.args as number[])[0] ?? 0) - lampX()) < 1)).toBe(false);
+  });
+});
+
+/** stroke ごとの (そのときの線の色, 直前の beginPath からの点) */
+function strokes(rec: FakeRecorder): Array<{ style: string; pts: Array<{ x: number; y: number }> }> {
+  const out: Array<{ style: string; pts: Array<{ x: number; y: number }> }> = [];
+  let style = '';
+  let pts: Array<{ x: number; y: number }> = [];
+  for (const o of rec.ops) {
+    if (o.k === 'style') style = String(o.v);
+    else if (o.k === 'beginPath') pts = [];
+    else if ((o.k === 'moveTo' || o.k === 'lineTo') && o.args) pts.push({ x: Number(o.args[0]), y: Number(o.args[1]) });
+    else if (o.k === 'stroke') out.push({ style, pts: [...pts] });
+  }
+  return out;
+}
+
+describe('PU-26: ドラムをドラム巻きと同じ見た目で大きく・回る向き', () => {
+  it('1. ドラムの胴はドラム巻きと同じ機械の緑 (machine 系) の勾配、端の円盤は灰色の金属の楕円に放射状の腕', () => {
+    const rec = draw(beamState());
+    const stops = rec.ops.filter((o) => o.k === 'addColorStop').map((o) => String((o.args as unknown[])[1]));
+    expect(stops).toEqual(expect.arrayContaining([COLORS.machineDark, COLORS.machineLight, COLORS.machine]));
+    const cy = BOARD.drumY + BOARD.drumH / 2;
+    const arms = strokes(rec).filter((g) => g.style === COLORS.sumiSub && g.pts.length === 2 && Math.abs(g.pts[0]!.x - (DRUM_X + DRUM_W)) < 1e-6 && Math.abs(g.pts[0]!.y - cy) < 1e-6);
+    expect(arms.length).toBe(6);
+  });
+
+  it('2. ドラムの描く範囲の高さは、ビームの円盤の直径の 1.5 倍以上 (ドラムのほうが大きい)', () => {
+    const rec = draw(beamState());
+    const end = ellipses(rec).find((e) => e.fill === COLORS.steel && e.x === DRUM_X + DRUM_W)!;
+    expect(end.ry * 2).toBeGreaterThanOrEqual(1.5 * 2 * BOARD.flangeR);
+  });
+
+  it('3. 角度が進むと、ドラムの桟 (woodLight の線) が上へ動く。速さ 0 (角度が同じ) なら動かない', () => {
+    const cy = BOARD.drumY + BOARD.drumH / 2;
+    const half = BOARD.drumH / 2;
+    const nearest = (angle: number): number => {
+      const ys = strokes(draw(beamState({ progress: 0 }), angle))
+        .filter((g) => g.style === COLORS.woodLight && g.pts.length === 2 && g.pts[0]!.y === g.pts[1]!.y)
+        .map((g) => g.pts[0]!.y);
+      return ys.reduce((best, y) => (Math.abs(y - cy) < Math.abs(best - cy) ? y : best), Infinity);
+    };
+    const y0 = nearest(0);
+    const y1 = nearest(0.1);
+    expect(y1).toBeLessThan(y0); // 上へ (y が小さくなる)
+    expect(y1).toBeCloseTo(cy + DRUM_SURFACE_SIGN * half * Math.sin(0.1), 6);
+    expect(nearest(0)).toBe(y0);
+  });
+
+  it('4. 角度が進むと、ビームの巻いた糸の流れる筋が下へ動く (巻き量があるとき)。円盤の穴も回る', () => {
+    const r = woundRadius(0.5);
+    const nearest = (angle: number): number => {
+      const ys = strokes(draw(beamState({ progress: 0.5 }), angle, ))
+        .filter((g) => g.style === COLORS.white && g.pts.length === 2 && g.pts[0]!.y === g.pts[1]!.y)
+        .map((g) => g.pts[0]!.y);
+      return ys.reduce((best, y) => (Math.abs(y - BOARD.axisY) < Math.abs(best - BOARD.axisY) ? y : best), Infinity);
+    };
+    const y0 = nearest(0);
+    expect(y0).toBeCloseTo(BOARD.axisY, 6);
+    const y1 = nearest(0);
+    expect(y1).toBe(y0);
+    const { ctx, rec } = makeFakeCtx();
+    drawBoard(ctx, fit, beamState({ progress: 0.5 }), content, 0, null, 0.1);
+    const ys = strokes(rec)
+      .filter((g) => g.style === COLORS.white && g.pts.length === 2 && g.pts[0]!.y === g.pts[1]!.y)
+      .map((g) => g.pts[0]!.y);
+    const near = ys.reduce((best, y) => (Math.abs(y - BOARD.axisY) < Math.abs(best - BOARD.axisY) ? y : best), Infinity);
+    expect(near).toBeGreaterThan(y0); // 下へ
+    expect(near).toBeCloseTo(BOARD.axisY + BEAM_SURFACE_SIGN * r * Math.sin(0.1), 6);
+  });
+
+  it('5. 描画に色の直書きが無い (renderer.ts に #xxxxxx や rgb( が無い)', () => {
+    const src = readFileSync('src/games/beaming/renderer.ts', 'utf8');
+    expect(src).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+    expect(src).not.toMatch(/rgba?\(/);
   });
 });

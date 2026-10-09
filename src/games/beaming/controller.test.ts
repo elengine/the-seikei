@@ -286,6 +286,78 @@ describe('beaming controller T3-03a (プレイ画面)', () => {
     expect(a2! > a1!).toBe(true); // 巻いているあいだは増える
     instance.unmount();
   });
+
+  it('PU-26: ドラムとビームの回る角度。速さ 0 のあいだは両方とも変わらず、速さがあると両方とも増える', async () => {
+    const { instance } = await startAligned(setupWound());
+    raf.advance(30);
+    const last = (): { drum: number; beam: number } => {
+      const l = drawBoardCalls[drawBoardCalls.length - 1]!;
+      return { drum: l[4] as number, beam: l[6] as number };
+    };
+    const a0 = last();
+    raf.advance(30);
+    expect(last()).toEqual(a0); // 速さ 0 では止まっている
+    expect(a0.beam).toBe(0);
+    pressLeverOn(container, raf, 100);
+    raf.advance(30);
+    const a1 = last();
+    raf.advance(30);
+    const a2 = last();
+    expect(a2.drum).toBeGreaterThan(a1.drum);
+    expect(a2.beam).toBeGreaterThan(a1.beam);
+    instance.unmount();
+  });
+
+  describe('PU-26 決まり5: 糸を引っぱる操作の不足分', () => {
+    /** 幅合わせ → 「ビーム設定OK」→ attach の状態にして、盤面を 600×400 に見せる */
+    async function startAttach(): Promise<{ instance: { unmount(): void; suspend(): unknown } }> {
+      const { instance } = await startAligned(setupAligned());
+      const start = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'ビーム設定OK');
+      start!.click();
+      showBoardOn(container, raf);
+      expect((instance.suspend() as BeamingState).phase).toBe('attach');
+      return { instance };
+    }
+    const lastThread = (): unknown => drawBoardCalls[drawBoardCalls.length - 1]![5];
+
+    it('1. ドラムの端を押さえて、ビームでない所で離すと attach のまま (糸は付かない・糸の線は消える)', async () => {
+      const { instance } = await startAttach();
+      const { toScreen } = TEST_FIT();
+      fireAt(container, sheetEdgePoint(), 'pointerdown');
+      const away = toScreen(BEAM_CENTER_X, BOARD.guideY);
+      fireAt(container, away, 'pointermove');
+      expect(lastThread()).not.toBeNull(); // 引っぱっているあいだは線を描く
+      fireAt(container, away, 'pointerup');
+      expect((instance.suspend() as BeamingState).phase).toBe('attach');
+      expect(lastThread()).toBeNull();
+      instance.unmount();
+    });
+
+    it('2. 糸を引っぱっている途中の pointercancel で attach のまま、糸の線が消える。そのあとの pointerup では何も起きない', async () => {
+      const { instance } = await startAttach();
+      fireAt(container, sheetEdgePoint(), 'pointerdown');
+      fireAt(container, beamWindPoint(), 'pointermove');
+      expect(lastThread()).not.toBeNull();
+      fireAt(container, beamWindPoint(), 'pointercancel');
+      expect((instance.suspend() as BeamingState).phase).toBe('attach');
+      expect(lastThread()).toBeNull();
+      fireAt(container, beamWindPoint(), 'pointerup');
+      expect((instance.suspend() as BeamingState).phase).toBe('attach');
+      instance.unmount();
+    });
+
+    it('3. 糸を引っぱっている途中で unmount しても例外が出ず、そのあとの pointerup で何も起きない (描かない)', async () => {
+      const { instance } = await startAttach();
+      fireAt(container, sheetEdgePoint(), 'pointerdown');
+      fireAt(container, beamWindPoint(), 'pointermove');
+      const canvas = container.querySelector('canvas')!;
+      const draws = drawBoardCalls.length;
+      expect(() => instance.unmount()).not.toThrow();
+      expect(() => canvas.dispatchEvent(new PointerEvent('pointerup', { clientX: 10, clientY: 10, bubbles: true, pointerId: 41, button: 0 }))).not.toThrow();
+      raf.advance(5);
+      expect(drawBoardCalls.length).toBe(draws);
+    });
+  });
 });
 
 describe('PU-15b: 円盤を絵の上で引っぱって合わせる', () => {
