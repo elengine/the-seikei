@@ -302,11 +302,15 @@ describe('PU-28: 柄の縞を縦縞で描く (糸のシート・ドラム・ビ�
     expect(runs[0]!.hex).not.toBe(runs[1]!.hex);
     expect(runs.map((r) => r.frac)).toEqual([3 / 8, 1 / 8, 4 / 8]);
     const strips = stripeStrips(runs, 2, 100, 500);
-    expect(strips).toHaveLength(6);
+    // 地 | 線 | 地+地 (くり返しのつなぎ目は同じ色なので 1 本にまとめる) | 線 | 地 の 5 本
+    expect(strips).toHaveLength(5);
     expect(strips[0]!.x0).toBe(100);
-    expect(strips[5]!.x1).toBeCloseTo(500, 9);
+    expect(strips[4]!.x1).toBeCloseTo(500, 9);
     expect(strips[1]!.x1 - strips[1]!.x0).toBeCloseTo(400 / 2 / 8, 9); // 線は 1 リピートの 1/8
+    expect(strips[2]!.x1 - strips[2]!.x0).toBeCloseTo((400 / 2) * (4 / 8 + 3 / 8), 9); // 継ぎ目をまたいで 1 本
     for (let i = 1; i < strips.length; i++) expect(strips[i]!.x0).toBeCloseTo(strips[i - 1]!.x1, 9);
+    // 無地は何回くり返しても 1 本 (継ぎ目の輪切りの線が出ない)
+    expect(stripeStrips([{ hex: '#111', frac: 1 }], 3, 0, 300)).toHaveLength(1);
   });
 
   it('4. 無地の柄は今までどおり 1 色 (縞は 1 本)', () => {
@@ -372,8 +376,8 @@ describe('PU-32: 糸の帯・隠れる順・盤面に収まる', () => {
         if (o.k === 'stroke' && style === COLORS.white) gloss.push(idx);
         idx++;
       }
-      expect(gloss.length).toBeGreaterThanOrEqual(2);
-      const [g1, g2] = [gloss[0]!, gloss[1]!];
+      expect(gloss.length).toBeGreaterThanOrEqual(4);
+      const [g1, g2] = [gloss[0]!, gloss[2]!]; // 棒 1 のつや 2 本 → 棒 2 のつや 2 本
       expect(grad, 'ドラムの胴 (グラデーション) が最初').toBeLessThan(ribbon[0]!);
       expect(ribbon.some((i) => i < g1), '棒 1 より前に糸 (ドラムの下から棒 1 まで)').toBe(true);
       expect(ribbon.some((i) => i > g1 && i < g2), '棒 1 と棒 2 のあいだに糸').toBe(true);
@@ -513,7 +517,7 @@ describe('PU-32: 糸の帯・隠れる順・盤面に収まる', () => {
     const holeY = (angle: number): number => {
       const { ctx, rec } = makeFakeCtx();
       drawBoard(ctx, fit, beamState({ progress: 0.5 }), content, 0, null, angle);
-      const f0 = pt0(cmToX(60, -30), SIDE.beam.z + 0.4 * SIDE.beam.r * Math.cos(-BEAM_FLANGE_SIGN * angle), SIDE.beam.h + 0.4 * SIDE.beam.r * Math.sin(-BEAM_FLANGE_SIGN * angle));
+      const f0 = pt0(cmToX(60, -30), SIDE.beam.z + 0.55 * SIDE.beam.r * Math.cos(-BEAM_FLANGE_SIGN * angle), SIDE.beam.h + 0.55 * SIDE.beam.r * Math.sin(-BEAM_FLANGE_SIGN * angle));
       const hole = rec.ops.filter((o) => o.k === 'arc' && (o.args as number[])[2] === 4).map((o) => o.args as number[]).find((a) => Math.abs(a[0]! - f0.x) < 1e-6);
       expect(hole, '穴').toBeDefined();
       return hole![1]!;

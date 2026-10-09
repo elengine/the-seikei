@@ -120,3 +120,14 @@ export const SIDE_PROJECTION = { KH: 1, KZ: 0.38, KX: 0.15 } as const;
 export const SIDE_Z_REF = 880;
 export const SIDE_TOP_FRAC = 0.15;
 export const SIDE_BOTTOM_FRAC = 0.915;
+
+/** ドラムの羽 (糸を巻き始める側 = 左の端の、斜めに開いた板): 板の数はドラムの桟と同じ。外へ伸びる長さ (px) と、開き (半径が伸びる割合)・板の幅 (角度 rad) (PU-32) */
+export const DRUM_WING_LEN = 56;
+export const DRUM_WING_FLARE = 0.22;
+export const DRUM_WING_HALF = 0.07;
+/** ビームの円盤の外の太い金属の筒 (真ちゅう色) の、横から見た半径 (図のピクセル) と長さ (px)。軸は SIDE.beam.r に対する割合の半径で、写真のように太い (PU-32) */
+export const BEAM_BRASS_R = 26;
+export const BEAM_BRASS_LEN = 64;
+export const BEAM_AXLE_R = 14;
+/** 機械の枠 (クリーム色の腕の形の金具) の幅 (px) (PU-32) */
+export const FRAME_ARM_W = 26;
