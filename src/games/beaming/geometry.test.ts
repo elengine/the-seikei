@@ -1,9 +1,9 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import {
   pxPerCm, cmToX, xToCm, BEAM_W_PX, BOARD_W, BEAM_CENTER_X, woundRadius, setBoardHeight, BOARD, drawnExtent, FLANGE_RX, CORE_R,
-  ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX, flangeHit, dragCm, FLANGE_HIT_MIN_PX, lampX, lampY, SPEED_BAR_SHIFT_MAX, speedBarCenterX, speedFromBarDrag, hitSpeedBar, SPEED_BAR_W, DRUM_X, hitSheetEdge, hitBeamWind, sheetTopY, sheetDropEndY, lampR, THREAD_BAR_MARGIN, threadBarRange, clampThreadBarY, threadAttachY } from './geometry';
+  ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX, flangeHit, dragCm, FLANGE_HIT_MIN_PX, lampX, lampY, SPEED_BAR_SHIFT_MAX, speedBarCenterX, speedFromBarDrag, hitSpeedBar, SPEED_BAR_W, DRUM_X, hitSheetEdge, hitBeamWind, sheetTopY, sheetDropEndY, lampR, THREAD_BAR_MARGIN, threadBarRange, clampThreadBarY, threadAttachY, woundTopY, beamArcX, beamWrapX, sheetTiltX, wrapTiltX } from './geometry';
 import { logicalHeightFor } from '../winding/geometry';
-import { DRUM_SURFACE_SIGN, BEAM_SURFACE_SIGN, DRUM_TURN_RATE, BEAM_TURN_RATE } from './params';
+import { DRUM_SURFACE_SIGN, BEAM_SURFACE_SIGN, DRUM_TURN_RATE, BEAM_TURN_RATE, SHEET_TILT_RX } from './params';
 
 describe('beaming geometry T3-02 (座標)', () => {
   it('1. cm → 論理座標 → cm の往復が一致する', () => {
@@ -307,5 +307,47 @@ describe('PU-27: 糸の束の先の木の棒の動く範囲と付く条件', () 
   it('付く条件の y (threadAttachY) は、巻いた糸の円筒の上の端から上へ 32px。垂れた位置より下', () => {
     expect(threadAttachY(0)).toBeCloseTo(BOARD.axisY - woundRadius(0) - 32, 9);
     expect(threadAttachY(0)).toBeGreaterThan(sheetDropEndY(0));
+  });
+});
+
+describe('PU-29 b: 円筒に沿う「(」の曲線と糸のシートのずれ', () => {
+  const r90 = woundRadius(0.9);
+
+  it('1. beamArcX: 真ん中 (t=0) は FLANGE_RX × (巻いた半径 ÷ 円盤の半径) だけ左へふくらむ「(」の曲線。上下の端 (t=±1) は xs。ドラムの drumArcX と同じ形 (上下対称・半径が小さいとふくらみも小さい)', () => {
+    const xs = 500;
+    expect(beamArcX(xs, -1, r90)).toBe(xs);
+    expect(beamArcX(xs, 1, r90)).toBe(xs);
+    expect(beamArcX(xs, 0, r90)).toBeCloseTo(xs - FLANGE_RX * (r90 / BOARD.flangeR), 9);
+    expect(beamArcX(xs, 0.5, r90)).toBeCloseTo(beamArcX(xs, -0.5, r90), 9); // 上下対称
+    expect(beamArcX(xs, 0, woundRadius(0.3))).toBeGreaterThan(beamArcX(xs, 0, r90)); // 細いほどふくらみは小さい
+    // ドラムと同じ形: t=±1 の端は xs、真ん中でふくらむ
+    expect(drumArcX(xs, 0) - xs).toBeLessThan(0);
+  });
+
+  it('2. beamWrapX: 上の端 (t=−1) は糸のシートの下の端の x (wrapTiltX ぶんだけ左) につながり、真ん中 (t=0) は beamArcX と同じ。シートとビームの手前の面がひと続きになる', () => {
+    const xs = 500;
+    expect(beamWrapX(xs, -1, r90)).toBeCloseTo(xs - wrapTiltX(r90), 9);
+    expect(beamWrapX(xs, 0, r90)).toBeCloseTo(beamArcX(xs, 0, r90), 9);
+    expect(beamWrapX(xs, 1, r90)).toBeCloseTo(xs - wrapTiltX(r90), 9); // 下の端も同じ (上下対称の「(」)
+    // 真ん中の x は上下の端の x より左 (「(」の形。巻いた糸が太い progress 0.9 で確かめる)
+    expect(beamWrapX(xs, 0, r90), '真ん中は上の端より左').toBeLessThan(beamWrapX(xs, -1, r90));
+    expect(beamWrapX(xs, 0, r90), '真ん中は下の端より左').toBeLessThan(beamWrapX(xs, 1, r90));
+    // つながりに段差がない: 隣り合う t での差がゆるやか
+    const step = Math.abs(beamWrapX(xs, -0.9, r90) - beamWrapX(xs, -1, r90));
+    expect(step).toBeLessThan(wrapTiltX(r90) / 2);
+  });
+
+  it('3. sheetTiltX: ドラムの下の端 (シートの上端) では 0、ビームの上の端 (巻いた糸の円筒の上端) では wrapTiltX (巻ききったとき SHEET_TILT_RX)。あいだは単調に増える。手まえに近づくほど左へずれる (PU-29)', () => {
+    for (const p of [0.4, 1]) {
+      expect(sheetTiltX(sheetTopY(p), p)).toBe(0);
+      expect(sheetTiltX(woundTopY(p), p)).toBeCloseTo(wrapTiltX(woundRadius(p)), 9);
+      const mid = sheetTiltX((sheetTopY(p) + woundTopY(p)) / 2, p);
+      expect(mid).toBeGreaterThan(0);
+      expect(mid).toBeLessThan(wrapTiltX(woundRadius(p)));
+    }
+    expect(wrapTiltX(woundRadius(1))).toBe(SHEET_TILT_RX); // 巻ききったとき最大
+    // 垂れているあいだ (setup・attach) も、下へ行くほどずれる
+    expect(sheetTiltX(sheetDropEndY(0), 0)).toBeGreaterThan(0);
+    expect(sheetTiltX(sheetDropEndY(0), 0)).toBeLessThan(wrapTiltX(woundRadius(0)));
   });
 });

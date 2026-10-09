@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { drawBoard, mainHex } from './renderer';
 import { init, reduce } from './logic';
 import type { BeamingState } from './logic';
-import { cmToX, BOARD, setBoardHeight, FLANGE_RX, DRUM_X, DRUM_W, woundRadius, lampX, lampY, speedBarCenterX, SPEED_BAR_W, ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX, sheetTopY, sheetDropEndY, pxPerCm, BEAM_CENTER_X, THREAD_BAR_MARGIN } from './geometry';
+import { cmToX, BOARD, setBoardHeight, FLANGE_RX, DRUM_X, DRUM_W, woundRadius, lampX, lampY, speedBarCenterX, SPEED_BAR_W, ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX, sheetTopY, sheetDropEndY, pxPerCm, BEAM_CENTER_X, THREAD_BAR_MARGIN, sheetTiltX, woundTopY, wrapTiltX } from './geometry';
 import { stripeRunsOf, stripeStrips } from './renderer';
 import { DRUM_SURFACE_SIGN, BEAM_SURFACE_SIGN, DRUM_FLANGE_SIGN, BEAM_FLANGE_SIGN } from './params';
 import { getContent } from '../../core/content/content';
@@ -83,24 +83,29 @@ describe('beaming renderer PU-15a (盤面。実物の写真に寄せた絵)', ()
     expect(e2.map((x) => x.x).sort((a, b) => a - b)[0]!).toBeLessThan(xs[0]!);
   });
 
-  it('2. 巻いた糸は、軸を中心に上下に同じだけ太る円筒 (糸の色の長方形。中心 y が軸)。progress が大きいほど太い。progress 0 では描かない', () => {
+  it('2. 巻いた糸は、軸を中心に上下に同じだけ太る円筒 (糸の色の塗り。中心 y が軸)。progress が大きいほど太い。progress 0 では描かない (PU-29 で端が「(」の曲線になったため、塗りの path で確かめる)', () => {
     const hex = mainHex(content, 'p-muji-kon');
-    const wound = (p: number): Array<{ y: number; h: number }> => {
+    const wound = (p: number): Array<{ top: number; bottom: number }> => {
       const rec = draw(beamState({ progress: p }));
-      return rec.ops
-        .map((o, i) => ({ o, style: styleBefore(rec.ops, i) }))
-        .filter((e) => e.o.k === 'fillRect' && e.style === hex && Math.abs(Number((e.o.args as number[])[0]) - cmToX(60, -30)) < 0.5)
-        .map((e) => ({ y: Number((e.o.args as number[])[1]), h: Number((e.o.args as number[])[3]) }));
+      return fillPaths(rec)
+        .filter((f) => f.style === hex)
+        .map((f) => ({ top: Math.min(...f.pts.map((q) => q.y)), bottom: Math.max(...f.pts.map((q) => q.y)) }))
+        .filter((w) => w.bottom > BOARD.axisY + 1 && w.bottom - w.top > 2); // ビームの円筒 (軸より下まで塗る。シートは円筒の上端で止まる)
     };
     expect(wound(0).length).toBe(0);
     for (const p of [0.3, 0.6, 1]) {
-      const r = wound(p);
-      expect(r.length, `p=${p}`).toBeGreaterThanOrEqual(1);
-      const w = r[0]!;
-      expect(w.y + w.h / 2, `p=${p} の中心 y`).toBeCloseTo(BOARD.axisY, 6); // 上下に同じだけ
-      expect(w.h / 2).toBeCloseTo(woundRadius(p), 6);
+      const w = wound(p);
+      expect(w.length, `p=${p}`).toBeGreaterThanOrEqual(1);
+      const top = Math.min(...w.map((x) => x.top));
+      const bottom = Math.max(...w.map((x) => x.bottom));
+      expect((top + bottom) / 2, `p=${p} の中心 y`).toBeCloseTo(BOARD.axisY, 6); // 上下に同じだけ
+      expect((bottom - top) / 2).toBeCloseTo(woundRadius(p), 6);
     }
-    expect(wound(1)[0]!.h).toBeGreaterThan(wound(0.3)[0]!.h);
+    const h = (p: number): number => {
+      const w = wound(p);
+      return Math.max(...w.map((x) => x.bottom)) - Math.min(...w.map((x) => x.top));
+    };
+    expect(h(1)).toBeGreaterThan(h(0.3));
   });
 
   it('3. ビームの軸 (銀色の太い棒) は、左右の円盤の外へ飛び出す', () => {
@@ -431,10 +436,10 @@ function fillPaths(rec: FakeRecorder): Array<{ style: string; pts: Array<{ x: nu
 
 describe('PU-26 追加修正: 糸のシートは setup・attach では短く垂れ、beaming でビームまで届く', () => {
   const hex = mainHex(content, 'p-muji-kon');
-  /** シートの縦の筋 (2 点の縦線。色は sumi) の下の端の最大 y */
+  /** シートの縦の筋 (2 点の線。色は sumi。PU-29 で手まえほど左へずれる斜めの線になった) の下の端の最大 y */
   function sheetBottom(s: BeamingState): number {
     const ys = strokes(draw(s))
-      .filter((g) => g.style === COLORS.sumi && g.pts.length === 2 && g.pts[0]!.x === g.pts[1]!.x && g.pts[1]!.y > g.pts[0]!.y && g.pts[0]!.y === sheetTopY(s.progress))
+      .filter((g) => g.style === COLORS.sumi && g.pts.length === 2 && g.pts[1]!.y > g.pts[0]!.y && g.pts[0]!.y === sheetTopY(s.progress))
       .map((g) => g.pts[1]!.y);
     return ys.length === 0 ? -Infinity : Math.max(...ys);
   }
@@ -491,12 +496,13 @@ describe('PU-26 追加修正: 糸のシートは setup・attach では短く垂�
     const [x, y, w, h] = threadBars(rec, 60)[0]!;
     expect(y + h / 2).toBeCloseTo(barY, 9);
     expect(x + w / 2).toBeCloseTo(BEAM_CENTER_X, 9);
-    // 束の縦の筋は、どれも真下へ (x が同じ 2 点) で、下の端が棒の y
+    // 束の縦の筋は、手まえ (下) ほど左へずれる斜めの線 (ずれの大きさはどれも同じ = 幅は変わらない。PU-29) で、下の端が棒の y
     const half = (60 * pxPerCm(60)) / 2;
-    const vs = strokes(rec).filter((g) => g.style === COLORS.sumi && g.pts.length === 2 && g.pts[0]!.x === g.pts[1]!.x && g.pts[1]!.y > g.pts[0]!.y && g.pts[0]!.y === sheetTopY(0));
+    const vs = strokes(rec).filter((g) => g.style === COLORS.sumi && g.pts.length === 2 && g.pts[1]!.y > g.pts[0]!.y && g.pts[0]!.y === sheetTopY(0));
     expect(vs.length).toBeGreaterThan(0);
     for (const g of vs) {
       expect(g.pts[1]!.y).toBeCloseTo(barY, 9);
+      expect(g.pts[0]!.x - g.pts[1]!.x, 'ずれはどの筋も同じ (台形にしない)').toBeCloseTo(sheetTiltX(barY, 0), 6);
       expect(Math.abs(g.pts[0]!.x - BEAM_CENTER_X)).toBeLessThanOrEqual(half + 1e-9);
     }
     // 束の面 (柄の色の多角形) の下の辺の幅は、上の辺の幅と同じ (台形ではない)
@@ -587,7 +593,7 @@ describe('PU-28: 柄の縞を縦縞で描く (糸のシート・ドラム・ビ�
     for (let i = 1; i < strips.length; i++) expect(strips[i]!.x0).toBeCloseTo(strips[i - 1]!.x1, 9);
   });
 
-  it('2. 糸のシート: 同じ y の横の並びに地の色と線の色の両方がある。縦 (同じ x の上下) は 1 色 (縦縞)', () => {
+  it('2. 糸のシート: 同じ y の横の並びに地の色と線の色の両方がある。縞は手まえ (下) ほど左へずれる (PU-29 で縦の辺が斜めになったため、縦の判定を変えた)', () => {
     const rec = (() => {
       const { ctx, rec: r } = makeFakeCtx();
       drawBoard(ctx, fit, pin(), content, 0, null, 0, undefined, 3);
@@ -595,33 +601,41 @@ describe('PU-28: 柄の縞を縦縞で描く (糸のシート・ドラム・ビ�
     })();
     const topY = sheetTopY(0.4);
     const bottomY = BOARD.axisY - woundRadius(0.4);
-    const strips = rec.ops
-      .map((o, i) => ({ o, style: styleBefore(rec.ops, i) }))
-      .filter((e) => e.o.k === 'fillRect' || false);
-    void strips;
-    // シートの帯 (柄の色の長方形の fill): 上の端 topY・下の端 bottomY
+    // シートの帯 (柄の色の塗り): 上の端 topY・下の端 bottomY
     const paths = fillPaths(rec).filter((f) => f.pts.length === 4 && f.pts.some((p) => Math.abs(p.y - topY) < 1e-6) && f.pts.some((p) => Math.abs(p.y - bottomY) < 1e-6));
     const colors = new Set(paths.map((f) => f.style));
     expect(colors.has(kon())).toBe(true);
     expect(colors.has(shiro())).toBe(true);
     for (const f of paths) {
-      const xs = f.pts.map((p) => p.x);
-      const left = f.pts.filter((p) => p.x === Math.min(...xs));
-      expect(left.length).toBe(2); // 縦の辺 (上と下で x が同じ)
+      const topMin = Math.min(...f.pts.filter((p) => Math.abs(p.y - topY) < 1e-6).map((p) => p.x));
+      const bottomMin = Math.min(...f.pts.filter((p) => Math.abs(p.y - bottomY) < 1e-6).map((p) => p.x));
+      expect(bottomMin, '手まえ (下) ほど左へずれる (PU-29)').toBeLessThan(topMin);
+      expect(topMin - bottomMin, 'ずれはシートの上端で 0、下端で SHEET_TILT_RX の 4 割 (巻き量 0.4)').toBeCloseTo(sheetTiltX(bottomY, 0.4), 6);
     }
     // 線の色の帯は 3 リピートぶん (3 本)
     expect(paths.filter((f) => f.style === shiro())).toHaveLength(3);
   });
 
-  it('3. ドラムとビームの巻いた糸にも、地と線の縦縞が出る。ドラムの木の桟は、巻いた糸の幅の外にだけ描く', () => {
+  it('3. ドラムとビームの巻いた糸にも、地と線の縦縞が出る。ビームの縞は円筒に沿った「(」の曲線 (長方形で描かない。PU-29)。ドラムの木の桟は、巻いた糸の幅の外にだけ描く', () => {
     const { ctx, rec } = makeFakeCtx();
     drawBoard(ctx, fit, pin({ progress: 0.4 }), content, 0, null, 0, undefined, 3);
-    const beamStrips = rec.ops
-      .map((o, i) => ({ o, style: styleBefore(rec.ops, i) }))
-      .filter((e) => e.o.k === 'fillRect' && Math.abs(Number((e.o.args as number[])[1]) + Number((e.o.args as number[])[3]) / 2 - BOARD.axisY) < 1e-6 && Number((e.o.args as number[])[3]) > 20);
+    // ビームの巻いた糸の縞 (塗り。軸を中心に上下に広がる path)
+    const beamStrips = fillPaths(rec).filter((f) => {
+      const ys = f.pts.map((p) => p.y);
+      const mid = (Math.max(...ys) + Math.min(...ys)) / 2;
+      return Math.max(...ys) - Math.min(...ys) > 20 && Math.abs(mid - BOARD.axisY) < 1e-6;
+    });
     const beamColors = new Set(beamStrips.map((e) => e.style));
     expect(beamColors.has(kon())).toBe(true);
     expect(beamColors.has(shiro())).toBe(true);
+    for (const f of beamStrips) {
+      const ys = f.pts.map((p) => p.y);
+      const top = Math.min(...ys);
+      const bottom = Math.max(...ys);
+      const midX = Math.min(...f.pts.filter((p) => Math.abs(p.y - BOARD.axisY) < 1e-6).map((p) => p.x));
+      const endX = Math.min(...f.pts.filter((p) => Math.abs(p.y - top) < 1e-6 || Math.abs(p.y - bottom) < 1e-6).map((p) => p.x));
+      expect(midX, '縞の真ん中は上下の端より左 (「(」の曲線。PU-29)').toBeLessThan(endX);
+    }
     const half = (60 * pxPerCm(60)) / 2;
     const w0 = BEAM_CENTER_X - half;
     const w1 = BEAM_CENTER_X + half;
@@ -636,5 +650,101 @@ describe('PU-28: 柄の縞を縦縞で描く (糸のシート・ドラム・ビ�
   it('4. 無地の柄は今までどおり 1 色 (縞は 1 本)', () => {
     expect(stripeRunsOf(content, 'p-muji-kon')).toHaveLength(1);
     expect(stripeRunsOf(content, 'p-muji-kon')[0]!.frac).toBe(1);
+  });
+});
+
+describe('PU-29 b: 円筒に沿う「(」の曲線・糸の通り道 (盤面の絵)', () => {
+  const wound = (over?: Partial<BeamingState>): BeamingState => {
+    let st = init({ level: 1, widthCm: 60, seed: 42, puzzleId: 's1', patternId: 'p-muji-kon' });
+    st = reduce(st, { type: 'moveFlange', side: 'left', deltaCm: -30 - st.leftCm });
+    st = reduce(st, { type: 'moveFlange', side: 'right', deltaCm: 30 - st.rightCm });
+    st = reduce(st, { type: 'finishSetup' });
+    st = reduce(st, { type: 'attachThread' });
+    st = reduce(st, { type: 'setSpeed', value: 50 });
+    return { ...st, progress: 0.9, ...over };
+  };
+  const hex = (): string => mainHex(content, 'p-muji-kon');
+
+  /** ビームの巻いた糸の縞の塗り (軸を中心に上下に広がる path) */
+  function beamStrips(rec: FakeRecorder): Array<{ style: string; pts: Array<{ x: number; y: number }> }> {
+    return fillPaths(rec).filter((f) => {
+      const ys = f.pts.map((p) => p.y);
+      const mid = (Math.max(...ys) + Math.min(...ys)) / 2;
+      return Math.max(...ys) - Math.min(...ys) > 20 && Math.abs(mid - BOARD.axisY) < 1e-6;
+    });
+  }
+
+  it('1. ドラムの巻いた糸の左の端は「(」の曲線: 真ん中の高さの x が上下の端の x より左 (PU-28a から曲線。続きの確認)', () => {
+    const rec = draw(wound());
+    const cy = BOARD.drumY + BOARD.drumH / 2;
+    const half = (BOARD.drumH / 2) * (1 - 0.3 * 0.9);
+    // ドラムの巻いた糸 (シートの幅と同じ。ドラムの胴の中ほど) の塗りのうち、左の端 (いちばん左の縞の左の辺)
+    const drumPaths = fillPaths(rec).filter((f) => {
+      const ys = f.pts.map((p) => p.y);
+      const mid = (Math.max(...ys) + Math.min(...ys)) / 2;
+      return Math.max(...ys) - Math.min(...ys) > 20 && Math.abs(mid - cy) < 1e-6;
+    });
+    expect(drumPaths.length).toBeGreaterThan(0);
+    const minXs = drumPaths.map((f) => Math.min(...f.pts.map((p) => p.x)));
+    const leftmost = Math.min(...minXs);
+    // 左の端の曲線: 真ん中 (t=0) の x は端 (t=±1) の x より左
+    const edge = drumPaths.find((f) => Math.min(...f.pts.map((p) => p.x)) === leftmost)!;
+    const topX = Math.min(...edge.pts.filter((p) => Math.abs(p.y - (cy - half)) < 1e-6).map((p) => p.x));
+    const midX = Math.min(...edge.pts.filter((p) => Math.abs(p.y - cy) < 1e-6).map((p) => p.x));
+    expect(midX).toBeLessThan(topX);
+    expect(topX - midX).toBeCloseTo(DRUM_TILT_RX, 6);
+  });
+
+  it('2. ビームの巻いた糸の左の端も「(」の曲線: 上の端は糸のシートの下の端 (SHEET_TILT_RX だけ左) につながり、真ん中 (巻いた糸の半径ぶんのふくらみ) がいちばん左', () => {
+    const rec = draw(wound());
+    const leftX = cmToX(60, -30);
+    const r = woundRadius(0.9);
+    const strips = beamStrips(rec);
+    expect(strips.length).toBeGreaterThan(0);
+    const left = strips.reduce((a, b) => (Math.min(...b.pts.map((p) => p.x)) < Math.min(...a.pts.map((p) => p.x)) ? b : a));
+    const topY = BOARD.axisY - r;
+    const topX = Math.min(...left.pts.filter((p) => Math.abs(p.y - topY) < 1e-6).map((p) => p.x));
+    const midX = Math.min(...left.pts.filter((p) => Math.abs(p.y - BOARD.axisY) < 1e-6).map((p) => p.x));
+    expect(topX, '上の端はシートの下の端につながる (wrapTiltX ぶんだけ左)').toBeCloseTo(leftX - wrapTiltX(r), 6);
+    expect(midX, '真ん中のふくらみは FLANGE_RX × (巻いた半径 ÷ 円盤の半径)').toBeCloseTo(leftX - FLANGE_RX * (r / BOARD.flangeR), 6);
+    expect(midX).toBeLessThan(topX); // 「(」の形
+  });
+
+  it('3. ビームの巻いた糸の縞は長方形で描かない (円筒に沿った曲線の塗りだけ)', () => {
+    const rec = draw(wound());
+    const rectStrips = rec.ops
+      .map((o, i) => ({ o, style: styleBefore(rec.ops, i) }))
+      .filter((e) => e.o.k === 'fillRect' && e.style === hex() && Number((e.o.args as number[])[3]) > 20);
+    expect(rectStrips).toHaveLength(0);
+  });
+
+  it('4. 糸のシートの左の端: ドラムの下の端より、ビームの上の端のほうが左 (手まえに近づくほど左へずれる)。下の端の y は巻いた糸の上の端と同じ (すき間が無い)', () => {
+    for (const p of [0.3, 0.9]) {
+      const rec = draw(wound({ progress: p }));
+      const topY = sheetTopY(p);
+      const bottomY = woundTopY(p);
+      const sheet = fillPaths(rec).filter((f) => f.pts.length === 4 && f.pts.some((q) => Math.abs(q.y - topY) < 1e-6) && f.pts.some((q) => Math.abs(q.y - bottomY) < 1e-6));
+      expect(sheet.length, `p=${p}`).toBeGreaterThan(0);
+      const topMin = Math.min(...sheet.flatMap((f) => f.pts.filter((q) => Math.abs(q.y - topY) < 1e-6).map((q) => q.x)));
+      const bottomMin = Math.min(...sheet.flatMap((f) => f.pts.filter((q) => Math.abs(q.y - bottomY) < 1e-6).map((q) => q.x)));
+      expect(bottomMin, `p=${p} のビームの上の端`).toBeLessThan(topMin);
+      expect(bottomY, `p=${p} の下の端の y`).toBeCloseTo(BOARD.axisY - woundRadius(p), 9);
+    }
+  });
+
+  it('5. 巻く量が増えると、シートの下の端 (巻いた糸の上の端) も上へ動く', () => {
+    expect(woundTopY(0.9)).toBeLessThan(woundTopY(0.3));
+  });
+
+  it('6. 糸のシートの縦の筋は、手まえ (下) ほど左へずれる斜めの線 (まっすぐ走る筋)', () => {
+    const rec = draw(wound({ progress: 0.4 }));
+    const topY = sheetTopY(0.4);
+    const bottomY = woundTopY(0.4);
+    const streaks = strokes(rec).filter((g) => g.style === COLORS.sumi && g.pts.length === 2 && Math.abs(g.pts[0]!.y - topY) < 1e-6 && Math.abs(g.pts[1]!.y - bottomY) < 1e-6);
+    expect(streaks.length).toBeGreaterThan(0);
+    for (const g of streaks) {
+      expect(g.pts[1]!.x, '下の端のほうが左').toBeLessThan(g.pts[0]!.x);
+      expect(g.pts[0]!.x - g.pts[1]!.x).toBeCloseTo(sheetTiltX(bottomY, 0.4), 6);
+    }
   });
 });

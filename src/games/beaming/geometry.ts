@@ -1,3 +1,5 @@
+import { SHEET_TILT_RX } from './params';
+
 /**
  * ビーム巻きの盤面の座標 (P3 T3-02。PU-15a で実物の写真に寄せて組み直した)。論理座標は幅 1000・高さ BOARD.H。
  * 奥 (上) に横に寝かせたドラム (糸の筋は縦)、そこから糸のシートが手前へ降りて、茶色のガイドの棒をくぐり、
@@ -232,6 +234,51 @@ export function flangeHit(
 /** 円盤をつかんだ位置 (startX) から指が curX まで動いたときの円盤の cm。つかんだときの cm (startCm) に動いた分を足し、1cm 単位に丸める */
 export function dragCm(widthCm: number, startCm: number, startX: number, curX: number): number {
   return Math.round(startCm + (curX - startX) / pxPerCm(widthCm));
+}
+
+/**
+ * ビームに巻いた糸の円筒の円周の線の x (PU-29)。ドラムの drumArcX と同じ形の「(」の曲線:
+ * 真ん中 (t=0) は xs より FLANGE_RX × (巻いた半径 r ÷ 円盤の半径) だけ左へふくらみ、上下の端 (t=±1) は xs。
+ * 右の端や、ほかの縞の線も同じ形 (xs を変えて呼ぶ)。
+ */
+export function beamArcX(xs: number, t: number, r: number): number {
+  return xs - FLANGE_RX * (r / BOARD.flangeR) * Math.sqrt(Math.max(0, 1 - t * t));
+}
+
+/**
+ * ビームの上に乗る所での糸のシートのずれの大きさ (px)。巻いた糸が太るほど大きくなり、巻ききったとき
+ * SHEET_TILT_RX。円筒の「(」の曲線のふくらみ (FLANGE_RX × (r ÷ 円盤の半径)) より小さく保ち、
+ * 曲線がつぶれないようにする (PU-29)。
+ */
+export function wrapTiltX(r: number): number {
+  return Math.min(SHEET_TILT_RX, (SHEET_TILT_RX * r) / (BOARD.flangeR * 0.8));
+}
+
+/**
+ * ビームの縞の境界の x (PU-29)。上下の端 (t=±1) は糸のシートの下の端の x (wrapTiltX ぶんだけ左) で、
+ * 真ん中 (t=0) は beamArcX そのもの (FLANGE_RX × (巻いた半径 ÷ 円盤の半径) だけ左)。
+ * 糸のシートとビームの手前の面がひと続きになる (境目に横の線や段差を描かない)。
+ */
+export function beamWrapX(xs: number, t: number, r: number): number {
+  const bulge = FLANGE_RX * (r / BOARD.flangeR);
+  const j = wrapTiltX(r);
+  return xs - j - (bulge - j) * Math.sqrt(Math.max(0, 1 - t * t));
+}
+
+/**
+ * 糸のシートの手まえへのずれの大きさ (px)。y での補間: ドラムの下の端 (sheetTopY) では 0、
+ * ビームの上の端 (woundTopY) では wrapTiltX (巻いた糸が太るほど大きい)。手まえに近づくほど左へずれる (PU-29)。
+ */
+export function sheetTiltX(y: number, progress: number): number {
+  const top = sheetTopY(progress);
+  const beamTop = woundTopY(progress);
+  const k = Math.min(1, Math.max(0, (y - top) / Math.max(1, beamTop - top)));
+  return wrapTiltX(woundRadius(progress)) * k;
+}
+
+/** 糸のシートの縦の筋と左右の端の x。手まえに近づくほど sheetTiltX ぶんだけ左へずれる (PU-29) */
+export function sheetEdgeX(baseX: number, y: number, progress: number): number {
+  return baseX - sheetTiltX(y, progress);
 }
 
 /** 上の設定表示の位置 (画面 px で描く) */

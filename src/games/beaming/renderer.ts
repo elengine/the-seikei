@@ -2,7 +2,7 @@ import type { Content } from '../../core/content/content';
 import { COLORS } from '../../core/ui/tokens';
 import type { StageFit } from '../../core/viewport/viewport';
 import {
-  BOARD, BEAM_CENTER_X, DRUM_X, DRUM_W, CORE_R, ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX, FLANGE_RX, woundRadius, woundTopY, sheetTopY, sheetDropEndY, lampR, threadBarRange, cmToX, pxPerCm,
+  BOARD, BEAM_CENTER_X, DRUM_X, DRUM_W, CORE_R, ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX, FLANGE_RX, woundRadius, woundTopY, sheetTopY, sheetDropEndY, lampR, threadBarRange, cmToX, pxPerCm, beamWrapX, sheetEdgeX,
   speedBarCenterX, SPEED_BAR_W, lampX, lampY,
 } from './geometry';
 import { okRangeOf } from './logic';
@@ -245,25 +245,25 @@ function drawThreadBar(ctx: CanvasRenderingContext2D, fit: StageFit, s: BeamingS
 
 /**
  * 糸のシート。上はドラムの下端 (中央)。下は、糸を付けるまで (setup・attach) は木の棒の位置 (垂れた端 sheetDropEndY。attach で引っぱっている間は棒の y。束の幅は変わらない)、
- * 巻いている間 (beaming・done) は巻いた糸の円筒の上端 (中央)。柄の色の縦の筋が上から下へ走る
+ * 巻いている間 (beaming・done) は巻いた糸の円筒の上端 (中央)。柄の色の縦の筋が上から下へ走り、手まえ (下) ほど左へずれる (PU-29)
  */
 function drawSheet(ctx: CanvasRenderingContext2D, s: BeamingState, runs: Array<{ hex: string; frac: number }>, repeats: number, barY: number | null): void {
   const half = (s.widthCm * pxPerCm(s.widthCm)) / 2;
   const topY = sheetTopY(s.progress);
   const bottomY = s.phase === 'setup' ? sheetDropEndY(s.progress) : s.phase === 'attach' ? (barY ?? sheetDropEndY(s.progress)) : woundTopY(s.progress);
   const cx = BEAM_CENTER_X; // シートはいつも中心 (偏りは無い。T3-05)
-  // 柄の縞 (縦。糸が流れる向き): 1 本ずつ、上の端から下の端までの長方形
+  // 柄の縞 (縦。糸が流れる向き): 1 本ずつ、手まえ (下) ほど左へずれる四角形 (PU-29)
   for (const st of stripeStrips(runs, repeats, cx - half, cx + half)) {
     ctx.fillStyle = st.hex;
     ctx.beginPath();
-    ctx.moveTo(st.x0, bottomY);
-    ctx.lineTo(st.x1, bottomY);
-    ctx.lineTo(st.x1, topY);
-    ctx.lineTo(st.x0, topY);
+    ctx.moveTo(sheetEdgeX(st.x0, topY, s.progress), topY);
+    ctx.lineTo(sheetEdgeX(st.x1, topY, s.progress), topY);
+    ctx.lineTo(sheetEdgeX(st.x1, bottomY, s.progress), bottomY);
+    ctx.lineTo(sheetEdgeX(st.x0, bottomY, s.progress), bottomY);
     ctx.closePath();
     ctx.fill();
   }
-  // 縦の筋 (上の端から下の端へ。偏りで下がずれると、筋も斜めになる)
+  // 縦の筋 (上の端から下の端へ。手まえほど左へずれる。偏りで下がずれると、筋も斜めになる)
   ctx.strokeStyle = COLORS.sumi;
   ctx.globalAlpha = 0.3;
   ctx.lineWidth = 2;
@@ -271,8 +271,8 @@ function drawSheet(ctx: CanvasRenderingContext2D, s: BeamingState, runs: Array<{
   for (let i = 0; i <= n; i++) {
     const k = i / n - 0.5; // -0.5〜0.5
     ctx.beginPath();
-    ctx.moveTo(BEAM_CENTER_X + k * 2 * half, topY);
-    ctx.lineTo(cx + k * 2 * half, bottomY);
+    ctx.moveTo(sheetEdgeX(BEAM_CENTER_X + k * 2 * half, topY, s.progress), topY);
+    ctx.lineTo(sheetEdgeX(BEAM_CENTER_X + k * 2 * half, bottomY, s.progress), bottomY);
     ctx.stroke();
   }
   ctx.globalAlpha = 1;
@@ -405,19 +405,27 @@ function drawBeam(ctx: CanvasRenderingContext2D, s: BeamingState, runs: Array<{ 
   drawFlange(ctx, leftX, beamAngle);
   ctx.fillStyle = COLORS.steel;
   ctx.fillRect(leftX, rodY, Math.max(0, rightX - leftX), CORE_R * 2);
-  // 3. 巻いた糸 (円盤のあいだ。軸を中心に上下に同じだけ太る円筒。端は円盤と同じ向きの楕円)
+  // 3. 巻いた糸 (円盤のあいだ。軸を中心に上下に同じだけ太る円筒。円周の線はドラムと同じ「(」の曲線。PU-29)
   if (s.phase !== 'setup' && s.progress > 0) {
     const r = woundRadius(s.progress);
-    const rx = FLANGE_RX * (r / BOARD.flangeR);
-    // 柄の縞 (縦。巻いた糸の円周の向き。1 本ずつの長方形)
+    // 柄の縞 (縦。巻いた糸の円周の向き。1 本ずつ、円筒に沿った「(」の曲線の帯。上の端は糸のシートの下の端につながる)
+    const steps = 16;
     for (const st of stripeStrips(runs, repeats, leftX, rightX)) {
       ctx.fillStyle = st.hex;
-      ctx.fillRect(st.x0, axisY - r, st.x1 - st.x0, r * 2);
+      ctx.beginPath();
+      for (let i = 0; i <= steps; i++) {
+        const t = -1 + (2 * i) / steps;
+        const x = beamWrapX(st.x1, t, r);
+        if (i === 0) ctx.moveTo(x, axisY + r * t);
+        else ctx.lineTo(x, axisY + r * t);
+      }
+      for (let i = steps; i >= 0; i--) {
+        const t = -1 + (2 * i) / steps;
+        ctx.lineTo(beamWrapX(st.x0, t, r), axisY + r * t);
+      }
+      ctx.closePath();
+      ctx.fill();
     }
-    ctx.fillStyle = runs[0]!.hex;
-    ctx.beginPath();
-    ctx.ellipse(leftX, axisY, rx, r, 0, Math.PI / 2, (Math.PI * 3) / 2); // 左の端の丸み (円盤の面に接する)
-    ctx.fill();
     // 回っていることが分かる光の帯 (薄い明るさの反射。手前 (cos > 0) だけ。beamAngle が増えると下へ流れる。BEAM_SURFACE_SIGN)。横の線は引かない
     ctx.fillStyle = COLORS.white;
     ctx.globalAlpha = 0.2;

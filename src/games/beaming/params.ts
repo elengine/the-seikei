@@ -67,6 +67,9 @@ export const BEAM_TURN_RATE = 0.25;
 export const DRUM_FLANGE_SIGN = -DRUM_SURFACE_SIGN;
 export const BEAM_FLANGE_SIGN = -BEAM_SURFACE_SIGN;
 
+/** 糸のシートの手まえへのずれ (px)。ドラムの下の端では 0、ビームの上に乗る所でこのぶんだけ左へ。DRUM_TILT_RX と同じ考え (PU-29) */
+export const SHEET_TILT_RX = 16;
+
 /** 柄の縞を描くときの、巻き幅いっぱいに並べる柄のくり返しの数の標準 (帯の数が分かるときはそれを使う。PU-28) */
 export const PATTERN_REPEATS = 3;
 
