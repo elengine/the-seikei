@@ -2,7 +2,7 @@ import type { RngState } from '../../core/clock/clock';
 import { seedFrom, nextFloat } from '../../core/clock/clock';
 import {
   MAX_TICK_MS, STARS3, STARS2, STAR_WIDTH3, STAR_WIDTH2,
-  FULL_WIND_SEC_AT_100, TARGET_POINTS, OK_TOL_BY_LEVEL, TENSION_FOLLOW_MS,
+  FULL_WIND_SEC_AT_100, TARGET_POINTS, OK_TOL_BY_LEVEL,
   DIP_GAP_MIN_MS, DIP_GAP_MAX_MS, DIP_AMOUNT_MIN, DIP_AMOUNT_MAX,
   DIP_DOWN_MS, DIP_HOLD_MIN_MS, DIP_HOLD_MAX_MS, DIP_BACK_MS,
   CONFIRM_MIN, STOP3, STOP2, RESTARTS_OK, WIDTH_OK_CM,
@@ -11,7 +11,7 @@ import type { Level } from './params';
 
 export type { Level } from './params';
 
-/** その巻き量での張りの目標 (T3-06。TARGET_POINTS の点を直線で結んだ値) */
+/** その巻き量での速さの目標 (T3-07。TARGET_POINTS の点を直線で結んだ値) */
 export function targetOf(progress: number): number {
   const pct = Math.min(100, Math.max(0, progress * 100));
   for (let i = 0; i < TARGET_POINTS.length - 1; i++) {
@@ -45,8 +45,7 @@ export interface BeamingState {
   phase: 'setup' | 'attach' | 'beaming' | 'done';
   leftCm: number; rightCm: number;   // 円盤の位置(ビームの中心からの距離 cm。左は負の数)
   progress: number;                  // 巻いた割合 0〜1 (表示は % にして切り捨て。101% に届いたら糸切れ)
-  speed: number;                     // 速さ 0〜100 (連続。0 = 停止)
-  tension: number;                   // 張り 0〜100。速さに遅れて付いていく (T3-06)
+  speed: number;                     // 木の棒の速さ 0〜100 (即時に変わる)
   dip: number;                       // 目標の揺らぎの今の下がり量 (35〜70% だけ。T3-06 追記)
   dipPhase: 'none' | 'down' | 'hold' | 'back'; // 揺らぎのいまの段階
   dipTimerMs: number;                // 揺らぎの段階の経過時間
@@ -102,7 +101,6 @@ export function init(opts: { level: Level; widthCm: number; seed: number; puzzle
     rightCm,
     progress: 0,
     speed: 0,
-    tension: 0,
     dip: 0,
     dipPhase: 'none',
     dipTimerMs: 0,
@@ -212,30 +210,27 @@ function tick(s: BeamingState, dtMs: number): BeamingState {
   const dtMsC = Math.min(MAX_TICK_MS, Math.max(0, dtMs));
   const dt = dtMsC / 1000; // 秒
 
-  // 1. 張りは速さに遅れて付いていく (速さ 0 の間も 0 へ下がる。T3-06)
-  const tension = s.tension + (s.speed - s.tension) * (1 - Math.exp(-dtMsC / TENSION_FOLLOW_MS));
-
-  // 2. 巻いているあいだ (速さ > 0) は巻き量と時間と揺らぎが進む
+  // 1. 巻いているあいだ (速さ > 0) は巻き量と時間と揺らぎが進む (T3-07: 張りはやめて、判定は速さそのもの)
   if (s.speed === 0) {
-    return { ...s, tension };
+    return s;
   }
   const rate = s.speed / 100 / FULL_WIND_SEC_AT_100; // 1秒あたりの巻き量
   const progress = s.progress + rate * dt;
   const windMs = s.windMs + dtMsC;
   const d = stepDip(s, dtMsC, s.rng);
   const range = okRangeOf(progress, s.level, d.dip);
-  const goodMs = tension >= range.min && tension <= range.max ? s.goodMs + dtMsC : s.goodMs;
-  // 3. 巻き量 101% に届いたら糸が切れて失敗 (T3-05。100.99 までは切れない)
+  const goodMs = s.speed >= range.min && s.speed <= range.max ? s.goodMs + dtMsC : s.goodMs;
+  // 2. 巻き量 101% に届いたら糸が切れて失敗 (T3-05。100.99 までは切れない)
   if (progress * 100 >= 101) {
-    return { ...s, progress, speed: 0, tension, windMs, goodMs, ...d, broken: true, phase: 'done' };
+    return { ...s, progress, speed: 0, windMs, goodMs, ...d, broken: true, phase: 'done' };
   }
-  return { ...s, progress, tension, windMs, goodMs, ...d };
+  return { ...s, progress, windMs, goodMs, ...d };
 }
 
 /**
  * 星 (T3-05)。失敗 (糸切れ) は 0 (星なし)。「中央に保てた割合」は採点に入れない。
  * 止めた位置は表示の値 (切り捨て) で比べる。巻き量 100.0〜100.99 で止めたら 100 (最良)。
- * 適正の割合は、張りが適正範囲の中で巻いた時間の割合 (T3-06)。
+ * 適正の割合は、速さが適正範囲の中で巻いた時間の割合 (T3-07 で判定は速さそのもの)。
  * - 星3: 適正 0.8 以上・止めた位置 99 以上・微調整 2回以下・幅の誤差 1cm 以内
  * - 星2: 適正 0.6 以上・止めた位置 97 以上・幅の誤差 3cm 以内
  * - 星1: それ以外
@@ -257,21 +252,24 @@ export function resultLines(s: BeamingState): { label: string; value: string }[]
   }
   const pct = (ok: number): string => `${Math.round(s.windMs > 0 ? (ok / s.windMs) * 100 : 0)}%`;
   return [
-    { label: 'ちょうどよい張りで巻いた割合', value: pct(s.goodMs) },
+    { label: 'ちょうどよい速さで巻いた割合', value: pct(s.goodMs) }, // 行の名前は T3-07 で「張り」から「速さ」に変えた (判定も速さそのもの)
     { label: '止めた位置', value: `${stopPosOf(s)}%` },
     { label: '微調整', value: `${s.restarts}回` },
     { label: '幅合わせの誤差', value: s.widthErrCm === null ? '—' : `${s.widthErrCm.toFixed(1)}cm` },
   ];
 }
 
-/** 途中保存の形を確かめる。速さと張りは数。古い形 (tension が無い) は読まない (T3-06)。
- * 再開したときのレバーは controller が停止 (0) にする */
+/**
+ * 途中保存の形を確かめる。速さは数。張り (tension) は求めない。古い途中保存 (tension を含む形) も読む —
+ * 余分な tension の値は形が違っていても捨てる (中身を見ない。T3-07 で張りをやめた)。
+ * 再開したときのレバーは controller が停止 (0) にする
+ */
 export function isValidResume(x: unknown): x is BeamingState {
   if (typeof x !== 'object' || x === null) return false;
   const o = x as Record<string, unknown>;
   if (typeof o.phase !== 'string' || !['setup', 'attach', 'beaming', 'done'].includes(o.phase)) return false;
   if (o.level !== 1 && o.level !== 2 && o.level !== 3) return false;
-  for (const key of ['widthCm', 'leftCm', 'rightCm', 'progress', 'tension', 'dip', 'dipTimerMs', 'dipGapMs', 'dipAmount', 'dipHoldMs', 'goodMs', 'windMs', 'restarts'] as const) {
+  for (const key of ['widthCm', 'leftCm', 'rightCm', 'progress', 'dip', 'dipTimerMs', 'dipGapMs', 'dipAmount', 'dipHoldMs', 'goodMs', 'windMs', 'restarts'] as const) {
     if (typeof o[key] !== 'number' || !Number.isFinite(o[key])) return false;
   }
   if (o.dipPhase !== 'none' && o.dipPhase !== 'down' && o.dipPhase !== 'hold' && o.dipPhase !== 'back') return false;

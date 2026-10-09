@@ -9,14 +9,14 @@ import { CONFIRM_MIN } from './params';
 /**
  * ビーム巻きの操作欄 (P3 T3-03a)。
  * 上から: 「巻き量 N%」(1 か所だけ、大きく。PU-15c。円盤調整のあいだは出さず、代わりに目標・いまの幅・差を大きく。PU-27)、
- * 糸を付ける段階の案内、巻き返しの段階 (張りのメーター)、依頼票 (柄の名前・巻き幅・帯の数。PU-27)、主な操作。
+ * 糸を付ける段階の案内、巻き返しの段階 (速さのメーター。T3-07)、依頼票 (柄の名前・巻き幅・帯の数。PU-27)、主な操作。
  * ペダルの「戻す」「踏み込む」・速さの数・経過時間は無い (速さは盤面の茶色の棒を左右に引っぱって変える。PU-24b。「速さ N」の表示は PU-27 で消した)。メッセージ欄は無い (理由は onNotice → お知らせ)。
  * メーターの範囲は State のもの (range {center, width} を min/max に直して渡す)。
  */
 
 export interface BeamingPanel {
   update(s: BeamingState): void;
-  /** 縦長のとき、見る情報 (巻き量・円盤調整の目標と今の幅・糸を付ける案内・張りのメーター) を盤面の上の帯へ移す。null で操作欄に戻す (PU-28) */
+  /** 縦長のとき、見る情報 (巻き量・円盤調整の目標と今の幅・糸を付ける案内・速さのメーター) を盤面の上の帯へ移す。null で操作欄に戻す (PU-28) */
   placeTop(top: HTMLElement | null): void;
   destroy(): void;
 }
@@ -117,11 +117,11 @@ export function createBeamingPanel(
   attachBlock.appendChild(attachText);
   root.appendChild(attachBlock);
 
-  // 3. 巻く段階: 張りのメーター (ドラム巻きと同じ部品。範囲は巻き量で動く。T3-06)
+  // 3. 巻く段階: 速さのメーター (ドラム巻きと同じ部品。範囲は巻き量で動く。T3-07 で張りから速さに変えた)
   const beamBlock = document.createElement('section');
   beamBlock.className = 'beaming-panel__block';
-  beamBlock.setAttribute('aria-label', opts.terms.t('tension'));
-  beamBlock.appendChild(createSectionHeading(opts.terms.t('tension')));
+  beamBlock.setAttribute('aria-label', opts.terms.t('speed'));
+  beamBlock.appendChild(createSectionHeading(opts.terms.t('speed')));
   const meterHost = document.createElement('div');
   meterHost.className = 'beaming-panel__meter';
   const meter: TensionMeter = createTensionMeter(meterHost, { label: '', showState: false }); // 状態の文は出さない (盤面のランプで示す)
@@ -164,7 +164,7 @@ export function createBeamingPanel(
 
   return {
     placeTop(top: HTMLElement | null): void {
-      // 依頼票・巻き量・円盤調整・糸を付ける案内・張りのメーターの並びのまま、上の帯と操作欄のあいだを移す (PU-29)
+      // 依頼票・巻き量・円盤調整・糸を付ける案内・速さのメーターの並びのまま、上の帯と操作欄のあいだを移す (PU-29)
       for (const el of topParts) {
         if (top !== null) {
           top.appendChild(el);
@@ -190,8 +190,8 @@ export function createBeamingPanel(
       confirmBtn.setAttribute('aria-disabled', String(!confirmStopped));
       confirmBtn.classList.toggle('beaming-panel__main--locked', !confirmStopped);
       amount.textContent = `巻き量 ${Math.floor(s.progress * 100)}%`; // 表示は切り捨て (T3-05)
-      // 張りのメーター: 範囲は巻き量と揺らぎで動く (T3-06)
-      meter.update(s.tension, okRangeOf(s.progress, s.level, s.dip));
+      // 速さのメーター: 針は速さそのもの。範囲は巻き量と揺らぎで動く (T3-07)
+      meter.update(s.speed, okRangeOf(s.progress, s.level, s.dip));
       // 巻き返しの段階の下の行は空 (ボタンが無いので行を低くする)
       buttonRow.style.minHeight = isSetup ? '' : '0';
       // 円盤調整: 目標と今の幅、差を言葉と記号で (ぴったりだけ藍の印)

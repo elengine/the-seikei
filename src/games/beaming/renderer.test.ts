@@ -316,9 +316,9 @@ describe('PU-24b・PU-28 (速さの木の棒・ランプ)', () => {
     }
   });
 
-  it('3. 張りのランプ (T3-06 追記。ドラム巻きと同じ見た目): 範囲の中は緑の ○、強すぎは ▲、弱すぎは ▼。巻く段階でなければ消灯', () => {
-    // 巻き量 50% (範囲 90〜100)・張り 95 → 緑の ○
-    const rec = draw(beamState({ progress: 0.5, tension: 95 }));
+  it('3. 速さのランプ (T3-07 で張りから速さの判定に変えた。ドラム巻きと同じ見た目): 範囲の中は緑の ○、速すぎは ▲、遅すぎは ▼。巻く段階でなければ消灯', () => {
+    // 巻き量 50% (範囲 85〜100)・速さ 95 → 緑の ○
+    const rec = draw(beamState({ progress: 0.5, speed: 95 }));
     const green = rec.ops.some((o) => o.k === 'arc' && Math.abs(((o.args as number[])[0] ?? 0) - lampX()) < 1 && Math.abs(((o.args as number[])[1] ?? 0) - lampY()) < 1 && styleBefore(rec.ops, rec.ops.indexOf(o)) === COLORS.lampOk);
     expect(green, '範囲の中の緑のランプ').toBe(true);
     // 記号はランプの中央に白い字で描く (ドラム巻きと同じ。▲▼ は三角の形でなく fillText の字)
@@ -327,14 +327,14 @@ describe('PU-24b・PU-28 (速さの木の棒・ランプ)', () => {
         .filter((o) => o.k === 'fillText')
         .map((o) => String((o.args as unknown[])[0]))
         .filter((t) => ['▲', '▼', '○'].includes(t));
-    // 強すぎ: 巻き量 90% (目標 20・範囲 5〜35) で張り 80 → ▲ (オレンジ)
-    const rec2 = draw(beamState({ progress: 0.9, tension: 80 }));
-    expect(symbolsOf(rec2), '強すぎの ▲').toEqual(['▲']);
-    // 弱すぎ: 巻き量 90% で張り 2 → ▼
-    const rec3 = draw(beamState({ progress: 0.9, tension: 2 }));
-    expect(symbolsOf(rec3), '弱すぎの ▼').toEqual(['▼']);
-    // 範囲の中 (巻き量 90%・張り 20) は ○
-    const rec5 = draw(beamState({ progress: 0.9, tension: 20 }));
+    // 速すぎ: 巻き量 90% (目標 20・範囲 5〜35) で速さ 80 → ▲ (オレンジ)
+    const rec2 = draw(beamState({ progress: 0.9, speed: 80 }));
+    expect(symbolsOf(rec2), '速すぎの ▲').toEqual(['▲']);
+    // 遅すぎ: 巻き量 90% で速さ 2 → ▼
+    const rec3 = draw(beamState({ progress: 0.9, speed: 2 }));
+    expect(symbolsOf(rec3), '遅すぎの ▼').toEqual(['▼']);
+    // 範囲の中 (巻き量 90%・速さ 20) は ○
+    const rec5 = draw(beamState({ progress: 0.9, speed: 20 }));
     expect(symbolsOf(rec5), '範囲の中の ○').toEqual(['○']);
     // attach の段階 → ランプは描かない
     const rec4 = draw(beamState({ phase: 'attach' }));
@@ -558,7 +558,7 @@ describe('PU-26 追加修正: 張りのランプの大きさ (ドラム巻きの
   it('393×852 相当 (縮尺 0.39) で、ランプの半径は画面上 16px 以上・中の記号の字は画面上 20px 以上', () => {
     const scale = 0.39;
     const { ctx, rec } = makeFakeCtx();
-    drawBoard(ctx, { scale, offsetX: 0, offsetY: 0 }, beamState({ progress: 0.9, tension: 80 }), content, 0);
+    drawBoard(ctx, { scale, offsetX: 0, offsetY: 0 }, beamState({ progress: 0.9, speed: 80 }), content, 0);
     const arc = rec.ops.filter((o) => o.k === 'arc' && Math.abs(((o.args as number[])[0] ?? 0) - lampX()) < 1).map((o) => (o.args as number[])[2]!);
     expect(Math.min(...arc) * scale).toBeGreaterThanOrEqual(16 - 1e-6);
     const fonts = rec.ops.filter((o) => o.k === 'font').map((o) => /([0-9.]+)px/.exec(String(o.v))![1]!);

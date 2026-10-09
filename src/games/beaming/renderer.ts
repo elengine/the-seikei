@@ -118,7 +118,7 @@ export function drawBoard(
     drawThreadBar(ctx, fit, s, s.phase === 'attach' && threadDrag ? threadDrag.y : sheetDropEndY(s.progress));
   }
 
-  // 張りのランプ (ドラムの上。ドラム巻きと同じ見た目。T3-06 追記)
+  // 速さのランプ (ドラムの上。ドラム巻きと同じ見た目。判定は速さそのもの。T3-07)
   drawTensionLamp(ctx, fit, s);
 
   ctx.restore();
@@ -486,7 +486,7 @@ function drawTarget(ctx: CanvasRenderingContext2D, s: BeamingState): void {
 }
 
 /**
- * 張りのランプ (ドラムの上。T3-06 追記)。ドラム巻きの drawTensionLamp と同じ見た目:
+ * 速さのランプ (ドラムの上。T3-07 で張りから速さの判定に変えた)。ドラム巻きの drawTensionLamp と同じ見た目:
  * 範囲の中は緑の「○」、強すぎは「▲」、弱すぎは「▼」のオレンジ。state の形が違うので
  * ドラム巻きからは読み込まず、ここに同じ見た目で書く。外れていないときは点滅しない。
  */
@@ -498,7 +498,7 @@ function drawTensionLamp(ctx: CanvasRenderingContext2D, fit: StageFit, s: Beamin
   const y = lampY();
   const r = lampR(fit.scale); // ドラム巻きの lampGeometry と同じ決め方 (画面上 16px 以上。PU-26 追加修正)
   const range = okRangeOf(s.progress, s.level, s.dip);
-  const state: 'ok' | 'high' | 'low' = s.tension > range.max ? 'high' : s.tension < range.min ? 'low' : 'ok';
+  const state: 'ok' | 'high' | 'low' = s.speed > range.max ? 'high' : s.speed < range.min ? 'low' : 'ok'; // T3-07: 判定は張りでなく速さそのもの
   const color = state === 'ok' ? COLORS.lampOk : COLORS.lampWarn;
   // 光っている感じ (外側の薄い輪)
   ctx.save();

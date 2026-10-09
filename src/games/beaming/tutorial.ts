@@ -70,7 +70,7 @@ export function drawPage2(ctx: CanvasRenderingContext2D, w: number, h: number): 
   drawText(ctx, '引っぱる', label.x, label.y);
 }
 
-/** 張りのメーター (緑の範囲の帯と針) を描く (操作欄のメーターと同じ形。盤面の絵の下の帯) */
+/** 速さのメーター (緑の範囲の帯と針) を描く (操作欄のメーターと同じ形。盤面の絵の下の帯)。T3-07 で見出しは速さ */
 function drawMeter(ctx: CanvasRenderingContext2D, w: number, h: number): void {
   const mX = w * 0.24;
   const mW = w * 0.52;
@@ -85,12 +85,12 @@ function drawMeter(ctx: CanvasRenderingContext2D, w: number, h: number): void {
   ctx.strokeRect(mX, mY, mW, h * 0.05);
 }
 
-/** 3ページ目: 速さの木の棒 (右へ引っぱる) と張りのランプ・張りのメーター (緑の範囲は巻き量で動く) */
+/** 3ページ目: 速さの木の棒 (右へ引っぱる) と速さのランプ・速さのメーター (緑の範囲は巻き量で動く)。T3-07 で張りを速さに変えた */
 export function drawPage3(ctx: CanvasRenderingContext2D, w: number, h: number): void {
   // 速さの木の棒 (止まっている左端の位置)。右へ引っぱると速くなる
-  drawBoardSketch(ctx, w, h, sketchState('beaming', { progress: 0.4, speed: 0, tension: 60 }));
+  drawBoardSketch(ctx, w, h, sketchState('beaming', { progress: 0.4, speed: 0 }));
   drawMeter(ctx, w, h);
-  drawText(ctx, '張りのメーター', w * 0.32, h * 0.84);
+  drawText(ctx, '速さのメーター', w * 0.32, h * 0.84); // T3-07 で見出しは速さ
 }
 
 /** 4ページ目: 止めて完了 (棒は左端・完了のボタンと 100% の目印) */
@@ -123,7 +123,7 @@ export const beamingTutorial: TutorialSpec = {
     },
     {
       draw: (ctx, w, h) => drawPage3(ctx, w, h),
-      text: '木の棒を右へ引っぱると巻き始めます。張りのメーターの緑の範囲に入るように、速さを合わせます。緑の範囲は、巻き量に合わせて動きます',
+      text: '木の棒を右へ引っぱると巻き始めます。速さのメーターの針を緑の範囲に入れるように、木の棒を動かします。緑の範囲は、巻き量に合わせて動きます', // T3-07 で変えた
     },
     {
       draw: (ctx, w, h) => drawPage4(ctx, w, h),

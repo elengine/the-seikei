@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { init, reduce, starsOf, widthOk, resultLines, isValidResume, targetOf, okRangeOf } from './logic';
 import type { BeamingState, BeamingAction } from './logic';
 import type { Level } from './params';
-import { FULL_WIND_SEC_AT_100, TARGET_POINTS, STOP3, STOP2, RESTARTS_OK, OK_TOL_BY_LEVEL, TENSION_FOLLOW_MS } from './params';
+import { FULL_WIND_SEC_AT_100, TARGET_POINTS, STOP3, STOP2, RESTARTS_OK, OK_TOL_BY_LEVEL } from './params';
 
 /** テスト用の状態を作る (seed 固定)。level と巻き幅を指定できる */
 function make(level: Level = 1, widthCm = 60, seed = 42): BeamingState {
@@ -149,7 +149,7 @@ describe('beaming logic T3-01 (ルール)', () => {
     expect(STOP2).toBe(0.97);
   });
 
-  it('9. 成績の行: ちょうどよい張りで巻いた割合・止めた位置・微調整・幅合わせの誤差の4行。止めた位置は表示と同じ (切り捨て) (T3-06)', () => {
+  it('9. 成績の行: ちょうどよい速さで巻いた割合・止めた位置・微調整・幅合わせの誤差の4行。止めた位置は表示と同じ (切り捨て)。行の名前は T3-07 で張りから速さに変えた', () => {
     const base = setupExact(make());
     const s: BeamingState = {
       ...base,
@@ -160,7 +160,7 @@ describe('beaming logic T3-01 (ルール)', () => {
       restarts: 1,
     };
     const lines = resultLines(s);
-    expect(lines.map((l) => l.label)).toEqual(['ちょうどよい張りで巻いた割合', '止めた位置', '微調整', '幅合わせの誤差']);
+    expect(lines.map((l) => l.label)).toEqual(['ちょうどよい速さで巻いた割合', '止めた位置', '微調整', '幅合わせの誤差']);
     expect(lines[0]!.value).toBe('86%');
     expect(lines[1]!.value).toBe('99%'); // 99.2% → 表示は切り捨ての 99
     expect(lines[2]!.value).toBe('1回');
@@ -212,24 +212,25 @@ describe('beaming logic T3-01 (ルール)', () => {
     expect(okRangeOf(0.5, 1, 0).max).toBeLessThanOrEqual(100);
   });
 
-  it("11b. 張りが適正範囲の中のときだけ goodMs が増える (巻いている間だけ。速さ 0 では増えない) (T3-06)", () => {
-    // 巻き量 50% (目標 100・レベル2 の範囲 90〜100)。張りは 1tick で速さ 50 のほうへ少し動くので 97 から始める (後 91.5 で範囲の中)
+  it("11b. 速さが適正範囲の中のときだけ goodMs が増える (巻いている間だけ。速さ 0 では増えない)。判定は張りでなく速さそのもの (T3-07。張りはやめた)", () => {
+    // 巻き量 50% (目標 100・レベル2 の範囲 90〜100)。速さ 95 は範囲の中
     let s = setupExact(make(2));
-    s = { ...s, speed: 50, tension: 97, progress: 0.5 };
+    s = { ...s, speed: 95, progress: 0.5 };
     s = reduce(s, { type: 'tick', dtMs: 100 });
     expect(s.goodMs).toBe(100);
-    // 張りが範囲の外 (20) だと増えない (巻きは進む)
-    s = { ...s, tension: 20 };
+    // 速さが範囲の外 (50) だと増えない (巻きは進む)
+    s = { ...s, speed: 50, progress: 0.5 };
     s = reduce(s, { type: 'tick', dtMs: 100 });
     expect(s.goodMs).toBe(100);
     expect(s.windMs).toBe(200);
-    // 速さ 0 では張りは 0 のほうへ下がる (1tick で 97 → 約 85.6。時定数 800ms) が goodMs は増えない
-    s = { ...s, tension: 97, speed: 0 };
+    // 速さ 0 では巻きも goodMs も進まない
+    s = { ...s, speed: 0, progress: 0.5 };
     const stopped = reduce(s, { type: 'tick', dtMs: 100 });
     expect(stopped.goodMs).toBe(100);
     expect(stopped.windMs).toBe(200);
-    expect(stopped.tension).toBeCloseTo(97 * Math.exp(-100 / TENSION_FOLLOW_MS), 6);
-    expect(stopped.tension).toBeLessThan(97);
+    expect(stopped.progress).toBe(0.5);
+    // state に張り (tension) は無い (T3-07 でやめた)
+    expect(Object.keys(stopped)).not.toContain('tension');
   });
 
   it("11c. 巻き量 95% を超えてから停止 → 速さを 0 より大きく戻すと restarts が増える。確認は 95% 以上・停止のときだけ (T3-05)", () => {
@@ -269,7 +270,7 @@ describe('beaming logic T3-01 (ルール)', () => {
     expect(s.windMs).toBe(0);
   });
 
-  it('13. 途中保存の形 (isValidResume): init の状態は true、壊れた形は false。張り (tension) が数であること。古い形 (tension が無い) は読まない (T3-06)', () => {
+  it('13. 途中保存の形 (isValidResume): init の状態は true、壊れた形は false。張り (tension) は無くてよい。古い途中保存 (tension を含む形) も読む (余分な tension は捨てる。T3-07 で張りをやめたため、期待値を変えた)', () => {
     const s = setupExact(make());
     expect(isValidResume(s)).toBe(true);
     expect(isValidResume({ ...s, phase: 'attach' })).toBe(true);
@@ -277,14 +278,12 @@ describe('beaming logic T3-01 (ルール)', () => {
     expect(isValidResume({ ...s, leftCm: 'x' as unknown as number })).toBe(false);
     expect(isValidResume({ ...s, speed: 60 })).toBe(true); // 0〜100 なら何でもよい
     expect(isValidResume({ ...s, speed: 101 })).toBe(false);
-    expect(isValidResume({ ...s, tension: 'x' as unknown as number })).toBe(false);
     expect(isValidResume({ ...s, goodMs: 'x' as unknown as number })).toBe(false);
     expect(isValidResume({ ...s, restarts: 'x' as unknown as number })).toBe(false);
     expect(isValidResume({ ...s, broken: 'x' as unknown as boolean })).toBe(false);
-    // 古い形 (tension が無い。T3-05 までの途中保存) は読まない
-    const oldSave: Record<string, unknown> = { ...(s as unknown as Record<string, unknown>) };
-    delete oldSave['tension'];
-    expect(isValidResume(oldSave)).toBe(false);
+    // 古い途中保存 (T3-06 までの形。tension を含む) も読む。余分な tension は形が違っていても捨てる (中身を見ない)
+    const oldSave: Record<string, unknown> = { ...(s as unknown as Record<string, unknown>), tension: 'x' as unknown as number };
+    expect(isValidResume(oldSave)).toBe(true);
     expect(isValidResume(null)).toBe(false);
   });
 });
@@ -370,39 +369,18 @@ describe('T3-06 (3つの作業と張り)', () => {
     expect(s.speed).toBe(0);
   });
 
-  it('24. 張りは速さに遅れて付いていく: 0.8 秒で目標の約 63%、3 秒で 95% 以上。速さ 0 に戻すと下がっていく', () => {
-    expect(TENSION_FOLLOW_MS).toBe(800);
-    let s = setupExact(make());
-    s = reduce(s, { type: 'setSpeed', value: 100 });
-    for (let i = 0; i < 8; i++) {
-      s = reduce(s, { type: 'tick', dtMs: 100 });
-    }
-    expect(s.tension).toBeGreaterThan(60); // 0.8 秒: 63.2
-    expect(s.tension).toBeLessThan(66);
-    for (let i = 0; i < 22; i++) {
-      s = reduce(s, { type: 'tick', dtMs: 100 });
-    }
-    expect(s.tension).toBeGreaterThanOrEqual(95); // 3 秒: 97.6
-    // 速さ 0 に戻すと張りは 0 へ下がる (巻き量は進まない)
-    s = reduce(s, { type: 'setSpeed', value: 0 });
-    const p = s.progress;
-    s = reduce(s, { type: 'tick', dtMs: 100 });
-    expect(s.tension).toBeLessThan(95);
-    expect(s.progress).toBe(p);
-  });
-
   it('26. 35〜70% では目標がときどき下がって戻る (下がる量は 15 以内。区間の外では下がらない。同じ種なら同じ動き)', () => {
     // 巻き量 50% に固定して 60 秒巻くと、揺らぎで dip が 0 より大きくなることがある
     let s = setupExact(make(2, 60, 9));
     s = reduce(s, { type: 'setSpeed', value: 40 });
-    s = { ...s, progress: 0.5, tension: 100 };
+    s = { ...s, progress: 0.5 };
     let sawDip = false;
     let maxDip = 0;
     for (let i = 0; i < 600; i++) {
       s = reduce(s, { type: 'tick', dtMs: 100 });
       maxDip = Math.max(maxDip, s.dip);
       if (s.dip > 0) sawDip = true;
-      s = { ...s, progress: 0.5, tension: 100 }; // 巻き量を固定して揺らぎだけを見る
+      s = { ...s, progress: 0.5 }; // 巻き量を固定して揺らぎだけを見る
     }
     expect(sawDip, `maxDip ${maxDip}`).toBe(true);
     expect(maxDip).toBeLessThanOrEqual(15);
@@ -419,31 +397,15 @@ describe('T3-06 (3つの作業と張り)', () => {
     const run = (): number[] => {
       let c = setupExact(make(2, 60, 9));
       c = reduce(c, { type: 'setSpeed', value: 40 });
-      c = { ...c, progress: 0.5, tension: 100 };
+      c = { ...c, progress: 0.5 };
       const dips: number[] = [];
       for (let i = 0; i < 200; i++) {
         c = reduce(c, { type: 'tick', dtMs: 100 });
-        c = { ...c, progress: 0.5, tension: 100 };
+        c = { ...c, progress: 0.5 };
         dips.push(Math.round(c.dip * 100));
       }
       return dips;
     };
     expect(run()).toEqual(run());
-  });
-
-  it('25. 速さ 0 の間も張りだけは毎 tick 動く。巻き量と時間は速さ 0 では進まない', () => {
-    let s = setupExact(make());
-    s = reduce(s, { type: 'setSpeed', value: 80 });
-    for (let i = 0; i < 30; i++) {
-      s = reduce(s, { type: 'tick', dtMs: 100 });
-    }
-    const high = s.tension;
-    s = reduce(s, { type: 'setSpeed', value: 0 });
-    for (let i = 0; i < 10; i++) {
-      s = reduce(s, { type: 'tick', dtMs: 100 });
-      expect(s.windMs, `${i}`).toBe(3000);
-      expect(s.progress).toBeGreaterThan(0);
-    }
-    expect(s.tension).toBeLessThan(high);
   });
 });

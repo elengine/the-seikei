@@ -1,5 +1,3 @@
-import type { TensionParams } from '../../core/mechanics/pedal';
-
 /**
  * ビーム巻きの難易度ごとの数値 (P3 T3-01)。数値はここだけに置く。
  * 張りはドラム巻きと同じ計算 (core/mechanics/pedal.ts) を使い回す。
@@ -9,9 +7,6 @@ import type { TensionParams } from '../../core/mechanics/pedal';
 /** 初級・中級・上級 */
 export type Level = 1 | 2 | 3;
 
-/** pedal 100 のときの速さ (長さ/秒)。ドラム巻きと同じ */
-export const MAX_SPEED = 40;
-
 /** ビーム1本ぶんの長さ */
 export const BEAM_LENGTH = 1;
 
@@ -19,15 +14,12 @@ export const BEAM_LENGTH = 1;
 export const FULL_WIND_SEC_AT_100 = 30;
 
 /**
- * 巻き量 (%) ごとの張りの目標の表 (T3-06)。点を直線で結んだ値が目標。
+ * 巻き量 (%) ごとの速さの目標の表 (T3-07 で張りをやめ、速さそのものの目標に)。点を直線で結んだ値が目標。
  * (0,0) → 10% で 50 (PU-27 で速くした)、30% まで 50、35% で 100、70% まで 100、75% で 50、100% で 0。
  */
 export const TARGET_POINTS: ReadonlyArray<readonly [number, number]> = [
   [0, 0], [10, 50], [30, 50], [35, 100], [70, 100], [75, 50], [100, 0],
 ];
-
-/** 張りが速さに遅れて付いていく時定数 (ms。T3-06) */
-export const TENSION_FOLLOW_MS = 800;
 
 /** レベルごとの適正範囲の幅 (目標 ± この値。内部のレベル 1・2・3。T3-06 追記) */
 export const OK_TOL_BY_LEVEL: Record<Level, number> = { 1: 15, 2: 10, 3: 6 };
@@ -79,7 +71,7 @@ export const THREAD_RETURN_MS = 200;
 /** 1回の tick の dtMs の上限 (Safari 対策。ドラム巻きと同じ) */
 export const MAX_TICK_MS = 100;
 
-/** 星3・星2 の張り・偏りの割合の境目 (ドラム巻きと同じ) */
+/** 星3・星2 の適正・偏りの割合の境目 (ドラム巻きと同じ) */
 export const STARS3 = 0.8;
 export const STARS2 = 0.6;
 
@@ -90,14 +82,3 @@ export const STAR_WIDTH2 = 3;
 /** 幅合わせが「合いました」になる誤差 (cm) */
 export const WIDTH_OK_CM = 1;
 
-
-/** 張りの計算の初期値 (ドラム巻きと同じ式。range は State のものを使う) */
-export const TENSION: TensionParams = {
-  maxSpeed: MAX_SPEED,
-  base: 30,
-  perPedal: 0.6,
-  yarnDrift: 0,
-  noiseAmp: 2, // 呼び出し側で難易度のものに差し替える
-  noiseStepPerSec: 1,
-  range: { min: 30, max: 70 }, // 呼び出し側で難易度のものに差し替える
-};

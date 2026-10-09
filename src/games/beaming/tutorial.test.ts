@@ -7,12 +7,12 @@ import { COLORS } from '../../core/ui/tokens';
  * ビーム巻きの遊び方のテスト (P3 T3-03b)。3ページ。
  */
 describe('ビーム巻きの遊び方 T3-03b (3ページ)', () => {
-  it('4ページあり、文は幅合わせ・糸を付ける・張りで巻く・止めて完了の順。寄せる・偏りの説明は無い (T3-06)', () => {
+  it('4ページあり、文は幅合わせ・糸を付ける・速さで巻く・止めて完了の順。寄せる・偏りの説明は無い (T3-07 で3ページ目の見出しは速さ)', () => {
     expect(beamingTutorial.pages).toHaveLength(4);
     expect(beamingTutorial.pages[0]!.text).toContain('動かして'); // 1 ページ目の文は PU-29 で変えた (「引っぱって」→「動かして」)
     expect(beamingTutorial.pages[0]!.text).toContain('円盤調整完了');
     expect(beamingTutorial.pages[1]!.text).toContain('引っぱって離す');
-    expect(beamingTutorial.pages[2]!.text).toContain('張りのメーター');
+    expect(beamingTutorial.pages[2]!.text).toContain('速さのメーター');
     expect(beamingTutorial.pages[2]!.text).toContain('動きます');
     expect(beamingTutorial.pages[3]!.text).toContain('完了');
     expect(beamingTutorial.pages[3]!.text).toContain('101%');
@@ -81,14 +81,14 @@ describe('ビーム巻きの遊び方 T3-03b (3ページ)', () => {
   });
 });
 
-describe('T3-06 (遊び方を4ページに。3つの作業と張りのメーター)', () => {
+describe('T3-06 → T3-07 (遊び方を4ページに。3つの作業と速さのメーター)', () => {
   const texts = (): string[] => beamingTutorial.pages.map((p) => p.text);
 
-  it('4ページの文が決めたとおり。大人向けの文で、絵は今の盤面に合わせる', () => {
+  it('4ページの文が決めたとおり。大人向けの文で、絵は今の盤面に合わせる (T3-07 で3ページ目の文を変えた)', () => {
     const [p1, p2, p3, p4] = texts();
     expect(p1).toBe('ビームの両端の円盤を左右に動かして、目標値に合わせます。合わせたら『円盤調整完了』を押します'); // 文は PU-29 で変えた
     expect(p2).toBe('ドラムの糸の束の先の木の棒を、指でビームまで引っぱって離すと、糸がビームに付きます');
-    expect(p3).toBe('木の棒を右へ引っぱると巻き始めます。張りのメーターの緑の範囲に入るように、速さを合わせます。緑の範囲は、巻き量に合わせて動きます');
+    expect(p3).toBe('木の棒を右へ引っぱると巻き始めます。速さのメーターの針を緑の範囲に入れるように、木の棒を動かします。緑の範囲は、巻き量に合わせて動きます'); // T3-07 で変えた
     expect(p4).toBe('巻き量が 95% を超えたら、木の棒を左端まで戻して止め、『完了』を押します。100% で止めるといちばんよい結果です。101% に届くと糸が切れます');
     const all = texts().join('\n');
     for (const w of ['レバー', '停止', '50%', '{{pedal}}', '速さの目標', '巻き始める']) { // 速さの部品の呼び名は「木の棒」(PU-28)
@@ -121,7 +121,7 @@ describe('T3-06 (遊び方を4ページに。3つの作業と張りのメータ�
     }
   });
 
-  it('3ページ目の絵: 張りのメーター (緑の範囲の帯と針) を描く。4ページ目の絵: 「完了」のボタンと 100% の目印', () => {
+  it('3ページ目の絵: 速さのメーター (緑の範囲の帯と針、見出しの字) を描く (T3-07 で見出しは速さ)。4ページ目の絵: 「完了」のボタンと 100% の目印', () => {
     const texts: string[] = [];
     const rects: string[] = [];
     const fake = new Proxy({ canvas: { width: 300, height: 200 }, fillStyle: '', globalAlpha: 1, createLinearGradient: () => ({ addColorStop: () => undefined }) } as Record<string, unknown>, {
@@ -139,6 +139,7 @@ describe('T3-06 (遊び方を4ページに。3つの作業と張りのメータ�
     });
     beamingTutorial.pages[2]!.draw(fake as unknown as CanvasRenderingContext2D, 900, 600);
     beamingTutorial.pages[3]!.draw(fake as unknown as CanvasRenderingContext2D, 900, 600);
+    expect(texts.some((t) => t.includes('速さのメーター')), 'メーターの見出しは速さ (T3-07)').toBe(true);
     expect(texts.some((t) => t.includes('完了'))).toBe(true);
     expect(texts.some((t) => t.includes('100%'))).toBe(true);
     expect(rects.length).toBeGreaterThan(0); // メーターの帯とボタン
@@ -164,12 +165,13 @@ describe('PU-26 追加修正: 遊び方の絵のドラムは盤面と同じ', ()
   });
 });
 
-describe('PU-28: 遊び方 3 ページ目の絵は木の棒 (止・速の字が無い)', () => {
-  it('3 ページ目の絵に「止」「速」「→」の字が無く、文に「木の棒」がある', () => {
+describe('PU-28 → T3-07: 遊び方 3 ページ目の絵は木の棒 (止の字と → が無い。メーターの見出しは速さになる)', () => {
+  it('3 ページ目の絵に「止」「→」の字が無く、文に「木の棒」がある。「速」はメーターの見出し (速さのメーター) に使うので禁止から外した (T3-07)', () => {
     const { ctx, rec } = makeFakeCtx();
     beamingTutorial.pages[2]!.draw(ctx, 600, 450);
     const texts = rec.ops.filter((o) => o.k === 'fillText').map((o) => String((o.args as unknown[])[0]));
-    for (const t of ['止', '速', '→']) expect(texts, t).not.toContain(t);
+    for (const t of ['止', '→']) expect(texts, t).not.toContain(t);
+    expect(texts.some((t) => t.includes('速さのメーター'))).toBe(true);
     expect(beamingTutorial.pages[2]!.text).toContain('木の棒');
     expect(beamingTutorial.pages[2]!.text).not.toContain('レバー');
   });

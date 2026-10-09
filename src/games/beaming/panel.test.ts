@@ -199,7 +199,7 @@ describe('T3-04c (完了のボタン。T3-06 で「確認」から名前を変�
   });
 });
 
-describe('PU-27: 操作欄に「速さ」の行は無い', () => {
+describe('PU-27 → T3-07: 操作欄に「速さ」の操作行は無い (メーターの見出しは速さ)', () => {
   let host: HTMLElement;
   beforeEach(() => {
     document.body.textContent = '';
@@ -207,14 +207,15 @@ describe('PU-27: 操作欄に「速さ」の行は無い', () => {
     document.body.appendChild(host);
   });
 
-  it('どの段階でも「速さ」の字も .beaming-panel__speed も無い。巻き量は残る。ボタンの名前は「円盤調整完了」で「ビーム設定OK」はどこにも無い', () => {
+  it('どの段階でも .beaming-panel__speed の操作行は無い。メーターの見出し (aria-label) は terms.t(\'speed\') (T3-07 でメーターの見出しが速さになったため、期待値を変えた)。ボタンの名前は「円盤調整完了」で「ビーム設定OK」はどこにも無い', () => {
     const p = createBeamingPanel(host, { terms, onAction: () => undefined });
     for (const st of [make(), { ...beaming(), phase: 'attach' as const }, { ...beaming(), progress: 0.5, speed: 63 }]) {
       p.update(st);
       expect(host.querySelector('.beaming-panel__speed')).toBeNull();
-      expect(host.textContent).not.toContain('速さ');
       expect(host.textContent).not.toContain('ビーム設定OK');
     }
+    const meterSection = host.querySelector<HTMLElement>('.beaming-panel__block[aria-label="speed"]');
+    expect(meterSection, 'メーターの節の見出しは speed (テストの terms は t(k)=k)').not.toBeNull();
     expect(host.querySelector('.beaming-panel__amount')!.textContent).toContain('巻き量');
     p.update(make());
     expect(Array.from(host.querySelectorAll('button')).some((b) => b.textContent === '円盤調整完了')).toBe(true);
@@ -222,7 +223,7 @@ describe('PU-27: 操作欄に「速さ」の行は無い', () => {
   });
 });
 
-describe('T3-06 (張りのメーターと糸を付ける段階の操作欄)', () => {
+describe('T3-06 → T3-07 (速さのメーターと糸を付ける段階の操作欄)', () => {
   let host: HTMLElement;
   beforeEach(() => {
     document.body.textContent = '';
@@ -230,17 +231,37 @@ describe('T3-06 (張りのメーターと糸を付ける段階の操作欄)', ()
     document.body.appendChild(host);
   });
 
-  it('巻き量の帯 (速さの目標の色の区間) は無い。代わりに張りのメーターがあり、範囲が巻き量で動く', () => {
+  it('巻き量の帯 (速さの目標の色の区間) は無い。代わりに速さのメーターがあり、針は速さと同じ所 (T3-07 で張りから速さに変えたため、期待値を変えた)。範囲は巻き量で動く', () => {
     const p = createBeamingPanel(host, { terms, onAction: () => undefined });
     p.update(beaming());
     expect(host.querySelector('.beaming-panel__band')).toBeNull();
     expect(host.querySelector('.tension-meter')).not.toBeNull();
-    // 巻き量 50% (目標 100) では範囲は 90〜100。0% (目標 50) では 40〜60
+    const needle = host.querySelector<HTMLElement>('.meter__needle')!;
+    p.update({ ...beaming(), phase: 'beaming', progress: 0.5, speed: 95 });
+    expect(parseFloat(needle.style.left), '針は速さ 95 の位置').toBeCloseTo(95, 5);
+    p.update({ ...beaming(), phase: 'beaming', progress: 0, speed: 50 });
+    expect(parseFloat(needle.style.left), '針は速さ 50 の位置').toBeCloseTo(50, 5);
+    // 範囲は巻き量で動く (巻き量 50% (目標 100) と 0% (目標 50) では zone の位置が違う)
     const zone = host.querySelector<HTMLElement>('.meter__zone')!;
-    p.update({ ...beaming(), phase: 'beaming', progress: 0.5, tension: 95 });
+    p.update({ ...beaming(), phase: 'beaming', progress: 0.5, speed: 50 });
     const left50 = zone.style.left;
-    p.update({ ...beaming(), phase: 'beaming', progress: 0, tension: 50 });
+    p.update({ ...beaming(), phase: 'beaming', progress: 0, speed: 50 });
     expect(zone.style.left).not.toBe(left50);
+    p.destroy();
+  });
+
+  it('T3-07 管理者の確認: 木の棒を動かすと、針は同じ update の中で同じ速さの位置になる (遅れ・なめらかに寄る動きが無い)。CSS の transition も無い', () => {
+    const p = createBeamingPanel(host, { terms, onAction: () => undefined });
+    const needle = host.querySelector<HTMLElement>('.meter__needle')!;
+    // 連続する update で、つねにそのときの速さの位置に一気に動く (前の値からの補間が無い)
+    const seq: number[] = [];
+    for (const sp of [20, 80, 35, 95, 0]) {
+      p.update({ ...beaming(), phase: 'beaming', progress: 0.5, speed: sp });
+      seq.push(parseFloat(needle.style.left));
+    }
+    expect(seq).toEqual([20, 80, 35, 95, 0]);
+    // CSS の transition が無い (針の要素自身に transition を設定していない)
+    expect(needle.style.transition).toBe('');
     p.destroy();
   });
 

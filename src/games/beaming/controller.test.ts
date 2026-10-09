@@ -287,6 +287,25 @@ describe('beaming controller T3-03a (プレイ画面)', () => {
     instance.unmount();
   });
 
+  it('T3-07 管理者の確認: 木の棒を動かした同じフレームで、メーターの針の位置が速さと同じになる (遅れ・なめらかに寄る動き・CSS の transition が無い)', async () => {
+    const { instance } = await startAligned(setupWound());
+    pressLeverOn(container, raf, 50 as 0 | 50 | 100);
+    // 同じフレーム (raf を進める前の、棒を動かした直後の描画) で針は 50 の位置
+    const needleOf = (): HTMLElement => container.querySelector('.meter__needle') as HTMLElement;
+    raf.advance(1); // 棒を動かした後の最初の描画フレーム
+    expect(parseFloat(needleOf().style.left), '速さ 50 のとき針は 50').toBeCloseTo(50, 5);
+    // すぐ別の速さへ動かしても、針はためらわずその位置になる (前の値からの寄りが無い)
+    pressLeverOn(container, raf, 100 as 0 | 50 | 100);
+    raf.advance(1);
+    expect(parseFloat(needleOf().style.left), '速さ 100 のとき針は 100').toBeCloseTo(100, 5);
+    pressLeverOn(container, raf, 0 as 0 | 50 | 100);
+    raf.advance(1);
+    expect(parseFloat(needleOf().style.left), '速さ 0 のとき針は 0').toBeCloseTo(0, 5);
+    // CSS の transition も設定していない
+    expect(needleOf().style.transition).toBe('');
+    instance.unmount();
+  });
+
   it('PU-26: ドラムとビームの回る角度。速さ 0 のあいだは両方とも変わらず、速さがあると両方とも増える', async () => {
     const { instance } = await startAligned(setupWound());
     raf.advance(30);
@@ -961,7 +980,7 @@ describe('PU-28 1: 縦長では見る情報を盤面の上の帯 (.beaming-top) 
   });
   const before = (a: Element, b: Element): boolean => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
 
-  it('縦長 (400×900): setup の「目標・いま」は盤面の canvas より前 (上) の帯に入る。巻き量と張りのメーターも (beaming)。依頼票とボタンは操作欄に残る', async () => {
+  it('縦長 (400×900): setup の「目標・いま」は盤面の canvas より前 (上) の帯に入る。巻き量と速さのメーターも (beaming)。依頼票とボタンは操作欄に残る (T3-07 でメーターは速さに変わった。名前のみ変えた)', async () => {
     const { instance } = await mountIn(400, 900, setupAligned());
     raf.advance(2);
     const canvas = container.querySelector('canvas')!;
