@@ -521,6 +521,12 @@ const HOLE_RINGS: Array<{ frac: number; count: number }> = [
   { frac: 0.82, count: 16 },
 ];
 
+/** 軸の両端の黒いつまみ: 横の半径・縦の半径・円筒の長さ (論理の px)。軸が円盤の面から右へ出る長さ */
+const KNOB_RX = 5;
+const KNOB_RY = 16;
+const KNOB_LEN = 8;
+const AXLE_OUT = 50;
+
 /** 軸 (芯) の横から見た半径 (図のピクセル。写真のように太い) */
 const AXLE_R = BEAM_AXLE_R;
 
@@ -565,16 +571,8 @@ function drawFlange(ctx: CanvasRenderingContext2D, X: number, beamAngle: number)
       ctx.fill();
     }
   }
-  // 軸が円盤の中心を貫く (軸の断面の円)
-  const hub = discEllipse(X, AXLE_R / SIDE.beam.r);
-  ctx.fillStyle = COLORS.steel;
-  ctx.beginPath();
-  ellipsePath(ctx, hub);
-  ctx.closePath();
-  ctx.fill();
   ctx.strokeStyle = COLORS.sumiSub;
   ctx.lineWidth = 2;
-  ctx.stroke();
   ctx.beginPath();
   ellipsePath(ctx, face);
   ctx.closePath();
@@ -618,11 +616,19 @@ function drawBeamBack(ctx: CanvasRenderingContext2D, s: BeamingState, beamAngle:
   const leftX = cmToX(s.widthCm, s.leftCm);
   const axle: Circ = { z: SIDE.beam.z, h: SIDE.beam.h, r: AXLE_R };
   tube(ctx, ROD_X0, ROD_X1, AXLE_R / SIDE.beam.r, COLORS.steel, false);
-  const a = pt(ROD_X0, axle.z, axle.h);
+  // 左端のつまみ: 左を向いた端の面は見えない。左の端は「(」の輪郭だけ (面の楕円は描かない)
+  const k0 = discEllipse(ROD_X0, 1);
+  const knob = { cx: k0.cx, cy: k0.cy, rx: KNOB_RX, ry: KNOB_RY };
   ctx.fillStyle = COLORS.sumi;
-  ctx.fillRect(a.x - 4, a.y - 16, 12, 32); // 左端のつまみ
+  ctx.beginPath();
+  ellipsePath(ctx, knob, Math.PI / 2, (Math.PI * 3) / 2, 16);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillRect(knob.cx, knob.cy - KNOB_RY, KNOB_LEN, 2 * KNOB_RY);
+  // 前後の重なりは右にあるものほど手前: 左の真ちゅうの筒 → 左の円盤 → 軸 (円盤の右を向いた面の中心から右へ出る)
   drawBrass(ctx, leftX - FLANGE_THICK - BEAM_BRASS_LEN, leftX - FLANGE_THICK);
   drawFlange(ctx, leftX, beamAngle);
+  tube(ctx, leftX, leftX + AXLE_OUT, AXLE_R / SIDE.beam.r, COLORS.steel, false);
 }
 
 /**
@@ -711,9 +717,14 @@ function drawBeamFront(ctx: CanvasRenderingContext2D, s: BeamingState, runs: Arr
   tube(ctx, rightX, ROD_X1, AXLE_R / SIDE.beam.r, COLORS.steel, false);
   drawFlange(ctx, rightX, beamAngle);
   drawBrass(ctx, rightX, rightX + BEAM_BRASS_LEN);
-  const e = pt(ROD_X1, axle.z, axle.h);
+  // 右端のつまみ: 右を向いた端の面を楕円として描く (真ちゅうの筒の右の端と同じ考え)
+  const k1 = discEllipse(ROD_X1, 1);
   ctx.fillStyle = COLORS.sumi;
-  ctx.fillRect(e.x - 8, e.y - 16, 12, 32);
+  ctx.fillRect(k1.cx - KNOB_LEN, k1.cy - KNOB_RY, KNOB_LEN, 2 * KNOB_RY);
+  ctx.beginPath();
+  ellipsePath(ctx, { cx: k1.cx, cy: k1.cy, rx: KNOB_RX, ry: KNOB_RY });
+  ctx.closePath();
+  ctx.fill();
 }
 
 /** 幅合わせの目標の点線と目盛り (10cm ごと)、円盤の内側の印 (藍 = 合っている、朱 = 外れている) */

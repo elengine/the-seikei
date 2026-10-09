@@ -154,7 +154,7 @@ describe('PU-24b・PU-28 (速さの木の棒・ランプ)', () => {
       }
     }
     expect(body(drawWith(beamState({ speed: 0 })))![0]!).toBeLessThan(body(drawWith(beamState({ speed: 100 })))![0]!);
-  });
+  }, 30000); // 全体を流すと描く回数が重なり 5 秒を超えることがあった (PU-32 追加修正 5)
 
   it('2. 「止」「速」「→」の字・溝・つまみは無い。両端に灰色の金属の金具 (steel の小さな四角)。棒の下の左右の端に止め金具', () => {
     const rec = drawWith(beamState({ speed: 40 }), 0.39);
@@ -763,14 +763,28 @@ describe('PU-32: 糸の帯・隠れる順・盤面に収まる', () => {
         const ny = (q.y - my) / ((e.y1 - e.y0) / 2);
         expect(Math.hypot(nx, ny), '楕円の上').toBeCloseTo(1, 6);
       }
-      // 軸の断面 (steel の小さな楕円) が中心にある
-      const hub = fillPolys(rec).filter((q) => q.style === COLORS.steel && q.pts.length > 20 && Math.abs((ext(q.pts).x0 + ext(q.pts).x1) / 2 - mx) < 1e-6 && Math.abs((ext(q.pts).y0 + ext(q.pts).y1) / 2 - my) < 1e-6);
-      expect(hub.length, '軸が円盤の中心を貫く').toBeGreaterThanOrEqual(1);
+      // 円盤の面には軸の穴の楕円は描かない (steel の楕円は無い)
+      expect(fillPolys(rec).filter((q) => q.style === COLORS.steel && q.pts.length > 20 && Math.abs((ext(q.pts).x0 + ext(q.pts).x1) / 2 - mx) < 1e-6 && Math.abs((ext(q.pts).y0 + ext(q.pts).y1) / 2 - my) < 1e-6).length, '穴の楕円は描かない').toBe(0);
     }
+    // 左の円盤: 軸は円盤の面の中心から右へ出る (軸の四角は円盤の面を塗ったあとに描かれ、始まりが円盤の中心の x)
+    const f0 = ext(faces[0]!.pts);
+    const cx0 = (f0.x0 + f0.x1) / 2;
+    const iFace = rec.ops.findIndex((o) => o.k === 'fill' && styleBefore(rec.ops, rec.ops.indexOf(o)) === COLORS.flange);
+    const iAxle = rec.ops.findIndex((o, i) => o.k === 'fillRect' && styleBefore(rec.ops, i) === COLORS.steel && Math.abs((o.args as number[])[0]! - cx0) < 1e-6);
+    expect(iAxle, '軸が円盤の中心から').toBeGreaterThan(iFace);
   });
 
   it('18. ドラムの羽は短く、開きが小さい: 外へ出る長さは DRUM_WING_LEN、羽の先の半径は糸の半径の 1.1 倍以下 (扇のように大きく開かない)', () => {
     expect(DRUM_WING_LEN).toBeLessThanOrEqual(30);
     expect(DRUM_WING_FLARE).toBeLessThanOrEqual(0.1);
+  });
+
+  it('19. 端の面は右を向いたものだけ楕円で見える: 左の端のつまみは「(」の輪郭 (楕円の右半分は描かない)、右の端のつまみは右の端に楕円。左の円盤の右の面に軸 (steel の四角) が円盤より手前に描かれる。右の真ちゅうの筒の左の端に楕円は無い', () => {
+    const rec = draw(beamState({ progress: 0.5 }));
+    const knobs = fillPolys(rec).filter((q) => q.style === COLORS.sumi && q.pts.length > 10 && ext(q.pts).y1 - ext(q.pts).y0 < 40 && ext(q.pts).x1 - ext(q.pts).x0 < 20);
+    expect(knobs.length, '左右のつまみの楕円 (右) と「(」 (左)').toBeGreaterThanOrEqual(2);
+    // 真ちゅうの楕円 (gold) は右の筒の右の端と左の筒の右の端 (円盤の後ろ) の 2 つだけ。左の端 (円盤の面に付く側) には無い
+    const golds = fillPolys(rec).filter((q) => q.style === COLORS.gold && q.pts.length > 20);
+    expect(golds.length).toBe(2);
   });
 });
