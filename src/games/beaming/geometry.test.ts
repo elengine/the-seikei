@@ -149,11 +149,20 @@ describe('PU-24b・PU-28 (速さの木の棒とランプの座標)', () => {
 });
 
 describe('PU-24a: 立体に見える絵の座標 (軸の長さは固定・ドラムの丸み)', () => {
-  it('軸の両端 (ROD_X0・ROD_X1) は固定で、いちばん広い巻き幅 (126cm) の円盤の外までとどく。盤面の中に収まる', () => {
+  it('軸の両端 (ROD_X0・ROD_X1) は固定で、いちばん広い巻き幅 (200cm。T3-09) の円盤の外までとどく。盤面の中に収まる', () => {
     expect(ROD_X0).toBeGreaterThanOrEqual(0);
     expect(ROD_X1).toBeLessThanOrEqual(BOARD_W);
-    expect(ROD_X0).toBeLessThan(cmToX(126, -63) - FLANGE_RX);
-    expect(ROD_X1).toBeGreaterThan(cmToX(126, 63) + FLANGE_RX);
+    expect(ROD_X0).toBeLessThan(cmToX(200, -100) - FLANGE_RX);
+    expect(ROD_X1).toBeGreaterThan(cmToX(200, 100) + FLANGE_RX);
+  });
+
+  it('T3-09: 200cm のお題で、円盤と軸が盤面の左右の端に触れない (縦は巻き幅によらないので iPad の確認で見る)', () => {
+    const leftOuter = cmToX(200, -100) - FLANGE_RX;
+    const rightOuter = cmToX(200, 100) + FLANGE_RX;
+    expect(leftOuter, '左の円盤の外はし').toBeGreaterThan(0);
+    expect(rightOuter, '右の円盤の外はし').toBeLessThan(BOARD_W);
+    expect(ROD_X0, '軸の左端').toBeGreaterThan(0);
+    expect(ROD_X1, '軸の右端').toBeLessThan(BOARD_W);
   });
 
 });

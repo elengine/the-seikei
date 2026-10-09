@@ -28,14 +28,14 @@ afterEach(() => {
 });
 
 describe('ビーム巻きの一覧 T3-03b (お題15題・レベルごとの節)', () => {
-  it('節は「レベル1」〜「レベル3」の3つで、行はお題15行。補足は「巻き幅 60cm・帯 3本」', () => {
+  it('節は「レベル1」〜「レベル3」の3つで、行はお題15行。補足は「巻き幅 150cm・帯 3本」(T3-09 で巻き幅の表に変えた)', () => {
     const { parent } = mountList({});
     const headings = Array.from(parent.querySelectorAll('.section-heading')).map((h) => h.textContent);
     expect(headings).toEqual(['レベル1', 'レベル2', 'レベル3']);
     const rows = Array.from(parent.querySelectorAll('.list-row'));
     expect(rows).toHaveLength(getContent().creelPuzzles.length);
     const s1 = parent.querySelector('[data-testid="beaming-puzzle-s1"]')!;
-    expect(s1.querySelector('.list-row__meta')!.textContent).toContain('巻き幅 60cm');
+    expect(s1.querySelector('.list-row__meta')!.textContent).toContain('巻き幅 150cm');
     expect(s1.querySelector('.list-row__meta')!.textContent).toContain('帯 3本');
   });
 

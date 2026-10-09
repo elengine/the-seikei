@@ -1,12 +1,12 @@
 import type { Content } from '../../core/content/content';
 import type { Level } from './params';
-import { PUZZLE_STAGE } from '../winding/params';
-import { STAGE_SECTION } from '../drumsetup/params';
+import { BEAM_WIDTH_BY_STAGE } from './params';
 
 /**
  * ビーム巻きのお題 (P3 T3-01)。クリール立てのお題 15 題から作る
  * (ドラム巻き・ドラム設定と同じ考え。データを二重に持たない)。
- * 巻き幅 (cm) = ドラム巻きの帯の数 × ドラム設定の帯の幅。
+ * 巻き幅 (cm) はビーミングだけの表 BEAM_WIDTH_BY_STAGE (T3-09。150〜200cm)。
+ * 依頼票の「帯 N本」は今のとおりドラム巻きの帯の数 (index.ts の bandsOf)。
  */
 
 export interface BeamingPuzzle {
@@ -17,7 +17,7 @@ export interface BeamingPuzzle {
   patternId: string;
   /** 柄の名前 (例「紺地のピンストライプ」) */
   name: string;
-  /** 巻き幅 (cm)。帯の数 × 帯の幅 */
+  /** 巻き幅 (cm)。BEAM_WIDTH_BY_STAGE の段階ごとの値 (T3-09) */
   widthCm: number;
   /** 難易度の数値 (段階1〜2 は 1、3〜4 は 2、5 は 3) */
   level: Level;
@@ -32,7 +32,7 @@ export function beamingPuzzles(content: Content): BeamingPuzzle[] {
       stage,
       patternId: cp.patternId,
       name: content.patterns.get(cp.patternId)?.name ?? cp.patternId,
-      widthCm: PUZZLE_STAGE[stage]!.sections * STAGE_SECTION[stage]!.widthCm,
+      widthCm: BEAM_WIDTH_BY_STAGE[stage],
       level: (stage <= 2 ? 1 : stage <= 4 ? 2 : 3) as Level,
     };
   });

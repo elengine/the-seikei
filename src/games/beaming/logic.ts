@@ -2,7 +2,7 @@ import type { RngState } from '../../core/clock/clock';
 import { seedFrom, nextFloat } from '../../core/clock/clock';
 import {
   MAX_TICK_MS, STARS3, STARS2, STAR_WIDTH3, STAR_WIDTH2,
-  FULL_WIND_SEC_AT_100, TARGET_POINTS, OK_TOL_BY_LEVEL,
+  FULL_WIND_SEC_AT_100, TARGET_POINTS, OK_TOL_BY_LEVEL, START_OFFSET_CM,
   DIP_GAP_MIN_MS, DIP_GAP_MAX_MS, DIP_AMOUNT_MIN, DIP_AMOUNT_MAX,
   DIP_DOWN_MS, DIP_HOLD_MIN_MS, DIP_HOLD_MAX_MS, DIP_BACK_MS,
   STOP_ZONE, DIP_FROM_PCT, DIP_TO_PCT,
@@ -94,8 +94,8 @@ export function init(opts: { level: Level; widthCm: number; seed: number; puzzle
   const [r1, rng1] = nextFloat(rng);
   const [r2, rng2] = nextFloat(rng1);
   rng = rng2;
-  const leftCm = -opts.widthCm / 2 + (r1 * 2 - 1) * 6;
-  const rightCm = opts.widthCm / 2 + (r2 * 2 - 1) * 6;
+  const leftCm = -opts.widthCm / 2 + (r1 * 2 - 1) * START_OFFSET_CM; // T3-09: 6 から params の 15 に
+  const rightCm = opts.widthCm / 2 + (r2 * 2 - 1) * START_OFFSET_CM;
   return {
     level: opts.level,
     widthCm: opts.widthCm,

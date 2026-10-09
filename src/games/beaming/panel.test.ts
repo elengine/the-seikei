@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { createBeamingPanel } from './panel';
 import { init, reduce } from './logic';
+import { puzzleById } from './puzzles';
+import { getContent } from '../../core/content/content';
 import type { BeamingState, BeamingAction } from './logic';
 
 /**
@@ -351,6 +353,16 @@ describe('PU-27: 依頼票 (柄の名前・巻き幅・帯の数)', () => {
     expect(t.querySelector('.order-ticket__width')!.textContent).toBe('巻き幅 60cm');
     expect(t.querySelector('.order-ticket__bands')!.textContent).toBe('帯 3本');
     expect(t.querySelectorAll('.order-ticket__swatch > span')).toHaveLength(3); // 柄の縦縞の見本
+    p.destroy();
+  });
+
+  it('3. 巻き幅はお題の値が出る (s1 は T3-09 の表で 150cm)。帯の数はドラム巻きの帯の数のまま', () => {
+    const puzzle = puzzleById(getContent(), 's1')!;
+    expect(puzzle.widthCm, 'T3-09 の表').toBe(150);
+    const p = createBeamingPanel(host, { terms, onAction: () => undefined, puzzle: { bands: 3, patternName: puzzle.name }, patternStripes: [{ hex: '#1f3a5f', frac: 3 / 8 }, { hex: '#f4efe0', frac: 1 / 8 }, { hex: '#1f3a5f', frac: 4 / 8 }] });
+    p.update(init({ level: puzzle.level, widthCm: puzzle.widthCm, seed: 42, puzzleId: puzzle.id, patternId: puzzle.patternId }));
+    expect(host.querySelector('.order-ticket__width')!.textContent).toBe('巻き幅 150cm');
+    expect(host.querySelector('.order-ticket__bands')!.textContent).toBe('帯 3本');
     p.destroy();
   });
 
