@@ -96,7 +96,8 @@ export function createAdminScreen(ctx: AppContext): Screen {
         const stamp = Number.isNaN(when.getTime())
           ? entry.at
           : `${when.getFullYear()}-${pad2(when.getMonth() + 1)}-${pad2(when.getDate())} ${pad2(when.getHours())}:${pad2(when.getMinutes())}:${pad2(when.getSeconds())}`;
-        caption.textContent = `${stamp}(${entry.result === 'reloaded' ? '読み込み直した' : '案内を出した'})`;
+        const resultText = entry.result === 'reloaded' ? '読み込み直した' : entry.result === 'retry-reload' ? '読み込み直した・やり直し' : '案内を出した';
+        caption.textContent = `${stamp}(${resultText})`;
         table.appendChild(caption);
         const body = document.createElement('tbody');
         for (const e of entry.events) {

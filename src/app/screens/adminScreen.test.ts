@@ -200,6 +200,16 @@ describe('PU-23a 管理者メニュー: アップデートの記録', () => {
     window.localStorage.removeItem('seikei-update-log');
   });
 
+  it('PU-25: 結果が retry-reload の回の見出しは「(読み込み直した・やり直し)」', () => {
+    window.localStorage.setItem(
+      'seikei-update-log',
+      JSON.stringify([{ at: '2026-10-09T05:00:00.000Z', result: 'retry-reload', events: [{ ms: 0, label: '押した' }, { ms: 15000, label: '読み込み直した(切り替えのやり直し)' }] }]),
+    );
+    const c = mountAdmin();
+    expect(c.querySelector('.admin__update-log caption')!.textContent).toContain('(読み込み直した・やり直し)');
+    window.localStorage.removeItem('seikei-update-log');
+  });
+
   it('3. 壊れた記録・読めない localStorage でも、画面は崩れない (「記録はまだありません」)', () => {
     window.localStorage.setItem('seikei-update-log', '{ここは壊れている');
     expect(mountAdmin().querySelector('.admin__update-log')!.textContent).toContain('記録はまだありません');
