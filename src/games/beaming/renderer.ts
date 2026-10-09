@@ -614,7 +614,6 @@ function drawBrass(ctx: CanvasRenderingContext2D, X0: number, X1: number): void 
 /** ビームの奥の部分: 軸の全体と左の円盤、円盤のあいだの軸。糸より奥に描く (PU-30 4) */
 function drawBeamBack(ctx: CanvasRenderingContext2D, s: BeamingState, beamAngle: number): void {
   const leftX = cmToX(s.widthCm, s.leftCm);
-  const axle: Circ = { z: SIDE.beam.z, h: SIDE.beam.h, r: AXLE_R };
   tube(ctx, ROD_X0, ROD_X1, AXLE_R / SIDE.beam.r, COLORS.steel, false);
   // 左端のつまみ: 左を向いた端の面は見えない。左の端は「(」の輪郭だけ (面の楕円は描かない)
   const k0 = discEllipse(ROD_X0, 1);
@@ -713,7 +712,6 @@ function drawBeamFront(ctx: CanvasRenderingContext2D, s: BeamingState, runs: Arr
     }
   }
   // 右の円盤と、その手前 (右) に出る真ちゅうの筒・軸・端のつまみ (帯より手前)
-  const axle: Circ = { z: SIDE.beam.z, h: SIDE.beam.h, r: AXLE_R };
   tube(ctx, rightX, ROD_X1, AXLE_R / SIDE.beam.r, COLORS.steel, false);
   drawFlange(ctx, rightX, beamAngle);
   drawBrass(ctx, rightX, rightX + BEAM_BRASS_LEN);
