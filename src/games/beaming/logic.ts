@@ -2,21 +2,34 @@ import type { RngState } from '../../core/clock/clock';
 import { seedFrom, nextFloat } from '../../core/clock/clock';
 import {
   MAX_TICK_MS, STARS3, STARS2, STAR_WIDTH3, STAR_WIDTH2,
-  FULL_WIND_SEC_AT_100, GOOD_SPEED_ZONES, SPEED_OK_TOL, CONFIRM_MIN, STOP3, STOP2, RESTARTS_OK, WIDTH_OK_CM,
+  FULL_WIND_SEC_AT_100, TARGET_POINTS, OK_TOL_BY_LEVEL, TENSION_FOLLOW_MS,
+  DIP_GAP_MIN_MS, DIP_GAP_MAX_MS, DIP_AMOUNT_MIN, DIP_AMOUNT_MAX,
+  DIP_DOWN_MS, DIP_HOLD_MIN_MS, DIP_HOLD_MAX_MS, DIP_BACK_MS,
+  CONFIRM_MIN, STOP3, STOP2, RESTARTS_OK, WIDTH_OK_CM,
 } from './params';
 import type { Level } from './params';
 
 export type { Level } from './params';
 
-/** その巻き量で、その速さが適正か (T3-05)。目標 ±10 (SPEED_OK_TOL) の中を適正とする。
- *  停止 (0) が目標の区間では「止めている」だけが適正 (0〜10 ではない)。重なる区間はどちらでも適正 */
-export function goodSpeedOf(speed: number, progress: number): boolean {
+/** その巻き量での張りの目標 (T3-06。TARGET_POINTS の点を直線で結んだ値) */
+export function targetOf(progress: number): number {
   const pct = Math.min(100, Math.max(0, progress * 100));
-  return GOOD_SPEED_ZONES.some((z) => {
-    if (pct < z.from || pct > z.to) return false;
-    if (z.speed === 0) return speed === 0; // 止めていること
-    return Math.abs(speed - z.speed) <= SPEED_OK_TOL;
-  });
+  for (let i = 0; i < TARGET_POINTS.length - 1; i++) {
+    const [x0, y0] = TARGET_POINTS[i]!;
+    const [x1, y1] = TARGET_POINTS[i + 1]!;
+    if (pct >= x0 && pct <= x1) {
+      if (x1 === x0) return y1;
+      return y0 + ((pct - x0) / (x1 - x0)) * (y1 - y0);
+    }
+  }
+  return TARGET_POINTS[TARGET_POINTS.length - 1]![1]!;
+}
+
+/** その巻き量での適正範囲 (目標から揺らぎを引いた値 ± レベルの幅。0〜100 に収める。T3-06 追記) */
+export function okRangeOf(progress: number, level: Level, dip: number): { min: number; max: number } {
+  const target = targetOf(progress) - dip;
+  const tol = OK_TOL_BY_LEVEL[level];
+  return { min: Math.max(0, target - tol), max: Math.min(100, target + tol) };
 }
 
 /**
@@ -29,10 +42,17 @@ export interface BeamingState {
   widthCm: number; // 巻き幅 (cm。目標)
   patternId: string;
   puzzleId: string;
-  phase: 'setup' | 'beaming' | 'done';
+  phase: 'setup' | 'attach' | 'beaming' | 'done';
   leftCm: number; rightCm: number;   // 円盤の位置(ビームの中心からの距離 cm。左は負の数)
   progress: number;                  // 巻いた割合 0〜1 (表示は % にして切り捨て。101% に届いたら糸切れ)
   speed: number;                     // 速さ 0〜100 (連続。0 = 停止)
+  tension: number;                   // 張り 0〜100。速さに遅れて付いていく (T3-06)
+  dip: number;                       // 目標の揺らぎの今の下がり量 (35〜70% だけ。T3-06 追記)
+  dipPhase: 'none' | 'down' | 'hold' | 'back'; // 揺らぎのいまの段階
+  dipTimerMs: number;                // 揺らぎの段階の経過時間
+  dipGapMs: number;                  // 次の揺らぎまでのあいだ (ms)
+  dipAmount: number;                 // 揺らぎの下がる量 (8〜15)
+  dipHoldMs: number;                 // 下がりきってからそのままの時間 (ms)
   goodMs: number;                    // 適正な速さで巻いていた時間
   windMs: number;                    // 巻いていた時間 (speed > 0 の時間)
   restarts: number;                  // 95% を超えてから 停止 → 速さを 0 より大きく戻した回数 (微調整)
@@ -42,7 +62,8 @@ export interface BeamingState {
 }
 export type BeamingAction =
   | { type: 'moveFlange'; side: 'left' | 'right'; deltaCm: number } // ±1cm(ボタン)
-  | { type: 'finishSetup' }          // 幅合わせを終えて巻き返しへ(誤差を記録)
+  | { type: 'finishSetup' }          // 幅合わせを終えて糸を付ける段階へ(誤差を記録)
+  | { type: 'attachThread' }         // ドラムの糸をビームに付ける (attach → beaming。速さは 0)
   | { type: 'setSpeed'; value: number } // 速さを変える (0〜100 に丸める)
   | { type: 'confirm' }              // 巻き量 95% 以上・停止のときだけ。結果判定して done
   | { type: 'tick'; dtMs: number };
@@ -81,6 +102,13 @@ export function init(opts: { level: Level; widthCm: number; seed: number; puzzle
     rightCm,
     progress: 0,
     speed: 0,
+    tension: 0,
+    dip: 0,
+    dipPhase: 'none',
+    dipTimerMs: 0,
+    dipGapMs: DIP_GAP_MIN_MS + r2 * (DIP_GAP_MAX_MS - DIP_GAP_MIN_MS),
+    dipAmount: 0,
+    dipHoldMs: DIP_HOLD_MIN_MS,
     goodMs: 0,
     windMs: 0,
     restarts: 0,
@@ -103,7 +131,11 @@ export function reduce(s: BeamingState, a: BeamingAction): BeamingState {
 
     case 'finishSetup':
       if (s.phase !== 'setup') return s;
-      return { ...s, phase: 'beaming', widthErrCm: widthError(s) };
+      return { ...s, phase: 'attach', widthErrCm: widthError(s) };
+
+    case 'attachThread':
+      if (s.phase !== 'attach') return s;
+      return { ...s, phase: 'beaming', speed: 0 };
 
     case 'setSpeed': {
       if (s.phase !== 'beaming') return s;
@@ -125,28 +157,85 @@ export function reduce(s: BeamingState, a: BeamingAction): BeamingState {
   return s; // 知らない形の操作は受けない
 }
 
+/** 揺らぎ (35〜70% だけ目標がときどき下がって戻る) を 1tick 進める */
+function stepDip(s: BeamingState, dtMsC: number, rng: RngState): { dip: number; dipPhase: BeamingState['dipPhase']; dipTimerMs: number; dipGapMs: number; dipAmount: number; dipHoldMs: number; rng: RngState } {
+  const pct = s.progress * 100;
+  let { dip, dipPhase, dipTimerMs, dipGapMs, dipAmount, dipHoldMs } = s;
+  let nextRng = rng;
+  if (pct < 35 || pct > 70) {
+    // 区間の外では揺らぎはすぐ 0 に戻る
+    return { dip: 0, dipPhase: 'none', dipTimerMs: 0, dipGapMs, dipAmount, dipHoldMs, rng: nextRng };
+  }
+  if (dipPhase === 'none') {
+    dipTimerMs += dtMsC;
+    if (dipTimerMs >= dipGapMs) {
+      const [r1, rng1] = nextFloat(nextRng);
+      const [r2, rng2] = nextFloat(rng1);
+      const [r3, rng3] = nextFloat(rng2);
+      nextRng = rng3;
+      dipAmount = DIP_AMOUNT_MIN + r1 * (DIP_AMOUNT_MAX - DIP_AMOUNT_MIN);
+      dipHoldMs = DIP_HOLD_MIN_MS + r2 * (DIP_HOLD_MAX_MS - DIP_HOLD_MIN_MS);
+      dipGapMs = DIP_GAP_MIN_MS + r3 * (DIP_GAP_MAX_MS - DIP_GAP_MIN_MS);
+      dipPhase = 'down';
+      dipTimerMs = 0;
+    }
+  } else if (dipPhase === 'down') {
+    dipTimerMs += dtMsC;
+    dip = dipAmount * Math.min(1, dipTimerMs / DIP_DOWN_MS);
+    if (dipTimerMs >= DIP_DOWN_MS) {
+      dipPhase = 'hold';
+      dipTimerMs = 0;
+    }
+  } else if (dipPhase === 'hold') {
+    dipTimerMs += dtMsC;
+    dip = dipAmount;
+    if (dipTimerMs >= dipHoldMs) {
+      dipPhase = 'back';
+      dipTimerMs = 0;
+    }
+  } else {
+    dipTimerMs += dtMsC;
+    dip = dipAmount * Math.max(0, 1 - dipTimerMs / DIP_BACK_MS);
+    if (dipTimerMs >= DIP_BACK_MS) {
+      dip = 0;
+      dipPhase = 'none';
+      dipTimerMs = 0;
+      dipAmount = 0;
+    }
+  }
+  return { dip, dipPhase, dipTimerMs, dipGapMs, dipAmount, dipHoldMs, rng: nextRng };
+}
+
 /** tick。dtMs を MAX_TICK_MS で丸め、'beaming' で時間を進める */
 function tick(s: BeamingState, dtMs: number): BeamingState {
-  if (s.phase !== 'beaming' || s.speed === 0) return s;
+  if (s.phase !== 'beaming') return s;
   const dtMsC = Math.min(MAX_TICK_MS, Math.max(0, dtMs));
   const dt = dtMsC / 1000; // 秒
 
-  // 1. 巻く。速さに比例 (100 で FULL_WIND_SEC_AT_100 秒、25 はその4分の1の速さ)
+  // 1. 張りは速さに遅れて付いていく (速さ 0 の間も 0 へ下がる。T3-06)
+  const tension = s.tension + (s.speed - s.tension) * (1 - Math.exp(-dtMsC / TENSION_FOLLOW_MS));
+
+  // 2. 巻いているあいだ (速さ > 0) は巻き量と時間と揺らぎが進む
+  if (s.speed === 0) {
+    return { ...s, tension };
+  }
   const rate = s.speed / 100 / FULL_WIND_SEC_AT_100; // 1秒あたりの巻き量
   const progress = s.progress + rate * dt;
   const windMs = s.windMs + dtMsC;
-  // 2. 適正な速さで巻いていた時間を数える
-  const goodMs = goodSpeedOf(s.speed, s.progress) ? s.goodMs + dtMsC : s.goodMs;
+  const d = stepDip(s, dtMsC, s.rng);
+  const range = okRangeOf(progress, s.level, d.dip);
+  const goodMs = tension >= range.min && tension <= range.max ? s.goodMs + dtMsC : s.goodMs;
   // 3. 巻き量 101% に届いたら糸が切れて失敗 (T3-05。100.99 までは切れない)
   if (progress * 100 >= 101) {
-    return { ...s, progress, speed: 0, windMs, goodMs, broken: true, phase: 'done' };
+    return { ...s, progress, speed: 0, tension, windMs, goodMs, ...d, broken: true, phase: 'done' };
   }
-  return { ...s, progress, windMs, goodMs };
+  return { ...s, progress, tension, windMs, goodMs, ...d };
 }
 
 /**
  * 星 (T3-05)。失敗 (糸切れ) は 0 (星なし)。「中央に保てた割合」は採点に入れない。
  * 止めた位置は表示の値 (切り捨て) で比べる。巻き量 100.0〜100.99 で止めたら 100 (最良)。
+ * 適正の割合は、張りが適正範囲の中で巻いた時間の割合 (T3-06)。
  * - 星3: 適正 0.8 以上・止めた位置 99 以上・微調整 2回以下・幅の誤差 1cm 以内
  * - 星2: 適正 0.6 以上・止めた位置 97 以上・幅の誤差 3cm 以内
  * - 星1: それ以外
@@ -168,24 +257,24 @@ export function resultLines(s: BeamingState): { label: string; value: string }[]
   }
   const pct = (ok: number): string => `${Math.round(s.windMs > 0 ? (ok / s.windMs) * 100 : 0)}%`;
   return [
-    { label: '適正な速さ', value: pct(s.goodMs) },
+    { label: 'ちょうどよい張りで巻いた割合', value: pct(s.goodMs) },
     { label: '止めた位置', value: `${stopPosOf(s)}%` },
     { label: '微調整', value: `${s.restarts}回` },
     { label: '幅合わせの誤差', value: s.widthErrCm === null ? '—' : `${s.widthErrCm.toFixed(1)}cm` },
   ];
 }
 
-/** 途中保存の形を確かめる。速さは 0〜100 の数。古い形 (shiftVel がある) は読まない (T3-05)。
+/** 途中保存の形を確かめる。速さと張りは数。古い形 (tension が無い) は読まない (T3-06)。
  * 再開したときのレバーは controller が停止 (0) にする */
 export function isValidResume(x: unknown): x is BeamingState {
   if (typeof x !== 'object' || x === null) return false;
   const o = x as Record<string, unknown>;
-  if (typeof o.phase !== 'string' || !['setup', 'beaming', 'done'].includes(o.phase)) return false;
+  if (typeof o.phase !== 'string' || !['setup', 'attach', 'beaming', 'done'].includes(o.phase)) return false;
   if (o.level !== 1 && o.level !== 2 && o.level !== 3) return false;
-  if ('shiftVel' in o) return false; // 古い形 (揺れがある) は読まない
-  for (const key of ['widthCm', 'leftCm', 'rightCm', 'progress', 'goodMs', 'windMs', 'restarts'] as const) {
+  for (const key of ['widthCm', 'leftCm', 'rightCm', 'progress', 'tension', 'dip', 'dipTimerMs', 'dipGapMs', 'dipAmount', 'dipHoldMs', 'goodMs', 'windMs', 'restarts'] as const) {
     if (typeof o[key] !== 'number' || !Number.isFinite(o[key])) return false;
   }
+  if (o.dipPhase !== 'none' && o.dipPhase !== 'down' && o.dipPhase !== 'hold' && o.dipPhase !== 'back') return false;
   const progress = o.progress;
   if (typeof progress !== 'number' || !Number.isFinite(progress) || progress < 0 || progress > 1.01) return false;
   if (typeof o.speed !== 'number' || !Number.isFinite(o.speed) || o.speed < 0 || o.speed > 100) return false;

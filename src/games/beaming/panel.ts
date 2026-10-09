@@ -1,8 +1,10 @@
 import { createButton } from '../../core/ui/widgets';
 import { createSectionHeading } from '../../core/ui/layout';
-import { goodSpeedOf } from './logic';
+import { createTensionMeter } from '../../core/ui/pedalControl';
+import type { TensionMeter } from '../../core/ui/pedalControl';
 import type { BeamingState, BeamingAction } from './logic';
-import { GOOD_SPEED_ZONES, CONFIRM_MIN } from './params';
+import { okRangeOf } from './logic';
+import { CONFIRM_MIN } from './params';
 
 /**
  * ビーム巻きの操作欄 (P3 T3-03a)。
@@ -41,36 +43,6 @@ export function createBeamingPanel(
   speedEl.className = 'beaming-panel__speed';
   root.appendChild(speedEl);
 
-  // 0b. 巻き量の帯 (0〜100% を適正な速さの区間で塗り分ける。T3-04b)
-  const band = document.createElement('div');
-  band.className = 'beaming-panel__band';
-  band.setAttribute('aria-label', '巻き量ごとの適正な速さ');
-  const zoneEls: HTMLElement[] = [];
-  for (const z of GOOD_SPEED_ZONES) {
-    const d = document.createElement('div');
-    d.className = 'beaming-panel__band-zone';
-    d.style.left = `${z.from}%`;
-    d.style.width = `${z.to - z.from}%`;
-    // 狭い区間 (8% 未満) は文字を出さない (はみ出るため。色だけで分かる)
-    if (z.to - z.from >= 8) {
-      d.textContent = z.speed === 0 ? '停止' : `${z.speed}%`;
-    }
-    band.appendChild(d);
-    zoneEls.push(d);
-  }
-  // 95% と 100% の目印の線 (100% は朱: ここを超えると糸が切れる)
-  for (const [pct, color] of [[95, 'var(--c-sumi-sub)'], [100, 'var(--c-shu)']] as const) {
-    const line = document.createElement('div');
-    line.className = 'beaming-panel__band-line';
-    line.style.left = `${pct}%`;
-    line.style.background = color;
-    band.appendChild(line);
-  }
-  // 今の巻き量の縦の印
-  const bandMark = document.createElement('div');
-  bandMark.className = 'beaming-panel__band-mark';
-  band.appendChild(bandMark);
-  root.appendChild(band);
 
   // 1. 依頼書 (巻き幅・帯の数・柄の名前)
   const order = document.createElement('div');
@@ -87,20 +59,32 @@ export function createBeamingPanel(
   setupBlock.appendChild(widthText);
   root.appendChild(setupBlock);
 
-  // 3. 巻き返しの段階: 速さの見出しと巻いた割合と時間。速さは盤面で変え、寄せるボタンは無い (T3-05)
+  // 2a. 糸を付ける段階: 案内の1行 (T3-06)
+  const attachBlock = document.createElement('section');
+  attachBlock.className = 'beaming-panel__block';
+  attachBlock.setAttribute('aria-label', '糸を付ける');
+  const attachText = document.createElement('div');
+  attachText.className = 'beaming-panel__info';
+  attachText.textContent = 'ドラムの糸を、ビームまで引っぱってください';
+  attachBlock.appendChild(attachText);
+  root.appendChild(attachBlock);
+
+  // 3. 巻く段階: 張りのメーター (ドラム巻きと同じ部品。範囲は巻き量で動く。T3-06)
   const beamBlock = document.createElement('section');
   beamBlock.className = 'beaming-panel__block';
-  beamBlock.setAttribute('aria-label', opts.terms.t('speed'));
-  beamBlock.appendChild(createSectionHeading(opts.terms.t('speed')));
+  beamBlock.setAttribute('aria-label', opts.terms.t('tension'));
+  beamBlock.appendChild(createSectionHeading(opts.terms.t('tension')));
   const meterHost = document.createElement('div');
   meterHost.className = 'beaming-panel__meter';
+  const meter: TensionMeter = createTensionMeter(meterHost, { label: '', showState: false }); // 状態の文は出さない (盤面のランプで示す)
+  beamBlock.appendChild(meter.root);
   root.appendChild(beamBlock);
 
   // 4. 一番下の主な操作 (巻き返しの段階は主な操作が無いので、行を詰める)
   const buttonRow = document.createElement('div');
   buttonRow.className = 'beaming-panel__actions';
   const startBtn = createButton({
-    label: '巻き始める',
+    label: 'ビーム設定OK',
     variant: 'primary',
     onClick: () => opts.onAction({ type: 'finishSetup' }),
   });
@@ -108,11 +92,11 @@ export function createBeamingPanel(
   buttonRow.appendChild(startBtn);
   // 確認 (巻き量 95% 以上で出す。止めていないときは押せない形で理由をお知らせする。T3-04c)
   const confirmBtn = createButton({
-    label: '確認',
+    label: '完了',
     variant: 'primary',
     onClick: () => {
       if (!confirmStopped) {
-        opts.onNotice?.('棒を左端まで戻して止めてから、確認を押します');
+        opts.onNotice?.('棒を左端まで戻して止めてから、完了を押します');
         return;
       }
       opts.onAction({ type: 'confirm' });
@@ -139,6 +123,7 @@ export function createBeamingPanel(
       // 段階の切り替え (場所は空けたまま)
       const isSetup = s.phase === 'setup';
       setupBlock.style.display = isSetup ? '' : 'none';
+      attachBlock.style.display = s.phase === 'attach' ? '' : 'none';
       beamBlock.style.display = s.phase === 'beaming' ? '' : 'none';
       startBtn.style.display = isSetup ? '' : 'none';
       // 確認: 巻き量 95% 以上で出す (T3-04c)。止めていないときは押せない形
@@ -148,22 +133,11 @@ export function createBeamingPanel(
       confirmBtn.setAttribute('aria-disabled', String(!confirmStopped));
       confirmBtn.classList.toggle('beaming-panel__main--locked', !confirmStopped);
       amount.textContent = `巻き量 ${Math.floor(s.progress * 100)}%`; // 表示は切り捨て (T3-05)
-      // 速さ: 巻いているあいだだけ適正・外れを見せる (外れは ▲ 速すぎ・▼ 遅すぎ。色だけに頼らない)
-      const speedNow = Math.round(s.speed);
-      let mark = '';
+      // 速さ: ふつうの文字色で数字だけ (張りの判断はメーターとランプで示す。T3-06)
       speedEl.classList.remove('beaming-panel__speed--good', 'beaming-panel__speed--bad');
-      if (s.phase === 'beaming') {
-        if (goodSpeedOf(s.speed, s.progress)) {
-          speedEl.classList.add('beaming-panel__speed--good');
-        } else {
-          const targets = GOOD_SPEED_ZONES.filter((z) => s.progress * 100 >= z.from && s.progress * 100 <= z.to).map((z) => z.speed);
-          const tooFast = targets.length > 0 ? s.speed > Math.max(...targets) : s.speed > 0;
-          mark = tooFast ? ' ▲' : ' ▼';
-          speedEl.classList.add('beaming-panel__speed--bad');
-        }
-      }
-      speedEl.textContent = `速さ ${speedNow}${mark}`;
-      bandMark.style.left = `${Math.min(100, Math.max(0, s.progress * 100))}%`;
+      speedEl.textContent = `速さ ${Math.round(s.speed)}`;
+      // 張りのメーター: 範囲は巻き量と揺らぎで動く (T3-06)
+      meter.update(s.tension, okRangeOf(s.progress, s.level, s.dip));
       // 巻き返しの段階の下の行は空 (ボタンが無いので行を低くする)
       buttonRow.style.minHeight = isSetup ? '' : '0';
       // 幅合わせ: 今の幅と目標の幅

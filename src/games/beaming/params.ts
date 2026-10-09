@@ -19,22 +19,33 @@ export const BEAM_LENGTH = 1;
 export const FULL_WIND_SEC_AT_100 = 30;
 
 /**
- * 巻き量 (%) ごとの適正な速さの目標の表 (T3-04a・T3-05)。from〜to は両端を含む。
- * 速さは連続なので、目標 ±10 (SPEED_OK_TOL) の中を適正とする。
- * 重なる区間はどちらの目標でも適正。speed 0 (停止) が目標の区間では「止めている」だけが適正。
+ * 巻き量 (%) ごとの張りの目標の表 (T3-06)。点を直線で結んだ値が目標。
+ * (0,0) → 30% まで 0 から 50 へ上がり、35% で 100、70% まで 100、75% で 50、100% で 0。
  */
-export const GOOD_SPEED_ZONES: ReadonlyArray<{ from: number; to: number; speed: 0 | 50 | 100 }> = [
-  { from: 0, to: 30, speed: 50 },
-  { from: 25, to: 75, speed: 100 },
-  { from: 70, to: 99, speed: 50 },
-  { from: 95, to: 100, speed: 0 },
+export const TARGET_POINTS: ReadonlyArray<readonly [number, number]> = [
+  [0, 0], [30, 50], [35, 100], [70, 100], [75, 50], [100, 0],
 ];
+
+/** 張りが速さに遅れて付いていく時定数 (ms。T3-06) */
+export const TENSION_FOLLOW_MS = 800;
+
+/** レベルごとの適正範囲の幅 (目標 ± この値。内部のレベル 1・2・3。T3-06 追記) */
+export const OK_TOL_BY_LEVEL: Record<Level, number> = { 1: 15, 2: 10, 3: 6 };
+
+/** 35〜70% で目標が下がって戻る揺らぎのあいだ (ms。4〜8 秒。乱数) */
+export const DIP_GAP_MIN_MS = 4000;
+export const DIP_GAP_MAX_MS = 8000;
+/** 揺らぎの下がる量 (8〜15) */
+export const DIP_AMOUNT_MIN = 8;
+export const DIP_AMOUNT_MAX = 15;
+/** 下がるのに 1 秒・そのまま 1〜2 秒・戻るのに 1 秒 */
+export const DIP_DOWN_MS = 1000;
+export const DIP_HOLD_MIN_MS = 1000;
+export const DIP_HOLD_MAX_MS = 2000;
+export const DIP_BACK_MS = 1000;
 
 /** 確認できるようになる巻き量 (T3-04c)。微調整の数え始めも同じ */
 export const CONFIRM_MIN = 0.95;
-
-/** 適正な速さの許し (T3-05)。目標の速さ ±10 の中を適正とする (停止の目標は「止めている」だけ) */
-export const SPEED_OK_TOL = 10;
 
 /** 止めた位置の星の境目 (巻き量) */
 export const STOP3 = 0.99;

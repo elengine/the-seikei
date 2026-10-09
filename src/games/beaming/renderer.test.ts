@@ -18,7 +18,8 @@ function beamState(over?: Partial<BeamingState>): BeamingState {
   s = reduce(s, { type: 'moveFlange', side: 'left', deltaCm: -30 - s.leftCm });
   s = reduce(s, { type: 'moveFlange', side: 'right', deltaCm: 30 - s.rightCm });
   s = reduce(s, { type: 'finishSetup' });
-  s = reduce(s, { type: 'setSpeed', value: 50 }); // T3-05 でアクションの形が value になった (ここだけ機械的に直した)
+  s = reduce(s, { type: 'attachThread' }); // T3-06 で糸を付ける段階が増えた
+  s = reduce(s, { type: 'setSpeed', value: 50 });
   return over !== undefined ? { ...s, ...over } : s;
 }
 
@@ -246,21 +247,28 @@ describe('PU-24b (茶色の棒・ランプ)', () => {
     }
   });
 
-  it('3. ランプ: 適正なら緑の丸、速すぎならオレンジの上向きの記号、遅すぎならオレンジの下向き、停止では消灯', () => {
-    // 巻き量 50%・速さ 100 → 適正 → 緑の丸
-    const rec = draw(beamState({ progress: 0.5, speed: 100 }));
+  it('3. 張りのランプ (T3-06 追記。ドラム巻きと同じ見た目): 範囲の中は緑の ○、強すぎは ▲、弱すぎは ▼。巻く段階でなければ消灯', () => {
+    // 巻き量 50% (範囲 90〜100)・張り 95 → 緑の ○
+    const rec = draw(beamState({ progress: 0.5, tension: 95 }));
     const green = rec.ops.some((o) => o.k === 'arc' && Math.abs(((o.args as number[])[0] ?? 0) - lampX()) < 1 && Math.abs(((o.args as number[])[1] ?? 0) - lampY()) < 1 && styleBefore(rec.ops, rec.ops.indexOf(o)) === COLORS.lampOk);
-    expect(green, '適正の緑のランプ').toBe(true);
-    // 速すぎ: 巻き量 10% で 100 → 上向きの三角 (オレンジ)
-    const rec2 = draw(beamState({ progress: 0.10, speed: 100 }));
-    const tri = rec2.ops.some((o) => (o.k === 'moveTo') && Math.abs(((o.args as number[])[0] ?? 0) - lampX()) < 40 && styleBefore(rec2.ops, rec2.ops.indexOf(o)) === COLORS.lampWarn);
-    expect(tri, '速すぎの記号').toBe(true);
-    // 遅すぎ: 巻き量 50% で 50 → 下向きの三角
-    const rec3 = draw(beamState({ progress: 0.50, speed: 50 }));
-    const tri3 = rec3.ops.some((o) => (o.k === 'moveTo') && Math.abs(((o.args as number[])[0] ?? 0) - lampX()) < 40 && styleBefore(rec3.ops, rec3.ops.indexOf(o)) === COLORS.lampWarn);
-    expect(tri3, '遅すぎの記号').toBe(true);
-    // 停止 → ランプは描かない
-    const rec4 = draw(beamState({ progress: 0.5, speed: 0 }));
+    expect(green, '範囲の中の緑のランプ').toBe(true);
+    // 記号はランプの中央に白い字で描く (ドラム巻きと同じ。▲▼ は三角の形でなく fillText の字)
+    const symbolsOf = (rec: FakeRecorder): string[] =>
+      rec.ops
+        .filter((o) => o.k === 'fillText')
+        .map((o) => String((o.args as unknown[])[0]))
+        .filter((t) => ['▲', '▼', '○'].includes(t));
+    // 強すぎ: 巻き量 90% (目標 20・範囲 5〜35) で張り 80 → ▲ (オレンジ)
+    const rec2 = draw(beamState({ progress: 0.9, tension: 80 }));
+    expect(symbolsOf(rec2), '強すぎの ▲').toEqual(['▲']);
+    // 弱すぎ: 巻き量 90% で張り 2 → ▼
+    const rec3 = draw(beamState({ progress: 0.9, tension: 2 }));
+    expect(symbolsOf(rec3), '弱すぎの ▼').toEqual(['▼']);
+    // 範囲の中 (巻き量 90%・張り 20) は ○
+    const rec5 = draw(beamState({ progress: 0.9, tension: 20 }));
+    expect(symbolsOf(rec5), '範囲の中の ○').toEqual(['○']);
+    // attach の段階 → ランプは描かない
+    const rec4 = draw(beamState({ phase: 'attach' }));
     expect(rec4.ops.some((o) => o.k === 'arc' && Math.abs(((o.args as number[])[0] ?? 0) - lampX()) < 1)).toBe(false);
   });
 });

@@ -110,12 +110,24 @@ export function hitSpeedBar(p: { x: number; y: number }, speed: number): boolean
   return Math.abs(p.y - BOARD.guideY) <= SPEED_BAR_HIT_HALF_H && Math.abs(p.x - speedBarCenterX(speed)) <= SPEED_BAR_W / 2;
 }
 
-/** 速さのランプ (ビームの上の左寄り。ガイドの棒とビームのあいだ) */
+/** 押さえる所: ドラムの下の端 (糸のシートの上端)。横はドラムの幅、縦は上下 32px ずつ (画面上 64px 以上。T3-06) */
+export function hitSheetEdge(p: { x: number; y: number }, widthCm: number, progress: number): boolean {
+  return p.x >= DRUM_X && p.x <= DRUM_X + DRUM_W && Math.abs(p.y - sheetTopY(progress)) <= 32;
+}
+
+/** 離してよい所: ビームの軸と巻いた糸の円筒。円盤の間で、上下 32px の余裕 (T3-06) */
+export function hitBeamWind(p: { x: number; y: number }, widthCm: number, progress: number): boolean {
+  const leftX = cmToX(widthCm, -widthCm / 2);
+  const rightX = cmToX(widthCm, widthCm / 2);
+  return p.x > leftX && p.x < rightX && Math.abs(p.y - BOARD.axisY) <= woundRadius(progress) + 32;
+}
+
+/** 張りのランプ (ドラムの上。ドラム巻きと同じ考え。T3-06 追記) */
 export function lampX(): number {
   return BOARD_W * 0.2;
 }
 export function lampY(): number {
-  return BOARD.guideY + (BOARD.axisY - BOARD.guideY) * 0.25;
+  return BOARD.drumY + BOARD.drumH * 0.5;
 }
 export function hitLamp(p: { x: number; y: number }): boolean {
   return Math.hypot(p.x - lampX(), p.y - lampY()) <= 36;

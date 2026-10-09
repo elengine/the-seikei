@@ -16,12 +16,13 @@ function make(): BeamingState {
   return init({ level: 1, widthCm: 60, seed: 42, puzzleId: 's1', patternId: 'p-muji-kon' });
 }
 
-/** 目標どおりに合わせた巻き返しの状態 */
+/** 目標どおりに合わせて糸も付けた巻きの状態 (phase は beaming。T3-06 で attach 段階が増えた) */
 function beaming(): BeamingState {
   let s = make();
   s = reduce(s, { type: 'moveFlange', side: 'left', deltaCm: -30 - s.leftCm });
   s = reduce(s, { type: 'moveFlange', side: 'right', deltaCm: 30 - s.rightCm });
-  return reduce(s, { type: 'finishSetup' });
+  s = reduce(s, { type: 'finishSetup' });
+  return reduce(s, { type: 'attachThread' });
 }
 
 describe('beaming panel T3-03a (操作欄)', () => {
@@ -64,12 +65,12 @@ describe('beaming panel T3-03a (操作欄)', () => {
     p.destroy();
   });
 
-  it('5. 「巻き始める」は幅合わせの段階だけ出る (押すと finishSetup)。巻き返しの段階では主な操作は無し', () => {
+  it('5. 「ビーム設定OK」は幅合わせの段階だけ出る (押すと finishSetup)。巻き返しの段階では主な操作は無し (T3-06 で名前を変えた)', () => {
     const actions: BeamingAction[] = [];
     const p = createBeamingPanel(host, { terms, onAction: (a) => actions.push(a) });
     p.update(make());
     const start = (): HTMLButtonElement | undefined =>
-      Array.from(host.querySelectorAll('button')).find((b) => b.textContent === '巻き始める');
+      Array.from(host.querySelectorAll('button')).find((b) => b.textContent === 'ビーム設定OK');
     expect(start()).toBeDefined();
     start()!.click();
     expect(actions).toEqual([{ type: 'finishSetup' }]);
@@ -143,7 +144,7 @@ describe('PU-15c: 操作欄の整理 (戻す・踏み込む・速さ・経過時
 
 });
 
-describe('T3-04b (巻き量の帯)', () => {
+describe('T3-04c (完了のボタン。T3-06 で「確認」から名前を変えた)', () => {
   let host: HTMLElement;
   beforeEach(() => {
     document.body.textContent = '';
@@ -151,54 +152,7 @@ describe('T3-04b (巻き量の帯)', () => {
     document.body.appendChild(host);
   });
 
-  it('1. 巻き量の下に横長の帯がある。適正な速さの区間ごとに塗り分け、区間の文字 (50%・100%・50%。狭い停止の区間は文字なし)', () => {
-    const p = createBeamingPanel(host, { terms, onAction: () => undefined });
-    p.update(beaming());
-    const band = host.querySelector('.beaming-panel__band');
-    expect(band, '巻き量の帯').not.toBeNull();
-    const zones = Array.from(band!.querySelectorAll('.beaming-panel__band-zone')) as HTMLElement[];
-    expect(zones.length).toBe(4);
-    const labels = zones.map((z) => z.textContent ?? '');
-    expect(labels[0]).toContain('50%');
-    expect(labels[1]).toContain('100%');
-    expect(labels[2]).toContain('50%');
-    expect(labels[3] ?? '').toBe(''); // 95〜100% は 5% しか無いので文字は出さない
-    // 区間の位置と幅 (0〜30・25〜75・70〜99・95〜100)
-    expect(zones[0]!.style.left).toBe('0%');
-    expect(zones[0]!.style.width).toBe('30%');
-    expect(zones[1]!.style.left).toBe('25%');
-    expect(zones[1]!.style.width).toBe('50%');
-    expect(zones[2]!.style.left).toBe('70%');
-    expect(zones[2]!.style.width).toBe('29%');
-    expect(zones[3]!.style.left).toBe('95%');
-    expect(zones[3]!.style.width).toBe('5%');
-    p.destroy();
-  });
-
-  it('2. 今の巻き量の位置に縦の印。95% と 100% に目印の線があり、100% の線は朱', () => {
-    const p = createBeamingPanel(host, { terms, onAction: () => undefined });
-    p.update({ ...beaming(), progress: 0.73 });
-    const mark = host.querySelector('.beaming-panel__band-mark') as HTMLElement;
-    expect(mark).not.toBeNull();
-    expect(mark.style.left).toBe('73%');
-    const marks = Array.from(host.querySelectorAll('.beaming-panel__band-line')) as HTMLElement[];
-    expect(marks.length).toBe(2);
-    expect(marks[0]!.style.left).toBe('95%');
-    expect(marks[1]!.style.left).toBe('100%');
-    expect(marks[1]!.style.background).toBe('var(--c-shu)'); // 朱 = COLORS.shu (base.css の変数)
-    p.destroy();
-  });
-});
-
-describe('T3-04c (確認のボタン)', () => {
-  let host: HTMLElement;
-  beforeEach(() => {
-    document.body.textContent = '';
-    host = document.createElement('div');
-    document.body.appendChild(host);
-  });
-
-  it("1. 巻き量 95% 未満では「確認」のボタンは無い。速さの3つのボタンも無い (茶色の棒に置き換わった)", () => {
+  it("1. 巻き量 95% 未満では「完了」のボタンは無い。速さの3つのボタンも無い (茶色の棒に置き換わった)", () => {
     const actions: unknown[] = [];
     const p = createBeamingPanel(host, { terms, onAction: (a) => actions.push(a) });
     p.update(beaming());
@@ -206,18 +160,18 @@ describe('T3-04c (確認のボタン)', () => {
     const labels = Array.from(host.querySelectorAll('button'))
       .filter((b) => (b as HTMLElement).style.display !== 'none')
       .map((b) => b.textContent?.trim());
-    expect(labels).not.toContain('確認');
+    expect(labels).not.toContain('完了');
     expect(labels).not.toContain('停止');
     expect(labels).not.toContain('50%');
     expect(labels).not.toContain('100%');
     p.destroy();
   });
 
-  it("2. 巻き量 95% 以上で止めていれば「確認」が押せる (confirm を送る)", () => {
+  it("2. 巻き量 95% 以上で止めていれば「完了」が押せる (confirm を送る) (T3-06 で名前を変えた)", () => {
     const actions: unknown[] = [];
     const p = createBeamingPanel(host, { terms, onAction: (a) => actions.push(a) });
     p.update({ ...beaming(), progress: 0.96, speed: 0 });
-    const btn = Array.from(host.querySelectorAll('button')).find((b) => b.textContent?.trim() === '確認');
+    const btn = Array.from(host.querySelectorAll('button')).find((b) => b.textContent?.trim() === '完了');
     expect(btn).not.toBeNull();
     expect(btn!.getAttribute('aria-disabled')).toBe('false');
     btn!.click();
@@ -230,12 +184,12 @@ describe('T3-04c (確認のボタン)', () => {
     const notices: string[] = [];
     const p = createBeamingPanel(host, { terms, onAction: (a) => actions.push(a), onNotice: (t) => notices.push(t) });
     p.update({ ...beaming(), progress: 0.96, speed: 50 });
-    const btn = Array.from(host.querySelectorAll('button')).find((b) => b.textContent?.trim() === '確認');
+    const btn = Array.from(host.querySelectorAll('button')).find((b) => b.textContent?.trim() === '完了');
     expect(btn).not.toBeNull();
     expect(btn!.getAttribute('aria-disabled')).toBe('true');
     btn!.click();
     expect(actions).not.toContainEqual({ type: 'confirm' });
-    expect(notices).toContain('棒を左端まで戻して止めてから、確認を押します');
+    expect(notices).toContain('棒を左端まで戻して止めてから、完了を押します');
     p.destroy();
   });
 });
@@ -262,20 +216,13 @@ describe('PU-24b: 操作欄の「速さ N」', () => {
     p.destroy();
   });
 
-  it('2. 適正な速さのときは藍 (--good)、速すぎは朱で「▲」、遅すぎは朱で「▼」を添える (色だけに頼らない)。幅合わせの段階は目印なし', () => {
+  it('2. ▲▼ の記号と色の区別は無い (T3-06 で張りはメーターと盤面のランプで示す)。幅合わせの段階は数字だけ', () => {
     const p = createBeamingPanel(host, { terms, onAction: () => undefined });
-    p.update({ ...beaming(), progress: 0.5, speed: 100 }); // 25〜75% は速さ 100 が適正
-    expect(speedEl().classList.contains('beaming-panel__speed--good')).toBe(true);
+    p.update({ ...beaming(), progress: 0.5, speed: 100 });
     expect(speedEl().textContent).toBe('速さ 100');
-    p.update({ ...beaming(), progress: 0.5, speed: 50 });
-    expect(speedEl().classList.contains('beaming-panel__speed--bad')).toBe(true);
-    expect(speedEl().textContent).toBe('速さ 50 ▼'); // 遅すぎ
-    p.update({ ...beaming(), progress: 0.1, speed: 100 }); // 0〜30% は速さ 50 が適正
-    expect(speedEl().classList.contains('beaming-panel__speed--bad')).toBe(true);
-    expect(speedEl().textContent).toBe('速さ 100 ▲'); // 速すぎ
+    expect(speedEl().className).not.toContain('beaming-panel__speed--good');
+    expect(speedEl().className).not.toContain('beaming-panel__speed--bad');
     p.update(make());
-    expect(speedEl().classList.contains('beaming-panel__speed--bad')).toBe(false);
-    expect(speedEl().classList.contains('beaming-panel__speed--good')).toBe(false);
     expect(speedEl().textContent).toBe('速さ 0');
     p.destroy();
   });
@@ -286,5 +233,58 @@ describe('PU-24b: 操作欄の「速さ N」', () => {
     expect(parseInt(base.match(/font-size:\s*(\d+)px/)![1]!, 10)).toBeGreaterThanOrEqual(32);
     expect(css.match(/\.beaming-panel__speed--good\s*\{([^}]*)\}/)![1]).toContain('var(--c-ai)');
     expect(css.match(/\.beaming-panel__speed--bad\s*\{([^}]*)\}/)![1]).toContain('var(--c-shu)');
+  });
+});
+
+describe('T3-06 (張りのメーターと糸を付ける段階の操作欄)', () => {
+  let host: HTMLElement;
+  beforeEach(() => {
+    document.body.textContent = '';
+    host = document.createElement('div');
+    document.body.appendChild(host);
+  });
+
+  it('巻き量の帯 (速さの目標の色の区間) は無い。代わりに張りのメーターがあり、範囲が巻き量で動く', () => {
+    const p = createBeamingPanel(host, { terms, onAction: () => undefined });
+    p.update(beaming());
+    expect(host.querySelector('.beaming-panel__band')).toBeNull();
+    expect(host.querySelector('.tension-meter')).not.toBeNull();
+    // 巻き量 50% (目標 100) では範囲は 90〜100。0% (目標 50) では 40〜60
+    const zone = host.querySelector<HTMLElement>('.meter__zone')!;
+    p.update({ ...beaming(), phase: 'beaming', progress: 0.5, tension: 95 });
+    const left50 = zone.style.left;
+    p.update({ ...beaming(), phase: 'beaming', progress: 0, tension: 50 });
+    expect(zone.style.left).not.toBe(left50);
+    p.destroy();
+  });
+
+  it('速さの数字に ▲▼ の記号と色の区別は無い (張りはメーターとランプで示す)', () => {
+    const p = createBeamingPanel(host, { terms, onAction: () => undefined });
+    p.update({ ...beaming(), phase: 'beaming', progress: 0.5, speed: 30, tension: 95 });
+    const speedEl = host.querySelector('.beaming-panel__speed')!;
+    expect(speedEl.textContent).toBe('速さ 30');
+    expect(speedEl.className).not.toContain('beaming-panel__speed--bad');
+    p.destroy();
+  });
+
+  it('attach の段階では案内の1行が出る (「ビーム設定OK」も「完了」も出ない)', () => {
+    const p = createBeamingPanel(host, { terms, onAction: () => undefined });
+    p.update({ ...beaming(), phase: 'attach' });
+    expect(host.textContent).toContain('ドラムの糸を、ビームまで引っぱってください');
+    const labels = Array.from(host.querySelectorAll('button'))
+      .filter((b) => (b as HTMLElement).style.display !== 'none')
+      .map((b) => b.textContent?.trim());
+    expect(labels).not.toContain('ビーム設定OK');
+    expect(labels).not.toContain('完了');
+    p.destroy();
+  });
+
+  it('「巻き始める」「確認」の言葉は操作欄に無い (T3-06 で名前を変えた)', () => {
+    const p = createBeamingPanel(host, { terms, onAction: () => undefined });
+    p.update(beaming());
+    p.update({ ...beaming(), phase: 'beaming', progress: 0.96, speed: 0 });
+    expect(host.textContent).not.toContain('巻き始める');
+    expect(host.textContent).not.toContain('確認');
+    p.destroy();
   });
 });

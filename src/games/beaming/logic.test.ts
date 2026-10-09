@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { init, reduce, starsOf, widthOk, resultLines, isValidResume, goodSpeedOf } from './logic';
+import { init, reduce, starsOf, widthOk, resultLines, isValidResume, targetOf, okRangeOf } from './logic';
 import type { BeamingState, BeamingAction } from './logic';
 import type { Level } from './params';
-import { FULL_WIND_SEC_AT_100, GOOD_SPEED_ZONES, STOP3, STOP2, RESTARTS_OK, SPEED_OK_TOL } from './params';
+import { FULL_WIND_SEC_AT_100, TARGET_POINTS, STOP3, STOP2, RESTARTS_OK, OK_TOL_BY_LEVEL, TENSION_FOLLOW_MS } from './params';
 
 /** テスト用の状態を作る (seed 固定)。level と巻き幅を指定できる */
 function make(level: Level = 1, widthCm = 60, seed = 42): BeamingState {
@@ -18,8 +18,19 @@ function act(s: BeamingState, actions: BeamingAction[]): BeamingState {
   return cur;
 }
 
-/** 幅合わせをぴったり合わせて巻き返しへ (誤差 0) */
+/** 幅合わせをぴったり合わせて糸も付けた状態 (誤差 0。phase は beaming。T3-06) */
 function setupExact(s: BeamingState): BeamingState {
+  const w = s.widthCm;
+  return act(s, [
+    { type: 'moveFlange', side: 'left', deltaCm: -w / 2 - s.leftCm },
+    { type: 'moveFlange', side: 'right', deltaCm: w / 2 - s.rightCm },
+    { type: 'finishSetup' },
+    { type: 'attachThread' },
+  ]);
+}
+
+/** 幅合わせをぴったり合わせて糸を付ける前の状態 (phase は attach。T3-06) */
+function setupAttach(s: BeamingState): BeamingState {
   const w = s.widthCm;
   return act(s, [
     { type: 'moveFlange', side: 'left', deltaCm: -w / 2 - s.leftCm },
@@ -138,7 +149,7 @@ describe('beaming logic T3-01 (ルール)', () => {
     expect(STOP2).toBe(0.97);
   });
 
-  it('9. 成績の行: 適正な速さ・止めた位置・微調整・幅合わせの誤差の4行。「中央に保てた割合」は T3-05 で無くなった。止めた位置は表示と同じ (切り捨て)', () => {
+  it('9. 成績の行: ちょうどよい張りで巻いた割合・止めた位置・微調整・幅合わせの誤差の4行。止めた位置は表示と同じ (切り捨て) (T3-06)', () => {
     const base = setupExact(make());
     const s: BeamingState = {
       ...base,
@@ -149,7 +160,7 @@ describe('beaming logic T3-01 (ルール)', () => {
       restarts: 1,
     };
     const lines = resultLines(s);
-    expect(lines.map((l) => l.label)).toEqual(['適正な速さ', '止めた位置', '微調整', '幅合わせの誤差']);
+    expect(lines.map((l) => l.label)).toEqual(['ちょうどよい張りで巻いた割合', '止めた位置', '微調整', '幅合わせの誤差']);
     expect(lines[0]!.value).toBe('86%');
     expect(lines[1]!.value).toBe('99%'); // 99.2% → 表示は切り捨ての 99
     expect(lines[2]!.value).toBe('1回');
@@ -179,57 +190,44 @@ describe('beaming logic T3-01 (ルール)', () => {
     expect(i3.leftCm !== i1.leftCm || i3.rightCm !== i1.rightCm).toBe(true);
   });
 
-  it('11. 適正な速さ: 目標 ±10 (SPEED_OK_TOL)。停止 (0) が目標の区間では「止めている」だけが適正。重なる所はどちらでも適正 (T3-05)', () => {
-    expect(GOOD_SPEED_ZONES).toEqual([
-      { from: 0, to: 30, speed: 50 },
-      { from: 25, to: 75, speed: 100 },
-      { from: 70, to: 99, speed: 50 },
-      { from: 95, to: 100, speed: 0 },
-    ]);
-    expect(SPEED_OK_TOL).toBe(10);
-    // 巻き量 10% (目標 50): 40〜60 が適正
-    expect(goodSpeedOf(50, 0.10)).toBe(true);
-    expect(goodSpeedOf(45, 0.10)).toBe(true);
-    expect(goodSpeedOf(35, 0.10)).toBe(false);
-    expect(goodSpeedOf(61, 0.10)).toBe(false);
-    expect(goodSpeedOf(100, 0.10)).toBe(false);
-    // 巻き量 50% (目標 100): 90〜100 が適正
-    expect(goodSpeedOf(100, 0.50)).toBe(true);
-    expect(goodSpeedOf(92, 0.50)).toBe(true);
-    expect(goodSpeedOf(89, 0.50)).toBe(false);
-    expect(goodSpeedOf(50, 0.50)).toBe(false);
-    // 巻き量 80% (目標 50): 40〜60
-    expect(goodSpeedOf(50, 0.80)).toBe(true);
-    expect(goodSpeedOf(60, 0.80)).toBe(true);
-    expect(goodSpeedOf(100, 0.80)).toBe(false);
-    // 巻き量 97%: [70,99] の 50 (40〜60) と [95,100] の停止が重なる。50 も停止も適正
-    expect(goodSpeedOf(50, 0.97)).toBe(true);
-    expect(goodSpeedOf(0, 0.97)).toBe(true);
-    expect(goodSpeedOf(5, 0.97)).toBe(false); // 停止の目標は「止めている」だけ。5 は適正でない
-    expect(goodSpeedOf(100, 0.97)).toBe(false);
-    // 重なる所 (27%): 50 も 100 も適正 (それぞれの ±10)
-    expect(goodSpeedOf(50, 0.27)).toBe(true);
-    expect(goodSpeedOf(100, 0.27)).toBe(true);
+  it('11. 張りの目標 (TARGET_POINTS を直線で結ぶ) と適正範囲 (目標から揺らぎを引いた値 ± レベルの幅。0〜100 に収める) (T3-06)', () => {
+    expect(TARGET_POINTS).toEqual([[0, 0], [30, 50], [35, 100], [70, 100], [75, 50], [100, 0]]);
+    // 仕様書の点 (追記): 0%→0、15%→25、30%→50、32.5%→75、50%→100、72.5%→75、87.5%→25、100%→0
+    expect(targetOf(0)).toBe(0);
+    expect(targetOf(0.15)).toBe(25);
+    expect(targetOf(0.30)).toBe(50);
+    expect(targetOf(0.325)).toBe(75);
+    expect(targetOf(0.50)).toBe(100);
+    expect(targetOf(0.725)).toBe(75);
+    expect(targetOf(0.875)).toBe(25);
+    expect(targetOf(1)).toBe(0);
+    // 範囲は目標 (揺らぎを引いた値) ± レベルの幅。0〜100 に収める
+    expect(OK_TOL_BY_LEVEL).toEqual({ 1: 15, 2: 10, 3: 6 });
+    expect(okRangeOf(0.5, 2, 0)).toEqual({ min: 90, max: 100 });
+    expect(okRangeOf(0.30, 2, 0)).toEqual({ min: 40, max: 60 });
+    expect(okRangeOf(0.30, 1, 0)).toEqual({ min: 35, max: 65 }); // レベル1 は ±15
+    expect(okRangeOf(0.50, 3, 20)).toEqual({ min: 74, max: 86 }); // 目標 100 − 揺らぎ 20 = 80 ± 6
+    expect(okRangeOf(0.5, 1, 0).max).toBeLessThanOrEqual(100);
   });
 
-  it("11b. 適正な速さで巻いているあいだ goodMs が増える。合っていなければ増えない (停止は数えない)", () => {
-    let s = setupExact(make());
-    s = act(s, [{ type: 'setSpeed', value: 50 }]); // 巻き量 0% → 50 は適正
+  it("11b. 張りが適正範囲の中のときだけ goodMs が増える (巻いている間だけ。速さ 0 では増えない) (T3-06)", () => {
+    // 巻き量 50% (目標 100・レベル2 の範囲 90〜100)。張りは 1tick で速さ 50 のほうへ少し動くので 97 から始める (後 91.5 で範囲の中)
+    let s = setupExact(make(2));
+    s = { ...s, speed: 50, tension: 97, progress: 0.5 };
     s = reduce(s, { type: 'tick', dtMs: 100 });
     expect(s.goodMs).toBe(100);
-    // 巻き量 30% を超えて 50 は適正でない ([25,75] は 100)
-    s = { ...s, progress: 0.5 };
+    // 張りが範囲の外 (20) だと増えない (巻きは進む)
+    s = { ...s, tension: 20 };
     s = reduce(s, { type: 'tick', dtMs: 100 });
-    expect(s.goodMs).toBe(100); // 増えない
+    expect(s.goodMs).toBe(100);
     expect(s.windMs).toBe(200);
-    s = act(s, [{ type: 'setSpeed', value: 100 }]);
-    s = reduce(s, { type: 'tick', dtMs: 100 });
-    expect(s.goodMs).toBe(200); // 50% で 100 は適正
-    // 停止 (speed 0) では何も進まない
-    const stopped = act(s, [{ type: 'setSpeed', value: 0 }, { type: 'tick', dtMs: 100 }]);
-    expect(stopped.windMs).toBe(s.windMs);
-    expect(stopped.goodMs).toBe(s.goodMs);
-    expect(stopped.progress).toBe(s.progress);
+    // 速さ 0 では張りは 0 のほうへ下がる (1tick で 97 → 約 85.6。時定数 800ms) が goodMs は増えない
+    s = { ...s, tension: 97, speed: 0 };
+    const stopped = reduce(s, { type: 'tick', dtMs: 100 });
+    expect(stopped.goodMs).toBe(100);
+    expect(stopped.windMs).toBe(200);
+    expect(stopped.tension).toBeCloseTo(97 * Math.exp(-100 / TENSION_FOLLOW_MS), 6);
+    expect(stopped.tension).toBeLessThan(97);
   });
 
   it("11c. 巻き量 95% を超えてから停止 → 速さを 0 より大きく戻すと restarts が増える。確認は 95% 以上・停止のときだけ (T3-05)", () => {
@@ -269,18 +267,22 @@ describe('beaming logic T3-01 (ルール)', () => {
     expect(s.windMs).toBe(0);
   });
 
-  it('13. 途中保存の形 (isValidResume): init の状態は true、壊れた形は false。速さは 0〜100 の数。古い形 (shiftVel がある) は読まない (T3-05)', () => {
+  it('13. 途中保存の形 (isValidResume): init の状態は true、壊れた形は false。張り (tension) が数であること。古い形 (tension が無い) は読まない (T3-06)', () => {
     const s = setupExact(make());
     expect(isValidResume(s)).toBe(true);
+    expect(isValidResume({ ...s, phase: 'attach' })).toBe(true);
     expect(isValidResume({ ...s, phase: 'other' })).toBe(false);
     expect(isValidResume({ ...s, leftCm: 'x' as unknown as number })).toBe(false);
     expect(isValidResume({ ...s, speed: 60 })).toBe(true); // 0〜100 なら何でもよい
     expect(isValidResume({ ...s, speed: 101 })).toBe(false);
-    expect(isValidResume({ ...s, speed: -1 })).toBe(false);
+    expect(isValidResume({ ...s, tension: 'x' as unknown as number })).toBe(false);
     expect(isValidResume({ ...s, goodMs: 'x' as unknown as number })).toBe(false);
     expect(isValidResume({ ...s, restarts: 'x' as unknown as number })).toBe(false);
     expect(isValidResume({ ...s, broken: 'x' as unknown as boolean })).toBe(false);
-    expect(isValidResume({ ...s, shiftVel: 0.3 } as unknown as BeamingState)).toBe(false); // 古い形
+    // 古い形 (tension が無い。T3-05 までの途中保存) は読まない
+    const oldSave: Record<string, unknown> = { ...(s as unknown as Record<string, unknown>) };
+    delete oldSave['tension'];
+    expect(isValidResume(oldSave)).toBe(false);
     expect(isValidResume(null)).toBe(false);
   });
 });
@@ -346,5 +348,100 @@ describe('T3-05 (揺れをやめる・速さを連続に・止める判定を表
     const base = setupExact(make());
     const s: BeamingState = { ...base, widthErrCm: 0, goodMs: 900, windMs: 1000, progress: 0.9999, restarts: 0, broken: false, speed: 0 };
     expect(resultLines(s).find((l) => l.label === '止めた位置')!.value).toBe('99%');
+  });
+});
+
+describe('T3-06 (3つの作業と張り)', () => {
+  it('23. 流れ: setup → finishSetup → attach → attachThread → beaming。attach では setSpeed が効かず、setup では attachThread が効かない', () => {
+    let s = setupAttach(make());
+    expect(s.phase).toBe('attach');
+    // attach では速さを変えられない
+    const notYet = reduce(s, { type: 'setSpeed', value: 50 });
+    expect(notYet.speed).toBe(0);
+    expect(notYet.phase).toBe('attach');
+    // setup では attachThread が効かない
+    const inSetup = reduce(make(), { type: 'attachThread' });
+    expect(inSetup.phase).toBe('setup');
+    // 糸を付けると beaming になり、速さは 0
+    s = reduce(s, { type: 'attachThread' });
+    expect(s.phase).toBe('beaming');
+    expect(s.speed).toBe(0);
+  });
+
+  it('24. 張りは速さに遅れて付いていく: 0.8 秒で目標の約 63%、3 秒で 95% 以上。速さ 0 に戻すと下がっていく', () => {
+    expect(TENSION_FOLLOW_MS).toBe(800);
+    let s = setupExact(make());
+    s = reduce(s, { type: 'setSpeed', value: 100 });
+    for (let i = 0; i < 8; i++) {
+      s = reduce(s, { type: 'tick', dtMs: 100 });
+    }
+    expect(s.tension).toBeGreaterThan(60); // 0.8 秒: 63.2
+    expect(s.tension).toBeLessThan(66);
+    for (let i = 0; i < 22; i++) {
+      s = reduce(s, { type: 'tick', dtMs: 100 });
+    }
+    expect(s.tension).toBeGreaterThanOrEqual(95); // 3 秒: 97.6
+    // 速さ 0 に戻すと張りは 0 へ下がる (巻き量は進まない)
+    s = reduce(s, { type: 'setSpeed', value: 0 });
+    const p = s.progress;
+    s = reduce(s, { type: 'tick', dtMs: 100 });
+    expect(s.tension).toBeLessThan(95);
+    expect(s.progress).toBe(p);
+  });
+
+  it('26. 35〜70% では目標がときどき下がって戻る (下がる量は 15 以内。区間の外では下がらない。同じ種なら同じ動き)', () => {
+    // 巻き量 50% に固定して 60 秒巻くと、揺らぎで dip が 0 より大きくなることがある
+    let s = setupExact(make(2, 60, 9));
+    s = reduce(s, { type: 'setSpeed', value: 40 });
+    s = { ...s, progress: 0.5, tension: 100 };
+    let sawDip = false;
+    let maxDip = 0;
+    for (let i = 0; i < 600; i++) {
+      s = reduce(s, { type: 'tick', dtMs: 100 });
+      maxDip = Math.max(maxDip, s.dip);
+      if (s.dip > 0) sawDip = true;
+      s = { ...s, progress: 0.5, tension: 100 }; // 巻き量を固定して揺らぎだけを見る
+    }
+    expect(sawDip, `maxDip ${maxDip}`).toBe(true);
+    expect(maxDip).toBeLessThanOrEqual(15);
+    // 区間の外 (10%) では下がらない
+    let s2 = setupExact(make(2, 60, 9));
+    s2 = reduce(s2, { type: 'setSpeed', value: 40 });
+    s2 = { ...s2, progress: 0.10 };
+    for (let i = 0; i < 600; i++) {
+      s2 = reduce(s2, { type: 'tick', dtMs: 100 });
+      s2 = { ...s2, progress: 0.10 };
+      expect(s2.dip).toBe(0);
+    }
+    // 同じ種なら同じ動き
+    const run = (): number[] => {
+      let c = setupExact(make(2, 60, 9));
+      c = reduce(c, { type: 'setSpeed', value: 40 });
+      c = { ...c, progress: 0.5, tension: 100 };
+      const dips: number[] = [];
+      for (let i = 0; i < 200; i++) {
+        c = reduce(c, { type: 'tick', dtMs: 100 });
+        c = { ...c, progress: 0.5, tension: 100 };
+        dips.push(Math.round(c.dip * 100));
+      }
+      return dips;
+    };
+    expect(run()).toEqual(run());
+  });
+
+  it('25. 速さ 0 の間も張りだけは毎 tick 動く。巻き量と時間は速さ 0 では進まない', () => {
+    let s = setupExact(make());
+    s = reduce(s, { type: 'setSpeed', value: 80 });
+    for (let i = 0; i < 30; i++) {
+      s = reduce(s, { type: 'tick', dtMs: 100 });
+    }
+    const high = s.tension;
+    s = reduce(s, { type: 'setSpeed', value: 0 });
+    for (let i = 0; i < 10; i++) {
+      s = reduce(s, { type: 'tick', dtMs: 100 });
+      expect(s.windMs, `${i}`).toBe(3000);
+      expect(s.progress).toBeGreaterThan(0);
+    }
+    expect(s.tension).toBeLessThan(high);
   });
 });

@@ -2,7 +2,7 @@ import type { GameDeps, GameInstance, GameProps, TutorialSpec } from '../../core
 import type { StageFit } from '../../core/viewport/viewport';
 import { createGameFrame } from '../../core/ui/gameFrame';
 import { createButton, createDialogShell } from '../../core/ui/widgets';
-import { setBoardHeight, flangeHit, dragCm, hitSpeedBar, speedFromBarDrag } from './geometry';
+import { setBoardHeight, flangeHit, dragCm, hitSpeedBar, speedFromBarDrag, hitSheetEdge, hitBeamWind } from './geometry';
 import { logicalHeightFor } from '../winding/geometry';
 import { showTutorial } from '../../core/ui/tutorialOverlay';
 import { drawBoard } from './renderer';
@@ -93,6 +93,8 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
   let flangeDrag: { side: 'left' | 'right'; startCm: number; startX: number; pointerId: number } | null = null;
   /** 茶色の棒を引っぱっている (PU-24b)。startX は引っぱり始めの指の論理 x、startSpeed はそのときの速さ */
   let barDrag: { id: number; startX: number; startSpeed: number } | null = null;
+  /** 糸を引っぱっている (attach の段階。T3-06)。x・y は指の論理位置 (糸の線を描くのに使う) */
+  let threadDrag: { id: number; x: number; y: number } | null = null;
   /** 画面の点 → 論理座標の x と y (Canvas の上の位置から、変換を戻す) */
   function logicalOf(e: PointerEvent): { x: number; y: number } {
     const rect = frame.stage.getBoundingClientRect();
@@ -100,7 +102,21 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
   }
   const currentCm = (side: 'left' | 'right'): number => (side === 'left' ? s.leftCm : s.rightCm);
   function onStageDown(e: PointerEvent): void {
-    if (flangeDrag !== null || barDrag !== null || finished || disposed || e.button !== 0 || !(lastFit.scale > 0)) {
+    if (flangeDrag !== null || barDrag !== null || threadDrag !== null || finished || disposed || e.button !== 0 || !(lastFit.scale > 0)) {
+      return;
+    }
+    // 糸を付ける段階: ドラムの下の端を押さえたら糸をつかむ (T3-06)
+    if (s.phase === 'attach') {
+      const p = logicalOf(e);
+      if (hitSheetEdge(p, s.widthCm, s.progress)) {
+        threadDrag = { id: e.pointerId, x: p.x, y: p.y };
+        try {
+          frame.stage.setPointerCapture(e.pointerId);
+        } catch {
+          // 対応していない環境 (テスト等) では、そのまま受け取る
+        }
+        render();
+      }
       return;
     }
     // 茶色の棒 (巻き返しの段階だけ動かせる。幅合わせの段階では押せない。PU-24b)。棒のどこを押さえても引っぱれる
@@ -132,6 +148,13 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
     }
   }
   function onStageMove(e: PointerEvent): void {
+    // 糸を引っぱる: 指について線を描くだけ (付けるのは離したとき)
+    if (threadDrag !== null && e.pointerId === threadDrag.id) {
+      const p = logicalOf(e);
+      threadDrag = { ...threadDrag, x: p.x, y: p.y };
+      render();
+      return;
+    }
     // 棒を引っぱる: 指が動いた分だけ速さが連続で変わる (棒も指について動く)
     if (barDrag !== null && e.pointerId === barDrag.id) {
       const v = speedFromBarDrag(barDrag.startSpeed, logicalOf(e).x - barDrag.startX);
@@ -151,6 +174,17 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
     }
   }
   function onStageUp(e: PointerEvent): void {
+    // 糸を離す: ビームの上なら糸が付く (attachThread)。それ以外は糸の端がドラムへ戻る (何も起きない)
+    if (threadDrag !== null) {
+      const wasDragging = e.pointerId === threadDrag.id;
+      const p = logicalOf(e);
+      threadDrag = null;
+      if (wasDragging && s.phase === 'attach' && hitBeamWind(p, s.widthCm, s.progress)) {
+        dispatch({ type: 'attachThread' });
+      }
+      render();
+      return;
+    }
     // 棒を離す: 引っぱりが終わり、速さはそのまま保たれる。pointerId は問わない (離すのを取りこぼしたまま固まらないようにする)
     if (barDrag !== null) {
       barDrag = null;
@@ -162,6 +196,12 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
     }
   }
   function onStageCancel(e: PointerEvent): void {
+    if (threadDrag !== null) {
+      // 取り消し (ブラウザが奪ったとき): 糸の端はドラムへ戻る (何も起きない)
+      threadDrag = null;
+      render();
+      return;
+    }
     if (barDrag !== null) {
       // 取り消し (ブラウザが奪ったとき): 引っぱる前の速さに戻す。pointerId は問わない
       const back = barDrag.startSpeed;
@@ -208,7 +248,7 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
     if (ctx === null) {
       return;
     }
-    drawBoard(ctx, lastFit, s, content, drumAngle);
+    drawBoard(ctx, lastFit, s, content, drumAngle, threadDrag);
   }
 
   // ---- 画面の更新 ----
@@ -416,6 +456,7 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
     },
     unmount(): void {
       disposed = true;
+      threadDrag = null;
       stopLoop();
       if (saveTimer !== null) {
         clearInterval(saveTimer);

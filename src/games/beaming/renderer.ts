@@ -5,8 +5,8 @@ import {
   BOARD, BEAM_CENTER_X, DRUM_X, DRUM_W, CORE_R, ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX, FLANGE_RX, woundRadius, woundTopY, sheetTopY, cmToX, pxPerCm,
   speedBarCenterX, SPEED_BAR_W, lampX, lampY,
 } from './geometry';
-import { goodSpeedOf } from './logic';
-import { GOOD_SPEED_ZONES } from './params';
+import { okRangeOf } from './logic';
+import { FONT_FAMILY } from '../../core/ui/tokens';
 import type { BeamingState } from './logic';
 
 /**
@@ -46,6 +46,8 @@ export function drawBoard(
   s: BeamingState,
   content: Content,
   drumAngle: number,
+  /** 糸を引っぱっている指の位置 (attach の段階。無ければ null。T3-06) */
+  threadDrag?: { x: number; y: number } | null,
 ): void {
   const hex = mainHex(content, s.patternId);
 
@@ -73,8 +75,22 @@ export function drawBoard(
     drawTarget(ctx, s);
   }
 
-  // 速さのランプ (ビームの少し上。T3-04b)
-  drawSpeedLamp(ctx, fit, s);
+  // 糸を付ける段階: ドラムの下の端から指まで、シートの線を描く (色は柄の色。T3-06)
+  if (s.phase === 'attach' && threadDrag) {
+    const half = (s.widthCm * pxPerCm(s.widthCm)) / 2;
+    const sx = BEAM_CENTER_X;
+    const sy = sheetTopY(s.progress);
+    ctx.strokeStyle = hex;
+    ctx.lineWidth = 6;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(sx - half + (sx + half - (sx - half)) * 0.15, sy);
+    ctx.lineTo(threadDrag.x, threadDrag.y);
+    ctx.stroke();
+  }
+
+  // 張りのランプ (ドラムの上。ドラム巻きと同じ見た目。T3-06 追記)
+  drawTensionLamp(ctx, fit, s);
 
   ctx.restore();
   // 文字は盤面には描かない (巻き量・速さは操作欄。乗り上げの表示は T3-05 で偏りが無くなったので無い。PU-24a)
@@ -306,49 +322,38 @@ function drawTarget(ctx: CanvasRenderingContext2D, s: BeamingState): void {
 }
 
 /**
- * 速さのランプ (ビームの上の左寄り。T3-04b)。今の速さが適正なら緑の「○」、
- * 外れていればオレンジの「▲」(速すぎ) か「▼」(遅すぎ)。停止中は消灯 (描かない)。
+ * 張りのランプ (ドラムの上。T3-06 追記)。ドラム巻きの drawTensionLamp と同じ見た目:
+ * 範囲の中は緑の「○」、強すぎは「▲」、弱すぎは「▼」のオレンジ。state の形が違うので
+ * ドラム巻きからは読み込まず、ここに同じ見た目で書く。外れていないときは点滅しない。
  */
-function drawSpeedLamp(ctx: CanvasRenderingContext2D, fit: StageFit, s: BeamingState): void {
-  if (s.phase !== 'beaming' || s.speed === 0) {
+function drawTensionLamp(ctx: CanvasRenderingContext2D, fit: StageFit, s: BeamingState): void {
+  if (s.phase !== 'beaming') {
     return;
   }
   const x = lampX();
   const y = lampY();
-  if (goodSpeedOf(s.speed, s.progress)) {
-    // 適正: 緑の丸
-    ctx.fillStyle = COLORS.lampOk;
-    ctx.beginPath();
-    ctx.arc(x, y, 22, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = COLORS.white;
-    ctx.lineWidth = fit.scale * 3;
-    ctx.beginPath();
-    ctx.arc(x, y, 12, 0, Math.PI * 2);
-    ctx.stroke();
-    return;
-  }
-  // 外れている: 速すぎ (▲) か遅すぎ (▼)。今の速さより遅い適正があれば速すぎ
-  const goodSpeeds = GOOD_SPEED_ZONES.filter((z) => s.progress * 100 >= z.from && s.progress * 100 <= z.to).map((z) => z.speed);
-  const tooFast = goodSpeeds.some((g) => g > 0 && g < s.speed);
-  const color = COLORS.lampWarn;
+  const r = 22;
+  const range = okRangeOf(s.progress, s.level, s.dip);
+  const state: 'ok' | 'high' | 'low' = s.tension > range.max ? 'high' : s.tension < range.min ? 'low' : 'ok';
+  const color = state === 'ok' ? COLORS.lampOk : COLORS.lampWarn;
+  // 光っている感じ (外側の薄い輪)
+  ctx.save();
+  ctx.globalAlpha = 0.3;
   ctx.fillStyle = color;
   ctx.beginPath();
-  const h = 30;
-  if (tooFast) {
-    ctx.moveTo(x, y - 18);
-    ctx.lineTo(x + 18, y + 12);
-    ctx.lineTo(x - 18, y + 12);
-  } else {
-    ctx.moveTo(x, y + 18);
-    ctx.lineTo(x + 18, y - 12);
-    ctx.lineTo(x - 18, y - 12);
-  }
-  ctx.closePath();
+  ctx.arc(x, y, r * 1.3, 0, Math.PI * 2);
   ctx.fill();
-  ctx.font = `${20 * fit.scale}px sans-serif`;
-  ctx.textAlign = 'center';
+  ctx.restore();
   ctx.fillStyle = color;
-  ctx.fillText(tooFast ? '速すぎ' : '遅すぎ', x, y + h + 14);
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fill();
+  // 中の記号 (色だけに頼らない)
+  const symbol = state === 'ok' ? '○' : state === 'high' ? '▲' : '▼';
+  ctx.fillStyle = COLORS.white;
+  ctx.font = `bold ${Math.round(r * 1.3)}px ${FONT_FAMILY}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(symbol, x, y + r * 0.05);
 }
 
