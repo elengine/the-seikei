@@ -285,12 +285,12 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
   const stageCol = stageBox?.parentElement ?? null;
   stageBox?.insertBefore(band, frame.stage);
   let base: { colH: number; boxH: number; panelH: number; w: number } | null = null;
-  let appliedExtra = 0;
+  let appliedBoxH = 0;
   function captureBase(): void {
     if (stageBox === null || stageCol === null) return;
     const px = (e: HTMLElement): number => parseFloat(e.style.height) || e.offsetHeight;
     base = { colH: px(stageCol), boxH: px(stageBox), panelH: px(frame.panel), w: stageBox.clientWidth };
-    appliedExtra = 0;
+    appliedBoxH = base.boxH; // 枠が決めた大きさのまま (Canvas は枠が作り直した)
   }
   function layoutTop(): void {
     const portrait = frame.layout() === 'portrait';
@@ -298,16 +298,36 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
     band.style.display = portrait ? '' : 'none';
     const bandH = portrait ? band.offsetHeight : 0;
     if (base !== null && stageBox !== null && stageCol !== null && base.w > 0) {
-      stageCol.style.height = `${base.colH + bandH}px`;
-      stageBox.style.height = `${base.boxH + bandH}px`;
-      frame.panel.style.height = `${Math.max(0, base.panelH - bandH)}px`;
-      if (bandH !== appliedExtra) {
+      // 縦長: 操作欄は中身 (依頼票・ボタン) の高さだけにして、残りの高さを盤面に回す (PU-32 追加修正)。帯の高さは盤面の入れ物の上の部分
+      let extra = 0;
+      if (portrait) {
+        const root = frame.panel.querySelector<HTMLElement>('.beaming-panel');
+        const cs = getComputedStyle(frame.panel);
+        const chrome = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) + parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
+        // 完了のボタン (72px + 余白) は途中から出るので、その分はいつも空けておく (出たときに盤面が動かないように)
+        const need = Math.max(root?.offsetHeight ?? 0, 88) + chrome;
+        extra = Math.max(0, Math.floor(base.panelH - need));
+      }
+      const boxH = base.boxH + extra;
+      stageCol.style.height = `${base.colH + extra}px`;
+      stageBox.style.height = `${boxH}px`;
+      frame.panel.style.height = `${Math.max(0, base.panelH - extra)}px`;
+      if (boxH !== appliedBoxH) {
         try {
-          setupCanvas(frame.stage, base.w, base.boxH + bandH);
+          setupCanvas(frame.stage, base.w, boxH);
         } catch {
           // Canvas が使えない環境 (テスト等) では、そのまま
         }
-        appliedExtra = bandH;
+        appliedBoxH = boxH;
+      }
+      const availH = boxH - bandH;
+      if (portrait && availH > 150) {
+        // 帯の下の残りに、盤面を当てはめ直す
+        const H = logicalHeightFor(base.w, availH);
+        setBoardHeight(H);
+        const scale = Math.min(base.w / 1000, availH / H);
+        lastFit = { scale, offsetX: (base.w - 1000 * scale) / 2, offsetY: bandH + (availH - H * scale) / 2 };
+        return;
       }
     }
     lastFit = { ...frameFit, offsetY: frameFit.offsetY + bandH };

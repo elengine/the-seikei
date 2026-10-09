@@ -62,11 +62,11 @@ export const RESTARTS_OK = 2;
  */
 export const DRUM_SURFACE_SIGN = -1;
 export const BEAM_SURFACE_SIGN = 1;
-export const DRUM_TURN_RATE = 0.15;
-export const BEAM_TURN_RATE = 0.25;
-/** 端の円盤 (楕円) の回る向き (胴の符号の逆。PU-27: 管理者が実機で「円盤の回る向きが逆」と判断した。胴はそのまま) */
-export const DRUM_FLANGE_SIGN = -DRUM_SURFACE_SIGN;
-export const BEAM_FLANGE_SIGN = -BEAM_SURFACE_SIGN;
+/** 回る速さ (rad/秒 / 速さ 1 あたり)。速さ 100・60fps でも 1 コマの回りが、ドラムの桟・ビームの円盤の穴の間隔の半分より小さい (それ以上だと、逆向きに回って見える) */
+export const DRUM_TURN_RATE = 0.09;
+export const BEAM_TURN_RATE = 0.15;
+/* 端の円盤の穴・腕の印は、横から見た円を写した円盤の上で、胴と同じ向きに回る (手前の面が、ドラムは下から上へ・ビームは上から下へ。PU-32 追加修正)。
+   PU-27 の「逆」は、正面だけの絵のときの見え方の補正だった。本物の円の投影になったので、胴と同じ符号を使う */
 
 /** 柄の縞を描くときの、巻き幅いっぱいに並べる柄のくり返しの数の標準 (帯の数が分かるときはそれを使う。PU-28) */
 export const PATTERN_REPEATS = 3;
@@ -99,14 +99,14 @@ export const SIDE = {
   bar1: { z: 705, h: -340, r: 25 }, // 糸の向きを変える鉄の棒 1 (黄の左)
   bar2: { z: 840, h: -340, r: 20 }, // 鉄の棒 2 (黄の右)
   beam: { z: 880, h: -490, r: 80 }, // ビームの円盤 (緑)
-  wood: { z: 845, h: -205 }, // 速さの木の棒 (茶。断面の中心)
+  wood: { z: 900, h: -348 }, // 速さの木の棒 (茶。断面の中心)。管理者の指示で、鉄の棒 2 のすぐ手前・帯が下りる所の上へ (PU-32 追加修正。元の図は (845, −205))
 } as const;
 
 /** ドラムが巻き取られて細る割合 (巻き量 100% で半径が 1 − この値)。ドラムの枠 (胴・桟) は変わらない */
 export const SIDE_DRUM_SHRINK = 0.3;
 /** ビームに巻いた糸の半径 (円盤の半径に対する割合): 巻き量 0 で SIDE_WOUND_MIN、100% で SIDE_WOUND_MAX */
-export const SIDE_WOUND_MIN = 0.128;
-export const SIDE_WOUND_MAX = 0.8;
+export const SIDE_WOUND_MIN = 0.2;
+export const SIDE_WOUND_MAX = 0.9;
 /** 糸を付ける前に、鉄の棒 2 から垂れる糸の長さ (図のピクセル) */
 export const SIDE_DROP0 = 35;
 
@@ -116,14 +116,30 @@ export const SIDE_DROP0 = 35;
  *   画面の x = (幅の位置の x) + KX × (SIDE_Z_REF − z)  (手前ほど左に見える。奥のドラムは右へずれる)
  * S は盤面の高さ H に比例 (ドラムの上の端がランプの空き SIDE_TOP_FRAC × H、ビームの円盤の下の端が SIDE_BOTTOM_FRAC × H に来る)。
  */
-export const SIDE_PROJECTION = { KH: 1, KZ: 0.38, KX: 0.15 } as const;
-export const SIDE_Z_REF = 880;
+export const SIDE_PROJECTION = { KH: 1, KZ: 0.38, KX: 0.1 } as const;
+/**
+ * ビームのあたり (奥行き SIDE_BEAM_Z0 から) だけは、横のずれの係数を KX より大きい SIDE_BEAM_KX にする。
+ * ビームの円盤を、写真のように穴の開いた円盤 (楕円の横幅 = 半径 × 係数) として見せ、巻き付く所の左の端を目で分かる「(」にするため。
+ * 奥のドラムまでのずれが大きくなりすぎないよう、ここより奥は KX のまま。係数は Z0 から SIDE_BEAM_L の幅でなめらかに (角が出ないように) KX から SIDE_BEAM_KX へ変わる。
+ */
+export const SIDE_BEAM_KX = 0.8;
+export const SIDE_BEAM_Z0 = 780;
+export const SIDE_BEAM_L = 140;
+/** 奥行き z までに、係数の増え分 (SIDE_BEAM_KX − KX) が積もった長さ (ずれの計算に使う。区間でなめらかに増える) */
+export function sideBeamExtra(z: number): number {
+  const t = (z - SIDE_BEAM_Z0) / SIDE_BEAM_L;
+  if (t <= 0) return 0;
+  if (t >= 1) return SIDE_BEAM_L * 0.5 + (z - SIDE_BEAM_Z0 - SIDE_BEAM_L);
+  return SIDE_BEAM_L * (t * t * t - (t * t * t * t) / 2);
+}
+/** ずれの基準の奥行き: ビームの円盤 (SIDE.beam.z) でずれが 0 になるように決める */
+export const SIDE_Z_REF = SIDE.beam.z + ((SIDE_BEAM_KX - SIDE_PROJECTION.KX) * sideBeamExtra(SIDE.beam.z)) / SIDE_PROJECTION.KX;
 export const SIDE_TOP_FRAC = 0.15;
 export const SIDE_BOTTOM_FRAC = 0.915;
 
 /** ドラムの羽 (糸を巻き始める側 = 左の端の、斜めに開いた板): 板の数はドラムの桟と同じ。外へ伸びる長さ (px) と、開き (半径が伸びる割合)・板の幅 (角度 rad) (PU-32) */
 export const DRUM_WING_LEN = 56;
-export const DRUM_WING_FLARE = 0.22;
+export const DRUM_WING_FLARE = 0.35;
 export const DRUM_WING_HALF = 0.07;
 /** ビームの円盤の外の太い金属の筒 (真ちゅう色) の、横から見た半径 (図のピクセル) と長さ (px)。軸は SIDE.beam.r に対する割合の半径で、写真のように太い (PU-32) */
 export const BEAM_BRASS_R = 26;

@@ -1,4 +1,4 @@
-import { SIDE, SIDE_DRUM_SHRINK, SIDE_WOUND_MIN, SIDE_WOUND_MAX, SIDE_PROJECTION, SIDE_Z_REF, SIDE_TOP_FRAC, SIDE_BOTTOM_FRAC } from './params';
+import { SIDE, SIDE_DRUM_SHRINK, SIDE_WOUND_MIN, SIDE_WOUND_MAX, SIDE_PROJECTION, SIDE_Z_REF, SIDE_BEAM_KX, sideBeamExtra, SIDE_TOP_FRAC, SIDE_BOTTOM_FRAC } from './params';
 
 /**
  * 機械を真横から見た形 (PU-32)。管理者の横から見た図をもとに、奥行き z (手前が +) と高さ h (上が +) の平面に、
@@ -56,7 +56,7 @@ function shortArc(c: Circle, from: number, to: number): SidePoint[] {
   let d = to - from;
   while (d > Math.PI) d -= 2 * Math.PI;
   while (d <= -Math.PI) d += 2 * Math.PI;
-  const steps = Math.max(2, Math.ceil((Math.abs(d) * 180) / Math.PI / 2)); // 2 度ごとより細かく (正面へ写すと向きの変わりが大きく見えるため)
+  const steps = Math.max(2, Math.ceil((Math.abs(d) * 180) / Math.PI / 1)); // 1 度ごとより細かく (正面へ写すと向きの変わりが大きく見えるため)
   return circleArc(c, from, from + d, steps);
 }
 
@@ -133,8 +133,13 @@ export function sideScale(H: number): { S: number; Y0: number } {
   return { S, Y0: SIDE_TOP_FRAC * H - S * top };
 }
 
+/** 奥行き z での、幅の位置の x に足すずれ (手前ほど左 = 小さい)。ビームのあたり (Z0 から) だけ傾きが大きく、なめらかにつながる曲線 */
+export function depthDxOf(z: number): number {
+  return SIDE_PROJECTION.KX * (SIDE_Z_REF - z) - (SIDE_BEAM_KX - SIDE_PROJECTION.KX) * sideBeamExtra(z);
+}
+
 /** 横から見た点 (z, h) を、正面の絵へ。dx は幅の位置の x に足すずれ (手前ほど左 = 小さい)、y は画面の y (論理座標) */
 export function project(z: number, h: number, H: number): { dx: number; y: number } {
   const { S, Y0 } = sideScale(H);
-  return { dx: SIDE_PROJECTION.KX * (SIDE_Z_REF - z), y: Y0 + S * (SIDE_PROJECTION.KH * -h + SIDE_PROJECTION.KZ * z) };
+  return { dx: depthDxOf(z), y: Y0 + S * (SIDE_PROJECTION.KH * -h + SIDE_PROJECTION.KZ * z) };
 }

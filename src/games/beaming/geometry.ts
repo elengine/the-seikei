@@ -1,5 +1,5 @@
-import { SIDE, SIDE_PROJECTION, SIDE_DROP0, SIDE_Z_REF } from './params';
-import { project, sideScale, sidePath, woundRadiusFig } from './side';
+import { SIDE, SIDE_PROJECTION, SIDE_BEAM_KX, SIDE_DROP0 } from './params';
+import { project, sideScale, sidePath, woundRadiusFig, depthDxOf } from './side';
 
 /**
  * ビーム巻きの盤面の座標 (P3 T3-02。PU-15a で実物の写真に寄せて組み直した)。論理座標は幅 1000・高さ BOARD.H。
@@ -38,11 +38,11 @@ export function xToCm(widthCm: number, x: number): number {
 
 /** 横から見た図の奥行き z での、幅の位置の x に足すずれ (手前ほど左 = 小さい。ビームの奥行きで 0。PU-32) */
 export function depthDx(z: number): number {
-  return SIDE_PROJECTION.KX * (SIDE_Z_REF - z);
+  return depthDxOf(z);
 }
 
 /** 奥のドラム (横に寝た円筒) の幅と、左端の x (ビームの幅の位置と同じ x。写した画面の x は DRUM_X) */
-export const DRUM_W = 760;
+export const DRUM_W = 730;
 export const DRUM_AXIS_X0 = BEAM_CENTER_X - DRUM_W / 2;
 /** ドラムの左端の画面の x (奥にあるので、ビームより右へずれて見える) */
 export const DRUM_X = DRUM_AXIS_X0 + depthDx(SIDE.drum.z);
@@ -56,7 +56,7 @@ export const CORE_R = 11;
 export const ROD_X0 = 40;
 export const ROD_X1 = BOARD_W - 40;
 /** 円盤 (斜めから見て楕円) の横の半径 (px)。横から見た円盤の半径 × 横のずれの係数 (PU-32) */
-export const FLANGE_RX = SIDE_PROJECTION.KX * SIDE.beam.r;
+export const FLANGE_RX = SIDE_BEAM_KX * SIDE.beam.r;
 /** 糸の向きを変える鉄の棒の、機械の幅の中の左右の端の x (ビームの幅の位置と同じ x) */
 export const IRON_X0 = 70;
 export const IRON_X1 = BOARD_W - 70;
@@ -107,7 +107,7 @@ const SPEED_BAR_HIT_HALF_H = 32;
 /** 速さ (0〜100) に対する、棒の真ん中の x */
 export function speedBarCenterX(speed: number): number {
   const v = Math.min(100, Math.max(0, speed));
-  return BOARD_W / 2 - SPEED_BAR_SHIFT_MAX + (v / 100) * 2 * SPEED_BAR_SHIFT_MAX;
+  return BOARD_W / 2 - SPEED_BAR_SHIFT_MAX + (v / 100) * 2 * SPEED_BAR_SHIFT_MAX + depthDx(SIDE.wood.z); // 木の棒の奥行きのずれぶん
 }
 
 /** 引っぱり始めの速さ startSpeed から、指が dx (論理の px) 動いたときの速さ (0〜100。丸めない。T3-07 追加修正) */

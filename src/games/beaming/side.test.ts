@@ -24,7 +24,9 @@ describe('PU-32 side.ts: 横から見た形 (糸の通り道)', () => {
     expect(SIDE.bar2.z).toBeLessThan(SIDE.beam.z);
     expect(SIDE.bar1.h).toBe(SIDE.bar2.h); // 2 本は同じ高さ
     expect(SIDE.beam.h).toBeLessThan(SIDE.bar2.h); // ビームは鉄の棒より下
-    expect(SIDE.wood.h).toBeGreaterThan(SIDE.bar2.h); // 木の棒は鉄の棒の上
+    expect(SIDE.wood.z).toBeGreaterThan(SIDE.bar2.z); // 木の棒は鉄の棒 2 のすぐ手前 (管理者の指示)
+    expect(SIDE.wood.h).toBeLessThan(SIDE.bar2.h); // で、少し下 (帯が鉄の棒からビームへ下りる所の上あたり)
+    expect(SIDE.wood.h).toBeGreaterThan(SIDE.beam.h + SIDE.beam.r); // ビームの円盤の上の端より上
   });
 
   it('巻き量で、ドラムは細り、ビームの巻いた糸は太る (円盤の半径は固定)', () => {

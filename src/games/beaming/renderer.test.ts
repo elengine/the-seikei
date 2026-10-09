@@ -6,7 +6,7 @@ import type { BeamingState } from './logic';
 import { cmToX, BOARD, BOARD_W, FLANGE_RX, setBoardHeight, DRUM_W, DRUM_AXIS_X0, flangeHit, hitSheetEdge, woundRadius, lampX, lampY, speedBarCenterX, SPEED_BAR_W, sheetDropEndY, threadBarRange } from './geometry';
 import { sidePath, project, viewAlpha } from './side';
 import { stripeRunsOf, stripeStrips } from './renderer';
-import { DRUM_SURFACE_SIGN, BEAM_SURFACE_SIGN, DRUM_FLANGE_SIGN, BEAM_FLANGE_SIGN, SIDE } from './params';
+import { DRUM_SURFACE_SIGN, BEAM_SURFACE_SIGN, DRUM_TURN_RATE, BEAM_TURN_RATE, SIDE } from './params';
 import { getContent } from '../../core/content/content';
 import { COLORS } from '../../core/ui/tokens';
 import { makeFakeCtx } from '../winding/renderer.test.helpers';
@@ -137,7 +137,7 @@ describe('PU-24b・PU-28 (速さの木の棒・ランプ)', () => {
     return rec;
   };
 
-  it('1. 木の棒は、手前の面 (濃い赤茶) と上の面 (明るい赤茶) の 2 面。棒全体の x の真ん中が speedBarCenterX(速さ)、長さは固定。厚み (2 面の合計) は画面上 28px 以上 (縮尺 1 と 0.39)', () => {
+  it('1. 木の棒は、手前の面 (濃い赤茶) と上の面 (明るい赤茶) の 2 面。棒全体の x の真ん中が speedBarCenterX(速さ)、長さは固定。厚み (2 面の合計) は画面上 14px 以上 (今までの半分の細さ。縮尺 1 と 0.39)', () => {
     for (const scale of [1, 0.39]) {
       for (const sp of [0, 30, 100]) {
         const rec = drawWith(beamState({ speed: sp }), scale);
@@ -148,7 +148,8 @@ describe('PU-24b・PU-28 (速さの木の棒・ランプ)', () => {
         expect(f[0]! + f[2]! / 2).toBeCloseTo(speedBarCenterX(sp), 6);
         expect(t[0]! + t[2]! / 2).toBeCloseTo(speedBarCenterX(sp), 6);
         expect(t[1]! + t[3]!).toBeCloseTo(f[1]!, 6); // 上の面は手前の面のすぐ上
-        expect((f[3]! + t[3]!) * scale).toBeGreaterThanOrEqual(28 - 1e-6);
+        expect((f[3]! + t[3]!) * scale).toBeGreaterThanOrEqual(14 - 1e-6);
+        expect((f[3]! + t[3]!) * scale).toBeLessThan(28); // 前の半分ほど (太い棒に戻っていない)
         expect(t[1]! + (t[3]! + f[3]!) / 2).toBeCloseTo(BOARD.guideY, 6); // 2 面の真ん中の高さがガイドの位置
       }
     }
@@ -449,20 +450,24 @@ describe('PU-32: 糸の帯・隠れる順・盤面に収まる', () => {
     }
   });
 
-  it('5. 巻いた糸の円筒は、横から見た巻いた糸の半径を写した大きさ: 糸の色の塗りの縦の幅が 2 × woundRadius (中心 = 軸の高さ)。progress 0 では描かない・大きいほど太い', () => {
+  it('5. 巻いた糸の円筒は、横から見た巻いた糸の半径を写した大きさ: 糸の色の塗りの下の端が 軸の高さ + woundRadius (見える側面の下の端)、上の端 (帯が乗る所) は軸より上。progress 0 では描かない・大きいほど太い', () => {
     const wound = (p: number): Array<{ y0: number; y1: number }> => {
       const rec = draw(beamState({ progress: p }));
       const hex = mainHex(content, 'p-muji-kon');
       return fillPolys(rec)
         .filter((f) => f.style === hex && f.pts.length > 10)
         .map((f) => ext(f.pts))
-        .filter((e) => Math.abs((e.y0 + e.y1) / 2 - BOARD.axisY) < 1e-6);
+        .filter((e) => Math.abs(e.y1 - (BOARD.axisY + woundRadius(p))) < 1e-6);
     };
     expect(wound(0)).toHaveLength(0);
+    let prev = 0;
     for (const p of [0.3, 0.6, 1]) {
       const w = wound(p);
       expect(w.length, `p=${p}`).toBeGreaterThanOrEqual(1);
-      expect((w[0]!.y1 - w[0]!.y0) / 2).toBeCloseTo(woundRadius(p), 6);
+      expect(w[0]!.y0, `p=${p} の上の端 (帯が乗る所) は円筒の見える範囲の中`).toBeGreaterThan(BOARD.axisY - woundRadius(p) - 1e-6);
+      expect(w[0]!.y0).toBeLessThan(w[0]!.y1 - 5);
+      expect(w[0]!.y1 - w[0]!.y0).toBeGreaterThan(prev);
+      prev = w[0]!.y1 - w[0]!.y0;
     }
   });
 
@@ -473,7 +478,9 @@ describe('PU-32: 糸の帯・隠れる順・盤面に収まる', () => {
     const wLeft = cmToX(60, -30);
     const wRight = cmToX(60, 30);
     const wide = strokes(rec).filter((g) => g.pts.length === 2 && g.pts[0]!.y === g.pts[1]!.y && Math.abs(g.pts[1]!.x - g.pts[0]!.x) >= 0.8 * (wRight - wLeft) && Math.abs(g.pts[0]!.y - BOARD.axisY) <= woundRadius(0.5));
-    expect(wide).toHaveLength(0);
+    // 例外は、帯が乗る所の境目の影の線 1 本だけ (平らな帯から丸い面へ変わる所。軸より上)
+    expect(wide.length).toBeLessThanOrEqual(1);
+    for (const g of wide) expect(g.pts[0]!.y).toBeLessThan(BOARD.axisY);
     // 桟 (woodLight の水平線) は、巻いた糸の幅の外 (胴の見えている左右の余り) にだけ: どの線も長さが余りの幅以下 (巻いた糸の上を横切らない)
     const margin = (DRUM_W - 700) / 2;
     const slats = strokes(rec).filter((g) => g.style === COLORS.woodLight && g.pts.length === 2 && g.pts[0]!.y === g.pts[1]!.y);
@@ -485,9 +492,12 @@ describe('PU-32: 糸の帯・隠れる順・盤面に収まる', () => {
     }
   });
 
-  it('7. ドラムの端の円盤の腕: 角度が進むと腕の先が下へ動く。ビームの円盤の穴は上へ (胴と逆の向き)。胴: 桟は上へ、光の帯は下へ', () => {
-    expect(DRUM_FLANGE_SIGN).toBe(-DRUM_SURFACE_SIGN);
-    expect(BEAM_FLANGE_SIGN).toBe(-BEAM_SURFACE_SIGN);
+  it('7. ドラムの端の円盤の腕は上へ・ビームの円盤の穴は下へ (どちらも胴と同じ向き)。胴: 桟は上へ、光の帯は下へ', () => {
+    expect(DRUM_SURFACE_SIGN).toBe(-1); // ドラムの手前の面は下から上
+    expect(BEAM_SURFACE_SIGN).toBe(1); // ビームの手前の面は上から下
+    // 1 コマ (60fps) の回りが、桟 (16 本) と円盤の穴 (内側の輪 9 個) の間隔の半分より小さい (速さ 100 でも逆向きに回って見えない)
+    expect(DRUM_TURN_RATE * 100 / 60).toBeLessThan(Math.PI / 16);
+    expect(BEAM_TURN_RATE * 100 / 60).toBeLessThan(Math.PI / 9);
     const face = pt0(DRUM_AXIS_X0 + DRUM_W, SIDE.drum.z, SIDE.drum.h);
     const tipY = (angle: number): number => {
       const arm = strokes(draw(beamState({ progress: 0 }), angle)).find(
@@ -496,7 +506,7 @@ describe('PU-32: 糸の帯・隠れる順・盤面に収まる', () => {
       expect(arm, '腕').toBeDefined();
       return arm!.pts[1]!.y;
     };
-    expect(tipY(0.1)).toBeGreaterThan(tipY(0));
+    expect(tipY(0.1)).toBeLessThan(tipY(0)); // 円盤の腕もドラムの胴と同じ向き: 手前の点が上へ
     // 胴の桟 (見える側面): 手前の 1 本が上へ動く。光の帯は下へ動く
     const slatY = (angle: number): number => {
       const ys = strokes(draw(beamState({ progress: 0 }), angle))
@@ -517,12 +527,12 @@ describe('PU-32: 糸の帯・隠れる順・盤面に収まる', () => {
     const holeY = (angle: number): number => {
       const { ctx, rec } = makeFakeCtx();
       drawBoard(ctx, fit, beamState({ progress: 0.5 }), content, 0, null, angle);
-      const f0 = pt0(cmToX(60, -30), SIDE.beam.z + 0.55 * SIDE.beam.r * Math.cos(-BEAM_FLANGE_SIGN * angle), SIDE.beam.h + 0.55 * SIDE.beam.r * Math.sin(-BEAM_FLANGE_SIGN * angle));
+      const f0 = pt0(cmToX(60, -30), SIDE.beam.z + 0.55 * SIDE.beam.r * Math.cos(-BEAM_SURFACE_SIGN * angle), SIDE.beam.h + 0.55 * SIDE.beam.r * Math.sin(-BEAM_SURFACE_SIGN * angle));
       const hole = rec.ops.filter((o) => o.k === 'arc' && (o.args as number[])[2] === 4).map((o) => o.args as number[]).find((a) => Math.abs(a[0]! - f0.x) < 1e-6);
       expect(hole, '穴').toBeDefined();
       return hole![1]!;
     };
-    expect(holeY(0.1)).toBeLessThan(holeY(0)); // 円盤の穴は上へ (0.3.59 の逆)
+    expect(holeY(0.1)).toBeGreaterThan(holeY(0)); // 円盤の穴もビームの胴と同じ向き: 手前の点が下へ
   });
 
   it('8. 糸を付ける前: 木の棒は鉄の棒 2 の手前の面の真下に垂れ (棒の x の範囲は threadBarRange)、太さは画面上 12px 以上。引っぱると棒も帯の下の端も指の y。beaming では描かない', () => {
@@ -570,5 +580,108 @@ describe('PU-32: 糸の帯・隠れる順・盤面に収まる', () => {
       expect(c.y).toBeGreaterThan(BOARD.axisY - BOARD.flangeR);
       expect(c.y).toBeLessThan(BOARD.axisY + BOARD.flangeR);
     }
+  });
+
+  it('10. ビームは帯とは別の円筒として見える: 巻いた糸の面に陰影 (上が明るく下が暗いグラデーション) があり、帯が乗る所に影の細い線がある。両端の円盤は穴の開いた円盤として大きく (楕円の横幅 ≥ 縦の 0.4 倍)、左は帯より奥・右は帯より手前に描く', () => {
+    const rec = draw(pinState());
+    const hexes = new Set([kon(), shiro()]);
+    const flange: number[] = [];
+    const ribbon: number[] = [];
+    let style = '';
+    let idx = 0;
+    let grads = 0;
+    for (const o of rec.ops) {
+      if (o.k === 'createLinearGradient') grads++;
+      if (o.k === 'style') style = String(o.v);
+      if (o.k === 'fill' && style === COLORS.flange) flange.push(idx);
+      if (o.k === 'fill' && hexes.has(style)) ribbon.push(idx);
+      idx++;
+    }
+    const sheet = fillPolys(rec).map((f, i) => ({ f, i })).filter((q) => hexes.has(q.f.style) && ext(q.f.pts).y1 > BOARD.axisY - 10).length;
+    expect(sheet, '糸の帯 (ビームまで届く)').toBeGreaterThan(0);
+    expect(grads).toBeGreaterThanOrEqual(3); // ドラムの胴・ドラムの糸・ビームの糸の陰影
+    expect(flange.length).toBe(2);
+    // 帯 (ビームまで届く糸の塗り) の最初と最後の位置
+    const reach: number[] = [];
+    {
+      let st2 = '';
+      let k = 0;
+      let pts: Array<{ y: number }> = [];
+      for (const o of rec.ops) {
+        if (o.k === 'style') st2 = String(o.v);
+        else if (o.k === 'beginPath') pts = [];
+        else if ((o.k === 'moveTo' || o.k === 'lineTo') && o.args) pts.push({ y: Number(o.args[1]) });
+        else if (o.k === 'fill' && hexes.has(st2) && Math.max(...pts.map((p) => p.y)) > BOARD.axisY - 10) reach.push(k);
+        k++;
+      }
+    }
+    void ribbon;
+    expect(flange[0]!, '左の円盤は帯より奥').toBeLessThan(reach[0]!);
+    expect(flange[1]!, '右の円盤は帯より手前').toBeGreaterThan(reach[reach.length - 1]!);
+    for (const f of fillPolys(rec).filter((q) => q.style === COLORS.flange && q.pts.length > 20)) {
+      const e = ext(f.pts);
+      expect((e.x1 - e.x0) / (e.y1 - e.y0)).toBeGreaterThanOrEqual(0.4);
+    }
+  });
+
+  it('11. 帯の左の端は、鉄の棒 2 から下りてビームの手前を回る所で、左へ弓なりにふくらむ「(」: 412×915 相当 (縮尺 0.39) で画面上 12px 以上 (巻き量 30%・90%)', () => {
+    const H = 911;
+    setBoardHeight(H);
+    const X = cmToX(60, -30);
+    for (const p of [0.3, 0.9]) {
+      const edge = sidePath(p).map((q) => {
+        const r = project(q.z, q.h, H);
+        return X + r.dx;
+      });
+      const i2 = sidePath(p).findIndex((q) => Math.abs(Math.hypot(q.z - SIDE.bar2.z, q.h - SIDE.bar2.h) - SIDE.bar2.r) < 1e-6 && q.z > SIDE.bar2.z);
+      const bulge = edge[i2]! - Math.min(...edge.slice(i2));
+      expect(bulge * 0.39, `p=${p}`).toBeGreaterThanOrEqual(12);
+    }
+    setBoardHeight(750);
+  });
+
+  it('12. ドラムの羽は帯から始まる: 羽の板の根元が、巻いた帯の左の端 (幅の左の端) にあり、いちばん端の帯が羽の斜面に乗る (帯の色の斜めの面が羽の根元に重なる)。羽を帯と離れた所から生やさない', () => {
+    const st = pinState({ progress: 0.3 });
+    const rec = draw(st);
+    const half = (60 * 700 / 60) / 2;
+    const w0 = 500 - half;
+    const w0px = pt0(w0, SIDE.drum.z, SIDE.drum.h).x;
+    const woods = fillPolys(rec).filter((f) => f.style === COLORS.wood && f.pts.length === 5);
+    // 羽の板 (4 点 + 閉じる) の右の端 (根元) は、帯の左の端 w0 にある
+    expect(woods.length).toBeGreaterThan(3);
+    for (const f of woods) {
+      const e = ext(f.pts);
+      expect(Math.abs(e.x1 - w0px), '根元の x が帯の左の端の近く (板ごとの奥行きのずれ KX × 半径 以内)').toBeLessThanOrEqual(0.1 * SIDE.drum.r + 1);
+    }
+    // 帯の色の斜めの面: 羽の根元から外へ (左へ) 少し伸びる多角形が、いちばん端の帯の色で塗られている
+    const climb = fillPolys(rec).filter((f) => f.style === kon() && f.pts.length > 40 && ext(f.pts).x0 < w0px - 10 && ext(f.pts).x1 > w0px - 5);
+    expect(climb.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('13. 端の円盤の回る向きは PU-27 (0.3.61) と同じ画面の向き: ドラムの右の端の面の腕は画面で時計回り・ビームの円盤の穴は反時計回り (画面の角度 = atan2(y, x)。y は下向き)', () => {
+    const turn = (a: number, b: number): number => {
+      let d = b - a;
+      while (d > Math.PI) d -= 2 * Math.PI;
+      while (d < -Math.PI) d += 2 * Math.PI;
+      return d;
+    };
+    // ドラムの右の端の面の腕 (腕 0。面の中心からの向き)
+    const face = pt0(DRUM_AXIS_X0 + DRUM_W, SIDE.drum.z, SIDE.drum.h);
+    const armAngle = (angle: number): number => {
+      const arm = strokes(draw(beamState({ progress: 0 }), angle)).find((g) => g.style === COLORS.sumiSub && g.pts.length === 2 && Math.abs(g.pts[0]!.x - face.x) < 1e-6 && Math.abs(g.pts[0]!.y - face.y) < 1e-6)!;
+      return Math.atan2(arm.pts[1]!.y - face.y, arm.pts[1]!.x - face.x);
+    };
+    expect(turn(armAngle(0), armAngle(0.1))).toBeGreaterThan(0); // 時計回り (画面の角度が増える)
+    // ビームの円盤の穴 (内側の輪の最初の穴の、円盤の面の中心からの向き)
+    const c = pt0(cmToX(60, -30), SIDE.beam.z, SIDE.beam.h);
+    const holeAngle = (angle: number): number => {
+      const q = pt0(cmToX(60, -30), SIDE.beam.z + 0.55 * SIDE.beam.r * Math.cos(-BEAM_SURFACE_SIGN * angle), SIDE.beam.h + 0.55 * SIDE.beam.r * Math.sin(-BEAM_SURFACE_SIGN * angle));
+      const { ctx, rec } = makeFakeCtx();
+      drawBoard(ctx, fit, beamState({ progress: 0.5 }), content, 0, null, angle);
+      const hole = rec.ops.filter((o) => o.k === 'arc' && (o.args as number[])[2] === 4).map((o) => o.args as number[]).find((a) => Math.abs(a[0]! - q.x) < 1e-6);
+      expect(hole, '穴').toBeDefined();
+      return Math.atan2(hole![1]! - c.y, hole![0]! - c.x);
+    };
+    expect(turn(holeAngle(0), holeAngle(0.1))).toBeLessThan(0); // 反時計回り
   });
 });

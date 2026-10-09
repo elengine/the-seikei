@@ -3,7 +3,7 @@ import {
   pxPerCm, cmToX, xToCm, BEAM_W_PX, BOARD_W, BEAM_CENTER_X, woundRadius, setBoardHeight, BOARD, drawnExtent, FLANGE_RX, ROD_X0, ROD_X1, flangeHit, dragCm, FLANGE_HIT_MIN_PX, lampX, lampY, SPEED_BAR_SHIFT_MAX, speedBarCenterX, speedFromBarDrag, hitSpeedBar, SPEED_BAR_W, DRUM_X, DRUM_W, hitSheetEdge, hitBeamWind, sheetTopY, sheetDropEndY, lampR, THREAD_BAR_MARGIN, threadBarRange, clampThreadBarY, threadAttachY, DRUM_AXIS_X0, depthDx, dropHFor } from './geometry';
 import { logicalHeightFor } from '../winding/geometry';
 import { sidePath, project } from './side';
-import { SIDE, SIDE_PROJECTION, SIDE_TOP_FRAC, SIDE_BOTTOM_FRAC } from './params';
+import { SIDE, SIDE_PROJECTION, SIDE_TOP_FRAC, SIDE_BOTTOM_FRAC, SIDE_WOUND_MIN, SIDE_WOUND_MAX } from './params';
 import { DRUM_SURFACE_SIGN, BEAM_SURFACE_SIGN, DRUM_TURN_RATE, BEAM_TURN_RATE } from './params';
 
 describe('beaming geometry T3-02 (座標)', () => {
@@ -104,9 +104,10 @@ describe('PU-15b: 円盤を引っぱる (当たり判定・1cm 単位の吸い�
 describe('PU-24b・PU-28 (速さの木の棒とランプの座標)', () => {
   it('1. 木の棒の真ん中の x: 速さ 0 で盤面の中心より SPEED_BAR_SHIFT_MAX だけ左、100 で同じだけ右、50 で中心。棒全体が速さに比例して右へ動く。棒は盤面の中に収まる', () => {
     expect(SPEED_BAR_SHIFT_MAX).toBeGreaterThan(40);
-    expect(speedBarCenterX(0)).toBe(BOARD_W / 2 - SPEED_BAR_SHIFT_MAX);
-    expect(speedBarCenterX(50)).toBe(BOARD_W / 2);
-    expect(speedBarCenterX(100)).toBe(BOARD_W / 2 + SPEED_BAR_SHIFT_MAX);
+    const sh = depthDx(SIDE.wood.z); // 木の棒の奥行きのずれ
+    expect(speedBarCenterX(0)).toBeCloseTo(BOARD_W / 2 - SPEED_BAR_SHIFT_MAX + sh, 9);
+    expect(speedBarCenterX(50)).toBeCloseTo(BOARD_W / 2 + sh, 9);
+    expect(speedBarCenterX(100)).toBeCloseTo(BOARD_W / 2 + SPEED_BAR_SHIFT_MAX + sh, 9);
     expect(speedBarCenterX(25) - speedBarCenterX(0)).toBeCloseTo(speedBarCenterX(50) - speedBarCenterX(25), 9);
     expect(speedBarCenterX(100) + SPEED_BAR_W / 2).toBeLessThanOrEqual(BOARD_W);
     expect(speedBarCenterX(0) - SPEED_BAR_W / 2).toBeGreaterThanOrEqual(0);
@@ -114,14 +115,14 @@ describe('PU-24b・PU-28 (速さの木の棒とランプの座標)', () => {
 
   it('2. speedFromBarDrag(始めの速さ, 動いた x): 動いた分に比例する。丸めない (T3-07 追加修正)。範囲の外は 0・100', () => {
     const per = (2 * SPEED_BAR_SHIFT_MAX) / 100; // 速さ 1 あたりの動いた x
-    expect(speedFromBarDrag(30, 0)).toBe(30);
-    expect(speedFromBarDrag(30, 10 * per)).toBe(40);
-    expect(speedFromBarDrag(30, -10 * per)).toBe(20);
+    expect(speedFromBarDrag(30, 0)).toBeCloseTo(30, 6);
+    expect(speedFromBarDrag(30, 10 * per)).toBeCloseTo(40, 6);
+    expect(speedFromBarDrag(30, -10 * per)).toBeCloseTo(20, 6);
     expect(speedFromBarDrag(0, 1), '論理 1px で速さ 0.5 (丸めない。T3-07 追加修正)').toBe(0.5);
     expect(speedFromBarDrag(30, 3.3 * per)).toBeCloseTo(33.3, 9);
-    expect(speedFromBarDrag(30, 2000)).toBe(100);
-    expect(speedFromBarDrag(30, -2000)).toBe(0);
-    expect(speedFromBarDrag(20, speedBarCenterX(70) - speedBarCenterX(20))).toBe(70);
+    expect(speedFromBarDrag(30, 2000)).toBeCloseTo(100, 6);
+    expect(speedFromBarDrag(30, -2000)).toBeCloseTo(0, 6);
+    expect(speedFromBarDrag(20, speedBarCenterX(70) - speedBarCenterX(20))).toBeCloseTo(70, 6);
   });
 
   it('3. 棒の当たり判定: 今の位置の棒の上下 32px (画面上 64px 以上。縮尺が小さいときは画面上 ±32px になるよう広げる)、横は棒の長さ。離れると false', () => {
@@ -260,9 +261,9 @@ describe('PU-32: 横から見た形 (side.ts) を写した盤面の座標', () =
     }
   });
 
-  it('woundRadius: 巻き量に比例して太る。0 で芯 (円盤の半径の SIDE_WOUND_MIN 倍)、1 で円盤の半径の 8 割 (SIDE_WOUND_MAX)', () => {
-    expect(woundRadius(0)).toBeCloseTo(BOARD.flangeR * 0.128, 6);
-    expect(woundRadius(1)).toBeCloseTo(BOARD.flangeR * 0.8, 6);
+  it('woundRadius: 巻き量に比例して太る。0 で芯 (円盤の半径の SIDE_WOUND_MIN 倍)、1 で円盤の半径の SIDE_WOUND_MAX 倍', () => {
+    expect(woundRadius(0)).toBeCloseTo(BOARD.flangeR * SIDE_WOUND_MIN, 6);
+    expect(woundRadius(1)).toBeCloseTo(BOARD.flangeR * SIDE_WOUND_MAX, 6);
     expect(woundRadius(0.5) - woundRadius(0)).toBeCloseTo(woundRadius(1) - woundRadius(0.5), 6);
   });
 
@@ -270,7 +271,7 @@ describe('PU-32: 横から見た形 (side.ts) を写した盤面の座標', () =
     expect(DRUM_X).toBeCloseTo(DRUM_AXIS_X0 + depthDx(SIDE.drum.z), 9);
     expect(depthDx(SIDE.drum.z)).toBeGreaterThan(depthDx(SIDE.bar1.z));
     expect(depthDx(SIDE.bar2.z)).toBeGreaterThan(depthDx(SIDE.beam.z) - 1e-9);
-    expect(depthDx(SIDE.beam.z)).toBe(0);
+    expect(depthDx(SIDE.beam.z)).toBeCloseTo(0, 9);
     expect(DRUM_X).toBeGreaterThan(0);
     expect(DRUM_X + DRUM_W + depthDx(SIDE.drum.z) * 0 + SIDE_PROJECTION.KX * SIDE.drum.r).toBeLessThanOrEqual(BOARD_W);
   });
