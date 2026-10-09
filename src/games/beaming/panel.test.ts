@@ -239,3 +239,52 @@ describe('T3-04c (確認のボタン)', () => {
     p.destroy();
   });
 });
+
+describe('PU-24b: 操作欄の「速さ N」', () => {
+  let host: HTMLElement;
+  beforeEach(() => {
+    document.body.textContent = '';
+    host = document.createElement('div');
+    document.body.appendChild(host);
+  });
+
+  const speedEl = (): HTMLElement => host.querySelector<HTMLElement>('.beaming-panel__speed')!;
+
+  it('1. 「巻き量」の下に「速さ N」(0〜100 の整数) が出る。速さが変わると数字も変わる。小数は丸める', () => {
+    const p = createBeamingPanel(host, { terms, onAction: () => undefined });
+    p.update({ ...beaming(), progress: 0.5, speed: 63 });
+    expect(speedEl().textContent).toMatch(/^速さ 63/); // 外れていれば ▲▼ が付く (次のテスト)
+    expect(host.querySelector('.beaming-panel__amount')!.nextElementSibling).toBe(speedEl());
+    p.update({ ...beaming(), progress: 0.5, speed: 62.6 });
+    expect(speedEl().textContent).toMatch(/^速さ 63/);
+    p.update({ ...beaming(), progress: 0.5, speed: 0 });
+    expect(speedEl().textContent).toMatch(/^速さ 0/);
+    p.destroy();
+  });
+
+  it('2. 適正な速さのときは藍 (--good)、速すぎは朱で「▲」、遅すぎは朱で「▼」を添える (色だけに頼らない)。幅合わせの段階は目印なし', () => {
+    const p = createBeamingPanel(host, { terms, onAction: () => undefined });
+    p.update({ ...beaming(), progress: 0.5, speed: 100 }); // 25〜75% は速さ 100 が適正
+    expect(speedEl().classList.contains('beaming-panel__speed--good')).toBe(true);
+    expect(speedEl().textContent).toBe('速さ 100');
+    p.update({ ...beaming(), progress: 0.5, speed: 50 });
+    expect(speedEl().classList.contains('beaming-panel__speed--bad')).toBe(true);
+    expect(speedEl().textContent).toBe('速さ 50 ▼'); // 遅すぎ
+    p.update({ ...beaming(), progress: 0.1, speed: 100 }); // 0〜30% は速さ 50 が適正
+    expect(speedEl().classList.contains('beaming-panel__speed--bad')).toBe(true);
+    expect(speedEl().textContent).toBe('速さ 100 ▲'); // 速すぎ
+    p.update(make());
+    expect(speedEl().classList.contains('beaming-panel__speed--bad')).toBe(false);
+    expect(speedEl().classList.contains('beaming-panel__speed--good')).toBe(false);
+    expect(speedEl().textContent).toBe('速さ 0');
+    p.destroy();
+  });
+
+  it('3. base.css: 速さの数字は 32px 以上。適正は藍 (--c-ai)、外れは朱 (--c-shu)', () => {
+    const css = readFileSync('src/styles/base.css', 'utf8');
+    const base = css.match(/\n\.beaming-panel__speed\s*\{([^}]*)\}/)![1]!;
+    expect(parseInt(base.match(/font-size:\s*(\d+)px/)![1]!, 10)).toBeGreaterThanOrEqual(32);
+    expect(css.match(/\.beaming-panel__speed--good\s*\{([^}]*)\}/)![1]).toContain('var(--c-ai)');
+    expect(css.match(/\.beaming-panel__speed--bad\s*\{([^}]*)\}/)![1]).toContain('var(--c-shu)');
+  });
+});

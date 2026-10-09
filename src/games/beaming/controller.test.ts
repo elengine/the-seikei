@@ -9,7 +9,7 @@ import type { AppContext } from '../../app/context';
 import { createFixedClock } from '../../core/clock/clock';
 import { cmToX, pxPerCm, BOARD, BEAM_CENTER_X } from './geometry';
 import { logicalHeightFor } from '../winding/geometry';
-import { leverNotchX, leverY } from './geometry';
+import { speedBarCenterX, SPEED_BAR_SHIFT_MAX } from './geometry';
 import { fitStage } from '../../core/viewport/viewport';
 import type { StageFit } from '../../core/viewport/viewport';
 
@@ -118,8 +118,29 @@ if (typeof Element !== 'undefined' && !Element.prototype.setPointerCapture) {
   Element.prototype.releasePointerCapture = function releasePointerCapture(): void {};
 }
 
-/** 盤面のカードを 600×400 に見せてレバーを押す (T3-04a/b。canvas の fit が必要) */
-function pressLeverOn(container: HTMLElement, raf: { advance(n: number): void }, sp: 0 | 50 | 100): void {
+/** 画面の「速さ N」の今の値 (操作欄。無ければ 0) */
+function currentSpeedOf(container: HTMLElement): number {
+  const m = /速さ\s*(\d+)/.exec(container.querySelector('.beaming-panel__speed')?.textContent ?? '');
+  return m === null ? 0 : Number(m[1]);
+}
+
+/** 茶色の棒を from の速さの位置から to の速さの位置まで引っぱる (pointerdown → pointermove → pointerup。PU-24b) */
+function dragBarSpeed(
+  stage: HTMLElement,
+  toScreen: (x: number, y: number) => { x: number; y: number },
+  from: number,
+  to: number,
+  id = 31,
+): void {
+  const a = toScreen(speedBarCenterX(from), BOARD.guideY);
+  const z = toScreen(speedBarCenterX(to), BOARD.guideY);
+  stage.dispatchEvent(new PointerEvent('pointerdown', { clientX: a.x, clientY: a.y, bubbles: true, pointerId: id, button: 0 }));
+  stage.dispatchEvent(new PointerEvent('pointermove', { clientX: z.x, clientY: z.y, bubbles: true, pointerId: id, button: 0 }));
+  stage.dispatchEvent(new PointerEvent('pointerup', { clientX: z.x, clientY: z.y, bubbles: true, pointerId: id, button: 0 }));
+}
+
+/** 盤面のカードを 600×400 に見せて、茶色の棒を引っぱって速さを sp にする (T3-04a/b → PU-24b。canvas の fit が必要) */
+function pressLeverOn(container: HTMLElement, raf: { advance(n: number): void }, sp: number): void {
   const stage = container.querySelector('canvas');
   if (stage) {
     Object.defineProperty(stage.parentElement!, 'clientWidth', { configurable: true, value: 600 });
@@ -132,9 +153,7 @@ function pressLeverOn(container: HTMLElement, raf: { advance(n: number): void },
     raf.advance(3);
     const fit = fitStage(1000, logicalHeightFor(600, 400), 600, 400);
     const toScreen = (x: number, y: number): { x: number; y: number } => ({ x: x * fit.scale + fit.offsetX, y: y * fit.scale + fit.offsetY });
-    const at = toScreen(leverNotchX(sp), leverY());
-    stage.dispatchEvent(new PointerEvent('pointerdown', { clientX: at.x, clientY: at.y, bubbles: true, pointerId: 31, button: 0 }));
-    stage.dispatchEvent(new PointerEvent('pointerup', { clientX: at.x, clientY: at.y, bubbles: true, pointerId: 31, button: 0 }));
+    dragBarSpeed(stage, toScreen, currentSpeedOf(container), sp);
   }
 }
 
@@ -182,21 +201,11 @@ describe('beaming controller T3-03a (プレイ画面)', () => {
     expect(start).toBeDefined();
     start!.click();
     pressLeverOn(container, raf, 100 as 0 | 50 | 100); // 全速
-    // 寄せながら 95% まで巻く (速さ 100 は 25〜75% だけ適正。結果の星は問わない)
-    const nudge = (dir: number): void => {
-      const btn = Array.from(container.querySelectorAll('button')).find(
-        (b) => b.textContent === (dir < 0 ? '◀ 寄せる' : '寄せる ▶'),
-      );
-      btn?.click();
-    };
+    // 95% まで巻く (速さ 100 は 25〜75% だけ適正。結果の星は問わない)
     await vi.waitFor(
       () => {
         raf.advance(300);
-        // 偏りを中央へ戻す (メッセージを見て寄せる方向を決める)
         const st = instance.suspend() as BeamingState | null;
-        const shift = st?.shiftCm ?? 0;
-        if (shift > 1.5) nudge(-1);
-        else if (shift < -1.5) nudge(1);
         expect((st?.progress ?? 0)).toBeGreaterThanOrEqual(0.95);
       },
       { timeout: 60000, interval: 100 },
@@ -407,47 +416,88 @@ describe('T3-04b (盤面の速さのレバー)', () => {
     c.dispatchEvent(new PointerEvent(type, { clientX: sx, clientY: sy, bubbles: true, pointerId: 1, button: 0 }));
   }
 
-  it('1. 止まりを押すと speed が変わる (停止 → 50% → 100%)', async () => {
-    const { instance } = await mountAligned(setupAligned());
+  const startWinding = (): void => {
     Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める')!.click();
-    const { leverNotchX, leverY } = await import('./geometry');
+  };
+
+  it('1. 茶色の棒を右へ引っぱると speed が増え、左へ引っぱると減る。いちばん右で 100・いちばん左で 0 (連続の値。PU-24b)', async () => {
+    const { instance } = await mountAligned(setupAligned());
+    startWinding();
     const { toScreen } = showBoardOn(container, raf);
-    const at = (sp: 0 | 50 | 100): { x: number; y: number } => toScreen(leverNotchX(sp), leverY());
+    const stage = container.querySelector('canvas')!;
     const speed = (): number => (instance.suspend() as { speed: number }).speed;
     expect(speed()).toBe(0);
-    stagePointer('pointerdown', at(50).x, at(50).y);
-    stagePointer('pointerup', at(50).x, at(50).y);
-    expect(speed()).toBe(50);
-    stagePointer('pointerdown', at(100).x, at(100).y);
-    stagePointer('pointerup', at(100).x, at(100).y);
+    dragBarSpeed(stage, toScreen, 0, 37);
+    expect(speed()).toBe(37);
+    dragBarSpeed(stage, toScreen, 37, 63);
+    expect(speed()).toBe(63);
+    dragBarSpeed(stage, toScreen, 63, 100);
     expect(speed()).toBe(100);
+    // 右端を越えて引っぱっても 100、左端を越えても 0
+    const a = toScreen(speedBarCenterX(100), BOARD.guideY);
+    stagePointer('pointerdown', a.x, a.y);
+    stagePointer('pointermove', a.x + 300, a.y);
+    expect(speed()).toBe(100);
+    stagePointer('pointermove', a.x - 2 * SPEED_BAR_SHIFT_MAX * 4, a.y);
+    expect(speed()).toBe(0);
+    stagePointer('pointerup', a.x - 2 * SPEED_BAR_SHIFT_MAX * 4, a.y);
     instance.unmount();
   });
 
-  it('2. 引っぱって離すと一番近い止まりに吸い付く', async () => {
+  it('2. 引っぱっているあいだは速さが指に合わせて連続で変わり、離したあとも保たれる。棒のどこを押さえても (棒の上下 32px の中なら) 引っぱれる', async () => {
     const { instance } = await mountAligned(setupAligned());
-    Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める')!.click();
-    const { leverNotchX, leverY } = await import('./geometry');
+    startWinding();
     const { toScreen } = showBoardOn(container, raf);
-    // 停止の止まりから、100% の近くまで引っぱって離す → 100%
-    const start = toScreen(leverNotchX(0), leverY());
-    const end = toScreen(leverNotchX(100) - 40, leverY());
-    stagePointer('pointerdown', start.x, start.y);
-    stagePointer('pointermove', end.x, end.y);
-    stagePointer('pointerup', end.x, end.y);
-    expect((instance.suspend() as { speed: number }).speed).toBe(100);
+    const speed = (): number => (instance.suspend() as { speed: number }).speed;
+    const left = toScreen(speedBarCenterX(0) - 200, BOARD.guideY + 28); // 棒の左の端に近い所・上下 28px ずれ
+    const per = toScreen(1, 0).x - toScreen(0, 0).x;
+    stagePointer('pointerdown', left.x, left.y);
+    stagePointer('pointermove', left.x + 20 * (SPEED_BAR_SHIFT_MAX / 50) * per, left.y);
+    expect(speed()).toBe(20);
+    stagePointer('pointermove', left.x + 60 * (SPEED_BAR_SHIFT_MAX / 50) * per, left.y);
+    expect(speed()).toBe(60);
+    stagePointer('pointerup', left.x + 60 * (SPEED_BAR_SHIFT_MAX / 50) * per, left.y);
+    expect(speed()).toBe(60);
     instance.unmount();
   });
 
-  it("3. 幅合わせの段階 ('setup') ではレバーを押しても speed は変わらない", async () => {
+  it('3. pointercancel では、引っぱる前の速さに戻す', async () => {
     const { instance } = await mountAligned(setupAligned());
-    const { leverNotchX, leverY } = await import('./geometry');
+    startWinding();
     const { toScreen } = showBoardOn(container, raf);
-    const at = toScreen(leverNotchX(100), leverY());
-    stagePointer('pointerdown', at.x, at.y);
-    stagePointer('pointerup', at.x, at.y);
-    expect((instance.suspend() as { speed: number; phase: string }).phase).toBe('setup');
+    const speed = (): number => (instance.suspend() as { speed: number }).speed;
+    dragBarSpeed(container.querySelector('canvas')!, toScreen, 0, 40);
+    expect(speed()).toBe(40);
+    const a = toScreen(speedBarCenterX(40), BOARD.guideY);
+    const b = toScreen(speedBarCenterX(90), BOARD.guideY);
+    stagePointer('pointerdown', a.x, a.y);
+    stagePointer('pointermove', b.x, b.y);
+    expect(speed()).toBe(90);
+    container.querySelector('canvas')!.dispatchEvent(new PointerEvent('pointercancel', { clientX: b.x, clientY: b.y, bubbles: true, pointerId: 1, button: 0 }));
+    expect(speed()).toBe(40);
+    instance.unmount();
+  });
+
+  it("4. 幅合わせの段階 ('setup') では棒を引っぱっても speed は変わらない (押せない形)", async () => {
+    const { instance } = await mountAligned(setupAligned());
+    const { toScreen } = showBoardOn(container, raf);
+    dragBarSpeed(container.querySelector('canvas')!, toScreen, 0, 80);
+    expect((instance.suspend() as { phase: string }).phase).toBe('setup');
     expect((instance.suspend() as { speed: number }).speed).toBe(0);
+    instance.unmount();
+  });
+
+  it('5. 棒の外 (上下 40px 以上はなれた所) を押しても何も起きない。止まっている棒の位置は盤面の中心より左', async () => {
+    const { instance } = await mountAligned(setupAligned());
+    startWinding();
+    const { toScreen } = showBoardOn(container, raf);
+    const a = toScreen(speedBarCenterX(0), BOARD.guideY + 60);
+    stagePointer('pointerdown', a.x, a.y);
+    stagePointer('pointermove', a.x + 200, a.y);
+    stagePointer('pointerup', a.x + 200, a.y);
+    expect((instance.suspend() as { speed: number }).speed).toBe(0);
+    expect(speedBarCenterX(0)).toBeLessThan(500);
+    expect(500 - speedBarCenterX(0)).toBe(SPEED_BAR_SHIFT_MAX);
     instance.unmount();
   });
 });
@@ -488,20 +538,21 @@ describe('T3-04b 不具合修正 (レバーの固まり)', () => {
     vi.unstubAllGlobals();
   });
 
-  it('pointerup の pointerId が違っても (取りこぼしでも) レバーを離して速さが変わる。次の操作も効く', async () => {
+  it('pointerup の pointerId が違っても (取りこぼしでも) 棒を離して引っぱりが終わり、速さは保たれる。次の操作 (別の id) も効く', async () => {
     const { instance } = await mountAligned(setupAligned());
     Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '巻き始める')!.click();
-    const { leverNotchX, leverY } = await import('./geometry');
     const { toScreen } = showBoardOn(container, raf);
-    const at = (sp: 0 | 50 | 100): { x: number; y: number } => toScreen(leverNotchX(sp), leverY());
     const stage = () => container.querySelector('canvas')!;
     const speed = (): number => (instance.suspend() as { speed: number }).speed;
-    // down (id 1) → up は id 2 (取りこぼしの代わり) → それでも 50% に変わる
-    stage().dispatchEvent(new PointerEvent('pointerdown', { clientX: at(50).x, clientY: at(50).y, bubbles: true, pointerId: 1, button: 0 }));
+    const at = (sp: number): { x: number; y: number } => toScreen(speedBarCenterX(sp), BOARD.guideY);
+    // down (id 1) → move (id 1) → up は id 2 (取りこぼしの代わり) → 50 のまま
+    stage().dispatchEvent(new PointerEvent('pointerdown', { clientX: at(0).x, clientY: at(0).y, bubbles: true, pointerId: 1, button: 0 }));
+    stage().dispatchEvent(new PointerEvent('pointermove', { clientX: at(50).x, clientY: at(50).y, bubbles: true, pointerId: 1, button: 0 }));
     stage().dispatchEvent(new PointerEvent('pointerup', { clientX: at(50).x, clientY: at(50).y, bubbles: true, pointerId: 2, button: 0 }));
     expect(speed()).toBe(50);
-    // 固まっていない: 次の操作 (別の id) でも 100% に変えられる
-    stage().dispatchEvent(new PointerEvent('pointerdown', { clientX: at(100).x, clientY: at(100).y, bubbles: true, pointerId: 3, button: 0 }));
+    // 固まっていない: 次の操作 (別の id) でさらに 100 まで引っぱれる
+    stage().dispatchEvent(new PointerEvent('pointerdown', { clientX: at(50).x, clientY: at(50).y, bubbles: true, pointerId: 3, button: 0 }));
+    stage().dispatchEvent(new PointerEvent('pointermove', { clientX: at(100).x, clientY: at(100).y, bubbles: true, pointerId: 3, button: 0 }));
     stage().dispatchEvent(new PointerEvent('pointerup', { clientX: at(100).x, clientY: at(100).y, bubbles: true, pointerId: 3, button: 0 }));
     expect(speed()).toBe(100);
     instance.unmount();
@@ -545,12 +596,9 @@ describe('T3-04c (糸切れの結果の画面)', () => {
     vi.unstubAllGlobals();
   });
 
-  /** 盤面のレバーを押す (down と up で同じ pointerId) */
-  function pressLever(toScreen: (x: number, y: number) => { x: number; y: number }, sp: 0 | 50 | 100): void {
-    const at = toScreen(leverNotchX(sp), leverY());
-    const stage = container.querySelector('canvas')!;
-    stage.dispatchEvent(new PointerEvent('pointerdown', { clientX: at.x, clientY: at.y, bubbles: true, pointerId: 21, button: 0 }));
-    stage.dispatchEvent(new PointerEvent('pointerup', { clientX: at.x, clientY: at.y, bubbles: true, pointerId: 21, button: 0 }));
+  /** 茶色の棒を速さ 0 から sp まで引っぱる (down・move・up で同じ pointerId) */
+  function pressLever(toScreen: (x: number, y: number) => { x: number; y: number }, sp: number): void {
+    dragBarSpeed(container.querySelector('canvas')!, toScreen, 0, sp, 21);
   }
 
   it('1. 止めずに 101% に届くと「糸が切れました」の画面 (星は無い・もう一度と一覧)。結果のコールバックは呼ばない (T3-05)', async () => {

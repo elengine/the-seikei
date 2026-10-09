@@ -33,7 +33,6 @@ export interface BeamingState {
   leftCm: number; rightCm: number;   // 円盤の位置(ビームの中心からの距離 cm。左は負の数)
   progress: number;                  // 巻いた割合 0〜1 (表示は % にして切り捨て。101% に届いたら糸切れ)
   speed: number;                     // 速さ 0〜100 (連続。0 = 停止)
-  shiftCm: number;                   // 糸のシートの中心のずれ (cm)。T3-05 で揺れが無くなり常に 0。PU-24b で茶色の棒の操作とともに変わる予定
   goodMs: number;                    // 適正な速さで巻いていた時間
   windMs: number;                    // 巻いていた時間 (speed > 0 の時間)
   restarts: number;                  // 95% を超えてから 停止 → 速さを 0 より大きく戻した回数 (微調整)
@@ -82,7 +81,6 @@ export function init(opts: { level: Level; widthCm: number; seed: number; puzzle
     rightCm,
     progress: 0,
     speed: 0,
-    shiftCm: 0,
     goodMs: 0,
     windMs: 0,
     restarts: 0,
@@ -185,7 +183,7 @@ export function isValidResume(x: unknown): x is BeamingState {
   if (typeof o.phase !== 'string' || !['setup', 'beaming', 'done'].includes(o.phase)) return false;
   if (o.level !== 1 && o.level !== 2 && o.level !== 3) return false;
   if ('shiftVel' in o) return false; // 古い形 (揺れがある) は読まない
-  for (const key of ['widthCm', 'leftCm', 'rightCm', 'progress', 'shiftCm', 'goodMs', 'windMs', 'restarts'] as const) {
+  for (const key of ['widthCm', 'leftCm', 'rightCm', 'progress', 'goodMs', 'windMs', 'restarts'] as const) {
     if (typeof o[key] !== 'number' || !Number.isFinite(o[key])) return false;
   }
   const progress = o.progress;

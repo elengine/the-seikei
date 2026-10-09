@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { drawBoard, mainHex } from './renderer';
 import { init, reduce } from './logic';
 import type { BeamingState } from './logic';
-import { cmToX, BOARD, setBoardHeight, FLANGE_RX, DRUM_X, DRUM_W, woundRadius, leverNotchX, leverY, lampX, lampY, ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX } from './geometry';
+import { cmToX, BOARD, setBoardHeight, FLANGE_RX, DRUM_X, DRUM_W, woundRadius, lampX, lampY, speedBarCenterX, SPEED_BAR_W, ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX } from './geometry';
 import { getContent } from '../../core/content/content';
 import { COLORS } from '../../core/ui/tokens';
 import { makeFakeCtx } from '../winding/renderer.test.helpers';
@@ -180,7 +180,7 @@ describe('beaming renderer PU-15a (盤面。実物の写真に寄せた絵)', ()
   });
 
   it('7. 乗り上げの表示は無い (T3-05 で偏りが無くなる。PU-24a): 糸が円盤に寄っていても、円盤の縁は朱にならず「乗り上げ」の文字も出ない', () => {
-    const rec = draw(beamState({ shiftCm: -25 }));
+    const rec = draw(beamState());
     expect(rec.ops.filter((o, i) => o.k === 'ellipse' && styleBefore(rec.ops, i) === COLORS.shu).length).toBe(0);
     expect(rec.ops.some((o) => o.k === 'fillText' && String(o.args?.[0]).includes('乗り上げ'))).toBe(false);
   });
@@ -214,37 +214,36 @@ describe('beaming renderer PU-15a (盤面。実物の写真に寄せた絵)', ()
   });
 });
 
-describe('T3-04b (盤面の速さのレバー・ランプ)', () => {
-  it("1. 'beaming' と 'setup' でレバーが描かれる (帯・3つの止まり・文字)。'done' では描かない", () => {
-    const rec = draw(beamState());
-    // レバーの帯 (丸い長方形): 止まり3つの位置に丸 (ノブ) がある
-    const arcs = rec.ops.filter((o) => o.k === 'arc').map((o) => o.args as number[]);
-    for (const sp of [0, 50, 100] as const) {
-      const hit = arcs.some((a) => Math.abs((a[0] ?? 0) - leverNotchX(sp)) < 1 && Math.abs((a[1] ?? 0) - leverY()) < 1);
-      expect(hit, `止まり ${sp} の丸`).toBe(true);
+describe('PU-24b (茶色の棒・ランプ)', () => {
+  const barRect = (rec: FakeRecorder): number[] | undefined =>
+    rec.ops
+      .map((o, i) => ({ o, style: styleBefore(rec.ops, i) }))
+      .filter((e) => e.o.k === 'fillRect' && e.style === COLORS.wood)
+      .map((e) => e.o.args as number[])
+      .find((a) => Math.abs(a[1]! + a[3]! / 2 - BOARD.guideY) < 1 && a[2]! > 300);
+
+  it('1. 茶色の棒の真ん中は speedBarCenterX(速さ) にある。速さ 0 は中心より左、100 は右。幅は固定', () => {
+    const at = (sp: number): number[] => barRect(draw(beamState({ speed: sp })))!;
+    for (const sp of [0, 30, 50, 100]) {
+      const r = at(sp);
+      expect(r).toBeDefined();
+      expect(r[0]! + r[2]! / 2).toBeCloseTo(speedBarCenterX(sp), 6);
+      expect(r[2]).toBe(SPEED_BAR_W);
     }
-    // 文字: 停止・50%・100% (20px 以上)
-    const texts = rec.ops.filter((o) => o.k === 'fillText').map((o) => String((o.args as unknown[])[0]));
-    expect(texts.some((x) => x.includes('停止'))).toBe(true);
-    expect(texts.some((x) => x.includes('50%'))).toBe(true);
-    expect(texts.some((x) => x.includes('100%'))).toBe(true);
-    // setup でも描かれる
-    const recSetup = draw(beamState({ phase: 'setup' as const, speed: 0 }));
-    expect(recSetup.ops.some((o) => o.k === 'arc' && Math.abs(((o.args as number[])[1] ?? 0) - leverY()) < 1)).toBe(true);
-    // done では描かない
-    const recDone = draw(beamState({ phase: 'done' as const }));
-    expect(recDone.ops.some((o) => o.k === 'arc' && Math.abs(((o.args as number[])[1] ?? 0) - leverY()) < 1)).toBe(false);
+    expect(at(0)[0]!).toBeLessThan(at(100)[0]!);
+    // 幅合わせの段階では速さ 0 の位置に、うすく (押せない形) 描く
+    const setup = draw(init({ level: 1, widthCm: 60, seed: 42, puzzleId: 's1', patternId: 'p-muji-kon' }));
+    const r0 = barRect(setup)!;
+    expect(r0[0]! + r0[2]! / 2).toBeCloseTo(speedBarCenterX(0), 6);
+    expect(setup.ops.some((o) => o.k === 'globalAlpha' && Number(o.v) < 1)).toBe(true);
   });
 
-  it("2. 今の巻き量で適正な止まりに藍の枠と「適正」の文字。重なる区間は2つとも", () => {
-    // 巻き量 50%: 適正は 100 だけ
-    const rec = draw(beamState({ progress: 0.5, speed: 100 }));
-    const texts = rec.ops.filter((o) => o.k === 'fillText').map((o) => String((o.args as unknown[])[0]));
-    expect(texts.filter((x) => x.includes('適正')).length).toBe(1);
-    // 巻き量 27% (重なる区間): 50 も 100 も適正 → 「適正」が2つ
-    const rec2 = draw(beamState({ progress: 0.27, speed: 50 }));
-    const texts2 = rec2.ops.filter((o) => o.k === 'fillText').map((o) => String((o.args as unknown[])[0]));
-    expect(texts2.filter((x) => x.includes('適正')).length).toBe(2);
+  it('2. 3 つの丸いボタン (停止・50%・100%) と「適正」の札は盤面に無い', () => {
+    for (const p of [0, 0.3, 0.6]) {
+      const rec = draw(beamState({ progress: p, speed: 50 }));
+      const texts = rec.ops.filter((o) => o.k === 'fillText').map((o) => String(o.args?.[0]));
+      for (const t of ['停止', '50%', '100%', '適正']) expect(texts, `progress ${p}`).not.toContain(t);
+    }
   });
 
   it('3. ランプ: 適正なら緑の丸、速すぎならオレンジの上向きの記号、遅すぎならオレンジの下向き、停止では消灯', () => {

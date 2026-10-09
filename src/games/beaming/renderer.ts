@@ -3,7 +3,7 @@ import { COLORS } from '../../core/ui/tokens';
 import type { StageFit } from '../../core/viewport/viewport';
 import {
   BOARD, BEAM_CENTER_X, DRUM_X, DRUM_W, CORE_R, ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX, FLANGE_RX, woundRadius, woundTopY, sheetTopY, cmToX, pxPerCm,
-  leverNotchX, leverY, lampX, lampY,
+  speedBarCenterX, SPEED_BAR_W, lampX, lampY,
 } from './geometry';
 import { goodSpeedOf } from './logic';
 import { GOOD_SPEED_ZONES } from './params';
@@ -46,7 +46,6 @@ export function drawBoard(
   s: BeamingState,
   content: Content,
   drumAngle: number,
-  leverDragX: number | null = null,
 ): void {
   const hex = mainHex(content, s.patternId);
 
@@ -64,7 +63,7 @@ export function drawBoard(
   drawSheet(ctx, s, hex);
 
   // 3. ガイドの棒 (茶色の細い横棒。シートがくぐる)
-  drawGuide(ctx);
+  drawGuide(ctx, s);
 
   // 4. 手前: ビーム (巻いた糸の円筒・左右の円盤・飛び出す軸)
   drawBeam(ctx, s, hex);
@@ -74,8 +73,7 @@ export function drawBoard(
     drawTarget(ctx, s);
   }
 
-  // 速さのレバー (ビームの少し上。T3-04b) と速さのランプ
-  drawSpeedLever(ctx, fit, s, leverDragX);
+  // 速さのランプ (ビームの少し上。T3-04b)
   drawSpeedLamp(ctx, fit, s);
 
   ctx.restore();
@@ -151,7 +149,7 @@ function drawSheet(ctx: CanvasRenderingContext2D, s: BeamingState, hex: string):
   const half = (s.widthCm * pxPerCm(s.widthCm)) / 2;
   const topY = sheetTopY(s.progress);
   const bottomY = woundTopY(s.progress);
-  const cx = cmToX(s.widthCm, s.shiftCm);
+  const cx = BEAM_CENTER_X; // シートはいつも中心 (偏りは無い。T3-05)
   ctx.fillStyle = hex;
   ctx.beginPath();
   ctx.moveTo(cx - half, bottomY);
@@ -175,11 +173,20 @@ function drawSheet(ctx: CanvasRenderingContext2D, s: BeamingState, hex: string):
   ctx.globalAlpha = 1;
 }
 
-/** ガイドの棒 (茶色の細い横棒。ドラムとビームのあいだ) */
-function drawGuide(ctx: CanvasRenderingContext2D): void {
+/**
+ * ガイドの棒 (茶色の細い横棒。ドラムとビームのあいだ)。指で左右に引っぱって速さを変える部品 (PU-24b):
+ * 真ん中の x は速さで決まる (速さ 0 は中心より左、右へ動かすほど速い)。幅合わせの段階では押せない形 (うすく描く)。
+ */
+function drawGuide(ctx: CanvasRenderingContext2D, s: BeamingState): void {
   const h = 12;
+  const x = speedBarCenterX(s.phase === 'setup' ? 0 : s.speed);
+  ctx.save();
+  if (s.phase === 'setup') {
+    ctx.globalAlpha = 0.55;
+  }
   ctx.fillStyle = COLORS.wood;
-  ctx.fillRect(DRUM_X + 40, BOARD.guideY - h / 2, DRUM_W - 80, h);
+  ctx.fillRect(x - SPEED_BAR_W / 2, BOARD.guideY - h / 2, SPEED_BAR_W, h);
+  ctx.restore();
 }
 
 /** 円盤の厚み (px。軸の方向の長さ。左の端が少し見える) */
@@ -296,77 +303,6 @@ function drawTarget(ctx: CanvasRenderingContext2D, s: BeamingState): void {
     ctx.fillStyle = ok ? COLORS.ai : COLORS.shu;
     ctx.fillRect(cmToX(s.widthCm, t.actual) - 6, y + 16, 12, 12);
   }
-}
-
-/**
- * 速さのレバー (ビームの少し上。横に3つの止まり: 停止・50%・100%。T3-04b)。
- * 今の巻き量で適正な止まりに藍の枠と「適正」の文字を出す (重なる区間は2つとも)。
- * 幅合わせの段階では押せない形 (うすく描く)。leverDragX は引っぱっているあいだの指の x。
- */
-function drawSpeedLever(ctx: CanvasRenderingContext2D, fit: StageFit, s: BeamingState, leverDragX: number | null): void {
-  if (s.phase === 'done') {
-    return;
-  }
-  const y = leverY();
-  const enabled = s.phase === 'beaming';
-  ctx.save();
-  if (!enabled) {
-    ctx.globalAlpha = 0.55;
-  }
-  // レバーの帯
-  const bandLeft = leverNotchX(0) - 46;
-  const bandRight = leverNotchX(100) + 46;
-  ctx.fillStyle = COLORS.aiTint;
-  ctx.fillRect(bandLeft, y - 26, bandRight - bandLeft, 52);
-  ctx.strokeStyle = COLORS.line;
-  ctx.lineWidth = fit.scale * 2;
-  ctx.stroke();
-  // 引っぱっているあいだの目印 (指の x に細い縦線)
-  if (leverDragX !== null) {
-    ctx.strokeStyle = COLORS.ai;
-    ctx.lineWidth = fit.scale * 3;
-    ctx.beginPath();
-    ctx.moveTo(leverDragX, y - 34);
-    ctx.lineTo(leverDragX, y + 34);
-    ctx.stroke();
-  }
-  // 止まり 3つ
-  for (const sp of [0, 50, 100] as const) {
-    const nx = leverNotchX(sp);
-    const good = enabled && goodSpeedOf(sp, s.progress);
-    if (good) {
-      // 適正の止まり: 藍の枠 + 「適正」の文字
-      ctx.strokeStyle = COLORS.ai;
-      ctx.lineWidth = fit.scale * 3;
-      ctx.strokeRect(nx - 34, y - 34, 68, 68);
-      // 白い pill の上に藍の文字 (巻いた糸の上でも読めるように)
-      ctx.fillStyle = COLORS.white;
-      ctx.fillRect(nx - 30, y + 40, 60, 24);
-      ctx.strokeStyle = COLORS.ai;
-      ctx.lineWidth = fit.scale * 1.5;
-      ctx.strokeRect(nx - 30, y + 40, 60, 24);
-      ctx.fillStyle = COLORS.ai;
-      ctx.font = `${20 * fit.scale}px sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.fillText('適正', nx, y + 58);
-    }
-    // ノブ (押せる所は 64px 以上)
-    ctx.beginPath();
-    ctx.arc(nx, y, 32, 0, Math.PI * 2);
-    ctx.fillStyle = enabled && s.speed === sp ? COLORS.ai : COLORS.white;
-    ctx.fill();
-    ctx.strokeStyle = COLORS.ai;
-    ctx.lineWidth = fit.scale * 2;
-    ctx.stroke();
-    // 文字 (20px 以上)
-    ctx.fillStyle = enabled && s.speed === sp ? COLORS.white : COLORS.sumi;
-    ctx.font = `${20 * fit.scale}px sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(sp === 0 ? '停止' : `${sp}%`, nx, y);
-    ctx.textBaseline = 'alphabetic';
-  }
-  ctx.restore();
 }
 
 /**

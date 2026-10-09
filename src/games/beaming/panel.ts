@@ -1,5 +1,6 @@
 import { createButton } from '../../core/ui/widgets';
 import { createSectionHeading } from '../../core/ui/layout';
+import { goodSpeedOf } from './logic';
 import type { BeamingState, BeamingAction } from './logic';
 import { GOOD_SPEED_ZONES, CONFIRM_MIN } from './params';
 
@@ -34,6 +35,11 @@ export function createBeamingPanel(
   const amount = document.createElement('div');
   amount.className = 'beaming-panel__amount';
   root.appendChild(amount);
+
+  // 0a. 速さ (「巻き量」の下。0〜100 の整数。適正は藍、外れは朱に ▲ か ▼。PU-24b)
+  const speedEl = document.createElement('div');
+  speedEl.className = 'beaming-panel__speed';
+  root.appendChild(speedEl);
 
   // 0b. 巻き量の帯 (0〜100% を適正な速さの区間で塗り分ける。T3-04b)
   const band = document.createElement('div');
@@ -142,6 +148,21 @@ export function createBeamingPanel(
       confirmBtn.setAttribute('aria-disabled', String(!confirmStopped));
       confirmBtn.classList.toggle('beaming-panel__main--locked', !confirmStopped);
       amount.textContent = `巻き量 ${Math.floor(s.progress * 100)}%`; // 表示は切り捨て (T3-05)
+      // 速さ: 巻いているあいだだけ適正・外れを見せる (外れは ▲ 速すぎ・▼ 遅すぎ。色だけに頼らない)
+      const speedNow = Math.round(s.speed);
+      let mark = '';
+      speedEl.classList.remove('beaming-panel__speed--good', 'beaming-panel__speed--bad');
+      if (s.phase === 'beaming') {
+        if (goodSpeedOf(s.speed, s.progress)) {
+          speedEl.classList.add('beaming-panel__speed--good');
+        } else {
+          const targets = GOOD_SPEED_ZONES.filter((z) => s.progress * 100 >= z.from && s.progress * 100 <= z.to).map((z) => z.speed);
+          const tooFast = targets.length > 0 ? s.speed > Math.max(...targets) : s.speed > 0;
+          mark = tooFast ? ' ▲' : ' ▼';
+          speedEl.classList.add('beaming-panel__speed--bad');
+        }
+      }
+      speedEl.textContent = `速さ ${speedNow}${mark}`;
       bandMark.style.left = `${Math.min(100, Math.max(0, s.progress * 100))}%`;
       // 巻き返しの段階の下の行は空 (ボタンが無いので行を低くする)
       buttonRow.style.minHeight = isSetup ? '' : '0';

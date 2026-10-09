@@ -2,7 +2,7 @@ import type { GameDeps, GameInstance, GameProps, TutorialSpec } from '../../core
 import type { StageFit } from '../../core/viewport/viewport';
 import { createGameFrame } from '../../core/ui/gameFrame';
 import { createButton, createDialogShell } from '../../core/ui/widgets';
-import { setBoardHeight, flangeHit, dragCm, hitLever, nearestNotch } from './geometry';
+import { setBoardHeight, flangeHit, dragCm, hitSpeedBar, speedFromBarDrag } from './geometry';
 import { logicalHeightFor } from '../winding/geometry';
 import { showTutorial } from '../../core/ui/tutorialOverlay';
 import { drawBoard } from './renderer';
@@ -91,9 +91,8 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
 
   // ---- 円盤を絵の上で引っぱって合わせる (PU-15b。幅合わせの段階だけ) ----
   let flangeDrag: { side: 'left' | 'right'; startCm: number; startX: number; pointerId: number } | null = null;
-  /** 速さのレバーを引っぱっている (T3-04b)。x は指の論理座標 */
-  let leverDragX: number | null = null;
-  let leverDragId = -1;
+  /** 茶色の棒を引っぱっている (PU-24b)。startX は引っぱり始めの指の論理 x、startSpeed はそのときの速さ */
+  let barDrag: { id: number; startX: number; startSpeed: number } | null = null;
   /** 画面の点 → 論理座標の x と y (Canvas の上の位置から、変換を戻す) */
   function logicalOf(e: PointerEvent): { x: number; y: number } {
     const rect = frame.stage.getBoundingClientRect();
@@ -101,21 +100,19 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
   }
   const currentCm = (side: 'left' | 'right'): number => (side === 'left' ? s.leftCm : s.rightCm);
   function onStageDown(e: PointerEvent): void {
-    if (flangeDrag !== null || leverDragX !== null || finished || disposed || e.button !== 0 || !(lastFit.scale > 0)) {
+    if (flangeDrag !== null || barDrag !== null || finished || disposed || e.button !== 0 || !(lastFit.scale > 0)) {
       return;
     }
-    // 速さのレバー (巻き返しの段階だけ動かせる。幅合わせの段階では押せない形。T3-04b)
+    // 茶色の棒 (巻き返しの段階だけ動かせる。幅合わせの段階では押せない。PU-24b)。棒のどこを押さえても引っぱれる
     if (s.phase === 'beaming') {
       const p = logicalOf(e);
-      if (hitLever(p)) {
-        leverDragX = p.x;
-        leverDragId = e.pointerId;
+      if (hitSpeedBar(p, s.speed)) {
+        barDrag = { id: e.pointerId, startX: p.x, startSpeed: s.speed };
         try {
           frame.stage.setPointerCapture(e.pointerId);
         } catch {
           // 対応していない環境 (テスト等) では、そのまま受け取る
         }
-        render();
         return;
       }
     }
@@ -135,10 +132,12 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
     }
   }
   function onStageMove(e: PointerEvent): void {
-    // レバーを引っぱる (指に合わせて目印が動く。離すと一番近い止まりに吸い付く。T3-04b)
-    if (leverDragX !== null && e.pointerId === leverDragId) {
-      leverDragX = logicalOf(e).x;
-      render();
+    // 棒を引っぱる: 指が動いた分だけ速さが連続で変わる (棒も指について動く)
+    if (barDrag !== null && e.pointerId === barDrag.id) {
+      const v = speedFromBarDrag(barDrag.startSpeed, logicalOf(e).x - barDrag.startX);
+      if (v !== s.speed) {
+        dispatch({ type: 'setSpeed', value: v });
+      }
       return;
     }
     const d = flangeDrag;
@@ -152,15 +151,9 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
     }
   }
   function onStageUp(e: PointerEvent): void {
-    // レバーを離す: 一番近い止まりに吸い付いて速さを変える (T3-04b)。
-    // pointerId は問わない (離すのを取りこぼしたまま固まらないようにする)
-    if (leverDragX !== null) {
-      const next = nearestNotch(leverDragX);
-      leverDragX = null;
-      leverDragId = -1;
-      if (next !== s.speed) {
-        dispatch({ type: 'setSpeed', value: next });
-      }
+    // 棒を離す: 引っぱりが終わり、速さはそのまま保たれる。pointerId は問わない (離すのを取りこぼしたまま固まらないようにする)
+    if (barDrag !== null) {
+      barDrag = null;
       render();
       return;
     }
@@ -169,10 +162,13 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
     }
   }
   function onStageCancel(e: PointerEvent): void {
-    if (leverDragX !== null) {
-      // 引っぱっているのをやめる (速さは変えない)。pointerId は問わない
-      leverDragX = null;
-      leverDragId = -1;
+    if (barDrag !== null) {
+      // 取り消し (ブラウザが奪ったとき): 引っぱる前の速さに戻す。pointerId は問わない
+      const back = barDrag.startSpeed;
+      barDrag = null;
+      if (back !== s.speed) {
+        dispatch({ type: 'setSpeed', value: back });
+      }
       render();
       return;
     }
@@ -212,7 +208,7 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
     if (ctx === null) {
       return;
     }
-    drawBoard(ctx, lastFit, s, content, drumAngle, leverDragX);
+    drawBoard(ctx, lastFit, s, content, drumAngle);
   }
 
   // ---- 画面の更新 ----

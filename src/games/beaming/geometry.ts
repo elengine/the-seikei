@@ -83,38 +83,39 @@ export function setBoardHeight(height: number): void {
 }
 setBoardHeight(BOARD_H);
 
-/** 速さのレバー (横に3つの止まり: 停止・50%・100%。T3-04b)。ビームの少し上に置く */
-export const LEVER_W = 360;
-export const LEVER_H = 72; // 止まりを押せる大きさ (64px 以上)
-/** レバーの中心の x (盤面の中央) */
-export const LEVER_CX = BOARD_W / 2;
-/** レバーの中心の y (論理の高さに合わせる。ガイドの棒とビームのあいだ) */
-export function leverY(): number {
-  // ビームの少し上 (巻いた糸が一番太くなった位置より上。T3-04b)
-  return BOARD.guideY + (BOARD.axisY - BOARD.guideY) * 0.25;
+/**
+ * 茶色の棒 (ガイドの棒) は、指で左右に引っぱって速さを変える部品 (PU-24b)。
+ * 速さ 0 で、棒の真ん中が盤面の中心より SPEED_BAR_SHIFT_MAX だけ左へ寄る。右へ動かすほど速く、いちばん右 (中心より右へ同じだけ) で 100。
+ */
+export const SPEED_BAR_SHIFT_MAX = 100;
+/** 棒の長さ (px。固定) */
+export const SPEED_BAR_W = DRUM_W - 80;
+/** 棒の当たりの上下の幅 (棒の中心から ± px。合わせて 64px 以上) */
+const SPEED_BAR_HIT_HALF_H = 32;
+
+/** 速さ (0〜100) に対する、棒の真ん中の x */
+export function speedBarCenterX(speed: number): number {
+  const v = Math.min(100, Math.max(0, speed));
+  return BOARD_W / 2 - SPEED_BAR_SHIFT_MAX + (v / 100) * 2 * SPEED_BAR_SHIFT_MAX;
 }
-/** レバーの止まり (速度) の x 座標 (左が停止・右が 100%。止まりの間隔は LEVER_W/2 = 180) */
-export function leverNotchX(speed: 0 | 50 | 100): number {
-  return LEVER_CX + (speed - 50) * (LEVER_W / 100);
+
+/** 引っぱり始めの速さ startSpeed から、指が dx (論理の px) 動いたときの速さ (0〜100 の整数に丸める) */
+export function speedFromBarDrag(startSpeed: number, dx: number): number {
+  const v = startSpeed + (dx / (2 * SPEED_BAR_SHIFT_MAX)) * 100;
+  return Math.min(100, Math.max(0, Math.round(v)));
 }
-/** 一番近い止まり (引っぱって離したときに吸い付く。T3-04b) */
-export function nearestNotch(x: number): 0 | 50 | 100 {
-  const d0 = Math.abs(x - leverNotchX(0));
-  const d50 = Math.abs(x - leverNotchX(50));
-  const d100 = Math.abs(x - leverNotchX(100));
-  if (d50 <= d0 && d50 <= d100) return 50;
-  return d0 <= d100 ? 0 : 100;
+
+/** 棒の当たり判定 (今の速さの位置にある棒の、上下 32px ずつ・長さいっぱい) */
+export function hitSpeedBar(p: { x: number; y: number }, speed: number): boolean {
+  return Math.abs(p.y - BOARD.guideY) <= SPEED_BAR_HIT_HALF_H && Math.abs(p.x - speedBarCenterX(speed)) <= SPEED_BAR_W / 2;
 }
-/** レバーの当たり判定 (レバーの帯の上下 ±40。T3-04b) */
-export function hitLever(p: { x: number; y: number }): boolean {
-  return Math.abs(p.y - leverY()) <= 40 && p.x >= leverNotchX(0) - 60 && p.x <= leverNotchX(100) + 60;
-}
-/** 速さのランプ (ビームの上の左寄り。T3-04b) */
+
+/** 速さのランプ (ビームの上の左寄り。ガイドの棒とビームのあいだ) */
 export function lampX(): number {
   return BOARD_W * 0.2;
 }
 export function lampY(): number {
-  return leverY();
+  return BOARD.guideY + (BOARD.axisY - BOARD.guideY) * 0.25;
 }
 export function hitLamp(p: { x: number; y: number }): boolean {
   return Math.hypot(p.x - lampX(), p.y - lampY()) <= 36;

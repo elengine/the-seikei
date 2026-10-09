@@ -306,7 +306,7 @@ describe('T3-05 (揺れをやめる・速さを連続に・止める判定を表
     expect(q.progress).toBeCloseTo(0.25, 2);
   });
 
-  it('20. 寄せる・揺れ・乗り上げの仕組みが無い (nudge のアクションが無い・shiftVel・overflowMs・centeredMs が無い・shiftCm は動かない)', () => {
+  it('20. 寄せる・揺れ・乗り上げの仕組みが無い (nudge のアクションが無い・shiftVel・overflowMs・centeredMs・shiftCm が無い)', () => {
     const s = setupExact(make());
     const keys = Object.keys(s);
     for (const k of ['shiftVel', 'overflowMs', 'centeredMs']) {
@@ -315,12 +315,13 @@ describe('T3-05 (揺れをやめる・速さを連続に・止める判定を表
     // nudge は送れない (実行しても状態が変わらない)
     const unknown = reduce(s, { type: 'nudge', dir: 1 } as unknown as BeamingAction);
     expect(unknown).toBe(s);
-    // shiftCm は常に 0 (シートは中央。PU-24b で茶色の棒の操作とともに変わる予定)
+    // state に shiftCm (糸のシートの中心のずれ) は無い (T3-05 以降いつも 0 だったので消した。茶色の棒の位置は速さから決まる。PU-24b)
+    expect(keys).not.toContain('shiftCm');
     let cur = act(s, [{ type: 'setSpeed', value: 100 }]);
     for (let i = 0; i < 50; i++) {
       cur = reduce(cur, { type: 'tick', dtMs: 100 });
     }
-    expect(cur.shiftCm).toBe(0);
+    expect(Object.keys(cur)).not.toContain('shiftCm');
   });
 
   it('21. 巻き量 100.5 で止めて確認すると「100% ぴったりで止めた」扱い (星3の止めた位置)。101.0 に届くと失敗', () => {

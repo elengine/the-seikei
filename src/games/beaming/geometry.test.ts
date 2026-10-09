@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import {
   pxPerCm, cmToX, xToCm, BEAM_W_PX, BOARD_W, BEAM_CENTER_X, woundRadius, setBoardHeight, BOARD, drawnExtent, FLANGE_RX, CORE_R,
-  ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX, flangeHit, dragCm, FLANGE_HIT_MIN_PX, leverY, leverNotchX, nearestNotch, hitLever, lampX, lampY, DRUM_X,
+  ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX, flangeHit, dragCm, FLANGE_HIT_MIN_PX, lampX, lampY, SPEED_BAR_SHIFT_MAX, speedBarCenterX, speedFromBarDrag, hitSpeedBar, SPEED_BAR_W, DRUM_X,
 } from './geometry';
 import { logicalHeightFor } from '../winding/geometry';
 
@@ -120,34 +120,45 @@ describe('PU-15b: 円盤を引っぱる (当たり判定・1cm 単位の吸い�
   });
 });
 
-describe('T3-04b (速さのレバーとランプの座標)', () => {
-  it('1. レバーはビームの少し上 (ガイドとビームのあいだ)。止まりは3つ (左が停止・右が 100%)', () => {
-    expect(leverY()).toBeGreaterThan(BOARD.guideY);
-    expect(leverY()).toBeLessThan(BOARD.axisY);
-    expect(leverNotchX(0)).toBeLessThan(leverNotchX(50));
-    expect(leverNotchX(50)).toBeLessThan(leverNotchX(100));
-    expect(leverNotchX(50)).toBe(BOARD_W / 2);
+describe('PU-24b (茶色の棒の速さとランプの座標)', () => {
+  it('1. 茶色の棒の真ん中の x: 速さ 0 で盤面の中心より SPEED_BAR_SHIFT_MAX だけ左、100 で同じだけ右、50 で中心。速さに比例して右へ動く', () => {
+    expect(SPEED_BAR_SHIFT_MAX).toBeGreaterThan(40);
+    expect(speedBarCenterX(0)).toBe(BOARD_W / 2 - SPEED_BAR_SHIFT_MAX);
+    expect(speedBarCenterX(50)).toBe(BOARD_W / 2);
+    expect(speedBarCenterX(100)).toBe(BOARD_W / 2 + SPEED_BAR_SHIFT_MAX);
+    expect(speedBarCenterX(25) - speedBarCenterX(0)).toBeCloseTo(speedBarCenterX(50) - speedBarCenterX(25), 9);
+    // 棒は盤面の中に収まる (いちばん右でも)
+    expect(speedBarCenterX(100) + SPEED_BAR_W / 2).toBeLessThanOrEqual(BOARD_W);
+    expect(speedBarCenterX(0) - SPEED_BAR_W / 2).toBeGreaterThanOrEqual(0);
   });
 
-  it('2. 一番近い止まりに吸い付く (引っぱって離したとき)', () => {
-    expect(nearestNotch(leverNotchX(0) - 50)).toBe(0);
-    expect(nearestNotch(leverNotchX(0) + 80)).toBe(0);
-    expect(nearestNotch(BOARD_W / 2)).toBe(50);
-    expect(nearestNotch(leverNotchX(100) - 80)).toBe(100);
-    expect(nearestNotch(leverNotchX(100) + 50)).toBe(100);
+  it('2. speedFromBarDrag(始めの速さ, 動いた x): 動いた分に比例して 0〜100 に丸める。範囲の外は 0・100', () => {
+    const per = (2 * SPEED_BAR_SHIFT_MAX) / 100; // 速さ 1 あたりの x
+    expect(speedFromBarDrag(30, 0)).toBe(30);
+    expect(speedFromBarDrag(30, 10 * per)).toBe(40);
+    expect(speedFromBarDrag(30, -10 * per)).toBe(20);
+    expect(speedFromBarDrag(30, 1000)).toBe(100);
+    expect(speedFromBarDrag(30, -1000)).toBe(0);
+    expect(Number.isInteger(speedFromBarDrag(30, 3.3 * per))).toBe(true);
   });
 
-  it('3. レバーの当たり判定: 帯の上なら true・離れると false', () => {
-    expect(hitLever({ x: leverNotchX(50), y: leverY() })).toBe(true);
-    expect(hitLever({ x: leverNotchX(0), y: leverY() + 30 })).toBe(true);
-    expect(hitLever({ x: leverNotchX(50), y: leverY() + 60 })).toBe(false);
-    expect(hitLever({ x: 50, y: leverY() })).toBe(false);
+  it('3. 棒の当たり判定: 棒の上下 32px の中で、棒の幅の中なら true。離れると false (64px 以上の高さ)', () => {
+    const y = BOARD.guideY;
+    const cx = speedBarCenterX(40);
+    expect(hitSpeedBar({ x: cx, y }, 40)).toBe(true);
+    expect(hitSpeedBar({ x: cx - SPEED_BAR_W / 2 + 4, y: y + 30 }, 40)).toBe(true);
+    expect(hitSpeedBar({ x: cx + SPEED_BAR_W / 2 - 4, y: y - 30 }, 40)).toBe(true);
+    expect(hitSpeedBar({ x: cx, y: y + 33 }, 40)).toBe(false);
+    expect(hitSpeedBar({ x: cx, y: y - 33 }, 40)).toBe(false);
+    expect(hitSpeedBar({ x: cx + SPEED_BAR_W / 2 + 5, y }, 40)).toBe(false);
+    expect(64).toBeLessThanOrEqual(2 * 32);
   });
 
   it('4. ランプはビームの上の左寄り', () => {
     expect(lampX()).toBeLessThan(BOARD_W / 2);
     expect(lampX()).toBeGreaterThan(DRUM_X);
-    expect(lampY()).toBe(leverY());
+    expect(lampY()).toBeGreaterThan(BOARD.guideY);
+    expect(lampY()).toBeLessThan(BOARD.axisY);
   });
 });
 
