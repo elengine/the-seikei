@@ -2,7 +2,7 @@
   "name": "the-seikei",
   "private": true,
   "type": "module",
-  "version": "0.3.71",
+  "version": "0.3.72",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

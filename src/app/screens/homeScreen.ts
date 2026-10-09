@@ -181,17 +181,18 @@ export function createHomeScreen(ctx: AppContext): Screen {
       for (const m of modules.filter((x) => mainIds.includes(x.id))) {
         addGame(m, false);
       }
-      // 「開発中」の区切り (行全体)。この下のカードも押せば遊べる
-      const dev = el('div', 'home__dev');
-      dev.appendChild(createSectionHeading('開発中'));
-      const devNote = el('p', 'home__dev-note');
-      devNote.textContent = '遊びの中身を調整しています';
-      dev.appendChild(devNote);
-      games.appendChild(dev);
-      for (const m of modules.filter((x) => !mainIds.includes(x.id))) {
-        addGame(m, true);
-      }
-      for (const s of COMING_SOON) {
+      // 「開発中」の区切り (行全体) と、その下のカード (開発中のゲームと準備中)。設定で出し入れする (既定は出さない。PU-31)
+      if (ctx.settings.get().showDevGames) {
+        const dev = el('div', 'home__dev');
+        dev.appendChild(createSectionHeading('開発中'));
+        const devNote = el('p', 'home__dev-note');
+        devNote.textContent = '遊びの中身を調整しています';
+        dev.appendChild(devNote);
+        games.appendChild(dev);
+        for (const m of modules.filter((x) => !mainIds.includes(x.id))) {
+          addGame(m, true);
+        }
+        for (const s of COMING_SOON) {
         const btn: HTMLButtonElement = card({
           kind: 'soon',
           name: s.termKey !== undefined ? ctx.terms.t(s.termKey) : (s.fixedName ?? ''),
@@ -212,6 +213,7 @@ export function createHomeScreen(ctx: AppContext): Screen {
           },
         });
         games.appendChild(btn);
+        }
       }
       root.appendChild(games);
       gamesEl = games;

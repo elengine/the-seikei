@@ -223,3 +223,52 @@ describe('PU-23a 管理者メニュー: アップデートの記録', () => {
     expect(t).toMatch(/font-size:\s*(var\(--fs-body\)|(2\d|3\d)px)/);
   });
 });
+
+describe('PU-31 管理者メニュー: 開発中のゲームをスタート画面に出す', () => {
+  beforeAll(() => {
+    vi.stubGlobal('__BUILD_ID__', 'test-build');
+    vi.stubGlobal('__APP_VERSION__', 'test');
+  });
+  function mountAdmin(initial: boolean): { container: HTMLElement; update: ReturnType<typeof vi.fn> } {
+    let showDevGames = initial;
+    const update = vi.fn(async (patch: { showDevGames?: boolean }) => {
+      if (patch.showDevGames !== undefined) showDevGames = patch.showDevGames;
+    });
+    const ctx = {
+      repo: { exportAll: vi.fn(async () => ({})), getMeta: vi.fn(async () => undefined) },
+      logger: { entries: vi.fn(() => []), log: vi.fn() },
+      settings: { get: () => ({ showDevGames }), update },
+      navigate: () => undefined,
+    } as unknown as AppContext;
+    const screen = createAdminScreen(ctx);
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    screen.mount(container, {});
+    return { container, update };
+  }
+
+  it('「開発中のゲームをスタート画面に出す」の選択 (出さない/出す) と説明の文がある。「出す」を押すと設定が true になる。押す所は「すべてのお題を開ける」と同じ選択の部品', async () => {
+    const { container, update } = mountAdmin(false);
+    const group = container.querySelector('[aria-label="開発中のゲームをスタート画面に出す"]')!;
+    expect(group).not.toBeNull();
+    expect(container.textContent).toContain('開発中のゲームをスタート画面に出す');
+    expect(container.textContent).toContain('出すと、スタート画面の下に開発中のゲームが並びます');
+    const buttons = Array.from(group.querySelectorAll('button'));
+    expect(buttons.map((b) => b.textContent)).toEqual(['✓出さない', '出す']); // 既定は「出さない」
+    // 押す所は「すべてのお題を開ける」と同じ選択の部品 (同じ文字の大きさ・押せる大きさ。CSS は変えない)
+    expect(buttons.every((b) => b.classList.contains('choice__item'))).toBe(true);
+    buttons.find((b) => b.textContent === '出す')!.click();
+    await vi.waitFor(() => expect(update).toHaveBeenCalledWith({ showDevGames: true }));
+    await vi.waitFor(() => expect(group.querySelector('[aria-pressed="true"]')!.textContent).toContain('出す'));
+    Array.from(group.querySelectorAll('button')).find((b) => b.textContent!.includes('出さない'))!.click();
+    await vi.waitFor(() => expect(update).toHaveBeenCalledWith({ showDevGames: false }));
+  });
+
+  it('設定が true のとき、最初から「出す」が選ばれている', () => {
+    const { container } = mountAdmin(true);
+    const group = container.querySelector('[aria-label="開発中のゲームをスタート画面に出す"]')!;
+    const buttons = Array.from(group.querySelectorAll('button'));
+    expect(buttons[0]!.getAttribute('aria-pressed')).toBe('false');
+    expect(buttons[1]!.getAttribute('aria-pressed')).toBe('true');
+  });
+});

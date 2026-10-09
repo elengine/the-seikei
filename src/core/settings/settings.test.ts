@@ -154,3 +154,20 @@ describe('settings PU-18 (unlockAll)', () => {
     expect(old.get().unlockAll).toBe(false);
   });
 });
+
+describe('settings PU-31 (showDevGames)', () => {
+  it('showDevGames の初期値は false。保存データに無い (古いデータ) ときも false。update で true になり、作り直しても残る', async () => {
+    expect(DEFAULT_SETTINGS.showDevGames).toBe(false);
+    const { repo, clock, settings } = await make();
+    expect(settings.get().showDevGames).toBe(false);
+    // 古い保存データ (showDevGames が無い)
+    await repo.put('settings', { playerName: '', shopName: '整経所', fontScale: 1, soundOn: true, volume: 0.7, tutorialSeen: {}, _updated: {} }, 'main');
+    const old = await createSettingsService(repo, clock);
+    expect(old.get().showDevGames).toBe(false);
+    await old.update({ showDevGames: true });
+    expect(old.get().showDevGames).toBe(true);
+    expect((await createSettingsService(repo, clock)).get().showDevGames).toBe(true);
+    await old.update({ showDevGames: false });
+    expect(old.get().showDevGames).toBe(false);
+  });
+});

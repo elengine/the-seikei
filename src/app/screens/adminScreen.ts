@@ -80,6 +80,31 @@ export function createAdminScreen(ctx: AppContext): Screen {
       unlockNote.textContent = 'クリアしていないお題も遊べます。記録(星)は変わりません';
       checkCard.appendChild(unlockNote);
 
+      // ---- 開発中のゲームをスタート画面に出す (既定は出さない。PU-31。「すべてのお題を開ける」と同じ形) ----
+      const devLabel = document.createElement('p');
+      devLabel.classList.add('admin__unlock-label');
+      devLabel.textContent = '開発中のゲームをスタート画面に出す';
+      checkCard.appendChild(devLabel);
+      const devChoice = createChoice<'off' | 'on'>({
+        options: [
+          { value: 'off', label: '出さない' },
+          { value: 'on', label: '出す' },
+        ],
+        value: ctx.settings.get().showDevGames ? 'on' : 'off',
+        ariaLabel: '開発中のゲームをスタート画面に出す',
+        onChange: (v) => {
+          void (async () => {
+            await ctx.settings.update({ showDevGames: v === 'on' });
+            devChoice.setValue(ctx.settings.get().showDevGames ? 'on' : 'off');
+          })();
+        },
+      });
+      checkCard.appendChild(devChoice.root);
+      const devNote = document.createElement('p');
+      devNote.classList.add('admin__notice');
+      devNote.textContent = '出すと、スタート画面の下に開発中のゲームが並びます';
+      checkCard.appendChild(devNote);
+
       // ---- アップデートの記録 (直近 3 回。「アップデートする」を押してからの流れを経過ミリ秒つきで。PU-23a) ----
       const updateLog = document.createElement('div');
       updateLog.classList.add('admin__update-log');

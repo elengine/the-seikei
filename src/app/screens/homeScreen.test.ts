@@ -39,7 +39,7 @@ function fakeModule(id: GameModule['id'], titleTermKey: string, summary: string)
   };
 }
 
-function makeCtx(settings: { shopName: string; playerName: string }): { ctx: AppContext; navigate: ReturnType<typeof vi.fn> } {
+function makeCtx(settings: { shopName: string; playerName: string; showDevGames?: boolean }): { ctx: AppContext; navigate: ReturnType<typeof vi.fn> } {
   const navigate = vi.fn();
   const names: Record<string, string> = {
     'game.creel': 'クリール立て',
@@ -59,7 +59,7 @@ function makeCtx(settings: { shopName: string; playerName: string }): { ctx: App
   return { ctx, navigate };
 }
 
-function mountHome(settings = { shopName: '山田整経', playerName: '' }): {
+function mountHome(settings: { shopName: string; playerName: string; showDevGames?: boolean } = { shopName: '山田整経', playerName: '', showDevGames: false }): {
   root: HTMLElement;
   navigate: ReturnType<typeof vi.fn>;
   unmount: () => void;
@@ -111,8 +111,8 @@ describe('ホーム画面 (PU-03a)', () => {
     expect(b.root.querySelector('.home__greeting')).toBeNull();
   });
 
-  it('登録済みのゲームのカードに、名前・説明・状態が出て、押すとそのゲームへ移る。並びはクリール立て・ドラム巻き・(開発中の区切り)・糸割り (PU-17a)', () => {
-    const { root, navigate } = mountHome();
+  it('登録済みのゲームのカードに、名前・説明・状態が出て、押すとそのゲームへ移る。並びはクリール立て・ドラム巻き・(開発中の区切り)・糸割り (PU-17a。PU-31 からは出す設定のときの確かめ)', () => {
+    const { root, navigate } = mountHome({ shopName: '山田整経', playerName: '', showDevGames: true });
     const cards = Array.from(root.querySelectorAll<HTMLButtonElement>('.game-card:not(.game-card--soon)'));
     expect(cards).toHaveLength(3);
     const itowari = cards[2]!;
@@ -137,7 +137,7 @@ describe('ホーム画面 (PU-03a)', () => {
 
   it('準備中のカード (柄の図鑑のみ。糸割り・ビーム巻きは登録済みになった。題名と重なる「整経屋の一日」は無い) は「準備中」。押すと「準備中です」が2秒出て、移らない', () => {
     vi.useFakeTimers();
-    const { root, navigate } = mountHome();
+    const { root, navigate } = mountHome({ shopName: '山田整経', playerName: '', showDevGames: true });
     const soon = Array.from(root.querySelectorAll<HTMLButtonElement>('.game-card--soon'));
     expect(soon.map((c) => c.querySelector('.game-card__name')!.textContent)).toEqual([
       '柄の図鑑',
@@ -156,7 +156,7 @@ describe('ホーム画面 (PU-03a)', () => {
 
   it('unmount でタイマーが残らない', () => {
     vi.useFakeTimers();
-    const { root, unmount } = mountHome();
+    const { root, unmount } = mountHome({ shopName: '山田整経', playerName: '', showDevGames: true });
     root.querySelector<HTMLButtonElement>('.game-card--soon')!.click();
     unmount();
     expect(vi.getTimerCount()).toBe(0);
@@ -337,7 +337,7 @@ describe('ホーム画面 PU-17a (開発中の区切り)', () => {
     registerGame(fakeModule('drumsetup', 'game.drumsetup', 'c'));
     registerGame(fakeModule('beaming', 'game.beaming', 'd'));
     registerGame(fakeModule('itowari', 'game.itowari', 'e'));
-    return mountHome().root;
+    return mountHome({ shopName: '山田整経', playerName: '', showDevGames: true }).root;
   }
 
   /** 並びの順に、カードの名前と区切りの見出しの文字を返す */
@@ -380,7 +380,7 @@ describe('ホーム画面 PU-17a (開発中の区切り)', () => {
   });
 
   it('開発中のカードも押せばそのゲームへ移る', () => {
-    const { ctx, navigate } = makeCtx({ shopName: '', playerName: '' });
+    const { ctx, navigate } = makeCtx({ shopName: '', playerName: '', showDevGames: true });
     clearGamesForTest();
     registerGame(fakeModule('creel', 'game.creel', 'a'));
     registerGame(fakeModule('itowari', 'game.itowari', 'e'));
@@ -404,5 +404,54 @@ describe('ホーム画面 PU-17a (開発中の区切り)', () => {
       dev: ['beaming'],
     });
     vi.doUnmock('./homeCards');
+  });
+
+  it('PU-31: 既定 (showDevGames が false) では「開発中」の区切りと開発中・準備中のカードは出ない。メインのゲーム (クリール立て・ドラム巻き) は出る', () => {
+    const { root } = mountHome(); // showDevGames は既定の false
+    expect(root.querySelectorAll('.home__dev')).toHaveLength(0);
+    expect(root.textContent).not.toContain('開発中');
+    expect(root.textContent).not.toContain('遊びの中身を調整しています');
+    const names = Array.from(root.querySelectorAll('.game-card__name')).map((e) => e.textContent);
+    expect(names, 'メインのゲームは出る').toEqual(['クリール立て', 'ドラム巻き']);
+    expect(root.querySelectorAll('.game-card--soon')).toHaveLength(0);
+  });
+
+  it('PU-31: showDevGames が true のときは今のとおり「開発中」の区切りと開発中・準備中のカードが出る', () => {
+    const { root } = mountHome({ shopName: '山田整経', playerName: '', showDevGames: true });
+    expect(root.querySelectorAll('.home__dev')).toHaveLength(1);
+    const names = Array.from(root.querySelectorAll('.game-card__name')).map((e) => e.textContent);
+    expect(names).toContain('糸割り');
+    expect(root.querySelectorAll('.game-card--soon')).toHaveLength(1);
+  });
+
+  it('PU-31: 管理者メニューで切り替えたあと、ホームを開き直すと反映される (設定を読み直して描き直す)', () => {
+    const stored = { shopName: '山田整経', playerName: '', showDevGames: false };
+    const navigate = vi.fn();
+    const ctx = {
+      settings: { get: () => stored },
+      terms: { t: (k: string) => k },
+      audio: { play: vi.fn() },
+      navigate,
+    } as unknown as AppContext;
+    const screen = createHomeScreen(ctx);
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    screen.mount(root, {});
+    expect(root.querySelectorAll('.home__dev')).toHaveLength(0);
+    // 管理者メニューで「出す」に変えた (設定の値が変わる)
+    stored.showDevGames = true;
+    // ホームを開き直す (unmount → mount)
+    screen.unmount();
+    const root2 = document.createElement('div');
+    document.body.appendChild(root2);
+    screen.mount(root2, {});
+    expect(root2.querySelectorAll('.home__dev')).toHaveLength(1);
+    // 戻すと隠れる
+    stored.showDevGames = false;
+    screen.unmount();
+    const root3 = document.createElement('div');
+    document.body.appendChild(root3);
+    screen.mount(root3, {});
+    expect(root3.querySelectorAll('.home__dev')).toHaveLength(0);
   });
 });

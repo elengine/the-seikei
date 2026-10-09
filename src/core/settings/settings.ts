@@ -12,6 +12,8 @@ export interface SettingsData {
   tutorialSeen: Partial<Record<GameId, boolean>>;
   /** 管理者メニューの「すべてのお題を開ける(確認用)」。true のとき、一覧の鍵を開ける (記録は変えない。PU-18) */
   unlockAll: boolean;
+  /** 管理者メニューの「開発中のゲームをスタート画面に出す」。true のとき、ホームの「開発中」の区切りを出す (既定は false。PU-31) */
+  showDevGames: boolean;
 }
 
 export const DEFAULT_SETTINGS: SettingsData = {
@@ -22,6 +24,7 @@ export const DEFAULT_SETTINGS: SettingsData = {
   volume: 0.7,
   tutorialSeen: {},
   unlockAll: false,
+  showDevGames: false,
 };
 
 /** settings コレクションの data の形。SettingsData に項目ごとの更新日時を足したもの */
@@ -59,6 +62,7 @@ function normalize(data: Partial<SettingsData> | undefined): SettingsData {
     volume: typeof d.volume === 'number' ? d.volume : DEFAULT_SETTINGS.volume,
     tutorialSeen: d.tutorialSeen !== undefined && typeof d.tutorialSeen === 'object' ? d.tutorialSeen : DEFAULT_SETTINGS.tutorialSeen,
     unlockAll: typeof d.unlockAll === 'boolean' ? d.unlockAll : DEFAULT_SETTINGS.unlockAll,
+    showDevGames: typeof d.showDevGames === 'boolean' ? d.showDevGames : DEFAULT_SETTINGS.showDevGames,
   };
 }
 
