@@ -112,7 +112,7 @@ describe('PU-15c: 操作欄の整理 (戻す・踏み込む・速さ・経過時
     document.body.appendChild(host);
   });
 
-  it('速さのボタンは無い (盤面のレバーで変える。T3-04b)。「戻す」「踏み込む」・経過時間は無い', () => {
+  it('速さのボタンは無い (盤面の茶色の棒で変える。T3-04b)。「戻す」「踏み込む」・経過時間は無い', () => {
     const p = createBeamingPanel(host, { terms, onAction: () => undefined });
     p.update(beaming());
     const labels = Array.from(host.querySelectorAll('button')).map((b) => b.textContent);
@@ -128,7 +128,7 @@ describe('PU-15c: 操作欄の整理 (戻す・踏み込む・速さ・経過時
     p.destroy();
   });
 
-  it('巻き返しの段階に「寄せる」は無い (T3-05 でやめた。速さは盤面のレバーで変える)', () => {
+  it('巻き返しの段階に「寄せる」は無い (T3-05 でやめた。速さは盤面の茶色の棒で変える)', () => {
     const p = createBeamingPanel(host, { terms, onAction: () => undefined });
     p.update(beaming());
     expect(host.textContent).not.toContain('寄せる');
@@ -198,7 +198,7 @@ describe('T3-04c (確認のボタン)', () => {
     document.body.appendChild(host);
   });
 
-  it("1. 巻き量 95% 未満では「確認」のボタンは無い。速さの3つのボタンも無い (レバーに置き換わった)", () => {
+  it("1. 巻き量 95% 未満では「確認」のボタンは無い。速さの3つのボタンも無い (茶色の棒に置き換わった)", () => {
     const actions: unknown[] = [];
     const p = createBeamingPanel(host, { terms, onAction: (a) => actions.push(a) });
     p.update(beaming());
@@ -235,7 +235,7 @@ describe('T3-04c (確認のボタン)', () => {
     expect(btn!.getAttribute('aria-disabled')).toBe('true');
     btn!.click();
     expect(actions).not.toContainEqual({ type: 'confirm' });
-    expect(notices).toContain('レバーを停止にしてから確認します');
+    expect(notices).toContain('棒を左端まで戻して止めてから、確認を押します');
     p.destroy();
   });
 });

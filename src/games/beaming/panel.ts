@@ -8,7 +8,7 @@ import { GOOD_SPEED_ZONES, CONFIRM_MIN } from './params';
  * ビーム巻きの操作欄 (P3 T3-03a)。
  * 上から: 「巻き量 N%」(1 か所だけ、大きく。PU-15c)、依頼書 (巻き幅・帯の数・柄の名前)、
  * 幅合わせの段階 (今と目標の幅。円盤は絵の上で引っぱる)、巻き返しの段階 (速さのメーター・ペダルの溝・寄せる2つ)、主な操作。
- * ペダルの「戻す」「踏み込む」・速さの数・経過時間は無い (T3-04 で速さのレバーに置き換える)。メッセージ欄は無い (理由は onNotice → お知らせ)。
+ * ペダルの「戻す」「踏み込む」・速さの数・経過時間は無い (速さは盤面の茶色の棒を左右に引っぱって変える。PU-24b)。メッセージ欄は無い (理由は onNotice → お知らせ)。
  * メーターの範囲は State のもの (range {center, width} を min/max に直して渡す)。
  */
 
@@ -112,7 +112,7 @@ export function createBeamingPanel(
     variant: 'primary',
     onClick: () => {
       if (!confirmStopped) {
-        opts.onNotice?.('レバーを停止にしてから確認します');
+        opts.onNotice?.('棒を左端まで戻して止めてから、確認を押します');
         return;
       }
       opts.onAction({ type: 'confirm' });
