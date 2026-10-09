@@ -2081,3 +2081,32 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - **renderer.test.ts は 1 行だけ機械的に直した** (setSpeed のアクションの形 speed→value。ロジックは触らない。renderer.ts・geometry.ts は無変更)
 - テスト (先に RED 12 件): setSpeed の丸めと比例・揺れの仕組みが無いこと・適正 ±10・100.5 で確認すると最良・101 で切れる・表示の切り捨て・採点の境目
 - version 0.3.49 → 0.3.50
+
+## 2026-10-09 (ルビー) T3-06: ビーミングを3つの作業に作り直す (幅合わせ → 糸を付ける → 張りのメーターを見て巻く)
+
+- 管理者の指示と実機確認 (2026-10-09、仕様は `docs/04_tasks/P3/T3-06.md`。追記の4点を含む。コミット `2e2e479`)
+- **作業の流れを3段階に**: phase を `'setup' | 'attach' | 'beaming' | 'done'` に。
+  ①幅合わせ (ボタン名を「巻き始める」→「**ビーム設定OK**」。押すと `finishSetup` で誤差を記録して attach へ)
+  ②糸を付ける (ドラムの下の端を押さえてビームまで引っぱって離すと `attachThread` で beaming へ・速さ 0。当たり判定は geometry の `hitSheetEdge`〔ドラムの幅・上下 32px〕と `hitBeamWind`〔円盤の間・巻いた糸の円筒 + 32px〕。外れて離すと糸は戻る。引っぱっているあいだは糸の端から指までシートの色の線を描く。操作欄に案内「ドラムの糸を、ビームまで引っぱってください」)
+  ③巻く (茶色の棒で速さ > 0 で巻き始め。「完了」は 95% 以上・停止のときだけ押せる。お知らせ「棒を左端まで戻して止めてから、完了を押します」)
+- **張り (tension)**: state に足し、毎 tick `tension += (speed − tension) × (1 − exp(−dt / TENSION_FOLLOW_MS))` (800ms) で速さに遅れて付く。速さ 0 のあいだも 0 へ下がる (巻き量と時間は進まない)
+- **適正範囲は巻き量で動く**: 目標は `TARGET_POINTS` を直線で結んだ値。`targetOf`・`okRangeOf(progress, level, dip)` を export。追記で 0〜30% は 0→50 へ直線 (点は (0,0)・(30,50)・(35,100)・(70,100)・(75,50)・(100,0))。`GOOD_SPEED_ZONES`・`goodSpeedOf`・`SPEED_OK_TOL` は削除
+- **追記の4点**:
+  1. 張りのランプをドラムの上に (ドラム巻きの `drawTensionLamp` と同じ見た目。範囲の中は緑の○・強すぎは▲・弱すぎは▼。`drawSpeedLamp` を置き換え。state の形が違うのでビーミングの renderer に同じ見た目で書いた)
+  2. 0〜30% の目標は 0→50
+  3. レベルで範囲の幅 (`OK_TOL_BY_LEVEL` = {1:15, 2:10, 3:6})
+  4. 35〜70% の小さな揺らぎ (4〜8秒ごとに目標が 8〜15 下がり、1秒で下がって 1〜2秒そのまま 1秒で戻る。`s.rng` を使うので同じ種なら同じ動き。区間の外ではすぐ 0 に戻す。state に `dip`・`dipPhase`・`dipTimerMs`・`dipGapMs`・`dipAmount`・`dipHoldMs`)
+- **操作欄**: 巻き量の帯 (速さの目標の色の区間) を無くし、`createTensionMeter` (ドラム巻きと同じ部品) に置き換え。`update(tension, okRangeOf(progress, level, dip))` で毎回範囲が動く。「速さ N」は残すが藍・朱と▲▼はやめてふつうの文字色。盤面のランプは張りで判定
+- **採点**: goodMs は巻いている間 (速さ > 0) に張りが範囲の中の時間。星の基準は T3-05 のまま。成績の行「適正な速さで巻いた割合」→「ちょうどよい張りで巻いた割合」
+- **isValidResume**: `tension` と dip 関係のフィールドが数であること・phase に `'attach'` を含める。古い形 (tension が無い) は読まない
+- **遊び方を4ページに** (文は仕様書どおり。絵も盤面に合わせて描き直し: 糸を引っぱる・張りのメーター・完了)。遊び方を確かめた
+- テスト (先に RED 17 件を確認 → GREEN。全 1265 passed | 11 skipped):
+  - 流れ (`logic.test` 23・controller の「ビーム設定OK→糸を引っぱって attachThread」): setup→finishSetup→attach→attachThread→beaming・attach で setSpeed が効かない・setup で attachThread が効かない・途中で離すと attach のまま・pointercancel で何も起きない・unmount でイベントが外れる
+  - 張りの追従 (`logic.test` 24・25): 0.8秒で約63%・3秒で95%以上・速さ 0 で下がる。適正 (`logic.test` 11b): 範囲の中のときだけ goodMs が増え、速さ 0 では増えない
+  - 目標と範囲 (`logic.test` 11): targetOf の8点 (0%→0・15%→25・30%→50・32.5%→75・50%→100・72.5%→75・87.5%→25・100%→0)・okRangeOf とレベルの幅
+  - 揺らぎ (`logic.test` 26): 35〜70% で dip が起きる (量は15以内)・区間の外では 0・同じ種なら同じ動き
+  - 当たり判定 (`geometry.test` T3-06): ドラムの下の端の中/外・ビームの円盤の間の中/外
+  - 操作欄 (`panel.test` T3-06): 「ビーム設定OK」「完了」があり「巻き始める」「確認」が無い・帯が無く張りのメーターがあり範囲が動く・attach で案内が出る・速さの数字に▲▼と色分けが無い
+  - ランプ (`renderer.test` 3): 範囲の中は緑の○・強すぎ▲・弱すぎ▼ (fillText の記号)・attach では消灯
+  - 遊び方 (`tutorial.test`): 4ページの文が仕様書どおり。「確認」「巻き始める」「速さの目標」の言葉が無い。3ページ目の絵にメーター・4ページ目に「完了」と 100% の目印
+- version 0.3.55 → 0.3.57 (package.json・package-lock.json。コミットメッセージには 0.3.56 と書いたが、これは書き間違い。実際のファイルは 0.3.57)
