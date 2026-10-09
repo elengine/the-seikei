@@ -787,4 +787,27 @@ describe('PU-32: 糸の帯・隠れる順・盤面に収まる', () => {
     const golds = fillPolys(rec).filter((q) => q.style === COLORS.gold && q.pts.length > 20);
     expect(golds.length).toBe(2);
   });
+
+  it('20. 巻き幅 150〜200cm のお題でも、描いた絵 (四角も含む) は盤面の四辺に触れない: 円盤調整 (setup)・糸を付ける (attach)・巻く (beaming) の 3 つの段階を、盤面の高さ 750・911・1100 で (PU-32 追加修正 6)', () => {
+    for (const widthCm of [150, 175, 200]) {
+      for (const H of [750, 911, 1100]) {
+        setBoardHeight(H);
+        const base = init({ level: 1, widthCm, seed: 42, puzzleId: 's1', patternId: 'p-muji-kon' });
+        const wide = reduce(reduce(base, { type: 'moveFlange', side: 'left', deltaCm: -widthCm / 2 - base.leftCm }), { type: 'moveFlange', side: 'right', deltaCm: widthCm / 2 - base.rightCm });
+        const attached = reduce(reduce(wide, { type: 'finishSetup' }), { type: 'attachThread' });
+        for (const st of [base, attached, { ...attached, progress: 0.4 }]) {
+          const rec = draw(st);
+          const xs: number[] = [];
+          for (const o of rec.ops) {
+            if (!o.args) continue;
+            if (o.k === 'moveTo' || o.k === 'lineTo' || o.k === 'arc' || o.k === 'ellipse') xs.push(Number(o.args[0]));
+            else if ((o.k === 'fillRect' || o.k === 'strokeRect') && Number(o.args[2]) < BOARD_W) xs.push(Number(o.args[0]), Number(o.args[0]) + Number(o.args[2]));
+          }
+          expect(Math.min(...xs), `${widthCm}cm H=${H} ${st.phase} の左`).toBeGreaterThan(4);
+          expect(Math.max(...xs), `${widthCm}cm H=${H} ${st.phase} の右`).toBeLessThan(BOARD_W - 4);
+        }
+      }
+    }
+    setBoardHeight(750);
+  });
 });

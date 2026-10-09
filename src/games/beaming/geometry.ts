@@ -59,7 +59,7 @@ export const ROD_X1 = BOARD_W - 40;
 export const FLANGE_RX = BEAM_DISC_RX;
 /** 糸の向きを変える鉄の棒の、機械の幅の中の左右の端の x (ビームの幅の位置と同じ x) */
 export const IRON_X0 = 70;
-export const IRON_X1 = BOARD_W - 70;
+export const IRON_X1 = BOARD_W - 95; // 奥ほど右へずれて写るので (PU-32 追加修正 6)、右の枠が盤面の右の端に触れないよう左の端 (70) より内側
 
 /** 縦の位置 (論理の高さ H の割合。setBoardHeight で決まる) */
 export interface BoardLayout {
