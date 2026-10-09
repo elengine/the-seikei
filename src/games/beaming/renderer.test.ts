@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { drawBoard, mainHex } from './renderer';
 import { init, reduce } from './logic';
 import type { BeamingState } from './logic';
-import { cmToX, BOARD, setBoardHeight, FLANGE_RX, DRUM_X, DRUM_W, woundRadius, lampX, lampY, speedBarCenterX, SPEED_BAR_W, ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX } from './geometry';
+import { cmToX, BOARD, setBoardHeight, FLANGE_RX, DRUM_X, DRUM_W, woundRadius, lampX, lampY, speedBarCenterX, SPEED_BAR_W, ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX, sheetTopY, sheetDropEndY, pxPerCm, BEAM_CENTER_X } from './geometry';
 import { DRUM_SURFACE_SIGN, BEAM_SURFACE_SIGN } from './params';
 import { getContent } from '../../core/content/content';
 import { COLORS } from '../../core/ui/tokens';
@@ -346,5 +346,71 @@ describe('PU-26: ドラムをドラム巻きと同じ見た目で大きく・回
     const src = readFileSync('src/games/beaming/renderer.ts', 'utf8');
     expect(src).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
     expect(src).not.toMatch(/rgba?\(/);
+  });
+});
+
+/** fill ごとの (そのときの塗りの色, 直前の beginPath からの点) */
+function fillPaths(rec: FakeRecorder): Array<{ style: string; pts: Array<{ x: number; y: number }> }> {
+  const out: Array<{ style: string; pts: Array<{ x: number; y: number }> }> = [];
+  let style = '';
+  let pts: Array<{ x: number; y: number }> = [];
+  for (const o of rec.ops) {
+    if (o.k === 'style') style = String(o.v);
+    else if (o.k === 'beginPath') pts = [];
+    else if ((o.k === 'moveTo' || o.k === 'lineTo') && o.args) pts.push({ x: Number(o.args[0]), y: Number(o.args[1]) });
+    else if (o.k === 'fill') out.push({ style, pts: [...pts] });
+  }
+  return out;
+}
+
+describe('PU-26 追加修正: 糸のシートは setup・attach では短く垂れ、beaming でビームまで届く', () => {
+  const hex = mainHex(content, 'p-muji-kon');
+  /** シートの縦の筋 (2 点の縦線。色は sumi) の下の端の最大 y */
+  function sheetBottom(s: BeamingState): number {
+    const ys = strokes(draw(s))
+      .filter((g) => g.style === COLORS.sumi && g.pts.length === 2 && g.pts[0]!.x === g.pts[1]!.x && g.pts[1]!.y > g.pts[0]!.y)
+      .map((g) => g.pts[1]!.y);
+    return ys.length === 0 ? -Infinity : Math.max(...ys);
+  }
+
+  it('1. setup と attach: シートの下の端はビームの円筒の上の端より上 (垂れた端 sheetDropEndY)', () => {
+    const attach = beamState({ phase: 'attach', progress: 0, speed: 0 });
+    const setup = init({ level: 1, widthCm: 60, seed: 42, puzzleId: 's1', patternId: 'p-muji-kon' });
+    for (const s of [attach, setup]) {
+      const b = sheetBottom(s);
+      expect(b, s.phase).toBeGreaterThan(sheetTopY(0));
+      expect(b, s.phase).toBeLessThan(BOARD.axisY - woundRadius(0));
+      expect(b, s.phase).toBeCloseTo(sheetDropEndY(0), 6);
+    }
+  });
+
+  it('2. beaming: シートはビームの円筒の上の端まで届く', () => {
+    const s = beamState({ progress: 0.3 });
+    expect(sheetBottom(s)).toBeCloseTo(BOARD.axisY - woundRadius(0.3), 6);
+  });
+
+  it('3. 糸を引っぱっている間は、シートの幅の帯 (柄の色の台形) が垂れた端から指の位置まで。太さ 6 の線 1 本ではない', () => {
+    const s = beamState({ phase: 'attach', progress: 0, speed: 0 });
+    const finger = { x: BEAM_CENTER_X + 40, y: BOARD.axisY - 10 };
+    const { ctx, rec } = makeFakeCtx();
+    drawBoard(ctx, fit, s, content, 0, finger);
+    const half = (60 * pxPerCm(60)) / 2;
+    const band = fillPaths(rec).find((f) => f.style === hex && f.pts.some((p) => p.y === finger.y) && f.pts.some((p) => Math.abs(p.y - sheetDropEndY(0)) < 1e-6));
+    expect(band, '帯').toBeDefined();
+    const top = band!.pts.filter((p) => Math.abs(p.y - sheetDropEndY(0)) < 1e-6);
+    expect(Math.max(...top.map((p) => p.x)) - Math.min(...top.map((p) => p.x))).toBeCloseTo(2 * half, 6); // 上の幅はシートの幅
+    expect(rec.ops.some((o) => o.k === 'lineWidth' && o.v === 6)).toBe(false);
+  });
+});
+
+describe('PU-26 追加修正: 張りのランプの大きさ (ドラム巻きの lampGeometry と同じ決め方)', () => {
+  it('393×852 相当 (縮尺 0.39) で、ランプの半径は画面上 16px 以上・中の記号の字は画面上 20px 以上', () => {
+    const scale = 0.39;
+    const { ctx, rec } = makeFakeCtx();
+    drawBoard(ctx, { scale, offsetX: 0, offsetY: 0 }, beamState({ progress: 0.9, tension: 80 }), content, 0);
+    const arc = rec.ops.filter((o) => o.k === 'arc' && Math.abs(((o.args as number[])[0] ?? 0) - lampX()) < 1).map((o) => (o.args as number[])[2]!);
+    expect(Math.min(...arc) * scale).toBeGreaterThanOrEqual(16 - 1e-6);
+    const fonts = rec.ops.filter((o) => o.k === 'font').map((o) => /([0-9.]+)px/.exec(String(o.v))![1]!);
+    expect(Math.max(...fonts.map(Number)) * scale).toBeGreaterThanOrEqual(20 - 1e-6);
   });
 });

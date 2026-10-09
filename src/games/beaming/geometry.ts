@@ -75,13 +75,13 @@ export function setBoardHeight(height: number): void {
   const H = Math.max(BOARD_H, height);
   BOARD.H = H;
   // 実物はビームよりドラムのほうが大きい: ドラムの直径 (drumH) は円盤の直径 (2 × flangeR) の 1.5 倍以上 (PU-26)。
-  // ドラムの上にはランプを置く空きをあける
-  BOARD.drumY = H * 0.1;
+  // ドラムの上には、ランプ (外側の輪まで半径 最大 42 × 1.3) を置く空きをあける (PU-26 追加修正)
+  BOARD.drumY = H * 0.15;
   BOARD.drumH = H * 0.36;
-  BOARD.guideY = H * 0.56;
-  BOARD.axisY = H * 0.79;
+  BOARD.guideY = H * 0.6;
+  BOARD.axisY = H * 0.8;
   BOARD.flangeR = H * 0.115;
-  BOARD.targetY = H * 0.95;
+  BOARD.targetY = H * 0.96;
 }
 setBoardHeight(BOARD_H);
 
@@ -112,9 +112,18 @@ export function hitSpeedBar(p: { x: number; y: number }, speed: number): boolean
   return Math.abs(p.y - BOARD.guideY) <= SPEED_BAR_HIT_HALF_H && Math.abs(p.x - speedBarCenterX(speed)) <= SPEED_BAR_W / 2;
 }
 
-/** 押さえる所: ドラムの下の端 (糸のシートの上端)。横はドラムの幅、縦は上下 32px ずつ (画面上 64px 以上。T3-06) */
+/**
+ * 糸を付ける前 (setup・attach) に、ドラムの下の端から短く垂れた糸のシートの下の端の y (PU-26 追加修正)。
+ * 垂れる長さは、ドラムの下の端からガイドの棒までの 4 割 (半分以下)。ビームには届かない。
+ */
+export function sheetDropEndY(progress: number): number {
+  const top = sheetTopY(progress);
+  return top + (BOARD.guideY - top) * 0.4;
+}
+
+/** 押さえる所: 垂れた糸の下の端 (sheetDropEndY)。横はドラムの幅、縦は上下 32px ずつ (画面上 64px 以上。T3-06) */
 export function hitSheetEdge(p: { x: number; y: number }, widthCm: number, progress: number): boolean {
-  return p.x >= DRUM_X && p.x <= DRUM_X + DRUM_W && Math.abs(p.y - sheetTopY(progress)) <= 32;
+  return p.x >= DRUM_X && p.x <= DRUM_X + DRUM_W && Math.abs(p.y - sheetDropEndY(progress)) <= 32;
 }
 
 /** 離してよい所: ビームの軸と巻いた糸の円筒。円盤の間で、上下 32px の余裕 (T3-06) */
@@ -134,6 +143,10 @@ export function lampX(): number {
 }
 export function lampY(): number {
   return BOARD.drumY * 0.5;
+}
+/** ランプの半径 (論理)。ドラム巻きの lampGeometry と同じ決め方: 画面上 16px 以上になるよう縮尺で変え、22〜42 に収める (PU-26 追加修正) */
+export function lampR(scale: number): number {
+  return Math.min(42, Math.max(22, 16 / scale));
 }
 export function hitLamp(p: { x: number; y: number }): boolean {
   return Math.hypot(p.x - lampX(), p.y - lampY()) <= 36;
@@ -161,9 +174,9 @@ export function sheetTopY(progress: number): number {
   return BOARD.drumY + BOARD.drumH / 2 + half;
 }
 
-/** 描いた範囲 (ドラムの上から、目標の点線の目盛りと円盤の内側の印の下まで) の上と下 (論理座標) */
+/** 描いた範囲 (ドラムの上の張りのランプの輪から、目標の点線の目盛りと円盤の内側の印の下まで) の上と下 (論理座標。ランプは最小の半径 22 の輪で数える) */
 export function drawnExtent(): { top: number; bottom: number } {
-  return { top: BOARD.drumY, bottom: BOARD.targetY + 28 };
+  return { top: lampY() - 22 * 1.3, bottom: BOARD.targetY + 28 };
 }
 
 /** 円盤の当たりの幅の下限 (画面 px。押せる部品は 64px 以上) */

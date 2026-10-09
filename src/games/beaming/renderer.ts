@@ -2,7 +2,7 @@ import type { Content } from '../../core/content/content';
 import { COLORS } from '../../core/ui/tokens';
 import type { StageFit } from '../../core/viewport/viewport';
 import {
-  BOARD, BEAM_CENTER_X, DRUM_X, DRUM_W, CORE_R, ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX, FLANGE_RX, woundRadius, woundTopY, sheetTopY, cmToX, pxPerCm,
+  BOARD, BEAM_CENTER_X, DRUM_X, DRUM_W, CORE_R, ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX, FLANGE_RX, woundRadius, woundTopY, sheetTopY, sheetDropEndY, lampR, cmToX, pxPerCm,
   speedBarCenterX, SPEED_BAR_W, lampX, lampY,
 } from './geometry';
 import { okRangeOf } from './logic';
@@ -78,18 +78,19 @@ export function drawBoard(
     drawTarget(ctx, s);
   }
 
-  // 糸を付ける段階: ドラムの下の端から指まで、シートの線を描く (色は柄の色。T3-06)
+  // 糸を付ける段階: 垂れた糸の端から指まで、シートの幅の帯 (柄の色の台形。指の位置へ細くなる) を描く (T3-06・PU-26 追加修正)
   if (s.phase === 'attach' && threadDrag) {
     const half = (s.widthCm * pxPerCm(s.widthCm)) / 2;
-    const sx = BEAM_CENTER_X;
-    const sy = sheetTopY(s.progress);
-    ctx.strokeStyle = hex;
-    ctx.lineWidth = 6;
-    ctx.lineCap = 'round';
+    const endY = sheetDropEndY(s.progress);
+    const tip = 14; // 指の位置での帯の半分の幅
+    ctx.fillStyle = hex;
     ctx.beginPath();
-    ctx.moveTo(sx - half + (sx + half - (sx - half)) * 0.15, sy);
-    ctx.lineTo(threadDrag.x, threadDrag.y);
-    ctx.stroke();
+    ctx.moveTo(BEAM_CENTER_X - half, endY);
+    ctx.lineTo(BEAM_CENTER_X + half, endY);
+    ctx.lineTo(threadDrag.x + tip, threadDrag.y);
+    ctx.lineTo(threadDrag.x - tip, threadDrag.y);
+    ctx.closePath();
+    ctx.fill();
   }
 
   // 張りのランプ (ドラムの上。ドラム巻きと同じ見た目。T3-06 追記)
@@ -110,7 +111,7 @@ const DRUM_ARMS = 6;
  * 糸の巻かれた面 (柄の色) は胴の中ほど (糸のシートの幅) に巻かれ、巻き取られて少しずつ細る。
  * 手前の面は下から上へ回る (drumAngle が増えると桟が上へ流れる。DRUM_SURFACE_SIGN)。
  */
-function drawDrum(ctx: CanvasRenderingContext2D, hex: string, drumAngle: number, s: BeamingState): void {
+export function drawDrum(ctx: CanvasRenderingContext2D, hex: string, drumAngle: number, s: BeamingState): void {
   const cy = BOARD.drumY + BOARD.drumH / 2;
   const half = (BOARD.drumH / 2) * (1 - 0.3 * Math.min(1, Math.max(0, s.progress))); // 巻き取られて細る
   const top = cy - half;
@@ -199,12 +200,14 @@ function drawDrum(ctx: CanvasRenderingContext2D, hex: string, drumAngle: number,
   }
 }
 
-/** 糸のシート。上はドラムの下端 (中央)、下は巻いた糸の円筒の上端 (中央)。柄の色の縦の筋が上から下へ走る */
+/**
+ * 糸のシート。上はドラムの下端 (中央)。下は、糸を付けるまで (setup・attach) は短く垂れた端 (sheetDropEndY)、
+ * 巻いている間 (beaming・done) は巻いた糸の円筒の上端 (中央)。柄の色の縦の筋が上から下へ走る
+ */
 function drawSheet(ctx: CanvasRenderingContext2D, s: BeamingState, hex: string): void {
-  if (s.phase === 'setup') return; // 幅合わせのあいだはシートは降りてこない
   const half = (s.widthCm * pxPerCm(s.widthCm)) / 2;
   const topY = sheetTopY(s.progress);
-  const bottomY = woundTopY(s.progress);
+  const bottomY = s.phase === 'setup' || s.phase === 'attach' ? sheetDropEndY(s.progress) : woundTopY(s.progress);
   const cx = BEAM_CENTER_X; // シートはいつも中心 (偏りは無い。T3-05)
   ctx.fillStyle = hex;
   ctx.beginPath();
@@ -388,7 +391,7 @@ function drawTensionLamp(ctx: CanvasRenderingContext2D, fit: StageFit, s: Beamin
   }
   const x = lampX();
   const y = lampY();
-  const r = 22;
+  const r = lampR(fit.scale); // ドラム巻きの lampGeometry と同じ決め方 (画面上 16px 以上。PU-26 追加修正)
   const range = okRangeOf(s.progress, s.level, s.dip);
   const state: 'ok' | 'high' | 'low' = s.tension > range.max ? 'high' : s.tension < range.min ? 'low' : 'ok';
   const color = state === 'ok' ? COLORS.lampOk : COLORS.lampWarn;
@@ -407,7 +410,7 @@ function drawTensionLamp(ctx: CanvasRenderingContext2D, fit: StageFit, s: Beamin
   // 中の記号 (色だけに頼らない)
   const symbol = state === 'ok' ? '○' : state === 'high' ? '▲' : '▼';
   ctx.fillStyle = COLORS.white;
-  ctx.font = `bold ${Math.round(r * 1.3)}px ${FONT_FAMILY}`;
+  ctx.font = `bold ${Math.round(Math.max(r * 1.3, 20 / fit.scale))}px ${FONT_FAMILY}`; // 記号は画面上 20px 以上
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(symbol, x, y + r * 0.05);

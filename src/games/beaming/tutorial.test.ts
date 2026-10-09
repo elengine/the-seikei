@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { beamingTutorial } from './tutorial';
+import { makeFakeCtx } from '../winding/renderer.test.helpers';
+import { COLORS } from '../../core/ui/tokens';
 
 /**
  * ビーム巻きの遊び方のテスト (P3 T3-03b)。3ページ。
@@ -26,11 +28,12 @@ describe('ビーム巻きの遊び方 T3-03b (3ページ)', () => {
       // jsdom の canvas は使えないので、記録する偽の ctx で呼ぶ
       const ops: string[] = [];
       const fake = new Proxy(
-        { canvas: { width: 300, height: 200 }, font: '' },
+        { canvas: { width: 300, height: 200 }, font: '', createLinearGradient: () => ({ addColorStop: () => undefined }) },
         {
           get(t, key): unknown {
             if (key === 'font') return (t as { font: string }).font;
             if (key === 'set font') return undefined;
+            if (key === 'createLinearGradient') return (t as unknown as Record<string, unknown>)[key];
             ops.push(String(key));
             return () => undefined;
           },
@@ -58,7 +61,7 @@ describe('ビーム巻きの遊び方 T3-03b (3ページ)', () => {
   it('PU-15c: 絵は新しい盤面と同じ作り (ドラムの縦の筋・円盤の楕円・軸・ガイドの棒)。1 ページ目の絵に「引っぱる」', () => {
     const calls: Array<{ k: string; args: unknown[] }> = [];
     const texts: string[] = [];
-    const fake = new Proxy({ canvas: { width: 300, height: 200 } } as Record<string, unknown>, {
+    const fake = new Proxy({ canvas: { width: 300, height: 200 }, createLinearGradient: () => ({ addColorStop: () => undefined }) } as Record<string, unknown>, {
       get(t, key): unknown {
         if (key in t) return t[key as string];
         return (...args: unknown[]): void => {
@@ -96,7 +99,7 @@ describe('T3-06 (遊び方を4ページに。3つの作業と張りのメータ�
   it('2ページ目の絵: ドラムからビームへ糸を引っぱる線と案内の字を描く。「速さ 63」の数字は描かない', () => {
     const drawn: string[] = [];
     const strokes: string[] = [];
-    const fake = new Proxy({ canvas: { width: 300, height: 200 } } as Record<string, unknown>, {
+    const fake = new Proxy({ canvas: { width: 300, height: 200 }, createLinearGradient: () => ({ addColorStop: () => undefined }) } as Record<string, unknown>, {
       get(t, key): unknown {
         if (key in t) return t[key as string];
         return (...args: unknown[]): void => {
@@ -121,7 +124,7 @@ describe('T3-06 (遊び方を4ページに。3つの作業と張りのメータ�
   it('3ページ目の絵: 張りのメーター (緑の範囲の帯と針) を描く。4ページ目の絵: 「完了」のボタンと 100% の目印', () => {
     const texts: string[] = [];
     const rects: string[] = [];
-    const fake = new Proxy({ canvas: { width: 300, height: 200 }, fillStyle: '', globalAlpha: 1 } as Record<string, unknown>, {
+    const fake = new Proxy({ canvas: { width: 300, height: 200 }, fillStyle: '', globalAlpha: 1, createLinearGradient: () => ({ addColorStop: () => undefined }) } as Record<string, unknown>, {
       get(t, key): unknown {
         if (key in t) return t[key as string];
         return (...args: unknown[]): void => {
@@ -139,5 +142,24 @@ describe('T3-06 (遊び方を4ページに。3つの作業と張りのメータ�
     expect(texts.some((t) => t.includes('完了'))).toBe(true);
     expect(texts.some((t) => t.includes('100%'))).toBe(true);
     expect(rects.length).toBeGreaterThan(0); // メーターの帯とボタン
+  });
+});
+
+describe('PU-26 追加修正: 遊び方の絵のドラムは盤面と同じ', () => {
+  it('どのページの絵にも、盤面と同じドラム (機械の緑の勾配・灰色の金属の端の円盤・木の桟) が描かれる', () => {
+    for (const [i, page] of beamingTutorial.pages.entries()) {
+      const { ctx, rec } = makeFakeCtx();
+      page.draw(ctx, 600, 450);
+      const stops = rec.ops.filter((o) => o.k === 'addColorStop').map((o) => String((o.args as unknown[])[1]));
+      expect(stops, `${i + 1} ページ目`).toEqual(expect.arrayContaining([COLORS.machineDark, COLORS.machineLight, COLORS.machine]));
+      expect(rec.fillStyleLog.includes(COLORS.steel), `${i + 1} ページ目の端の円盤`).toBe(true);
+    }
+  });
+
+  it('2 ページ目の絵は、垂れた糸の端から指の位置へ糸の帯を引っぱる (柄の色の台形)。文字は「引っぱる」', () => {
+    const { ctx, rec } = makeFakeCtx();
+    beamingTutorial.pages[1]!.draw(ctx, 600, 450);
+    const texts = rec.ops.filter((o) => o.k === 'fillText').map((o) => String((o.args as unknown[])[0]));
+    expect(texts.some((t) => t.includes('引っぱる'))).toBe(true);
   });
 });

@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import {
   pxPerCm, cmToX, xToCm, BEAM_W_PX, BOARD_W, BEAM_CENTER_X, woundRadius, setBoardHeight, BOARD, drawnExtent, FLANGE_RX, CORE_R,
-  ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX, flangeHit, dragCm, FLANGE_HIT_MIN_PX, lampX, lampY, SPEED_BAR_SHIFT_MAX, speedBarCenterX, speedFromBarDrag, hitSpeedBar, SPEED_BAR_W, DRUM_X, hitSheetEdge, hitBeamWind, sheetTopY, DRUM_W } from './geometry';
+  ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX, flangeHit, dragCm, FLANGE_HIT_MIN_PX, lampX, lampY, SPEED_BAR_SHIFT_MAX, speedBarCenterX, speedFromBarDrag, hitSpeedBar, SPEED_BAR_W, DRUM_X, hitSheetEdge, hitBeamWind, sheetTopY, DRUM_W, sheetDropEndY, lampR } from './geometry';
 import { logicalHeightFor } from '../winding/geometry';
 import { DRUM_SURFACE_SIGN, BEAM_SURFACE_SIGN, DRUM_TURN_RATE, BEAM_TURN_RATE } from './params';
 
@@ -190,7 +190,7 @@ const LAMP_R = 22;
 describe('T3-06 (糸を付ける作業の当たり判定)', () => {
   it('押さえる所はドラムの下の端: 横はドラムの幅 (DRUM_X〜DRUM_X+DRUM_W)、縦は上下 32px。外れると false', () => {
     const widthCm = 60;
-    const y = sheetTopY(0);
+    const y = sheetDropEndY(0); // 短く垂れた端 (PU-26 追加修正)
     expect(hitSheetEdge({ x: DRUM_X + DRUM_W / 2, y }, widthCm, 0)).toBe(true);
     expect(hitSheetEdge({ x: DRUM_X + 5, y: y + 30 }, widthCm, 0)).toBe(true);
     expect(hitSheetEdge({ x: DRUM_X - 5, y }, widthCm, 0)).toBe(false); // 横に外れる (ドラムの左)
@@ -248,5 +248,41 @@ describe('PU-26: ドラムはビームの円盤より大きい・糸を離して
     expect(BEAM_SURFACE_SIGN).toBe(1);
     expect(DRUM_TURN_RATE).toBeGreaterThan(0);
     expect(BEAM_TURN_RATE).toBeGreaterThan(0);
+  });
+});
+
+describe('PU-26 追加修正: 糸のシートは短く垂れる・ランプの大きさ', () => {
+  it('垂れた端 (sheetDropEndY) は、ドラムの下の端より下で、ドラムの下の端からガイドの棒までの半分以下。ビームの円筒には届かない', () => {
+    for (const h of [750, 1100]) {
+      setBoardHeight(h);
+      for (const p of [0, 0.5, 1]) {
+        const top = sheetTopY(p);
+        const end = sheetDropEndY(p);
+        expect(end, `H=${h} p=${p}`).toBeGreaterThan(top);
+        expect(end - top).toBeLessThanOrEqual((BOARD.guideY - top) / 2 + 1e-9);
+        expect(end).toBeLessThan(BOARD.axisY - woundRadius(p));
+      }
+    }
+    setBoardHeight(750);
+  });
+
+  it('ランプの半径はドラム巻きの lampGeometry と同じ決め方: min(42, max(22, 16 ÷ 縮尺))。画面上の半径は 16px 以上 (縮尺が小さいほど論理の半径が大きい。上限 42)', () => {
+    expect(lampR(1)).toBe(22);
+    expect(lampR(0.5)).toBe(32);
+    expect(lampR(0.39)).toBeCloseTo(16 / 0.39, 9);
+    expect(lampR(0.2)).toBe(42);
+  });
+
+  it('ランプの外側の輪 (半径 × 1.3) が、ドラムの胴と盤面の外に出ない (縮尺と盤面の高さがどれでも)', () => {
+    for (const h of [750, 900, 1100, 1500]) {
+      setBoardHeight(h);
+      for (const scale of [0.2, 0.3, 0.39, 0.6, 1, 1.5]) {
+        const r = lampR(scale) * 1.3;
+        expect(lampY() - r, `H=${h} scale=${scale} の上`).toBeGreaterThanOrEqual(0);
+        expect(lampY() + r, `H=${h} scale=${scale} の下`).toBeLessThanOrEqual(BOARD.drumY);
+        expect(lampX() - r).toBeGreaterThanOrEqual(0);
+      }
+    }
+    setBoardHeight(750);
   });
 });
