@@ -63,7 +63,7 @@ export type BeamingAction =
   | { type: 'moveFlange'; side: 'left' | 'right'; deltaCm: number } // ±1cm(ボタン)
   | { type: 'finishSetup' }          // 幅合わせを終えて糸を付ける段階へ(誤差を記録)
   | { type: 'attachThread' }         // ドラムの糸をビームに付ける (attach → beaming。速さは 0)
-  | { type: 'setSpeed'; value: number } // 速さを変える (0〜100 に丸める)
+  | { type: 'setSpeed'; value: number } // 速さを変える (0〜100 に収める。丸めない。T3-07 追加修正)
   | { type: 'confirm' }              // 巻き量 95% 以上・停止のときだけ。結果判定して done
   | { type: 'tick'; dtMs: number };
 
@@ -137,7 +137,7 @@ export function reduce(s: BeamingState, a: BeamingAction): BeamingState {
 
     case 'setSpeed': {
       if (s.phase !== 'beaming') return s;
-      const value = Math.max(0, Math.min(100, Math.round(a.value)));
+      const value = Math.max(0, Math.min(100, a.value)); // 丸めない (0〜100 に収めるだけ。T3-07 追加修正: 丸めると針が飛び飛びに動く)
       // 95% を超えてから 停止 → 速さを 0 より大きく戻したら微調整 (T3-05)
       const restarts =
         s.progress >= CONFIRM_MIN && s.speed === 0 && value > 0 ? s.restarts + 1 : s.restarts;

@@ -131,14 +131,15 @@ describe('PU-24b・PU-28 (速さの木の棒とランプの座標)', () => {
     expect(speedBarCenterX(0) - SPEED_BAR_W / 2).toBeGreaterThanOrEqual(0);
   });
 
-  it('2. speedFromBarDrag(始めの速さ, 動いた x): 動いた分に比例して 0〜100 に丸める (棒は指と同じだけ動く)。範囲の外は 0・100', () => {
-    const per = (2 * SPEED_BAR_SHIFT_MAX) / 100; // 速さ 1 あたりの x
+  it('2. speedFromBarDrag(始めの速さ, 動いた x): 動いた分に比例する。丸めない (T3-07 追加修正)。範囲の外は 0・100', () => {
+    const per = (2 * SPEED_BAR_SHIFT_MAX) / 100; // 速さ 1 あたりの動いた x
     expect(speedFromBarDrag(30, 0)).toBe(30);
     expect(speedFromBarDrag(30, 10 * per)).toBe(40);
     expect(speedFromBarDrag(30, -10 * per)).toBe(20);
+    expect(speedFromBarDrag(0, 1), '論理 1px で速さ 0.5 (丸めない。T3-07 追加修正)').toBe(0.5);
+    expect(speedFromBarDrag(30, 3.3 * per)).toBeCloseTo(33.3, 9);
     expect(speedFromBarDrag(30, 2000)).toBe(100);
     expect(speedFromBarDrag(30, -2000)).toBe(0);
-    expect(Number.isInteger(speedFromBarDrag(30, 3.3 * per))).toBe(true);
     expect(speedFromBarDrag(20, speedBarCenterX(70) - speedBarCenterX(20))).toBe(70);
   });
 

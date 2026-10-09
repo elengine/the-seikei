@@ -306,6 +306,37 @@ describe('beaming controller T3-03a (プレイ画面)', () => {
     instance.unmount();
   });
 
+  it('T3-07 追加修正: 木の棒を論理 1px ずつ動かすと、針の位置 (style.left) は毎回少しずつ変わる (同じ値が続かない。速さは丸めないので針は飛び飛びに動かない)', async () => {
+    const { instance } = await startAligned(setupWound());
+    const stage = container.querySelector('canvas') as HTMLCanvasElement;
+    Object.defineProperty(stage.parentElement!, 'clientWidth', { configurable: true, value: 600 });
+    Object.defineProperty(stage.parentElement!, 'clientHeight', { configurable: true, value: 400 });
+    Object.defineProperty(stage, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({ x: 0, y: 0, left: 0, top: 0, right: 600, bottom: 400, width: 600, height: 400 }),
+    });
+    window.dispatchEvent(new Event('resize'));
+    raf.advance(3);
+    const fit = fitStage(1000, logicalHeightFor(600, 400), 600, 400);
+    const toScreen = (x: number, y: number): { x: number; y: number } => ({ x: x * fit.scale + fit.offsetX, y: y * fit.scale + fit.offsetY });
+    // 棒をつかんで (離さずに) 論理 1px ずつ右へ動かす。1px で速さ 0.5 ずつ増える
+    const startX = speedBarCenterX(currentSpeedOf());
+    const a = toScreen(startX, BOARD.guideY);
+    stage.dispatchEvent(new PointerEvent('pointerdown', { clientX: a.x, clientY: a.y, bubbles: true, pointerId: 41, button: 0 }));
+    const lefts: number[] = [];
+    for (let i = 1; i <= 6; i++) {
+      const z = toScreen(startX + i, BOARD.guideY);
+      stage.dispatchEvent(new PointerEvent('pointermove', { clientX: z.x, clientY: z.y, bubbles: true, pointerId: 41, button: 0 }));
+      raf.advance(1);
+      lefts.push(parseFloat((container.querySelector('.meter__needle') as HTMLElement).style.left));
+    }
+    expect(new Set(lefts).size, `毎回違う値になる (${lefts.join(', ')})`).toBe(lefts.length);
+    // 論理 1px あたり針は 0.5% ずつ動く (速さ 0.5 ずつ)
+    expect(lefts[5]! - lefts[0]!).toBeCloseTo(2.5, 6);
+    stage.dispatchEvent(new PointerEvent('pointerup', { clientX: a.x, clientY: a.y, bubbles: true, pointerId: 41, button: 0 }));
+    instance.unmount();
+  });
+
   it('PU-26: ドラムとビームの回る角度。速さ 0 のあいだは両方とも変わらず、速さがあると両方とも増える', async () => {
     const { instance } = await startAligned(setupWound());
     raf.advance(30);
@@ -637,11 +668,11 @@ describe('T3-04b (盤面の速さのレバー)', () => {
     const per = toScreen(1, 0).x - toScreen(0, 0).x;
     stagePointer('pointerdown', left.x, left.y);
     stagePointer('pointermove', left.x + 20 * (SPEED_BAR_SHIFT_MAX / 50) * per, left.y);
-    expect(speed()).toBe(20);
+    expect(speed(), '丸めないので小数の誤差は許す (T3-07 追加修正)').toBeCloseTo(20, 6);
     stagePointer('pointermove', left.x + 60 * (SPEED_BAR_SHIFT_MAX / 50) * per, left.y);
-    expect(speed()).toBe(60);
+    expect(speed()).toBeCloseTo(60, 6);
     stagePointer('pointerup', left.x + 60 * (SPEED_BAR_SHIFT_MAX / 50) * per, left.y);
-    expect(speed()).toBe(60);
+    expect(speed()).toBeCloseTo(60, 6);
     instance.unmount();
   });
 
@@ -752,12 +783,12 @@ describe('T3-04b 不具合修正 (レバーの固まり)', () => {
     stage().dispatchEvent(new PointerEvent('pointerdown', { clientX: at(0).x, clientY: at(0).y, bubbles: true, pointerId: 1, button: 0 }));
     stage().dispatchEvent(new PointerEvent('pointermove', { clientX: at(50).x, clientY: at(50).y, bubbles: true, pointerId: 1, button: 0 }));
     stage().dispatchEvent(new PointerEvent('pointerup', { clientX: at(50).x, clientY: at(50).y, bubbles: true, pointerId: 2, button: 0 }));
-    expect(speed()).toBe(50);
+    expect(speed(), '丸めないので小数の誤差は許す (T3-07 追加修正)').toBeCloseTo(50, 6);
     // 固まっていない: 次の操作 (別の id) でさらに 100 まで引っぱれる
     stage().dispatchEvent(new PointerEvent('pointerdown', { clientX: at(50).x, clientY: at(50).y, bubbles: true, pointerId: 3, button: 0 }));
     stage().dispatchEvent(new PointerEvent('pointermove', { clientX: at(100).x, clientY: at(100).y, bubbles: true, pointerId: 3, button: 0 }));
     stage().dispatchEvent(new PointerEvent('pointerup', { clientX: at(100).x, clientY: at(100).y, bubbles: true, pointerId: 3, button: 0 }));
-    expect(speed()).toBe(100);
+    expect(speed()).toBeCloseTo(100, 6);
     instance.unmount();
   });
 });
@@ -930,7 +961,7 @@ describe('T2-17 (遊び方を開いているあいだの一時停止)', () => {
     closeBtn(container)!.click();
     await vi.waitFor(() => expect(container.querySelector('.dialog-backdrop')).toBeNull());
     const resumed = instance.suspend() as { progress: number; windMs: number; speed: number };
-    expect(resumed.speed).toBe(50); // レバーの位置はそのまま
+    expect(resumed.speed).toBeCloseTo(50, 6); // レバーの位置はそのまま (丸めないので小数の誤差は許す。T3-07 追加修正)
     expect(resumed.progress).toBe(before.progress); // 最初のフレームでは進まない (dt 0)
     raf.advance(60);
     const later = instance.suspend() as { progress: number };

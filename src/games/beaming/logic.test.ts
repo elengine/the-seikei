@@ -286,20 +286,27 @@ describe('beaming logic T3-01 (ルール)', () => {
     expect(isValidResume(oldSave)).toBe(true);
     expect(isValidResume(null)).toBe(false);
   });
+
+  it('13b. 小数の速さの途中保存も読む (T3-07 追加修正で速さを丸めないため)', () => {
+    const s = setupExact(make());
+    expect(isValidResume({ ...s, speed: 37.25 })).toBe(true);
+    expect(isValidResume({ ...s, speed: 0.5 })).toBe(true);
+  });
 });
 
 describe('T3-05 (揺れをやめる・速さを連続に・止める判定を表示と同じに)', () => {
-  it('19. setSpeed は 0〜100 に丸める。速さに比例して巻ける (25 は 100 の4分の1の速さ)', () => {
+  it('19. setSpeed は 0〜100 に収める (丸めない。T3-07 追加修正)。速さに比例して巻ける (25 は 100 の4分の1の速さ)', () => {
     let s = setupExact(make());
     s = reduce(s, { type: 'setSpeed', value: 128 });
     expect(s.speed).toBe(100);
     s = reduce(s, { type: 'setSpeed', value: -5 });
     expect(s.speed).toBe(0);
-    s = reduce(s, { type: 'setSpeed', value: 25.6 });
-    expect(s.speed).toBe(26);
-    // 速さ 26 のときの 1tick (0.1秒) の巻き量
+    // 小数のまま (丸めない。T3-07 追加修正)
+    s = reduce(s, { type: 'setSpeed', value: 37.25 });
+    expect(s.speed).toBe(37.25);
+    // 速さ 37.25 のときの 1tick (0.1秒) の巻き量
     s = reduce(s, { type: 'tick', dtMs: 100 });
-    expect(s.progress).toBeCloseTo((26 / 100 / 30) * 0.1, 6);
+    expect(s.progress).toBeCloseTo((37.25 / 100 / 30) * 0.1, 6);
     // 速さ 25 は 100 の4分の1: 30 秒で 4 分の 1 巻ける
     let q = setupExact(make());
     q = reduce(q, { type: 'setSpeed', value: 25 });

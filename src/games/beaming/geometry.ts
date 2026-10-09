@@ -104,10 +104,11 @@ export function speedBarCenterX(speed: number): number {
   return BOARD_W / 2 - SPEED_BAR_SHIFT_MAX + (v / 100) * 2 * SPEED_BAR_SHIFT_MAX;
 }
 
-/** 引っぱり始めの速さ startSpeed から、指が dx (論理の px) 動いたときの速さ (0〜100 の整数に丸める) */
+/** 引っぱり始めの速さ startSpeed から、指が dx (論理の px) 動いたときの速さ (0〜100。丸めない。T3-07 追加修正) */
 export function speedFromBarDrag(startSpeed: number, dx: number): number {
   const v = startSpeed + (dx / (2 * SPEED_BAR_SHIFT_MAX)) * 100;
-  return Math.min(100, Math.max(0, Math.round(v)));
+  // 丸めない (0〜100 に収めるだけ。T3-07 追加修正: 丸めると針が飛び飛びに動く)
+  return Math.min(100, Math.max(0, v));
 }
 
 /** 棒の当たり判定: 今の速さの位置にある棒の上下 32px (画面上 64px 以上。縮尺 scale が小さいときは画面上 ±32px になるよう広げる)、横は棒の長さ */
