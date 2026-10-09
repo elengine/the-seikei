@@ -622,3 +622,14 @@
 
 - 通知を「棒を左端まで戻して止めてから、確認を押します」に(`panel.ts`)。`panel.ts` の説明書きとテスト名の「レバー」も茶色の棒に。version 0.3.53。
 - テストを先に書いて RED(1件)を確認。check・テスト・build 成功。
+
+## PU-25 の報告(installed のまま動き出さない切り替え)
+
+- コミット:実装 1 つ(このあとに報告のコミット)。version 0.3.54。
+- `updater.ts`:切り替えをあきらめた時点で、待っていた版が `installed` のままで、有効な印(`seikei-update-retry`、`{at, url}`、10 分以内)が無ければ、印を置いて読み込み直す。結果は `'retry-reload'`、最後の行は「読み込み直した(切り替えのやり直し)」。印がある間は読み込み直さず、今の案内(false)。印を置けない(localStorage が使えない)ときも、くり返しを避けて案内にする。activating のままなど installed でない失敗では読み込み直さない。
+- `recordStartup()`(`main.ts` から 1 回):印があれば、記録の一番新しい回に「起動した: 版=… / active=… / waiting=… / installing=… / controller=…」を足して印を消す。まだ `waiting` があれば `startupSwitchFailed()` が true になり、設定画面を開いたとき(新しい版が届いている場合)に「切り替えられませんでした。アプリを閉じて、もう一度開いてください」を出す。10 分より古い印は消すだけ。
+- 決まり 3(返事の口):`sendSkipWaiting` で `MessageChannel` の口を添え、返事が来たら「返事があった」と記録する(`MessageChannel` が無い環境では添えずに送る)。`sw.js` は変えていない。
+- テスト:`updater.test.ts` に PU-25 の 8 件、`settingsScreen.test.ts` に 1 件。15 秒 installed の既存 3 件(PU-10f 系 1・PU-23a の記録 1・PU-23b の 9)は、印が既にある前提(読み込み直し済み)に直した。SKIP_WAITING の検証は口つきの引数に合わせた。check・テスト 1255 件・build 成功。
+- **正直に**:テストを先に書いたが、実装前に走らせて RED を確かめる手順は抜けた(実装と同じ流れで走らせた)。
+- **範囲外**:`adminScreen.ts` の記録の見出しは `retry-reload` を「案内を出した」と表示する(許可されたファイルの外なので未変更)。直すなら別の指示が必要。
+- 未確認:実機(Fold 8)。次に「切り替えられませんでした」が出る場面を待つ。
