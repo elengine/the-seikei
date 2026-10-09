@@ -5,7 +5,7 @@ import { clearProgress } from '../../core/storage/clearProgress';
 import { createCard, createPage, createScreenHeader, createSectionHeading } from '../../core/ui/layout';
 import { FONT } from '../../core/ui/tokens';
 import type { FontScale } from '../../core/ui/tokens';
-import { applyUpdate, checkForUpdate, isUpdateReady, onUpdateState } from '../updater';
+import { applyUpdate, checkForUpdate, isUpdateReady, onUpdateState, startupSwitchFailed } from '../updater';
 
 /** 音の大きさの3段階 (小・中・大) */
 const VOLUMES = [
@@ -159,11 +159,15 @@ export function createSettingsScreen(ctx: AppContext): Screen {
         applying = false;
         if (!ok && !disposed) {
           showAvailable();
-          const p = document.createElement('p');
-          p.classList.add('update-notice__text');
-          p.textContent = '切り替えられませんでした。アプリを閉じて、もう一度開いてください';
-          notice.appendChild(p);
+          appendSwitchFailed();
         }
+      }
+
+      function appendSwitchFailed(): void {
+        const p = document.createElement('p');
+        p.classList.add('update-notice__text');
+        p.textContent = '切り替えられませんでした。アプリを閉じて、もう一度開いてください';
+        notice.appendChild(p);
       }
 
       let checking = false;
@@ -194,6 +198,9 @@ export function createSettingsScreen(ctx: AppContext): Screen {
       // 開いたときすでに届いていれば最初から出す。あとから届いたことも受け取る
       if (isUpdateReady()) {
         showAvailable();
+        if (startupSwitchFailed()) {
+          appendSwitchFailed(); // 読み込み直したのに、まだ切り替わっていない (PU-25)
+        }
       }
       offUpdate?.();
       offUpdate = onUpdateState((ready) => {

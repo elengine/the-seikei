@@ -7,6 +7,7 @@ import { createFixedClock } from '../../core/clock/clock';
 // アップデートの確認 (updater) は偽物にする。Service Worker は使わない
 const upd = vi.hoisted(() => ({
   ready: false,
+  startupFailed: false,
   listeners: new Set<(ready: boolean) => void>(),
   check: undefined as unknown as () => Promise<'available' | 'latest' | 'offline'>,
   apply: undefined as unknown as () => Promise<boolean>,
@@ -15,6 +16,7 @@ vi.mock('../updater', () => ({
   isUpdateReady: () => upd.ready,
   checkForUpdate: () => upd.check(),
   applyUpdate: () => upd.apply(),
+  startupSwitchFailed: () => upd.startupFailed,
   onUpdateState: (cb: (ready: boolean) => void) => {
     upd.listeners.add(cb);
     return () => {
@@ -354,6 +356,17 @@ describe('PU-10f: 「アップデートする」が切り替えられなかっ�
     expect(goBtn()).toBeDefined();
     goBtn().click();
     expect(upd.apply).toHaveBeenCalledTimes(2);
+  });
+
+  it('PU-25: 読み込み直したのに、まだ切り替わっていない (startupSwitchFailed) なら、開いたときから案内「切り替えられませんでした…」を出す', async () => {
+    upd.startupFailed = true;
+    try {
+      await openWithUpdate();
+      expect(document.querySelector('.update-notice')!.textContent).toContain('切り替えられませんでした。アプリを閉じて、もう一度開いてください');
+      expect(goBtn()).toBeDefined();
+    } finally {
+      upd.startupFailed = false;
+    }
   });
 
   it('切り替え中 (まだ結果が出ていない) は、続けて押しても 1 回だけ呼ぶ', async () => {

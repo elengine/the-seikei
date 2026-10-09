@@ -116,8 +116,8 @@ export interface UpdateLogEntry {
   /** 押した時刻 (ISO) */
   at: string;
   events: UpdateLogEvent[];
-  /** reloaded = 読み込み直した / failed = 案内を出した */
-  result: 'reloaded' | 'failed';
+  /** reloaded = 読み込み直した / failed = 案内を出した / retry-reload = 動き出さないので自分で読み込み直した (PU-25) */
+  result: 'reloaded' | 'failed' | 'retry-reload';
 }
 
 const UPDATE_LOG_KEY = 'seikei-update-log';
@@ -165,13 +165,124 @@ function startRun(): { add(label: string): void; finish(result: UpdateLogEntry['
       events.push({ ms: Date.now() - t0, label });
     },
     finish(result: UpdateLogEntry['result']): void {
-      events.push({ ms: Date.now() - t0, label: result === 'reloaded' ? '読み込み直した' : '案内を出した' });
+      events.push({ ms: Date.now() - t0, label: result === 'reloaded' ? '読み込み直した' : result === 'retry-reload' ? '読み込み直した(切り替えのやり直し)' : '案内を出した' });
       writeUpdateLog({ at, events, result });
     },
   };
 }
 
 type Run = ReturnType<typeof startRun>;
+
+// ---- 動き出さない新しい版への 1 回だけのやり直し (PU-25) ----
+
+/** 「切り替えのために読み込み直した」印 (localStorage。{ at: 時刻ミリ秒, url: 待っていた版の scriptURL }) */
+const RETRY_KEY = 'seikei-update-retry';
+/** 印が有効な最長の時間 (ミリ秒)。これより古い印は無いものとして消す */
+const RETRY_MAX_AGE_MS = 10 * 60 * 1000;
+
+/** 有効な印があるか。古い印・壊れた印は消して false */
+function hasRetryMark(): boolean {
+  try {
+    const raw = window.localStorage.getItem(RETRY_KEY);
+    if (raw === null) {
+      return false;
+    }
+    const mark = JSON.parse(raw) as { at?: unknown };
+    if (typeof mark.at === 'number' && Date.now() - mark.at <= RETRY_MAX_AGE_MS) {
+      return true;
+    }
+    window.localStorage.removeItem(RETRY_KEY);
+  } catch {
+    // 読めない印は無いものとして扱う
+  }
+  return false;
+}
+
+function clearRetryMark(): void {
+  try {
+    window.localStorage.removeItem(RETRY_KEY);
+  } catch {
+    // 何もしない
+  }
+}
+
+/**
+ * 切り替えをあきらめたときの終わり方。待っていた版が installed のままで、まだ読み込み直していなければ
+ * (印が無ければ)、印を置いて読み込み直す (true)。そうでなければ記録して false (案内を出す)。
+ * 読み込み直しは印がある間は 2 度としない。
+ */
+function giveUp(w: ServiceWorker, run: Run): boolean {
+  if (w.state === 'installed' && !hasRetryMark()) {
+    try {
+      window.localStorage.setItem(RETRY_KEY, JSON.stringify({ at: Date.now(), url: w.scriptURL ?? '' }));
+    } catch {
+      // 印を置けないと、読み込み直しがくり返されるおそれがあるので、案内にする
+      run.finish('failed');
+      return false;
+    }
+    run.finish('retry-reload'); // 読み込み直しの前に保存する
+    reloadFn();
+    return true;
+  }
+  run.finish('failed');
+  return false;
+}
+
+let startupFailed = false;
+
+/** 起動のあとも、まだ新しい版が waiting のままか (設定画面の案内を出すため。recordStartup が決める) */
+export function startupSwitchFailed(): boolean {
+  return startupFailed;
+}
+
+/**
+ * 起動したときに呼ぶ (main.ts)。切り替えのために読み込み直した印があれば、記録の一番新しい回に「起動した」の行を足して印を消す。
+ * それでも waiting があれば startupSwitchFailed が true になる。印が無い・古いときは何もしない (PU-25)。
+ */
+export async function recordStartup(): Promise<void> {
+  if (!hasRetryMark()) {
+    return;
+  }
+  clearRetryMark();
+  const swc = typeof navigator !== 'undefined' ? navigator.serviceWorker : undefined;
+  if (swc === undefined) {
+    return;
+  }
+  const reg = await swc.getRegistration();
+  if (reg === undefined) {
+    return;
+  }
+  const st = (x: ServiceWorker | null | undefined): string => (x === null || x === undefined ? 'なし' : x.state);
+  startupFailed = reg.waiting !== null;
+  const label = `起動した: 版=${__APP_VERSION__} / active=${st(reg.active)} / waiting=${st(reg.waiting)} / installing=${st(reg.installing)} / controller=${swc.controller ? 'あり' : 'なし'}`;
+  const logs = readUpdateLogs();
+  const newest = logs[0];
+  if (newest === undefined) {
+    return;
+  }
+  const since = Date.parse(newest.at);
+  newest.events.push({ ms: Number.isNaN(since) ? 0 : Date.now() - since, label });
+  try {
+    window.localStorage.setItem(UPDATE_LOG_KEY, JSON.stringify(logs));
+  } catch {
+    // 保存できなくても、起動は続ける
+  }
+}
+
+/** SKIP_WAITING を送る。返事用の MessageChannel の口を添える (返事があれば記録する。今の sw.js は返事をしないのが普通) */
+function sendSkipWaiting(w: ServiceWorker, run: Run): void {
+  try {
+    if (typeof MessageChannel !== 'undefined') {
+      const channel = new MessageChannel();
+      channel.port1.onmessage = () => run.add('返事があった');
+      w.postMessage({ type: 'SKIP_WAITING' }, [channel.port2]);
+      return;
+    }
+  } catch {
+    // 口を添えられない環境では、添えずに送る
+  }
+  w.postMessage({ type: 'SKIP_WAITING' });
+}
 
 /** 各部の状態の 1 行 (待っている版・active・waiting・installing・controller) */
 function describeStates(w: ServiceWorker, reg: ServiceWorkerRegistration, swc: ServiceWorkerContainer): string {
@@ -231,7 +342,7 @@ function switchTo(w: ServiceWorker, swc: ServiceWorkerContainer, reg: ServiceWor
         timer = setTimeout(onFinalDeadline, ACTIVATING_EXTRA_MS);
       } else if (w.state === 'installed') {
         run.add('installed のまま。SKIP_WAITING をもう一度送る');
-        w.postMessage({ type: 'SKIP_WAITING' });
+        sendSkipWaiting(w, run);
         run.add('SKIP_WAITING を送った (2 回目)');
         timer = setTimeout(onFinalDeadline, INSTALLED_EXTRA_MS);
       } else {
@@ -258,7 +369,7 @@ function switchTo(w: ServiceWorker, swc: ServiceWorkerContainer, reg: ServiceWor
     }
     swc.addEventListener('controllerchange', onChange);
     w.addEventListener('statechange', onState);
-    w.postMessage({ type: 'SKIP_WAITING' });
+    sendSkipWaiting(w, run);
     run.add('SKIP_WAITING を送った');
   });
 }
@@ -300,16 +411,12 @@ export async function applyUpdate(): Promise<boolean> {
         // 新しい版を見つけ直して、1 回だけやり直す。それでも切り替わらなければ false (案内を出す)
         const next = await findNewer(reg, w);
         if (next === null) {
-          run.finish('failed');
-          return false;
+          return giveUp(w, run);
         }
         waiting = next;
         run.add(`新しい版を見つけ直した: ${describeStates(next, reg, swc)}`);
         const ok = await switchTo(next, swc, reg, run);
-        if (!ok) {
-          run.finish('failed');
-        }
-        return ok;
+        return ok ? true : giveUp(next, run);
       }
     }
   }
@@ -327,6 +434,7 @@ export async function applyUpdate(): Promise<boolean> {
 
 export function resetUpdaterForTest(): void {
   waiting = null;
+  startupFailed = false;
   listeners.clear();
   clearUpdateAvailableForTest();
 }

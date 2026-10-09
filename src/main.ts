@@ -3,7 +3,7 @@ import { registerSW } from 'virtual:pwa-register';
 import { createSystemClock } from './core/clock/clock';
 import { boot } from './app/boot';
 import { setInstallPromptRecorded } from './app/diagnostics';
-import { checkForUpdate, markUpdateAvailable } from './app/updater';
+import { checkForUpdate, markUpdateAvailable, recordStartup } from './app/updater';
 import { createScreenManager } from './app/screenManager';
 import { installScrollReset } from './core/viewport/viewport'; // 回転のあとの文書のずれを戻す (T1-21a-2)
 import type { Route } from './app/screenManager';
@@ -109,6 +109,7 @@ async function main(): Promise<void> {
 installScrollReset(); // 大きさの変化 (回転) のたびに window.scrollTo(0, 0) (T1-21a-2)
   screens.start();
 
+  void recordStartup(); // 切り替えのために読み込み直したあとなら、記録に「起動した」を足す (PU-25)
   // 起動の 3 秒後に 1 回、新しい版を自動で確認する (待ち受けの間は確認しない)。届いていれば、ホームの「設定」にバッジが付く
   setTimeout(() => {
     if (document.visibilityState === 'visible') {
