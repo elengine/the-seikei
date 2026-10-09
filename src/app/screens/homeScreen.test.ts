@@ -327,7 +327,8 @@ describe('T1-22c: 回転のあとにカードの並びの行の高さを計算�
 });
 
 describe('ホーム画面 PU-17a (開発中の区切り)', () => {
-  const NAMES = ['クリール立て', 'ドラム巻き', '開発中', 'ドラム設定', 'ビーミング', '糸割り', '柄の図鑑'];
+  // PU-33: ビーミングは開発中から出てドラム巻きの次。区切りの下はドラム設定と糸割り
+  const NAMES = ['クリール立て', 'ドラム巻き', 'ビーミング', '開発中', 'ドラム設定', '糸割り', '柄の図鑑'];
 
   function mountAll(): HTMLElement {
     clearGamesForTest();
@@ -346,7 +347,7 @@ describe('ホーム画面 PU-17a (開発中の区切り)', () => {
       .map((e) => (e.classList.contains('home__dev') ? e.querySelector('.section-heading')!.textContent! : e.querySelector('.game-card__name')!.textContent!));
   }
 
-  it('並びは クリール立て・ドラム巻き → 「開発中」の区切り → ドラム設定・ビーミング・糸割り・柄の図鑑', () => {
+  it('並びは クリール立て・ドラム巻き・ビーミング → 「開発中」の区切り → ドラム設定・糸割り・柄の図鑑 (PU-33 でビーミングを開発中から出した)', () => {
     expect(order(mountAll())).toEqual(NAMES);
   });
 
@@ -368,7 +369,7 @@ describe('ホーム画面 PU-17a (開発中の区切り)', () => {
     for (const c of cards) {
       const name = c.querySelector('.game-card__name')!.textContent!;
       const tag = c.querySelector('.game-card__dev');
-      if (['ドラム設定', 'ビーミング', '糸割り'].includes(name)) {
+      if (['ドラム設定', '糸割り'].includes(name)) { // PU-33 でビーミングは開発中から外れた
         expect(tag, name).not.toBeNull();
         expect(tag!.textContent).toBe('開発中');
       } else {
@@ -398,7 +399,7 @@ describe('ホーム画面 PU-17a (開発中の区切り)', () => {
     vi.resetModules();
     vi.doMock('./homeCards', async (orig) => await orig());
     const mod = await import('./homeScreen');
-    expect(mod.DEV_GAMES).toEqual(['drumsetup', 'beaming', 'itowari']);
+    expect(mod.DEV_GAMES).toEqual(['drumsetup', 'itowari']); // PU-33: ビーミングは開発中から外れた
     expect(mod.splitByDev(['creel', 'winding', 'drumsetup', 'beaming', 'itowari'] as never, ['beaming'] as never)).toEqual({
       main: ['creel', 'winding', 'drumsetup', 'itowari'],
       dev: ['beaming'],
@@ -453,5 +454,33 @@ describe('ホーム画面 PU-17a (開発中の区切り)', () => {
     document.body.appendChild(root3);
     screen.mount(root3, {});
     expect(root3.querySelectorAll('.home__dev')).toHaveLength(0);
+  });
+
+  it('PU-33: showDevGames が false のとき、スタート画面のカードはクリール立て・ドラム巻き・ビーミングの順で並ぶ (登録の順のまま)', () => {
+    clearGamesForTest();
+    registerGame(fakeModule('creel', 'game.creel', 'a'));
+    registerGame(fakeModule('winding', 'game.winding', 'b'));
+    registerGame(fakeModule('drumsetup', 'game.drumsetup', 'c'));
+    registerGame(fakeModule('beaming', 'game.beaming', 'd'));
+    registerGame(fakeModule('itowari', 'game.itowari', 'e'));
+    const { root } = mountHome(); // showDevGames は既定の false
+    const names = Array.from(root.querySelectorAll('.game-card__name')).map((e) => e.textContent);
+    expect(names).toEqual(['クリール立て', 'ドラム巻き', 'ビーミング']);
+    expect(root.querySelectorAll('.home__dev')).toHaveLength(0);
+    expect(root.querySelectorAll('.game-card--soon')).toHaveLength(0);
+  });
+
+  it('PU-33: showDevGames が true のとき、「開発中」の区切りの下にドラム設定と糸割りがあり、ビーミングは区切りの上に出る', () => {
+    const root = mountAll();
+    const names = Array.from(root.querySelectorAll('.game-card__name')).map((e) => e.textContent);
+    expect(names.filter((n) => n === 'ビーミング')).toHaveLength(1);
+    // ビーミングのカードは区切り (home__dev) より前
+    const cards = Array.from(root.querySelectorAll('.home__games > .game-card, .home__games > .home__dev'));
+    const beamingIdx = cards.findIndex((e) => e.querySelector('.game-card__name')?.textContent === 'ビーミング');
+    const devIdx = cards.findIndex((e) => e.classList.contains('home__dev'));
+    expect(beamingIdx, 'ビーミングは区切りの上').toBeGreaterThan(-1);
+    expect(beamingIdx).toBeLessThan(devIdx);
+    // 区切りの下のカードはドラム設定と糸割りだけ (ビーミングは無い)
+    expect(names.slice(names.indexOf('ドラム設定'))).toEqual(['ドラム設定', '糸割り', '柄の図鑑']);
   });
 });

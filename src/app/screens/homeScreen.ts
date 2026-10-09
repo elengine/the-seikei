@@ -12,7 +12,7 @@ import type { GameId } from '../../core/game/types';
  * まだ遊びの中身を調整している (まともに遊べない) ゲーム。ホームでは「開発中」の区切りの下に並ぶ。
  * 仕上がったら、ここから外すだけで区切りの上へ移る (並びは登録の順。PU-17a)
  */
-export const DEV_GAMES: GameId[] = ['drumsetup', 'beaming', 'itowari'];
+export const DEV_GAMES: GameId[] = ['drumsetup', 'itowari']; // ビーミングは PU-33 で開発中から外れた (ドラム巻きの次に並ぶ)
 
 /** ゲームの id を、区切りの上 (main) と下 (dev) に分ける。それぞれ元の順 */
 export function splitByDev(ids: GameId[], dev: GameId[] = DEV_GAMES): { main: GameId[]; dev: GameId[] } {
