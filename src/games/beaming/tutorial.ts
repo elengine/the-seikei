@@ -40,11 +40,12 @@ function drawBoardSketch(
   h: number,
   s: BeamingState,
   threadDrag: { x: number; y: number } | null = null,
+  lever: { active: boolean; hintMs: number | null } = { active: false, hintMs: null },
 ): (x: number, y: number) => { x: number; y: number } {
   const areaH = h * 0.82;
   const scale = Math.min(w / BOARD_W, areaH / BOARD.H);
   const fit = { scale, offsetX: (w - BOARD_W * scale) / 2, offsetY: (areaH - BOARD.H * scale) / 2 };
-  drawBoard(ctx, fit, s, getContent(), 0, threadDrag, 0);
+  drawBoard(ctx, fit, s, getContent(), 0, threadDrag, 0, lever);
   return (x, y) => toPx(fit, { x, y });
 }
 
@@ -53,21 +54,6 @@ export function drawPage1(ctx: CanvasRenderingContext2D, w: number, h: number): 
   const P = drawBoardSketch(ctx, w, h, sketchState('setup'));
   const label = P(BEAM_CENTER_X - 110, BOARD.axisY - BOARD.flangeR - 14);
   drawText(ctx, '円盤を引っぱる', label.x, label.y);
-}
-
-/** 矢印 (横向き。dir=-1 で左、1 で右) */
-function drawArrow(ctx: CanvasRenderingContext2D, x: number, y: number, len: number, dir: number): void {
-  const head = len * 0.25;
-  ctx.strokeStyle = COLORS.sumi;
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(x, y);
-  ctx.lineTo(x + dir * len, y);
-  ctx.moveTo(x + dir * len, y);
-  ctx.lineTo(x + dir * (len - head), y - head);
-  ctx.moveTo(x + dir * len, y);
-  ctx.lineTo(x + dir * (len - head), y + head);
-  ctx.stroke();
 }
 
 /** 2ページ目: 垂れた糸の端を、指でビームまで引っぱる (糸の帯が指の位置までのびる) */
@@ -99,11 +85,10 @@ function drawMeter(ctx: CanvasRenderingContext2D, w: number, h: number): void {
   ctx.strokeRect(mX, mY, mW, h * 0.05);
 }
 
-/** 3ページ目: 茶色の棒 (右へ引っぱる) と張りのランプ・張りのメーター (緑の範囲は巻き量で動く) */
+/** 3ページ目: 速さのレバー (右へ引っぱる。つまみの右の「→」) と張りのランプ・張りのメーター (緑の範囲は巻き量で動く) */
 export function drawPage3(ctx: CanvasRenderingContext2D, w: number, h: number): void {
-  const P = drawBoardSketch(ctx, w, h, sketchState('beaming', { progress: 0.4, speed: 60, tension: 60 }));
-  const arrow = P(BOARD_W / 2 + 40, BOARD.guideY - 45);
-  drawArrow(ctx, arrow.x, arrow.y, w * 0.1, 1);
+  // つまみの右の「→」は、盤面のはじめての案内と同じ (レバーを右へ引っぱる)
+  drawBoardSketch(ctx, w, h, sketchState('beaming', { progress: 0.4, speed: 0, tension: 60 }), null, { active: false, hintMs: 0 });
   drawMeter(ctx, w, h);
   drawText(ctx, '張りのメーター', w * 0.32, h * 0.84);
 }
@@ -138,11 +123,11 @@ export const beamingTutorial: TutorialSpec = {
     },
     {
       draw: (ctx, w, h) => drawPage3(ctx, w, h),
-      text: '茶色の棒を右へ引っぱると巻き始めます。張りのメーターの緑の範囲に入るように、速さを合わせます。緑の範囲は、巻き量に合わせて動きます',
+      text: 'レバーを右へ引っぱると巻き始めます。張りのメーターの緑の範囲に入るように、速さを合わせます。緑の範囲は、巻き量に合わせて動きます',
     },
     {
       draw: (ctx, w, h) => drawPage4(ctx, w, h),
-      text: '巻き量が 95% を超えたら、棒を左端まで戻して止め、『完了』を押します。100% で止めるといちばんよい結果です。101% に届くと糸が切れます',
+      text: '巻き量が 95% を超えたら、レバーを左端まで戻して止め、『完了』を押します。100% で止めるといちばんよい結果です。101% に届くと糸が切れます',
     },
   ],
 };

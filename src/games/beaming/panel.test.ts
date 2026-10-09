@@ -41,7 +41,8 @@ describe('beaming panel T3-03a (操作欄)', () => {
     const labels = Array.from(host.querySelectorAll('button')).map((b) => b.getAttribute('aria-label') ?? b.textContent);
     expect(labels.some((l) => /円盤を(左|右)へ/.test(String(l)))).toBe(false);
     expect(host.textContent).not.toContain('◀ 左');
-    expect(host.textContent).toMatch(/今 \d+cm\/目標 60cm/);
+    expect(host.textContent).toContain('目標 60cm'); // 目標と今の幅の数字 (PU-27 で大きく)
+    expect(host.textContent).toMatch(/いま \d+cm/);
     p.destroy();
   });
 
@@ -79,20 +80,22 @@ describe('beaming panel T3-03a (操作欄)', () => {
     p.destroy();
   });
 
-  it('6. 依頼書は詰めた形で1行 (柄の名前・巻き幅・帯の数)。「巻き量」は操作欄の一番上に 1 か所だけ', () => {
+  it('6. 「巻き量」は操作欄の一番上に 1 か所だけ。依頼票は 1 つ (柄の名前・巻き幅・帯の数。PU-27)', () => {
     const p = createBeamingPanel(host, {
       terms,
       onAction: () => undefined,
       puzzle: { bands: 3, patternName: '無地紺' },
     });
     p.update(make());
-    expect(host.querySelector('.beaming-panel__order')!.textContent).toBe('無地紺・巻き幅 60cm・帯 3本');
+    expect(host.querySelectorAll('.order-ticket')).toHaveLength(1);
+    expect(host.querySelector('.order-ticket')!.textContent).toContain('無地紺');
+    expect(host.querySelector('.order-ticket__width')!.textContent).toBe('巻き幅 60cm');
     p.update(beaming());
     const amounts = host.querySelectorAll('.beaming-panel__amount');
     expect(amounts).toHaveLength(1);
     expect(host.querySelector('.beaming-panel')!.firstElementChild).toBe(amounts[0]);
     expect(amounts[0]!.textContent).toBe('巻き量 0%');
-    expect((host.textContent ?? '').match(/巻き量/g)).toHaveLength(1);
+    expect((host.textContent ?? '').match(/巻き量/g)).toHaveLength(1); // 依頼票の「巻き幅」は別の言葉
     expect(host.textContent).not.toContain('巻いた');
     p.destroy();
   });
@@ -189,7 +192,7 @@ describe('T3-04c (完了のボタン。T3-06 で「確認」から名前を変�
     expect(btn!.getAttribute('aria-disabled')).toBe('true');
     btn!.click();
     expect(actions).not.toContainEqual({ type: 'confirm' });
-    expect(notices).toContain('棒を左端まで戻して止めてから、完了を押します');
+    expect(notices).toContain('レバーを左端まで戻して止めてから、完了を押します');
     p.destroy();
   });
 });
@@ -258,5 +261,88 @@ describe('T3-06 (張りのメーターと糸を付ける段階の操作欄)', ()
     expect(host.textContent).not.toContain('巻き始める');
     expect(host.textContent).not.toContain('確認');
     p.destroy();
+  });
+});
+
+describe('PU-27: 円盤調整の目標と今の幅を大きく (setup)', () => {
+  let host: HTMLElement;
+  beforeEach(() => {
+    document.body.textContent = '';
+    host = document.createElement('div');
+    document.body.appendChild(host);
+  });
+  const setupWith = (left: number, right: number): BeamingState => ({ ...make(), leftCm: left, rightCm: right });
+  const lines = (): string[] => Array.from(host.querySelectorAll('.beaming-panel__setup-line')).map((e) => e.textContent ?? '');
+
+  it('1. 1 行目「目標 60cm」、2 行目「いま 66cm」、3 行目は差。巻き量の行 (setup では 0) は出さない', () => {
+    const p = createBeamingPanel(host, { terms, onAction: () => undefined });
+    p.update(setupWith(-33, 33)); // いま 66cm、目標 60cm
+    const [l1, l2, l3] = lines();
+    expect(l1).toBe('目標 60cm');
+    expect(l2).toBe('いま 66cm');
+    expect(l3).toBe('あと 6cm 狭く ◀▶');
+    expect((host.querySelector('.beaming-panel__amount') as HTMLElement).style.display).toBe('none');
+    p.destroy();
+  });
+
+  it('2. 差の言葉: 狭すぎ →「あと N cm 広く ◀ ▶」、ぴったり →「ぴったり ○」(ぴったりだけ藍の印)', () => {
+    const p = createBeamingPanel(host, { terms, onAction: () => undefined });
+    p.update(setupWith(-29, 29)); // 58cm、目標 60cm
+    expect(lines()[2]).toBe('あと 2cm 広く ◀ ▶');
+    expect(host.querySelector('.beaming-panel__setup-line--ok')).toBeNull();
+    p.update(setupWith(-30, 30));
+    expect(lines()[2]).toBe('ぴったり ○');
+    expect(host.querySelector('.beaming-panel__setup-line--ok')).not.toBeNull();
+    p.destroy();
+  });
+
+  it('3. 数字は 40px 以上、見出しと単位と差の行は 24px 以上 (base.css)。ほかの段階では出さない', () => {
+    const css = readFileSync('src/styles/base.css', 'utf8');
+    const num = css.match(/\.beaming-panel__setup-num\s*\{([^}]*)\}/)![1]!;
+    expect(parseInt(num.match(/font-size:\s*(\d+)px/)![1]!, 10)).toBeGreaterThanOrEqual(40);
+    const line = css.match(/\.beaming-panel__setup-line\s*\{([^}]*)\}/)![1]!;
+    expect(parseInt(line.match(/font-size:\s*(\d+)px/)![1]!, 10)).toBeGreaterThanOrEqual(24);
+    const p = createBeamingPanel(host, { terms, onAction: () => undefined });
+    p.update(beaming());
+    const block = host.querySelector('.beaming-panel__setup') as HTMLElement;
+    expect(block.style.display).toBe('none');
+    p.destroy();
+  });
+});
+
+describe('PU-27: 依頼票 (柄の名前・巻き幅・帯の数)', () => {
+  let host: HTMLElement;
+  beforeEach(() => {
+    document.body.textContent = '';
+    host = document.createElement('div');
+    document.body.appendChild(host);
+  });
+
+  it('1. 札に「依頼票」の見出し・柄の色の四角・柄の名前・「巻き幅 60cm」・「帯 3本」がある', () => {
+    const p = createBeamingPanel(host, { terms, onAction: () => undefined, puzzle: { bands: 3, patternName: '紺の無地' }, patternHex: '#1f3a5f' });
+    p.update(make());
+    const t = host.querySelector('.order-ticket') as HTMLElement;
+    expect(t).not.toBeNull();
+    expect(t.querySelector('.order-ticket__title')!.textContent).toBe('依頼票');
+    expect(t.querySelector('.order-ticket__name')!.textContent).toBe('紺の無地');
+    expect(t.querySelector('.order-ticket__width')!.textContent).toBe('巻き幅 60cm');
+    expect(t.querySelector('.order-ticket__bands')!.textContent).toBe('帯 3本');
+    expect((t.querySelector('.order-ticket__swatch') as HTMLElement).style.background).not.toBe('');
+    p.destroy();
+  });
+
+  it('2. 文字は 20px 以上で、「…」で省かない (text-overflow: ellipsis が無い・nowrap でない。折り返す)。色は既存の変数だけ', () => {
+    const css = readFileSync('src/styles/base.css', 'utf8');
+    const rules = Array.from(css.matchAll(/\.order-ticket[^{]*\{([^}]*)\}/g)).map((m) => m[1]!);
+    expect(rules.length).toBeGreaterThan(0);
+    for (const r of rules) {
+      expect(r).not.toContain('text-overflow');
+      expect(r).not.toContain('nowrap');
+      expect(/#[0-9a-fA-F]{3,8}\b/.test(r)).toBe(false); // 新しい色を足さない
+    }
+    const body = css.match(/\.order-ticket\s*\{([^}]*)\}/)![1]!;
+    expect(parseInt(body.match(/font-size:\s*(\d+)px/)![1]!, 10)).toBeGreaterThanOrEqual(20);
+    // 横長の低い画面 (915×412・852×393) では巻き幅と帯の数を札ごと省く (柄の名前は残す)
+    expect(css).toMatch(/@media[^{]*max-height[^{]*\{[^@]*\.order-ticket__detail/);
   });
 });

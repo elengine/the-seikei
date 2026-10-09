@@ -614,7 +614,7 @@ describe('T3-04b (盤面の速さのレバー)', () => {
     startWinding(instance);
     const { toScreen } = showBoardOn(container, raf);
     const speed = (): number => (instance.suspend() as { speed: number }).speed;
-    const left = toScreen(speedBarCenterX(0) - 200, BOARD.guideY + 28); // 棒の左の端に近い所・上下 28px ずれ
+    const left = toScreen(speedBarCenterX(0) - 30, BOARD.guideY + 28); // 溝の左の端に近い所 (つまみから離れた所)・上下 28px ずれ
     const per = toScreen(1, 0).x - toScreen(0, 0).x;
     stagePointer('pointerdown', left.x, left.y);
     stagePointer('pointermove', left.x + 20 * (SPEED_BAR_SHIFT_MAX / 50) * per, left.y);
@@ -623,6 +623,30 @@ describe('T3-04b (盤面の速さのレバー)', () => {
     expect(speed()).toBe(60);
     stagePointer('pointerup', left.x + 60 * (SPEED_BAR_SHIFT_MAX / 50) * per, left.y);
     expect(speed()).toBe(60);
+    instance.unmount();
+  });
+
+  it('PU-27 5. はじめて触る人への案内: beaming に入って一度もレバーを動かしていない間は盤面に案内 (hintMs が数)。一度動かすと null で、止めても出ない。つまみを引っぱっている間は active', async () => {
+    const { instance } = await mountAligned(setupWound());
+    startWinding(instance);
+    const { toScreen } = showBoardOn(container, raf);
+    const lever = (): { active: boolean; hintMs: number | null } => drawBoardCalls[drawBoardCalls.length - 1]![7] as { active: boolean; hintMs: number | null };
+    raf.advance(10);
+    expect(typeof lever().hintMs).toBe('number'); // まだ動かしていない
+    expect(lever().active).toBe(false);
+    const stage = container.querySelector('canvas')!;
+    const a = toScreen(speedBarCenterX(0), BOARD.guideY);
+    const b = toScreen(speedBarCenterX(30), BOARD.guideY);
+    stage.dispatchEvent(new PointerEvent('pointerdown', { clientX: a.x, clientY: a.y, bubbles: true, pointerId: 1, button: 0 }));
+    expect(lever().active).toBe(true);
+    stage.dispatchEvent(new PointerEvent('pointermove', { clientX: b.x, clientY: b.y, bubbles: true, pointerId: 1, button: 0 }));
+    stage.dispatchEvent(new PointerEvent('pointerup', { clientX: b.x, clientY: b.y, bubbles: true, pointerId: 1, button: 0 }));
+    raf.advance(5);
+    expect(lever().hintMs).toBeNull(); // 一度動かしたら消える
+    expect(lever().active).toBe(false);
+    dragBarSpeed(stage, toScreen, 30, 0);
+    raf.advance(5);
+    expect(lever().hintMs).toBeNull(); // 止めても出ない
     instance.unmount();
   });
 
@@ -652,11 +676,11 @@ describe('T3-04b (盤面の速さのレバー)', () => {
     instance.unmount();
   });
 
-  it('5. 棒の外 (上下 40px 以上はなれた所) を押しても何も起きない。止まっている棒の位置は盤面の中心より左', async () => {
+  it('5. レバーの外 (上下にはなれた所) を押しても何も起きない。止まっているつまみの位置は盤面の中心より左', async () => {
     const { instance } = await mountAligned(setupWound());
     startWinding(instance);
     const { toScreen } = showBoardOn(container, raf);
-    const a = toScreen(speedBarCenterX(0), BOARD.guideY + 60);
+    const a = toScreen(speedBarCenterX(0), BOARD.guideY + 150); // 溝から 150 (論理) 以上はなれた所 (当たりは画面上 ±32px)
     stagePointer('pointerdown', a.x, a.y);
     stagePointer('pointermove', a.x + 200, a.y);
     stagePointer('pointerup', a.x + 200, a.y);

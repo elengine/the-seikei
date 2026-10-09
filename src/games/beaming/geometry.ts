@@ -86,16 +86,19 @@ export function setBoardHeight(height: number): void {
 setBoardHeight(BOARD_H);
 
 /**
- * 茶色の棒 (ガイドの棒) は、指で左右に引っぱって速さを変える部品 (PU-24b)。
- * 速さ 0 で、棒の真ん中が盤面の中心より SPEED_BAR_SHIFT_MAX だけ左へ寄る。右へ動かすほど速く、いちばん右 (中心より右へ同じだけ) で 100。
+ * 速さのレバー (PU-24b → PU-27 で作り直し)。盤面のガイドの棒の位置 (BOARD.guideY) に、左右に長い溝と、溝の上を動くつまみを置く。
+ * つまみを指で左右に引っぱって速さを 0〜100 に変える。速さ 0 でつまみの中心が盤面の中心より SPEED_BAR_SHIFT_MAX だけ左、
+ * 100 で同じだけ右 (つまみは指と同じだけ動く)。溝は SPEED_BAR_W の長さで中心は盤面の中心。
  */
-export const SPEED_BAR_SHIFT_MAX = 100;
-/** 棒の長さ (px。固定) */
-export const SPEED_BAR_W = DRUM_W - 80;
-/** 棒の当たりの上下の幅 (棒の中心から ± px。合わせて 64px 以上) */
+export const SPEED_BAR_SHIFT_MAX = 240;
+/** 溝の長さ (px。固定。つまみの動く長さ 2 × SHIFT + 左右の余白 40 ずつ) */
+export const SPEED_BAR_W = 2 * SPEED_BAR_SHIFT_MAX + 80;
+/** 当たりの上下の幅の下限 (溝の中心から ± px。合わせて 64px 以上。縮尺が小さいときは画面上 ±32px になるよう広げる) */
 const SPEED_BAR_HIT_HALF_H = 32;
+/** 当たりの横は、溝の左右の端からつまみの半分ぶん外まで */
+const SPEED_BAR_HIT_OVER = 40;
 
-/** 速さ (0〜100) に対する、棒の真ん中の x */
+/** 速さ (0〜100) に対する、つまみの中心の x */
 export function speedBarCenterX(speed: number): number {
   const v = Math.min(100, Math.max(0, speed));
   return BOARD_W / 2 - SPEED_BAR_SHIFT_MAX + (v / 100) * 2 * SPEED_BAR_SHIFT_MAX;
@@ -107,10 +110,15 @@ export function speedFromBarDrag(startSpeed: number, dx: number): number {
   return Math.min(100, Math.max(0, Math.round(v)));
 }
 
-/** 棒の当たり判定 (今の速さの位置にある棒の、上下 32px ずつ・長さいっぱい) */
-export function hitSpeedBar(p: { x: number; y: number }, speed: number): boolean {
-  return Math.abs(p.y - BOARD.guideY) <= SPEED_BAR_HIT_HALF_H && Math.abs(p.x - speedBarCenterX(speed)) <= SPEED_BAR_W / 2;
+/**
+ * レバーの当たり判定: つまみだけでなく溝のどこを押さえても引っぱれる (押さえた所からの動いた分で速さが変わる)。
+ * 縦は溝の中心から上下 32px (画面上 64px 以上。縮尺 scale が小さいときは画面上 ±32px になるよう広げる)。
+ */
+export function hitSpeedBar(p: { x: number; y: number }, speed: number, scale = 1): boolean {
+  const halfH = Math.max(SPEED_BAR_HIT_HALF_H, SPEED_BAR_HIT_HALF_H / scale);
+  return Math.abs(p.y - BOARD.guideY) <= halfH && Math.abs(p.x - BOARD_W / 2) <= SPEED_BAR_W / 2 + SPEED_BAR_HIT_OVER;
 }
+
 
 /**
  * 糸を付ける前 (setup・attach) に、ドラムの下の端から短く垂れた糸のシートの下の端の y (PU-26 追加修正)。

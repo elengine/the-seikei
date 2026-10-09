@@ -2464,11 +2464,6 @@ button {
   color: var(--c-ai);
 }
 
-.beaming-panel__order {
-  font-size: var(--fs-body);
-  color: var(--c-sumi);
-}
-
 .beaming-panel__block .section-heading {
   margin-bottom: var(--sp-1);
   font-size: min(var(--fs-heading), 24px);
@@ -2524,13 +2519,79 @@ button {
   max-width: 100%;
 }
 
-/* 依頼書は1行に収める (はみ出した分は「…」) */
-.beaming-panel__order {
-  font-size: min(var(--fs-body), 24px);
+/* 円盤調整 (setup): 目標と今の幅を大きく。数字は 40px 以上、見出しと単位と差は 24px 以上 (PU-27) */
+.beaming-panel__setup {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.beaming-panel__setup-line {
+  font-size: 24px;
   line-height: 1.2;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  color: var(--c-sumi);
+}
+
+.beaming-panel__setup-num {
+  font-size: 40px;
+  font-weight: bold;
+  line-height: 1.1;
+  color: var(--c-ai);
+}
+
+.beaming-panel__setup-line--ok {
+  font-weight: bold;
+  color: var(--c-ai);
+}
+
+/* 依頼票: 操作欄の中の小さな紙の札 (生成りの地に細い藍の枠。新しい色は足さない。文字は 20px 以上。折り返して、省かない。PU-27) */
+.order-ticket {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-1) var(--sp-2);
+  font-size: 20px;
+  line-height: 1.25;
+  color: var(--c-sumi);
+  background: var(--c-kinari);
+  border: 1px solid var(--c-ai);
+  border-radius: 4px;
+}
+
+.order-ticket__title {
+  font-size: 20px;
+  color: var(--c-ai);
+}
+
+.order-ticket__main {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  overflow-wrap: anywhere;
+}
+
+.order-ticket__swatch {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--c-line);
+}
+
+.order-ticket__detail {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--sp-2);
+}
+
+/* 横長の低い画面 (915×412・852×393 など): 札は操作欄の下の空きに置き、入りきらないので巻き幅と帯の数は札ごと省く (柄の名前は残す) */
+@media (orientation: landscape) and (max-height: 459px) {
+  .order-ticket {
+    margin-top: auto;
+  }
+
+  .order-ticket__detail {
+    display: none;
+  }
 }
 
 /* 文字は小さめ (狭い操作欄で収まる。押せる大きさは変えない) */

@@ -5,7 +5,7 @@ import { createButton, createDialogShell } from '../../core/ui/widgets';
 import { setBoardHeight, flangeHit, dragCm, hitSpeedBar, speedFromBarDrag, hitSheetEdge, sheetDropEndY, clampThreadBarY, threadAttachY, BEAM_CENTER_X } from './geometry';
 import { logicalHeightFor } from '../winding/geometry';
 import { showTutorial } from '../../core/ui/tutorialOverlay';
-import { drawBoard } from './renderer';
+import { drawBoard, mainHex } from './renderer';
 import { createBeamingPanel } from './panel';
 import { getContent } from '../../core/content/content';
 import { init, reduce, resultLines } from './logic';
@@ -57,6 +57,8 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
   let doneTimer: ReturnType<typeof setTimeout> | null = null;
   let drumAngle = 0; // ドラムが回って見える角度 (見た目だけの値。State には入らない)
   let beamAngle = 0; // ビームが回って見える角度 (同じ。PU-26)
+  let leverTouched = false; // 巻き始めてから一度でもレバーを動かしたか (はじめて触る人への案内を消す。PU-27)
+  let leverHintMs = 0; // 巻く段階に入ってからの経過時間 (案内の「→」を揺らす。見た目だけ)
   let ready = false;
 
   const content = getContent();
@@ -153,13 +155,14 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
     // 茶色の棒 (巻き返しの段階だけ動かせる。幅合わせの段階では押せない。PU-24b)。棒のどこを押さえても引っぱれる
     if (s.phase === 'beaming') {
       const p = logicalOf(e);
-      if (hitSpeedBar(p, s.speed)) {
+      if (hitSpeedBar(p, s.speed, lastFit.scale)) {
         barDrag = { id: e.pointerId, startX: p.x, startSpeed: s.speed };
         try {
           frame.stage.setPointerCapture(e.pointerId);
         } catch {
           // 対応していない環境 (テスト等) では、そのまま受け取る
         }
+        render(); // つまみを引っぱっている間の見せ方 (縁を藍で太く・1.1 倍) にすぐ変える
         return;
       }
     }
@@ -190,6 +193,7 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
     if (barDrag !== null && e.pointerId === barDrag.id) {
       const v = speedFromBarDrag(barDrag.startSpeed, logicalOf(e).x - barDrag.startX);
       if (v !== s.speed) {
+        leverTouched = true; // 一度動かしたら案内は消える
         dispatch({ type: 'setSpeed', value: v });
       }
       return;
@@ -266,6 +270,7 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
       opts.bands !== undefined && opts.puzzleName !== undefined
         ? { bands: opts.bands, patternName: opts.puzzleName }
         : undefined,
+    patternHex: mainHex(content, opts.patternId),
   });
 
   // ---- 描画 ----
@@ -274,7 +279,10 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
     if (ctx === null) {
       return;
     }
-    drawBoard(ctx, lastFit, s, content, drumAngle, threadForDraw(), beamAngle);
+    drawBoard(ctx, lastFit, s, content, drumAngle, threadForDraw(), beamAngle, {
+      active: barDrag !== null,
+      hintMs: s.phase === 'beaming' && !leverTouched ? leverHintMs : null,
+    });
   }
 
   // ---- 画面の更新 ----
@@ -348,6 +356,8 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
     finished = false;
     drumAngle = 0;
     beamAngle = 0;
+    leverTouched = false;
+    leverHintMs = 0;
     startLoop();
     refresh();
   }
@@ -393,6 +403,9 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
     lastFrameMs = ms;
     if (dtMs > 0) {
       // ドラムとビームが回って見える角度 (巻いている速さに合わせる。速さ 0 では止まる。PU-26)
+      if (s.phase === 'beaming' && !leverTouched) {
+        leverHintMs += dtMs;
+      }
       if (s.phase === 'beaming' && s.speed > 0) {
         drumAngle += s.speed * DRUM_TURN_RATE * (dtMs / 1000);
         beamAngle += s.speed * BEAM_TURN_RATE * (dtMs / 1000);

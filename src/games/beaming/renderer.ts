@@ -2,7 +2,7 @@ import type { Content } from '../../core/content/content';
 import { COLORS } from '../../core/ui/tokens';
 import type { StageFit } from '../../core/viewport/viewport';
 import {
-  BOARD, BEAM_CENTER_X, DRUM_X, DRUM_W, CORE_R, ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX, FLANGE_RX, woundRadius, woundTopY, sheetTopY, sheetDropEndY, lampR, threadBarRange, cmToX, pxPerCm,
+  BOARD, BOARD_W, BEAM_CENTER_X, DRUM_X, DRUM_W, CORE_R, ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX, FLANGE_RX, woundRadius, woundTopY, sheetTopY, sheetDropEndY, lampR, threadBarRange, cmToX, pxPerCm,
   speedBarCenterX, SPEED_BAR_W, lampX, lampY,
 } from './geometry';
 import { okRangeOf } from './logic';
@@ -51,6 +51,8 @@ export function drawBoard(
   threadDrag?: { x: number; y: number } | null,
   /** ビームが回って見える角度 (controller が時間で進める。PU-26) */
   beamAngle = 0,
+  /** 速さのレバーの見せ方 (active = つまみを引っぱっている。hintMs = はじめての案内を出している間の経過ミリ秒。出さないなら null。PU-27) */
+  lever: { active: boolean; hintMs: number | null } = { active: false, hintMs: null },
 ): void {
   const hex = mainHex(content, s.patternId);
 
@@ -67,8 +69,8 @@ export function drawBoard(
   // 2. 糸のシート (ドラムの下側から手前へ降りる。柄の色の縦の筋)
   drawSheet(ctx, s, hex, s.phase === 'attach' && threadDrag ? threadDrag.y : null);
 
-  // 3. ガイドの棒 (茶色の細い横棒。シートがくぐる)
-  drawGuide(ctx, s);
+  // 3. 速さのレバー (溝とつまみ。シートがくぐる位置)
+  drawLever(ctx, fit, s, lever);
 
   // 4. 手前: ビーム (巻いた糸の円筒・左右の円盤・飛び出す軸)
   drawBeam(ctx, s, hex, beamAngle);
@@ -235,18 +237,100 @@ function drawSheet(ctx: CanvasRenderingContext2D, s: BeamingState, hex: string, 
 }
 
 /**
- * ガイドの棒 (茶色の細い横棒。ドラムとビームのあいだ)。指で左右に引っぱって速さを変える部品 (PU-24b):
- * 真ん中の x は速さで決まる (速さ 0 は中心より左、右へ動かすほど速い)。幅合わせの段階では押せない形 (うすく描く)。
+ * 速さのレバー (PU-27)。ガイドの棒の位置に、左右に長い溝 (左端に「止」、右端に「速」、0・50・100 の短い目盛り)、
+ * 溝の上を動く手で握る形のつまみ (幅・高さは画面上 64px 以上。上の面が明るく下に影。縦の溝 3 本の滑り止め) を描く。
+ * つまみの下に、今の値を示す三角 (数字は出さない)。引っぱっている間は縁を藍で太く、1.1 倍に。
+ * hintMs が数のあいだ (はじめて触る人への案内)、つまみの右に「→」を 1 秒ごとに左右へ揺らす。
+ * 巻く段階以外 (幅合わせ・糸を付ける) は、溝と目盛りだけをうすく描く (つまみは出さない。押せない形)。
  */
-function drawGuide(ctx: CanvasRenderingContext2D, s: BeamingState): void {
-  const h = 12;
-  const x = speedBarCenterX(s.phase === 'setup' ? 0 : s.speed);
+function drawLever(ctx: CanvasRenderingContext2D, fit: StageFit, s: BeamingState, lever: { active: boolean; hintMs: number | null }): void {
+  const y = BOARD.guideY;
+  const live = s.phase === 'beaming';
+  const speed = live ? s.speed : 0;
+  const hx = speedBarCenterX(speed);
+  const k = lever.active && live ? 1.1 : 1;
+  const w = Math.max(72, 64 / fit.scale) * k;
+  const h = Math.max(72, 64 / fit.scale) * k;
+  const grooveH = Math.max(14, 8 / fit.scale);
+  const gx0 = BOARD_W / 2 - SPEED_BAR_W / 2;
   ctx.save();
-  if (s.phase === 'setup') {
+  if (!live) {
     ctx.globalAlpha = 0.55;
   }
-  ctx.fillStyle = COLORS.wood;
-  ctx.fillRect(x - SPEED_BAR_W / 2, BOARD.guideY - h / 2, SPEED_BAR_W, h);
+  // 溝 (細長いレール)
+  ctx.fillStyle = COLORS.sumiSub;
+  ctx.fillRect(gx0, y - grooveH / 2, SPEED_BAR_W, grooveH);
+  ctx.fillStyle = COLORS.kinariDeep;
+  ctx.fillRect(gx0 + 3, y - grooveH / 2 + 3, SPEED_BAR_W - 6, grooveH - 6);
+  // 目盛り (0・50・100。溝の上の短い線)
+  ctx.strokeStyle = COLORS.sumi;
+  ctx.lineWidth = 3;
+  const tick = 16;
+  for (const v of [0, 50, 100]) {
+    const tx = speedBarCenterX(v);
+    ctx.beginPath();
+    ctx.moveTo(tx, y - grooveH / 2 - 4 - tick);
+    ctx.lineTo(tx, y - grooveH / 2 - 4);
+    ctx.stroke();
+  }
+  // 「止」「速」(画面上 20px 以上。色だけに頼らない)
+  ctx.fillStyle = COLORS.sumi;
+  ctx.font = `bold ${Math.round(Math.max(22, 24 / fit.scale))}px ${FONT_FAMILY}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const chip = Math.max(30, 32 / fit.scale); // 字の下地 (糸の束に重なっても読める。生成りの地)
+  const labelY = y + Math.max(72, 64 / fit.scale) / 2 + 26 + chip / 2; // つまみと今の位置の印の下 (つまみに隠れない)
+  for (const [ch, v] of [['止', 0], ['速', 100]] as const) {
+    ctx.fillStyle = COLORS.kinari;
+    ctx.globalAlpha = live ? 0.9 : 0.5;
+    ctx.fillRect(speedBarCenterX(v) - chip / 2, labelY - chip / 2, chip, chip);
+    ctx.globalAlpha = live ? 1 : 0.55;
+    ctx.fillStyle = COLORS.sumi;
+    ctx.fillText(ch, speedBarCenterX(v), labelY);
+  }
+  // つまみは巻く段階だけ (幅合わせ・糸を付ける段階は溝と目盛りだけをうすく描く。大きなつまみが糸の束に重ならないように)
+  if (live) {
+    // つまみ (木の握り。上の面が明るく、下に影)
+    const x0 = hx - w / 2;
+    const y0 = y - h / 2;
+    ctx.fillStyle = COLORS.wood;
+    ctx.fillRect(x0, y0, w, h);
+    ctx.fillStyle = COLORS.woodLight;
+    ctx.fillRect(x0, y0, w, h * 0.4);
+    ctx.fillStyle = COLORS.sumi;
+    ctx.globalAlpha = live ? 0.25 : 0.14;
+    ctx.fillRect(x0, y0 + h, w, 6);
+    ctx.globalAlpha = live ? 1 : 0.55;
+    // 握る所の縦の溝 3 本 (滑り止め)
+    ctx.strokeStyle = COLORS.sumi;
+    ctx.lineWidth = 3;
+    for (const g of [-1, 0, 1]) {
+      const gxx = hx + g * (w * 0.16);
+      ctx.beginPath();
+      ctx.moveTo(gxx, y0 + h * 0.22);
+      ctx.lineTo(gxx, y0 + h * 0.78);
+      ctx.stroke();
+    }
+    // 縁 (引っぱっている間は藍で太く)
+    ctx.strokeStyle = lever.active && live ? COLORS.ai : COLORS.sumiSub;
+    ctx.lineWidth = lever.active && live ? 6 : 2;
+    ctx.strokeRect(x0, y0, w, h);
+    // 今の位置の印 (つまみの下から溝を指す三角。数字は出さない)
+    ctx.fillStyle = COLORS.ai;
+    ctx.beginPath();
+    ctx.moveTo(hx, y0 + h + 8);
+    ctx.lineTo(hx - 10, y0 + h + 24);
+    ctx.lineTo(hx + 10, y0 + h + 24);
+    ctx.closePath();
+    ctx.fill();
+    // はじめて触る人への案内: つまみの右の「→」を 1 秒ごとに左右へ揺らす
+    if (live && lever.hintMs !== null) {
+      const sway = Math.sin((lever.hintMs / 1000) * Math.PI * 2) * 10;
+      ctx.fillStyle = COLORS.ai;
+      ctx.font = `bold ${Math.round(Math.max(36, 36 / fit.scale))}px ${FONT_FAMILY}`;
+      ctx.fillText('→', hx + w / 2 + 34 + sway, y);
+    }
+  }
   ctx.restore();
 }
 
