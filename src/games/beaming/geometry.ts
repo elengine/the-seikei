@@ -1,9 +1,10 @@
-import { DRUM_DEPTH_SHIFT } from './params';
+import { SIDE, SIDE_PROJECTION, SIDE_DROP0, SIDE_Z_REF } from './params';
+import { project, sideScale, sidePath, woundRadiusFig } from './side';
 
 /**
  * ビーム巻きの盤面の座標 (P3 T3-02。PU-15a で実物の写真に寄せて組み直した)。論理座標は幅 1000・高さ BOARD.H。
- * 奥 (上) に横に寝かせたドラム (糸の筋は縦)、そこから糸のシートが手前へ降りて、茶色のガイドの棒をくぐり、
- * 手前 (下) のビーム (銀色の軸・左右の大きな円盤・軸のまわりに太る巻き) に巻かれる。少し上から見下ろした斜めの構図。
+ * 奥 (上) に横に寝かせたドラム、そこから糸のシートが鉄の棒 2 本の上を通って、手前 (下) のビーム (銀色の軸・左右の大きな円盤・軸のまわりに太る巻き) に巻かれる。
+ * 縦の位置と奥行きのずれは、横から見た形 (side.ts。PU-32) を写した式で決まる。少し上から見下ろした斜めの構図。
  * cm → 論理座標の変換はこのファイルだけで行う。
  * 縦の位置は、論理の高さ H (盤面のカードの縦横の割合に合わせて setBoardHeight で決める) の割合で決まり、
  * 描いた範囲がカードの高さの 85% 以上になる。
@@ -35,9 +36,16 @@ export function xToCm(widthCm: number, x: number): number {
   return (x - BEAM_CENTER_X) / pxPerCm(widthCm);
 }
 
-/** 奥のドラム (横に寝た円筒) の x と幅 */
-export const DRUM_X = 90;
-export const DRUM_W = 820;
+/** 横から見た図の奥行き z での、幅の位置の x に足すずれ (手前ほど左 = 小さい。ビームの奥行きで 0。PU-32) */
+export function depthDx(z: number): number {
+  return SIDE_PROJECTION.KX * (SIDE_Z_REF - z);
+}
+
+/** 奥のドラム (横に寝た円筒) の幅と、左端の x (ビームの幅の位置と同じ x。写した画面の x は DRUM_X) */
+export const DRUM_W = 760;
+export const DRUM_AXIS_X0 = BEAM_CENTER_X - DRUM_W / 2;
+/** ドラムの左端の画面の x (奥にあるので、ビームより右へずれて見える) */
+export const DRUM_X = DRUM_AXIS_X0 + depthDx(SIDE.drum.z);
 
 /** ビームの芯 (銀色の軸) の太さの半分 (px) */
 export const CORE_R = 11;
@@ -47,22 +55,16 @@ export const CORE_R = 11;
  */
 export const ROD_X0 = 40;
 export const ROD_X1 = BOARD_W - 40;
-/** ドラムを少し斜めから見たときの、端の楕円の横の半径 (px)。右の端の面だけが見える (ドラム巻きと同じ構図。PU-24a) */
-export const DRUM_TILT_RX = 30;
-
-/**
- * ドラムの糸の筋 (円周の線) の x。軸の位置 xs の円周は、斜めから見ると楕円の左半分 (「(」の形) に見える:
- * t = −1〜1 (下から上へ) で、真ん中 (t=0) は xs より DRUM_TILT_RX だけ左へふくらみ、上下の端 (t=±1) は xs。
- */
-export function drumArcX(xs: number, t: number): number {
-  return xs - DRUM_TILT_RX * Math.sqrt(Math.max(0, 1 - t * t));
-}
-/** 円盤 (斜めから見て楕円) の横の半径 (px) */
-export const FLANGE_RX = 30;
+/** 円盤 (斜めから見て楕円) の横の半径 (px)。横から見た円盤の半径 × 横のずれの係数 (PU-32) */
+export const FLANGE_RX = SIDE_PROJECTION.KX * SIDE.beam.r;
+/** 糸の向きを変える鉄の棒の、機械の幅の中の左右の端の x (ビームの幅の位置と同じ x) */
+export const IRON_X0 = 70;
+export const IRON_X1 = BOARD_W - 70;
 
 /** 縦の位置 (論理の高さ H の割合。setBoardHeight で決まる) */
 export interface BoardLayout {
   H: number;
+  S: number; // 横から見た図 (図のピクセル) → 論理座標の倍率 (H に比例。PU-32)
   drumY: number; // ドラムの上端
   drumH: number; // ドラムの高さ (巻き取られて細る前)
   guideY: number; // ガイドの棒の中心
@@ -70,19 +72,23 @@ export interface BoardLayout {
   flangeR: number; // 円盤の半径 (縦)
   targetY: number; // 目標の点線
 }
-export const BOARD: BoardLayout = { H: BOARD_H, drumY: 0, drumH: 0, guideY: 0, axisY: 0, flangeR: 0, targetY: 0 };
+export const BOARD: BoardLayout = { H: BOARD_H, S: 1, drumY: 0, drumH: 0, guideY: 0, axisY: 0, flangeR: 0, targetY: 0 };
 
-/** 論理の高さ H に合わせて、縦の位置を決める (同じ値なら何も変わらない) */
+/** 横から見た円の縦の半径に当たる倍率 (円は画面で縦に √(KH² + KZ²) 倍に写る) */
+const V_K = Math.hypot(SIDE_PROJECTION.KH, SIDE_PROJECTION.KZ);
+
+/** 論理の高さ H に合わせて、縦の位置を決める (同じ値なら何も変わらない)。すべて横から見た形 (side.ts) を写した位置 (PU-32) */
 export function setBoardHeight(height: number): void {
   const H = Math.max(BOARD_H, height);
   BOARD.H = H;
-  // 実物はビームよりドラムのほうが大きい: ドラムの直径 (drumH) は円盤の直径 (2 × flangeR) の 1.5 倍以上 (PU-26)。
-  // ドラムの上には、ランプ (外側の輪まで半径 最大 42 × 1.3) を置く空きをあける (PU-26 追加修正)
-  BOARD.drumY = H * 0.15;
-  BOARD.drumH = H * 0.36;
-  BOARD.guideY = H * 0.6;
-  BOARD.axisY = H * 0.8;
-  BOARD.flangeR = H * 0.115;
+  const S = sideScale(H).S;
+  BOARD.S = S;
+  // 実物はビームよりドラムのほうが大きい (横から見た図の半径 180 対 80。PU-26 の 1.5 倍以上を満たす)。ドラムの上には、ランプ (外側の輪まで半径 最大 42 × 1.3) を置く空きがある
+  BOARD.drumH = 2 * S * SIDE.drum.r * V_K;
+  BOARD.drumY = project(SIDE.drum.z, SIDE.drum.h, H).y - BOARD.drumH / 2;
+  BOARD.guideY = project(SIDE.wood.z, SIDE.wood.h, H).y;
+  BOARD.axisY = project(SIDE.beam.z, SIDE.beam.h, H).y;
+  BOARD.flangeR = S * SIDE.beam.r * V_K;
   BOARD.targetY = H * 0.96;
 }
 setBoardHeight(BOARD_H);
@@ -94,7 +100,7 @@ setBoardHeight(BOARD_H);
  */
 export const SPEED_BAR_SHIFT_MAX = 100;
 /** 棒の長さ (px。固定) */
-export const SPEED_BAR_W = DRUM_W - 80;
+export const SPEED_BAR_W = 740;
 /** 当たりの上下の幅の下限 (棒の中心から ± px。合わせて 64px 以上。縮尺が小さいときは画面上 ±32px になるよう広げる) */
 const SPEED_BAR_HIT_HALF_H = 32;
 
@@ -118,22 +124,30 @@ export function hitSpeedBar(p: { x: number; y: number }, speed: number, scale = 
 }
 
 
-/**
- * 糸を付ける前 (setup・attach) に、ドラムの下の端から短く垂れた糸のシートの下の端の y (PU-26 追加修正)。
- * 垂れる長さは、ドラムの下の端からガイドの棒までの 4 割 (半分以下)。ビームには届かない。
- */
+/** 鉄の棒 2 の手前の面の真横の点の奥行き (糸を付ける前、糸はここから真下へ垂れる。PU-32) */
+const DROP_Z = SIDE.bar2.z + SIDE.bar2.r;
+
+/** 糸を付ける前 (setup・attach) に、鉄の棒 2 から垂れた糸の束の下の端 (木の棒) の y (PU-32) */
 export function sheetDropEndY(progress: number): number {
-  const top = sheetTopY(progress);
-  return top + (BOARD.guideY - top) * 0.4;
+  void progress;
+  return project(DROP_Z, SIDE.bar2.h - SIDE_DROP0, BOARD.H).y;
+}
+
+/** 木の棒の画面の y から、鉄の棒 2 の真横の点からの垂れの長さ (横から見た図のピクセル) を求める (sidePath の dropH) */
+export function dropHFor(y: number): number {
+  const { S, Y0 } = sideScale(BOARD.H);
+  const h = -((y - Y0) / S - SIDE_PROJECTION.KZ * DROP_Z) / SIDE_PROJECTION.KH;
+  return SIDE.bar2.h - h;
 }
 
 /** 糸の束の先の木の棒が、束の幅より左右に長い分 (px。PU-27) */
 export const THREAD_BAR_MARGIN = 24;
 
-/** 木の棒の横の範囲 (束の幅 + 左右 THREAD_BAR_MARGIN。中心は盤面の中心) */
+/** 木の棒の横の範囲 (束の幅 + 左右 THREAD_BAR_MARGIN。中心は盤面の中心。鉄の棒 2 の奥行きのずれぶん動く) */
 export function threadBarRange(widthCm: number): { x0: number; x1: number } {
   const half = (widthCm * pxPerCm(widthCm)) / 2 + THREAD_BAR_MARGIN;
-  return { x0: BEAM_CENTER_X - half, x1: BEAM_CENTER_X + half };
+  const dx = depthDx(DROP_Z);
+  return { x0: BEAM_CENTER_X - half + dx, x1: BEAM_CENTER_X + half + dx };
 }
 
 /** 棒の y を、動ける範囲 (垂れた位置〜ビームの軸) に収める */
@@ -147,14 +161,13 @@ export function threadAttachY(progress: number): number {
 }
 
 /**
- * 押さえる所: 糸の束の先の木の棒 (barY。省くと垂れた位置) と束。横は棒の長さ、縦は束の上端から棒の下 32px まで
+ * 押さえる所: 糸の束の先の木の棒 (barY。省くと垂れた位置) と束。横は棒の長さ、縦は鉄の棒 2 の上の端から棒の下 32px まで
  * (棒の上下 32px ずつ = 画面上 64px 以上。束の途中を押さえても棒をつかんだことにする。T3-06・PU-27)。
- * 横の範囲は、その高さのシートのずれ (sheetShiftX) ぶん右へずらす (描く所と同じ式。PU-29 追加修正)。
  */
 export function hitSheetEdge(p: { x: number; y: number }, widthCm: number, progress: number, barY: number = sheetDropEndY(progress)): boolean {
   const r = threadBarRange(widthCm);
-  const s = sheetShiftX(p.y, progress);
-  return p.x >= r.x0 + s && p.x <= r.x1 + s && p.y >= sheetTopY(progress) && p.y <= barY + 32;
+  const top = project(SIDE.bar2.z, SIDE.bar2.h + SIDE.bar2.r, BOARD.H).y;
+  return p.x >= r.x0 && p.x <= r.x1 && p.y >= top && p.y <= barY + 32;
 }
 
 /** 離してよい所: ビームの軸と巻いた糸の円筒。円盤の間で、上下 32px の余裕 (T3-06) */
@@ -170,7 +183,7 @@ export function hitBeamWind(
 
 /** 張りのランプ (ドラムの上の空き。ドラムの胴に重ならない。ドラム巻きと同じ考え。T3-06 追記・PU-26)。ランプもドラム一式なので奥行きぶん右へ (PU-29 追加修正) */
 export function lampX(): number {
-  return BOARD_W * 0.2 + DRUM_DEPTH_SHIFT;
+  return BOARD_W * 0.2 + depthDx(SIDE.drum.z);
 }
 export function lampY(): number {
   return BOARD.drumY * 0.5;
@@ -183,13 +196,12 @@ export function hitLamp(p: { x: number; y: number }): boolean {
   return Math.hypot(p.x - lampX(), p.y - lampY()) <= 36;
 }
 
-/** 巻いた糸の円筒の半径 (軸を中心に上下に同じだけ太る。progress 0 で芯、1 で円盤の半径の 8 割) */
+/** 巻いた糸の円筒の画面の縦の半径 (横から見た巻いた糸の半径を写した大きさ。progress 0 で芯、1 で円盤の半径の 8 割。PU-32) */
 export function woundRadius(progress: number): number {
-  const p = Math.min(1, Math.max(0, progress));
-  return CORE_R + p * (BOARD.flangeR * 0.8 - CORE_R);
+  return BOARD.S * woundRadiusFig(progress) * V_K;
 }
 
-/** 巻いた糸の円筒の上端の y (糸のシートの下の端) */
+/** 巻いた糸の円筒の上端の y */
 export function woundTopY(progress: number): number {
   return BOARD.axisY - woundRadius(progress);
 }
@@ -199,10 +211,10 @@ export function flangeTopY(): number {
   return BOARD.axisY - BOARD.flangeR;
 }
 
-/** 糸のシートの上端の y (ドラムの下端。ドラムは巻き取られて細るので、描くときに progress で変える) */
+/** 糸のシートがドラムを離れる点の y (ドラムの下側。横から見た糸の通り道の最初の点を写した位置。PU-32) */
 export function sheetTopY(progress: number): number {
-  const half = (BOARD.drumH / 2) * (1 - 0.3 * Math.min(1, Math.max(0, progress)));
-  return BOARD.drumY + BOARD.drumH / 2 + half;
+  const p0 = sidePath(progress)[0]!;
+  return project(p0.z, p0.h, BOARD.H).y;
 }
 
 /** 描いた範囲 (ドラムの上の張りのランプの輪から、目標の点線の目盛りと円盤の内側の印の下まで) の上と下 (論理座標。ランプは最小の半径 22 の輪で数える) */
@@ -237,31 +249,6 @@ export function flangeHit(
 /** 円盤をつかんだ位置 (startX) から指が curX まで動いたときの円盤の cm。つかんだときの cm (startCm) に動いた分を足し、1cm 単位に丸める */
 export function dragCm(widthCm: number, startCm: number, startX: number, curX: number): number {
   return Math.round(startCm + (curX - startX) / pxPerCm(widthCm));
-}
-
-/**
- * ビームに巻いた糸の円筒の円周の線の x (PU-29)。ドラムの drumArcX と同じ形の「(」の曲線:
- * 真ん中 (t=0) は xs より FLANGE_RX × (巻いた半径 r ÷ 円盤の半径) だけ左へふくらみ、上下の端 (t=±1) は xs。
- * 右の端や、ほかの縞の線も同じ形 (xs を変えて呼ぶ)。
- */
-export function beamArcX(xs: number, t: number, r: number): number {
-  return xs - FLANGE_RX * (r / BOARD.flangeR) * Math.sqrt(Math.max(0, 1 - t * t));
-}
-
-/**
- * 糸のシートの奥行きのずれの大きさ (px)。ドラムはビームより奥にあるので、ドラムの下の端 (sheetTopY) では
- * DRUM_DEPTH_SHIFT だけ右へ、ビームの上の端 (woundTopY) では 0。あいだは直線で補間する (PU-29 追加修正)。
- */
-export function sheetShiftX(y: number, progress: number): number {
-  const top = sheetTopY(progress);
-  const beamTop = woundTopY(progress);
-  const k = Math.min(1, Math.max(0, (y - top) / Math.max(1, beamTop - top)));
-  return DRUM_DEPTH_SHIFT * (1 - k);
-}
-
-/** 糸のシートの縦の筋と左右の端の x。ドラムの下の端 (奥) ほど DRUM_DEPTH_SHIFT ぶん右へずれ、ビームの上に乗る所 (手まえ) で 0 になる (PU-29 追加修正) */
-export function sheetEdgeX(baseX: number, y: number, progress: number): number {
-  return baseX + sheetShiftX(y, progress);
 }
 
 /** 上の設定表示の位置 (画面 px で描く) */

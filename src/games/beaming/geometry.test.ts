@@ -1,9 +1,10 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import {
-  pxPerCm, cmToX, xToCm, BEAM_W_PX, BOARD_W, BEAM_CENTER_X, woundRadius, setBoardHeight, BOARD, drawnExtent, FLANGE_RX, CORE_R,
-  ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX, flangeHit, dragCm, FLANGE_HIT_MIN_PX, lampX, lampY, SPEED_BAR_SHIFT_MAX, speedBarCenterX, speedFromBarDrag, hitSpeedBar, SPEED_BAR_W, DRUM_X, hitSheetEdge, hitBeamWind, sheetTopY, sheetDropEndY, lampR, THREAD_BAR_MARGIN, threadBarRange, clampThreadBarY, threadAttachY, woundTopY, beamArcX, sheetEdgeX, sheetShiftX } from './geometry';
+  pxPerCm, cmToX, xToCm, BEAM_W_PX, BOARD_W, BEAM_CENTER_X, woundRadius, setBoardHeight, BOARD, drawnExtent, FLANGE_RX, ROD_X0, ROD_X1, flangeHit, dragCm, FLANGE_HIT_MIN_PX, lampX, lampY, SPEED_BAR_SHIFT_MAX, speedBarCenterX, speedFromBarDrag, hitSpeedBar, SPEED_BAR_W, DRUM_X, DRUM_W, hitSheetEdge, hitBeamWind, sheetTopY, sheetDropEndY, lampR, THREAD_BAR_MARGIN, threadBarRange, clampThreadBarY, threadAttachY, DRUM_AXIS_X0, depthDx, dropHFor } from './geometry';
 import { logicalHeightFor } from '../winding/geometry';
-import { DRUM_SURFACE_SIGN, BEAM_SURFACE_SIGN, DRUM_TURN_RATE, BEAM_TURN_RATE, DRUM_DEPTH_SHIFT } from './params';
+import { sidePath, project } from './side';
+import { SIDE, SIDE_PROJECTION, SIDE_TOP_FRAC, SIDE_BOTTOM_FRAC } from './params';
+import { DRUM_SURFACE_SIGN, BEAM_SURFACE_SIGN, DRUM_TURN_RATE, BEAM_TURN_RATE } from './params';
 
 describe('beaming geometry T3-02 (座標)', () => {
   it('1. cm → 論理座標 → cm の往復が一致する', () => {
@@ -39,26 +40,6 @@ describe('beaming geometry T3-02 (座標)', () => {
 describe('PU-15a: ビームの巻き太りと盤面の高さ', () => {
   afterEach(() => {
     setBoardHeight(750);
-  });
-
-  it('巻き太りは軸を中心に上下に同じだけ太る円筒の半径 (woundRadius)。progress 0 で芯の半径、1 で円盤の半径の 8 割。progress に比例して増える', () => {
-    expect(woundRadius(0)).toBe(CORE_R);
-    expect(woundRadius(1)).toBeCloseTo(BOARD.flangeR * 0.8, 6);
-    const a = woundRadius(0.25);
-    const b = woundRadius(0.5);
-    expect(b - woundRadius(0)).toBeCloseTo(2 * (a - woundRadius(0)), 6);
-    expect(woundRadius(2)).toBe(woundRadius(1)); // 1 を超えない
-  });
-
-  it('setBoardHeight: 高さに比例して、ドラム・ガイドの棒・軸・円盤の半径・目標の点線の位置が決まる (上から ドラム < ガイド < 軸 < 目標の点線)', () => {
-    for (const H of [750, 1000, 1400]) {
-      setBoardHeight(H);
-      expect(BOARD.drumY).toBeGreaterThan(0);
-      expect(BOARD.drumY + BOARD.drumH).toBeLessThan(BOARD.guideY);
-      expect(BOARD.guideY).toBeLessThan(BOARD.axisY - BOARD.flangeR);
-      expect(BOARD.axisY + BOARD.flangeR).toBeLessThan(BOARD.targetY);
-      expect(BOARD.targetY).toBeLessThan(H);
-    }
   });
 
   it('描いた範囲 (ドラムの上から、目標の点線の目盛りの下まで) の高さが、論理の高さの 85% 以上 (750〜1400 のどれでも)', () => {
@@ -174,14 +155,6 @@ describe('PU-24a: 立体に見える絵の座標 (軸の長さは固定・ドラ
     expect(ROD_X1).toBeGreaterThan(cmToX(126, 63) + FLANGE_RX);
   });
 
-  it('drumArcX: ドラムの筋の x。真ん中 (t=0) で軸の位置より DRUM_TILT_RX だけ左へふくらみ、上下の端 (t=±1) で軸の位置。上下対称', () => {
-    expect(DRUM_TILT_RX).toBeGreaterThan(10);
-    expect(drumArcX(300, 0)).toBeCloseTo(300 - DRUM_TILT_RX, 9);
-    expect(drumArcX(300, 1)).toBeCloseTo(300, 9);
-    expect(drumArcX(300, -1)).toBeCloseTo(300, 9);
-    expect(drumArcX(300, 0.5)).toBeCloseTo(drumArcX(300, -0.5), 9);
-    expect(drumArcX(300, 0.5)).toBeGreaterThan(drumArcX(300, 0));
-  });
 });
 
 /** hitBeamWind に渡す状態 (目標どおりの円盤の位置) */
@@ -191,22 +164,6 @@ function wind(widthCm: number, progress: number, over?: { leftCm?: number; right
 const LAMP_R = 22;
 
 describe('T3-06 (糸を付ける作業の当たり判定)', () => {
-  it('押さえる所は糸の束の先の木の棒 (と束): 横は棒の長さ (束の幅 + 左右 THREAD_BAR_MARGIN)、縦は束の上端から棒の下 32px まで。外れると false (PU-27)', () => {
-    const widthCm = 60;
-    const y = sheetDropEndY(0); // 垂れた位置の棒
-    const r = threadBarRange(widthCm);
-    expect(r.x1 - r.x0).toBeCloseTo(widthCm * pxPerCm(widthCm) + 2 * THREAD_BAR_MARGIN, 9);
-    expect(hitSheetEdge({ x: BEAM_CENTER_X, y }, widthCm, 0)).toBe(true);
-    expect(hitSheetEdge({ x: r.x0 + 2 + sheetShiftX(y + 30, 0), y: y + 30 }, widthCm, 0)).toBe(true); // 棒の下 32px まで (横の範囲はその高さのドラムのずれぶん右。PU-29 追加修正)
-    expect(hitSheetEdge({ x: BEAM_CENTER_X, y: sheetTopY(0) + 5 }, widthCm, 0)).toBe(true); // 束の途中でもつかめる
-    expect(hitSheetEdge({ x: r.x0 - 5, y }, widthCm, 0)).toBe(false); // 横に外れる
-    expect(hitSheetEdge({ x: r.x1 + 5 + sheetShiftX(y, 0), y }, widthCm, 0)).toBe(false);
-    expect(hitSheetEdge({ x: BEAM_CENTER_X, y: y + 33 }, widthCm, 0)).toBe(false); // 下に外れる
-    expect(hitSheetEdge({ x: BEAM_CENTER_X, y: sheetTopY(0) - 5 }, widthCm, 0)).toBe(false); // 束の上 (ドラムの中) は外れる
-    // 棒が下へ動いたら、押さえる所も棒について動く
-    expect(hitSheetEdge({ x: BEAM_CENTER_X, y: y + 100 }, widthCm, 0, y + 100)).toBe(true);
-  });
-
   it('離してよい所はビームの軸と巻いた糸の円筒: 円盤の間で、上下 32px の余裕', () => {
     const widthCm = 60;
     const left = cmToX(widthCm, -widthCm / 2);
@@ -225,18 +182,6 @@ describe('PU-26: ドラムはビームの円盤より大きい・糸を離して
     for (const h of [750, 900, 1100, 1500]) {
       setBoardHeight(h);
       expect(BOARD.drumH, `H=${h}`).toBeGreaterThanOrEqual(1.5 * 2 * BOARD.flangeR);
-    }
-    setBoardHeight(750);
-  });
-
-  it('縦の並び: ランプ < ドラム < 糸のシート(ガイドの棒) < ビームの円盤 < 目標の点線。描いた範囲が盤面の高さに収まる', () => {
-    for (const h of [750, 1100]) {
-      setBoardHeight(h);
-      expect(lampY()).toBeLessThan(BOARD.drumY);
-      expect(BOARD.drumY + BOARD.drumH).toBeLessThan(BOARD.guideY);
-      expect(BOARD.guideY).toBeLessThan(BOARD.axisY - BOARD.flangeR);
-      expect(BOARD.axisY + BOARD.flangeR).toBeLessThan(BOARD.targetY);
-      expect(BOARD.targetY + 28).toBeLessThanOrEqual(BOARD.H);
     }
     setBoardHeight(750);
   });
@@ -260,20 +205,6 @@ describe('PU-26: ドラムはビームの円盤より大きい・糸を離して
 });
 
 describe('PU-26 追加修正: 糸のシートは短く垂れる・ランプの大きさ', () => {
-  it('垂れた端 (sheetDropEndY) は、ドラムの下の端より下で、ドラムの下の端からガイドの棒までの半分以下。ビームの円筒には届かない', () => {
-    for (const h of [750, 1100]) {
-      setBoardHeight(h);
-      for (const p of [0, 0.5, 1]) {
-        const top = sheetTopY(p);
-        const end = sheetDropEndY(p);
-        expect(end, `H=${h} p=${p}`).toBeGreaterThan(top);
-        expect(end - top).toBeLessThanOrEqual((BOARD.guideY - top) / 2 + 1e-9);
-        expect(end).toBeLessThan(BOARD.axisY - woundRadius(p));
-      }
-    }
-    setBoardHeight(750);
-  });
-
   it('ランプの半径はドラム巻きの lampGeometry と同じ決め方: min(42, max(22, 16 ÷ 縮尺))。画面上の半径は 16px 以上 (縮尺が小さいほど論理の半径が大きい。上限 42)', () => {
     expect(lampR(1)).toBe(22);
     expect(lampR(0.5)).toBe(32);
@@ -311,68 +242,80 @@ describe('PU-27: 糸の束の先の木の棒の動く範囲と付く条件', () 
   });
 });
 
-describe('PU-29 b: 円筒に沿う「(」の曲線と糸のシートのずれ', () => {
-  const r90 = woundRadius(0.9);
-
-  it('1. beamArcX: 真ん中 (t=0) は FLANGE_RX × (巻いた半径 ÷ 円盤の半径) だけ左へふくらむ「(」の曲線。上下の端 (t=±1) は xs。ドラムの drumArcX と同じ形 (上下対称・半径が小さいとふくらみも小さい)', () => {
-    const xs = 500;
-    expect(beamArcX(xs, -1, r90)).toBe(xs);
-    expect(beamArcX(xs, 1, r90)).toBe(xs);
-    expect(beamArcX(xs, 0, r90)).toBeCloseTo(xs - FLANGE_RX * (r90 / BOARD.flangeR), 9);
-    expect(beamArcX(xs, 0.5, r90)).toBeCloseTo(beamArcX(xs, -0.5, r90), 9); // 上下対称
-    expect(beamArcX(xs, 0, woundRadius(0.3))).toBeGreaterThan(beamArcX(xs, 0, r90)); // 細いほどふくらみは小さい
-    // ドラムと同じ形: t=±1 の端は xs、真ん中でふくらむ
-    expect(drumArcX(xs, 0) - xs).toBeLessThan(0);
+describe('PU-32: 横から見た形 (side.ts) を写した盤面の座標', () => {
+  afterEach(() => {
+    setBoardHeight(750);
   });
 
-  it('2. ビームの縞の「(」の曲線は上下の端 (t=±1) が xs (ずれ 0)。シートの下の端 (ビームの上の端) のずれが 0 なので、シートがそのまま beamArcX につながる (PU-29 追加修正: ドラムの奥行きでずらす方式に変えたため、wrapTiltX によるつなぎのずれはやめた)', () => {
-    const xs = 500;
-    const p = 0.9;
-    // ドラムの下の端のずれは DRUM_DEPTH_SHIFT、ビームの上の端 (シートの下の端) は 0
-    expect(sheetShiftX(sheetTopY(p), p)).toBe(DRUM_DEPTH_SHIFT);
-    expect(sheetShiftX(woundTopY(p), p)).toBe(0);
-    expect(sheetEdgeX(xs, woundTopY(p), p)).toBe(xs); // シートの下の端は xs = beamArcX の上下の端
-    // ビームの縞の曲線 (beamArcX) は上下の端が xs。シートとひと続き (境目に段差がない)
-    const r90 = woundRadius(p);
-    expect(beamArcX(xs, -1, r90)).toBe(xs);
-    expect(beamArcX(xs, 1, r90)).toBe(xs);
-    // つながりに段差がない: シートの下の端の x と、ビームの縞の上の端の x が同じ
-    expect(sheetEdgeX(xs, woundTopY(p), p)).toBe(beamArcX(xs, -1, r90));
-  });
-
-  it('3. sheetShiftX: ドラムの下の端 (シートの上端) では DRUM_DEPTH_SHIFT (ドラムはビームより奥なので、少し右から見ると右へずれて見える)、ビームの上の端 (巻いた糸の円筒の上端) では 0。あいだは単調に減る。シートの左の端の x は、ドラムの下の端の所よりビームの上の端の所で 20 以上左 (PU-29 追加修正)', () => {
-    for (const p of [0.4, 1]) {
-      expect(sheetShiftX(sheetTopY(p), p)).toBe(DRUM_DEPTH_SHIFT);
-      expect(sheetShiftX(woundTopY(p), p)).toBe(0);
-      const mid = sheetShiftX((sheetTopY(p) + woundTopY(p)) / 2, p);
-      expect(mid).toBeGreaterThan(0);
-      expect(mid).toBeLessThan(DRUM_DEPTH_SHIFT);
-      // ドラムの下の端の所より、ビームの上の端の所のほうが 20 以上左 (PU-29 追加修正)
-      const base = 400;
-      expect(sheetEdgeX(base, sheetTopY(p), p) - sheetEdgeX(base, woundTopY(p), p)).toBeGreaterThanOrEqual(20);
+  it('setBoardHeight: ドラムの上の端 = SIDE_TOP_FRAC × H、円盤の下の端 = SIDE_BOTTOM_FRAC × H。ドラム・木の棒・軸の高さは横から見た図の並びのまま (ドラム < 木の棒 < 軸 < 目標の点線)。盤面の高さがどれでも', () => {
+    for (const h of [750, 911, 1100, 1400]) {
+      setBoardHeight(h);
+      expect(BOARD.drumY, `H=${h}`).toBeCloseTo(SIDE_TOP_FRAC * h, 6);
+      expect(BOARD.axisY + BOARD.flangeR).toBeCloseTo(SIDE_BOTTOM_FRAC * h, 6);
+      expect(BOARD.drumY + BOARD.drumH / 2).toBeLessThan(BOARD.guideY); // ドラムの中心 < 木の棒 (横から見た図では木の棒のほうが手前)
+      expect(BOARD.guideY).toBeLessThan(BOARD.axisY);
+      expect(BOARD.axisY + BOARD.flangeR).toBeLessThan(BOARD.targetY);
+      expect(BOARD.targetY + 28).toBeLessThanOrEqual(BOARD.H);
+      expect(BOARD.drumH).toBeGreaterThanOrEqual(1.5 * 2 * BOARD.flangeR); // PU-26 のまま
     }
-    // 垂れているあいだ (setup・attach) も、ドラムの下に近いほど右へずれる
-    expect(sheetShiftX(sheetDropEndY(0), 0)).toBeGreaterThan(0);
-    expect(sheetShiftX(sheetDropEndY(0), 0)).toBeLessThan(DRUM_DEPTH_SHIFT);
   });
 
-  it('4. 押さえる所 (糸の束の端・木の棒をつかむ所) も、ドラムと同じ式で同じだけずれる: その高さのシートのずれぶん右 (PU-29 追加修正)', () => {
+  it('woundRadius: 巻き量に比例して太る。0 で芯 (円盤の半径の SIDE_WOUND_MIN 倍)、1 で円盤の半径の 8 割 (SIDE_WOUND_MAX)', () => {
+    expect(woundRadius(0)).toBeCloseTo(BOARD.flangeR * 0.128, 6);
+    expect(woundRadius(1)).toBeCloseTo(BOARD.flangeR * 0.8, 6);
+    expect(woundRadius(0.5) - woundRadius(0)).toBeCloseTo(woundRadius(1) - woundRadius(0.5), 6);
+  });
+
+  it('ドラムは奥にあるので、ビームの幅の位置より右へずれて写る (DRUM_X = 左端 + depthDx)。ドラムの右の端の面まで盤面の中に収まる', () => {
+    expect(DRUM_X).toBeCloseTo(DRUM_AXIS_X0 + depthDx(SIDE.drum.z), 9);
+    expect(depthDx(SIDE.drum.z)).toBeGreaterThan(depthDx(SIDE.bar1.z));
+    expect(depthDx(SIDE.bar2.z)).toBeGreaterThan(depthDx(SIDE.beam.z) - 1e-9);
+    expect(depthDx(SIDE.beam.z)).toBe(0);
+    expect(DRUM_X).toBeGreaterThan(0);
+    expect(DRUM_X + DRUM_W + depthDx(SIDE.drum.z) * 0 + SIDE_PROJECTION.KX * SIDE.drum.r).toBeLessThanOrEqual(BOARD_W);
+  });
+
+  it('糸の束の先の木の棒: 垂れた位置 (sheetDropEndY) は鉄の棒 2 の手前の面の真下で、鉄の棒 2 より下、ビームの円筒の上の端より上。巻き量が増えても動かない', () => {
+    for (const h of [750, 1100]) {
+      setBoardHeight(h);
+      const bar2Y = project(SIDE.bar2.z, SIDE.bar2.h, h).y;
+      expect(sheetDropEndY(0)).toBeGreaterThan(bar2Y);
+      expect(sheetDropEndY(0)).toBeLessThan(BOARD.axisY - woundRadius(0));
+      expect(sheetDropEndY(0.5)).toBe(sheetDropEndY(0));
+      // 棒を引っぱった y から、垂れの長さを求めて戻すと同じ y (投影の逆)
+      const y = (sheetDropEndY(0) + BOARD.axisY) / 2;
+      const drop = dropHFor(y);
+      expect(project(SIDE.bar2.z + SIDE.bar2.r, SIDE.bar2.h - drop, h).y).toBeCloseTo(y, 6);
+    }
+  });
+
+  it('押さえる所: 木の棒 (と束) は、横は棒の長さ (束の幅 + 左右 THREAD_BAR_MARGIN。鉄の棒 2 の手前の面の奥行きのずれぶん)、縦は鉄の棒 2 の上の端から棒の下 32px まで。描いた位置と合う', () => {
     const widthCm = 60;
     const r = threadBarRange(widthCm);
+    expect(r.x1 - r.x0).toBeCloseTo(widthCm * pxPerCm(widthCm) + 2 * THREAD_BAR_MARGIN, 9);
+    expect((r.x0 + r.x1) / 2).toBeCloseTo(BEAM_CENTER_X + depthDx(SIDE.bar2.z + SIDE.bar2.r), 9);
     const y = sheetDropEndY(0);
-    const s = sheetShiftX(y, 0);
-    expect(s).toBeGreaterThan(0);
-    expect(s).toBeLessThan(DRUM_DEPTH_SHIFT);
-    expect(hitSheetEdge({ x: r.x0 + s + 2, y }, widthCm, 0)).toBe(true);
-    expect(hitSheetEdge({ x: r.x0 + s - 2, y }, widthCm, 0)).toBe(false);
-    expect(hitSheetEdge({ x: r.x1 + s + 2, y }, widthCm, 0)).toBe(false);
-    // 束の上のほう (ドラムの下の端) は、ドラムのずれ (DRUM_DEPTH_SHIFT) ぶん右 → ドラムの左の端の当たり判定も DRUM_DEPTH_SHIFT だけ右
-    const top = sheetTopY(0);
-    expect(hitSheetEdge({ x: r.x0 + DRUM_DEPTH_SHIFT + 2, y: top + 2 }, widthCm, 0)).toBe(true);
-    expect(hitSheetEdge({ x: r.x0 + DRUM_DEPTH_SHIFT - 2, y: top + 2 }, widthCm, 0)).toBe(false);
+    const top = project(SIDE.bar2.z, SIDE.bar2.h + SIDE.bar2.r, BOARD.H).y;
+    expect(hitSheetEdge({ x: (r.x0 + r.x1) / 2, y }, widthCm, 0)).toBe(true);
+    expect(hitSheetEdge({ x: r.x0 + 2, y: y + 30 }, widthCm, 0)).toBe(true);
+    expect(hitSheetEdge({ x: (r.x0 + r.x1) / 2, y: top + 2 }, widthCm, 0)).toBe(true); // 束の途中でもつかめる
+    expect(hitSheetEdge({ x: r.x0 - 5, y }, widthCm, 0)).toBe(false);
+    expect(hitSheetEdge({ x: r.x1 + 5, y }, widthCm, 0)).toBe(false);
+    expect(hitSheetEdge({ x: (r.x0 + r.x1) / 2, y: y + 33 }, widthCm, 0)).toBe(false);
+    expect(hitSheetEdge({ x: (r.x0 + r.x1) / 2, y: top - 5 }, widthCm, 0)).toBe(false);
+    expect(hitSheetEdge({ x: (r.x0 + r.x1) / 2, y: y + 100 }, widthCm, 0, y + 100)).toBe(true); // 棒が下へ動いたら押さえる所もついていく
   });
 
-  it('5. ランプもドラムと同じだけ右へずれる (ランプはドラム一式。PU-29 追加修正)', () => {
-    expect(lampX() - BOARD_W * 0.2).toBe(DRUM_DEPTH_SHIFT);
+  it('ランプは、ドラム一式なので奥行きぶん右へずれる。糸を離す y の目安 sheetTopY は、糸がドラムを離れる点 (ドラムの下側) の画面の y', () => {
+    expect(lampX()).toBeCloseTo(BOARD_W * 0.2 + depthDx(SIDE.drum.z), 9);
+    const p0 = sidePath(0)[0]!;
+    expect(sheetTopY(0)).toBeCloseTo(project(p0.z, p0.h, BOARD.H).y, 9);
+    expect(sheetTopY(0)).toBeGreaterThan(BOARD.drumY + BOARD.drumH / 2); // ドラムの中心より下
+  });
+
+  it('円盤の当たり (flangeHit) は、描いた円盤の位置 (軸の高さ・cmToX) と合う: 円盤の縦の範囲は BOARD.axisY ± BOARD.flangeR', () => {
+    expect(flangeHit({ x: cmToX(60, -30), y: BOARD.axisY }, -30, 30, 60, 1)).toBe('left');
+    expect(flangeHit({ x: cmToX(60, 30), y: BOARD.axisY + BOARD.flangeR - 1 }, -30, 30, 60, 1)).toBe('right');
+    expect(flangeHit({ x: cmToX(60, -30), y: BOARD.axisY + BOARD.flangeR + 5 }, -30, 30, 60, 1)).toBeNull();
   });
 });

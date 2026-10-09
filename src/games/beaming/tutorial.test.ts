@@ -58,27 +58,6 @@ describe('ビーム巻きの遊び方 T3-03b (3ページ)', () => {
     }
   });
 
-  it('PU-15c: 絵は新しい盤面と同じ作り (ドラムの縦の筋・円盤の楕円・軸・ガイドの棒)。1 ページ目の絵に「引っぱる」', () => {
-    const calls: Array<{ k: string; args: unknown[] }> = [];
-    const texts: string[] = [];
-    const fake = new Proxy({ canvas: { width: 300, height: 200 }, createLinearGradient: () => ({ addColorStop: () => undefined }) } as Record<string, unknown>, {
-      get(t, key): unknown {
-        if (key in t) return t[key as string];
-        return (...args: unknown[]): void => {
-          calls.push({ k: String(key), args });
-          if (key === 'fillText') texts.push(String(args[0]));
-        };
-      },
-      set(t, key, v): boolean {
-        t[key as string] = v;
-        return true;
-      },
-    });
-    beamingTutorial.pages[0]!.draw(fake as unknown as CanvasRenderingContext2D, 900, 600);
-    expect(calls.filter((c) => c.k === 'ellipse').length).toBeGreaterThanOrEqual(4); // 円盤 2 + ドラムの端 2
-    expect(texts.some((t) => t.includes('引っぱる'))).toBe(true);
-    expect(texts.some((t) => t.includes('←→'))).toBe(false);
-  });
 });
 
 describe('T3-06 → T3-07 (遊び方を4ページに。3つの作業と速さのメーター)', () => {

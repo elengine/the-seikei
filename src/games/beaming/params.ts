@@ -68,9 +68,6 @@ export const BEAM_TURN_RATE = 0.25;
 export const DRUM_FLANGE_SIGN = -DRUM_SURFACE_SIGN;
 export const BEAM_FLANGE_SIGN = -BEAM_SURFACE_SIGN;
 
-/** ドラム一式 (胴・巻いた糸・桟・右の端の円盤・ランプ) を右へずらす量 (px)。ドラムはビームより奥にあるので、少し右から見ると右へずれて見える。412×915 で画面上 20px 以上 (論理 52 × 縮尺 0.39) (PU-29 追加修正) */
-export const DRUM_DEPTH_SHIFT = 52;
-
 /** 柄の縞を描くときの、巻き幅いっぱいに並べる柄のくり返しの数の標準 (帯の数が分かるときはそれを使う。PU-28) */
 export const PATTERN_REPEATS = 3;
 
@@ -119,7 +116,7 @@ export const SIDE_DROP0 = 35;
  *   画面の x = (幅の位置の x) + KX × (SIDE_Z_REF − z)  (手前ほど左に見える。奥のドラムは右へずれる)
  * S は盤面の高さ H に比例 (ドラムの上の端がランプの空き SIDE_TOP_FRAC × H、ビームの円盤の下の端が SIDE_BOTTOM_FRAC × H に来る)。
  */
-export const SIDE_PROJECTION = { KH: 1, KZ: 0.38, KX: 0.17 } as const;
+export const SIDE_PROJECTION = { KH: 1, KZ: 0.38, KX: 0.15 } as const;
 export const SIDE_Z_REF = 880;
 export const SIDE_TOP_FRAC = 0.15;
 export const SIDE_BOTTOM_FRAC = 0.915;

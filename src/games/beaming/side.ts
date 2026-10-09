@@ -56,7 +56,7 @@ function shortArc(c: Circle, from: number, to: number): SidePoint[] {
   let d = to - from;
   while (d > Math.PI) d -= 2 * Math.PI;
   while (d <= -Math.PI) d += 2 * Math.PI;
-  const steps = Math.max(2, Math.ceil((Math.abs(d) * 180) / Math.PI / 3)); // 3 度ごとより細かく
+  const steps = Math.max(2, Math.ceil((Math.abs(d) * 180) / Math.PI / 2)); // 2 度ごとより細かく (正面へ写すと向きの変わりが大きく見えるため)
   return circleArc(c, from, from + d, steps);
 }
 

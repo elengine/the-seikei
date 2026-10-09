@@ -3,9 +3,10 @@ import { readFileSync } from 'node:fs';
 import { drawBoard, mainHex } from './renderer';
 import { init, reduce } from './logic';
 import type { BeamingState } from './logic';
-import { cmToX, BOARD, setBoardHeight, FLANGE_RX, DRUM_X, DRUM_W, woundRadius, lampX, lampY, speedBarCenterX, SPEED_BAR_W, ROD_X0, ROD_X1, DRUM_TILT_RX, drumArcX, sheetTopY, sheetDropEndY, pxPerCm, BEAM_CENTER_X, THREAD_BAR_MARGIN, sheetShiftX, woundTopY, threadBarRange } from './geometry';
+import { cmToX, BOARD, BOARD_W, FLANGE_RX, setBoardHeight, DRUM_W, DRUM_AXIS_X0, flangeHit, hitSheetEdge, woundRadius, lampX, lampY, speedBarCenterX, SPEED_BAR_W, sheetDropEndY, threadBarRange } from './geometry';
+import { sidePath, project, viewAlpha } from './side';
 import { stripeRunsOf, stripeStrips } from './renderer';
-import { DRUM_SURFACE_SIGN, BEAM_SURFACE_SIGN, DRUM_FLANGE_SIGN, BEAM_FLANGE_SIGN, DRUM_DEPTH_SHIFT } from './params';
+import { DRUM_SURFACE_SIGN, BEAM_SURFACE_SIGN, DRUM_FLANGE_SIGN, BEAM_FLANGE_SIGN, SIDE } from './params';
 import { getContent } from '../../core/content/content';
 import { COLORS } from '../../core/ui/tokens';
 import { makeFakeCtx } from '../winding/renderer.test.helpers';
@@ -40,20 +41,6 @@ function styleBefore(ops: Array<{ k: string; v?: unknown }>, i: number): string 
   return null;
 }
 
-type Ell = { x: number; y: number; rx: number; ry: number; fill: string | null };
-
-/** ellipse の呼び出しと、そのときの塗りの色 (直後の fill の直前の style) */
-function ellipses(rec: FakeRecorder): Ell[] {
-  const out: Ell[] = [];
-  rec.ops.forEach((o, i) => {
-    if (o.k === 'ellipse') {
-      const a = o.args as number[];
-      out.push({ x: a[0]!, y: a[1]!, rx: a[2]!, ry: a[3]!, fill: styleBefore(rec.ops, i) });
-    }
-  });
-  return out;
-}
-
 function segments(rec: FakeRecorder): Array<{ x1: number; y1: number; x2: number; y2: number }> {
   const out: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
   let cur: { x: number; y: number } | null = null;
@@ -73,76 +60,6 @@ afterEach(() => {
 });
 
 describe('beaming renderer PU-15a (盤面。実物の写真に寄せた絵)', () => {
-  it('1. 円盤 (暗い金属の楕円) が 2 つあり、位置が leftCm・rightCm で変わる。円盤を動かすと描画位置も動く', () => {
-    const e = ellipses(draw(beamState())).filter((x) => x.fill === COLORS.flange && x.rx === FLANGE_RX);
-    expect(e.length).toBe(2);
-    const xs = e.map((x) => x.x).sort((a, b) => a - b);
-    expect(xs[0]).toBeCloseTo(cmToX(60, -30), 6);
-    expect(xs[1]).toBeCloseTo(cmToX(60, 30), 6);
-    const e2 = ellipses(draw(beamState({ leftCm: -35 }))).filter((x) => x.fill === COLORS.flange && x.rx === FLANGE_RX);
-    expect(e2.map((x) => x.x).sort((a, b) => a - b)[0]!).toBeLessThan(xs[0]!);
-  });
-
-  it('2. 巻いた糸は、軸を中心に上下に同じだけ太る円筒 (糸の色の塗り。中心 y が軸)。progress が大きいほど太い。progress 0 では描かない (PU-29 で端が「(」の曲線になったため、塗りの path で確かめる)', () => {
-    const hex = mainHex(content, 'p-muji-kon');
-    const wound = (p: number): Array<{ top: number; bottom: number }> => {
-      const rec = draw(beamState({ progress: p }));
-      return fillPaths(rec)
-        .filter((f) => f.style === hex)
-        .map((f) => ({ top: Math.min(...f.pts.map((q) => q.y)), bottom: Math.max(...f.pts.map((q) => q.y)) }))
-        .filter((w) => w.bottom > BOARD.axisY + 1 && w.bottom - w.top > 2); // ビームの円筒 (軸より下まで塗る。シートは円筒の上端で止まる)
-    };
-    expect(wound(0).length).toBe(0);
-    for (const p of [0.3, 0.6, 1]) {
-      const w = wound(p);
-      expect(w.length, `p=${p}`).toBeGreaterThanOrEqual(1);
-      const top = Math.min(...w.map((x) => x.top));
-      const bottom = Math.max(...w.map((x) => x.bottom));
-      expect((top + bottom) / 2, `p=${p} の中心 y`).toBeCloseTo(BOARD.axisY, 6); // 上下に同じだけ
-      expect((bottom - top) / 2).toBeCloseTo(woundRadius(p), 6);
-    }
-    const h = (p: number): number => {
-      const w = wound(p);
-      return Math.max(...w.map((x) => x.bottom)) - Math.min(...w.map((x) => x.top));
-    };
-    expect(h(1)).toBeGreaterThan(h(0.3));
-  });
-
-  it('3. ビームの軸 (銀色の太い棒) は、左右の円盤の外へ飛び出す', () => {
-    const rec = draw(beamState());
-    const rod = rec.ops
-      .map((o, i) => ({ o, style: styleBefore(rec.ops, i) }))
-      .filter((e) => e.o.k === 'fillRect' && e.style === COLORS.steel)
-      .map((e) => e.o.args as number[])
-      .find((a) => a[2]! > 400 && a[3]! < 40)!;
-    expect(rod).toBeDefined();
-    expect(rod[0]!).toBeLessThan(cmToX(60, -30) - FLANGE_RX);
-    expect(rod[0]! + rod[2]!).toBeGreaterThan(cmToX(60, 30) + FLANGE_RX);
-    expect(rod[1]! + rod[3]! / 2).toBeCloseTo(BOARD.axisY, 6);
-  });
-
-  it('3b. 軸の長さは変えない: 円盤をどこへ動かしても、軸の両端の x は ROD_X0・ROD_X1 のまま。軸の中心の高さは円盤の楕円の中心の高さと同じ (軸が円盤の中心を貫く。PU-24a)', () => {
-    const rodOf = (s: BeamingState): number[] => {
-      const rec = draw(s);
-      return rec.ops
-        .map((o, i) => ({ o, style: styleBefore(rec.ops, i) }))
-        .filter((e) => e.o.k === 'fillRect' && e.style === COLORS.steel)
-        .map((e) => e.o.args as number[])
-        .find((a) => a[2]! > 400 && a[3]! < 40)!;
-    };
-    const a = rodOf(beamState());
-    const b = rodOf(beamState({ leftCm: -20, rightCm: 25 }));
-    const c = rodOf(init({ level: 1, widthCm: 90, seed: 42, puzzleId: 's1', patternId: 'p-muji-kon' }));
-    for (const r of [a, b, c]) {
-      expect(r[0]!).toBe(ROD_X0);
-      expect(r[0]! + r[2]!).toBe(ROD_X1);
-      expect(r[1]! + r[3]! / 2).toBeCloseTo(BOARD.axisY, 6);
-    }
-    const faces = ellipses(draw(beamState())).filter((e) => e.fill === COLORS.flange && e.rx === FLANGE_RX);
-    expect(faces.length).toBe(2);
-    for (const f of faces) expect(f.y).toBeCloseTo(BOARD.axisY, 6); // 円盤の中心 = 軸の中心の高さ
-  });
-
   it('4. 円盤の穴は同心円状の輪 (2 重以上) に並ぶ (円盤の中心からの正規化した距離が 2 種類以上)', () => {
     const rec = draw(beamState());
     const cx = cmToX(60, -30);
@@ -154,26 +71,6 @@ describe('beaming renderer PU-15a (盤面。実物の写真に寄せた絵)', ()
         .map((a) => Math.round(Math.hypot((a[0]! - cx) / kx, a[1]! - BOARD.axisY) / 4)),
     );
     expect(rings.size).toBeGreaterThanOrEqual(2);
-  });
-
-  it('5. 奥のドラムは横に寝た円筒を少し斜めから見た形 (PU-24a): 端の楕円の面は右側の 1 つだけ (左の端は円筒の輪郭の曲線だけ)。糸の筋は円筒の丸みに沿って曲がる', () => {
-    const rec = draw(beamState());
-    const cy = BOARD.drumY + BOARD.drumH / 2;
-    const ends = ellipses(rec).filter((e) => Math.abs(e.y - cy) < 1 && e.fill === COLORS.steel);
-    expect(ends).toHaveLength(1); // 片側だけ
-    expect(ends[0]!.x, 'ドラムの右の端の円盤もドラム一式の奥行きぶん右 (PU-29 追加修正)').toBe(DRUM_X + DRUM_W + DRUM_DEPTH_SHIFT);
-    expect(ends[0]!.rx).toBe(DRUM_TILT_RX);
-    // 筋: 同じ軸の位置の点が、真ん中 (y = 中心) で x = 軸の位置 − DRUM_TILT_RX (丸みで左へふくらむ)、上下の端で x = 軸の位置
-    const xs = DRUM_X + DRUM_DEPTH_SHIFT + 12 + 14 * 10;
-    const pts: Array<{ x: number; y: number }> = [];
-    for (const o of rec.ops) {
-      if ((o.k === 'moveTo' || o.k === 'lineTo') && o.args) pts.push({ x: Number(o.args[0]), y: Number(o.args[1]) });
-    }
-    expect(pts.some((p) => Math.abs(p.x - drumArcX(xs, 0)) < 1e-6 && Math.abs(p.y - cy) < 1)).toBe(true);
-    expect(pts.some((p) => Math.abs(p.x - xs) < 1e-6 && p.y < cy - BOARD.drumH * 0.3)).toBe(true);
-    // 縦のまっすぐな筋 (x が同じ 2 点の線。胴の右の輪郭 x = 右の端を除く) で描いていない
-    const straight = segments(rec).filter((g) => g.x1 === g.x2 && g.x1 >= DRUM_X + DRUM_DEPTH_SHIFT && g.x1 < DRUM_X + DRUM_W + DRUM_DEPTH_SHIFT && Math.min(g.y1, g.y2) >= BOARD.drumY && Math.max(g.y1, g.y2) <= BOARD.drumY + BOARD.drumH + 1 && Math.abs(g.y2 - g.y1) > BOARD.drumH * 0.5);
-    expect(straight.length).toBe(0);
   });
 
   it('6. ドラムから降りる糸のシートの手前に、速さの木の棒 (横に長い赤茶の角材) がある (PU-28)', () => {
@@ -360,21 +257,6 @@ function strokes(rec: FakeRecorder): Array<{ style: string; pts: Array<{ x: numb
 }
 
 describe('PU-26: ドラムをドラム巻きと同じ見た目で大きく・回る向き', () => {
-  it('1. ドラムの胴はドラム巻きと同じ機械の緑 (machine 系) の勾配、端の円盤は灰色の金属の楕円に放射状の腕', () => {
-    const rec = draw(beamState());
-    const stops = rec.ops.filter((o) => o.k === 'addColorStop').map((o) => String((o.args as unknown[])[1]));
-    expect(stops).toEqual(expect.arrayContaining([COLORS.machineDark, COLORS.machineLight, COLORS.machine]));
-    const cy = BOARD.drumY + BOARD.drumH / 2;
-    const arms = strokes(rec).filter((g) => g.style === COLORS.sumiSub && g.pts.length === 2 && Math.abs(g.pts[0]!.x - (DRUM_X + DRUM_W + DRUM_DEPTH_SHIFT)) < 1e-6 && Math.abs(g.pts[0]!.y - cy) < 1e-6);
-    expect(arms.length).toBe(6);
-  });
-
-  it('2. ドラムの描く範囲の高さは、ビームの円盤の直径の 1.5 倍以上 (ドラムのほうが大きい)', () => {
-    const rec = draw(beamState());
-    const end = ellipses(rec).find((e) => e.fill === COLORS.steel && e.x === DRUM_X + DRUM_W + DRUM_DEPTH_SHIFT)!;
-    expect(end.ry * 2).toBeGreaterThanOrEqual(1.5 * 2 * BOARD.flangeR);
-  });
-
   it('3. 角度が進むと、ドラムの桟 (woodLight の線) が上へ動く。速さ 0 (角度が同じ) なら動かない', () => {
     const cy = BOARD.drumY + BOARD.drumH / 2;
     const half = BOARD.drumH / 2;
@@ -391,30 +273,6 @@ describe('PU-26: ドラムをドラム巻きと同じ見た目で大きく・回
     expect(nearest(0)).toBe(y0);
   });
 
-  it('4. 角度が進むと、ビームの巻いた糸の上の明るさの帯 (薄い白の帯) が下へ動く (巻き量があるとき)。円盤の穴も回る。横の線は描かない (PU-28。帯の形は PU-30 5 で縁の曲線に沿う塗りに変えた)', () => {
-    const r = woundRadius(0.5);
-    const leftX = cmToX(60, -30);
-    const rightX = cmToX(60, 30);
-    const bands = (angle: number): number[] => {
-      const { ctx, rec } = makeFakeCtx();
-      drawBoard(ctx, fit, beamState({ progress: 0.5 }), content, 0, null, angle);
-      return fillPaths(rec)
-        .filter((f) => f.style === COLORS.white && f.pts.length > 4)
-        .map((f) => (Math.min(...f.pts.map((p) => p.y)) + Math.max(...f.pts.map((p) => p.y))) / 2);
-    };
-    const nearest = (ys: number[]): number => ys.reduce((best, y) => (Math.abs(y - BOARD.axisY) < Math.abs(best - BOARD.axisY) ? y : best), Infinity);
-    const y0 = nearest(bands(0));
-    expect(y0).toBeCloseTo(BOARD.axisY, 6);
-    const y1 = nearest(bands(0.1));
-    expect(y1).toBeGreaterThan(y0); // 下へ
-    expect(y1).toBeCloseTo(BOARD.axisY + BEAM_SURFACE_SIGN * r * Math.sin(0.1), 6);
-    // 巻いた糸の上に、横いっぱいの線は無い (2 点の水平な線で、長さが巻いた糸の幅の 8 割以上)
-    const { ctx, rec } = makeFakeCtx();
-    drawBoard(ctx, fit, beamState({ progress: 0.5 }), content, 0, null, 0.3);
-    const wide = strokes(rec).filter((g) => g.pts.length === 2 && g.pts[0]!.y === g.pts[1]!.y && Math.abs(g.pts[1]!.x - g.pts[0]!.x) >= 0.8 * (rightX - leftX) && Math.abs(g.pts[0]!.y - BOARD.axisY) <= r + 1);
-    expect(wide).toHaveLength(0);
-  });
-
   it('5. 描画に色の直書きが無い (renderer.ts に #xxxxxx や rgb( が無い)', () => {
     const src = readFileSync('src/games/beaming/renderer.ts', 'utf8');
     expect(src).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
@@ -422,138 +280,6 @@ describe('PU-26: ドラムをドラム巻きと同じ見た目で大きく・回
   });
 });
 
-/** fill ごとの (そのときの塗りの色, 直前の beginPath からの点) */
-function fillPaths(rec: FakeRecorder): Array<{ style: string; pts: Array<{ x: number; y: number }> }> {
-  const out: Array<{ style: string; pts: Array<{ x: number; y: number }> }> = [];
-  let style = '';
-  let pts: Array<{ x: number; y: number }> = [];
-  for (const o of rec.ops) {
-    if (o.k === 'style') style = String(o.v);
-    else if (o.k === 'beginPath') pts = [];
-    else if ((o.k === 'moveTo' || o.k === 'lineTo') && o.args) pts.push({ x: Number(o.args[0]), y: Number(o.args[1]) });
-    else if (o.k === 'fill') out.push({ style, pts: [...pts] });
-  }
-  return out;
-}
-
-describe('PU-26 追加修正: 糸のシートは setup・attach では短く垂れ、beaming でビームまで届く', () => {
-  const hex = mainHex(content, 'p-muji-kon');
-  /** シートの縦の筋 (2 点の線。色は sumi。PU-29 で手まえほど左へずれる斜めの線になった) の下の端の最大 y */
-  function sheetBottom(s: BeamingState): number {
-    const ys = strokes(draw(s))
-      .filter((g) => g.style === COLORS.sumi && g.pts.length === 2 && g.pts[1]!.y > g.pts[0]!.y && g.pts[0]!.y === sheetTopY(s.progress))
-      .map((g) => g.pts[1]!.y);
-    return ys.length === 0 ? -Infinity : Math.max(...ys);
-  }
-
-  it('1. setup と attach: シートの下の端はビームの円筒の上の端より上 (垂れた端 sheetDropEndY)', () => {
-    const attach = beamState({ phase: 'attach', progress: 0, speed: 0 });
-    const setup = init({ level: 1, widthCm: 60, seed: 42, puzzleId: 's1', patternId: 'p-muji-kon' });
-    for (const s of [attach, setup]) {
-      const b = sheetBottom(s);
-      expect(b, s.phase).toBeGreaterThan(sheetTopY(0));
-      expect(b, s.phase).toBeLessThan(BOARD.axisY - woundRadius(0));
-      expect(b, s.phase).toBeCloseTo(sheetDropEndY(0), 6);
-    }
-  });
-
-  it('2. beaming: シートはビームの円筒の上の端まで届く', () => {
-    const s = beamState({ progress: 0.3 });
-    expect(sheetBottom(s)).toBeCloseTo(BOARD.axisY - woundRadius(0.3), 6);
-  });
-
-  /** 糸の束の先の木の棒 (wood の長方形で、横が束の幅 + 左右の余り) */
-  function threadBars(rec: FakeRecorder, widthCm: number): Array<[number, number, number, number]> {
-    const half = (widthCm * pxPerCm(widthCm)) / 2;
-    return rec.ops
-      .map((o, i) => ({ o, style: styleBefore(rec.ops, i) }))
-      .filter((e) => e.o.k === 'fillRect' && e.style === COLORS.wood && Math.abs(Number((e.o.args as number[])[2]) - (2 * half + 2 * THREAD_BAR_MARGIN)) < 1e-6)
-      .map((e) => e.o.args as [number, number, number, number]);
-  }
-
-  it('3. setup・attach の糸の束の先に木の棒がある (束の幅より左右に長い・太さは画面上 12px 以上)。beaming・done では描かない (ビームに巻き込まれた)', () => {
-    const half = (60 * pxPerCm(60)) / 2;
-    for (const phase of ['attach', 'setup'] as const) {
-      const s = phase === 'attach' ? beamState({ phase: 'attach', progress: 0, speed: 0 }) : init({ level: 1, widthCm: 60, seed: 42, puzzleId: 's1', patternId: 'p-muji-kon' });
-      const bars = threadBars(draw(s), 60);
-      expect(bars.length, phase).toBe(1);
-      const [x, y, w, h] = bars[0]!;
-      expect(x + w / 2, `${phase} 棒の中心はその高さのシートのずれぶん右 (PU-29 追加修正)`).toBeCloseTo(BEAM_CENTER_X + sheetShiftX(sheetDropEndY(0), 0), 9);
-      expect(w, phase).toBeCloseTo(2 * half + 2 * THREAD_BAR_MARGIN, 9);
-      expect(y + h / 2, phase).toBeCloseTo(sheetDropEndY(0), 9); // 垂れた位置
-      expect(h, phase).toBeGreaterThanOrEqual(12);
-    }
-    // 縮尺が小さい (393×852 相当) ときも、太さは画面上 12px 以上
-    const { ctx, rec } = makeFakeCtx();
-    drawBoard(ctx, { scale: 0.39, offsetX: 0, offsetY: 0 }, beamState({ phase: 'attach', progress: 0, speed: 0 }), content, 0);
-    expect(threadBars(rec, 60)[0]![3] * 0.39).toBeGreaterThanOrEqual(12 - 1e-6);
-    expect(threadBars(draw(beamState({ progress: 0.3 })), 60).length).toBe(0);
-  });
-
-  it('4. 引っぱっている間は、棒は水平のまま指の y に動き (x は動かない)、束は幅を変えずにドラムの下から棒まで伸びる (台形にしない)', () => {
-    const s = beamState({ phase: 'attach', progress: 0, speed: 0 });
-    const barY = sheetDropEndY(0) + 120;
-    const { ctx, rec } = makeFakeCtx();
-    drawBoard(ctx, fit, s, content, 0, { x: BEAM_CENTER_X + 300, y: barY }); // x は無視される
-    const [x, y, w, h] = threadBars(rec, 60)[0]!;
-    expect(y + h / 2).toBeCloseTo(barY, 9);
-    expect(x + w / 2, '棒の中心は、その高さのシートのずれぶん右 (ドラムの奥行き。PU-29 追加修正)').toBeCloseTo(BEAM_CENTER_X + sheetShiftX(barY, 0), 9);
-    // 束の縦の筋は、手まえ (下) ほど左へずれる斜めの線 (ずれの大きさはどれも同じ = 幅は変わらない。PU-29) で、下の端が棒の y
-    const half = (60 * pxPerCm(60)) / 2;
-    const vs = strokes(rec).filter((g) => g.style === COLORS.sumi && g.pts.length === 2 && g.pts[1]!.y > g.pts[0]!.y && g.pts[0]!.y === sheetTopY(0));
-    expect(vs.length).toBeGreaterThan(0);
-    for (const g of vs) {
-      expect(g.pts[1]!.y).toBeCloseTo(barY, 9);
-      expect(g.pts[0]!.x - g.pts[1]!.x, 'ずれはどの筋も同じ (台形にしない)').toBeCloseTo(sheetShiftX(sheetTopY(0), 0) - sheetShiftX(barY, 0), 6);
-      expect(Math.abs(g.pts[0]!.x - (BEAM_CENTER_X + sheetShiftX(sheetTopY(0), 0)))).toBeLessThanOrEqual(half + 1e-9);
-    }
-    // 束の面 (柄の色の多角形) の下の辺の幅は、上の辺の幅と同じ (台形ではない)
-    const sheet = fillPaths(rec).find((f) => f.style === hex && f.pts.length === 4 && f.pts.some((p) => Math.abs(p.y - barY) < 1e-6));
-    expect(sheet, '束').toBeDefined();
-    const bottom = sheet!.pts.filter((p) => Math.abs(p.y - barY) < 1e-6).map((p) => p.x);
-    const top = sheet!.pts.filter((p) => Math.abs(p.y - barY) >= 1e-6).map((p) => p.x);
-    expect(Math.max(...bottom) - Math.min(...bottom)).toBeCloseTo(Math.max(...top) - Math.min(...top), 9);
-  });
-});
-
-describe('PU-27: 端の円盤の回る向き (胴はそのまま)', () => {
-  it('ドラムの端の円盤の腕: 角度が進むと腕の先が下へ動く (PU-26 追加修正のときと逆)。符号は胴と別の定数', () => {
-    expect(DRUM_FLANGE_SIGN).toBe(-DRUM_SURFACE_SIGN);
-    expect(BEAM_FLANGE_SIGN).toBe(-BEAM_SURFACE_SIGN);
-    const cy = BOARD.drumY + BOARD.drumH / 2;
-    const tipY = (angle: number): number => {
-      const arm = strokes(draw(beamState({ progress: 0 }), angle)).find(
-        (g) => g.style === COLORS.sumiSub && g.pts.length === 2 && Math.abs(g.pts[0]!.x - (DRUM_X + DRUM_W + DRUM_DEPTH_SHIFT)) < 1e-6 && Math.abs(g.pts[0]!.y - cy) < 1e-6,
-      )!;
-      return arm.pts[1]!.y;
-    };
-    expect(tipY(0.1)).toBeGreaterThan(tipY(0)); // 下へ
-  });
-
-  it('ビームの円盤の穴: 角度が進むと内側の輪の穴が上へ動く (逆)。胴の筋 (糸の流れ) は今のまま下へ', () => {
-    const holeY = (angle: number): number => {
-      const { ctx, rec } = makeFakeCtx();
-      drawBoard(ctx, fit, beamState({ progress: 0.5 }), content, 0, null, angle);
-      const cx = cmToX(60, -30);
-      const kx = FLANGE_RX / BOARD.flangeR;
-      const a = rec.ops
-        .filter((o) => o.k === 'arc' && (o.args as number[])[2] === 4)
-        .map((o) => o.args as number[])
-        .filter((g) => Math.abs(g[0]! - (cx + 0.4 * BOARD.flangeR * kx * Math.cos(BEAM_FLANGE_SIGN * angle))) < 1e-6);
-      return a[0]![1]!;
-    };
-    expect(holeY(0.1)).toBeLessThan(holeY(0)); // 逆の向き (0.3.59 は下へ)
-    const streak = (angle: number): number => {
-      const { ctx, rec } = makeFakeCtx();
-      drawBoard(ctx, fit, beamState({ progress: 0.5 }), content, 0, null, angle);
-      const ys = fillPaths(rec)
-        .filter((f) => f.style === COLORS.white && f.pts.length > 4)
-        .map((f) => (Math.min(...f.pts.map((p) => p.y)) + Math.max(...f.pts.map((p) => p.y))) / 2);
-      return ys.reduce((best, y) => (Math.abs(y - BOARD.axisY) < Math.abs(best - BOARD.axisY) ? y : best), Infinity);
-    };
-    expect(streak(0.1)).toBeGreaterThan(streak(0)); // 胴の光の帯は下へ (変えない)
-  });
-});
 
 describe('PU-26 追加修正: 張りのランプの大きさ (ドラム巻きの lampGeometry と同じ決め方)', () => {
   it('393×852 相当 (縮尺 0.39) で、ランプの半径は画面上 16px 以上・中の記号の字は画面上 20px 以上', () => {
@@ -568,17 +294,6 @@ describe('PU-26 追加修正: 張りのランプの大きさ (ドラム巻きの
 });
 
 describe('PU-28: 柄の縞を縦縞で描く (糸のシート・ドラム・ビーム)', () => {
-  const pin = (over?: Partial<BeamingState>): BeamingState => {
-    let st = init({ level: 1, widthCm: 60, seed: 42, puzzleId: 's1', patternId: 'p-pin-kon' });
-    st = reduce(st, { type: 'moveFlange', side: 'left', deltaCm: -30 - st.leftCm });
-    st = reduce(st, { type: 'moveFlange', side: 'right', deltaCm: 30 - st.rightCm });
-    st = reduce(st, { type: 'finishSetup' });
-    st = reduce(st, { type: 'attachThread' });
-    st = reduce(st, { type: 'setSpeed', value: 50 });
-    return { ...st, progress: 0.4, ...over };
-  };
-  const kon = (): string => stripeRunsOf(content, 'p-pin-kon')[0]!.hex;
-  const shiro = (): string => stripeRunsOf(content, 'p-pin-kon')[1]!.hex;
 
   it('1. stripeRunsOf: 柄の 1 リピートの色の並びと割合。ピンストライプは 地・線・地 の 3 つ (3:1:4 の割合)。stripeStrips: リピート回数ぶん繰り返して x の範囲を割る', () => {
     const runs = stripeRunsOf(content, 'p-pin-kon');
@@ -594,347 +309,262 @@ describe('PU-28: 柄の縞を縦縞で描く (糸のシート・ドラム・ビ�
     for (let i = 1; i < strips.length; i++) expect(strips[i]!.x0).toBeCloseTo(strips[i - 1]!.x1, 9);
   });
 
-  it('2. 糸のシート: 同じ y の横の並びに地の色と線の色の両方がある。縞は手まえ (下) ほど左へずれる (PU-29 で縦の辺が斜めになったため、縦の判定を変えた)', () => {
-    const rec = (() => {
-      const { ctx, rec: r } = makeFakeCtx();
-      drawBoard(ctx, fit, pin(), content, 0, null, 0, undefined, 3);
-      return r;
-    })();
-    const topY = sheetTopY(0.4);
-    const bottomY = BOARD.axisY - woundRadius(0.4);
-    // シートの帯 (柄の色の塗り): 上の端 topY・下の端 bottomY
-    const paths = fillPaths(rec).filter((f) => f.pts.length === 4 && f.pts.some((p) => Math.abs(p.y - topY) < 1e-6) && f.pts.some((p) => Math.abs(p.y - bottomY) < 1e-6));
-    const colors = new Set(paths.map((f) => f.style));
-    expect(colors.has(kon())).toBe(true);
-    expect(colors.has(shiro())).toBe(true);
-    for (const f of paths) {
-      const topMin = Math.min(...f.pts.filter((p) => Math.abs(p.y - topY) < 1e-6).map((p) => p.x));
-      const bottomMin = Math.min(...f.pts.filter((p) => Math.abs(p.y - bottomY) < 1e-6).map((p) => p.x));
-      expect(bottomMin, '手まえ (下) ほど左へずれる (PU-29)').toBeLessThan(topMin);
-      expect(topMin - bottomMin, 'ずれはシートの上端 (ドラムの下の端) で DRUM_DEPTH_SHIFT、下端で 0 (ドラムの奥行き。PU-29 追加修正)').toBeCloseTo(sheetShiftX(topY, 0.4) - sheetShiftX(bottomY, 0.4), 6);
-    }
-    // 線の色の帯は 3 リピートぶん (3 本)
-    expect(paths.filter((f) => f.style === shiro())).toHaveLength(3);
-  });
-
-  it('3. ドラムとビームの巻いた糸にも、地と線の縦縞が出る。ビームの縞は円筒に沿った「(」の曲線 (長方形で描かない。PU-29)。ドラムの木の桟は、巻いた糸の幅の外にだけ描く', () => {
-    const { ctx, rec } = makeFakeCtx();
-    drawBoard(ctx, fit, pin({ progress: 0.4 }), content, 0, null, 0, undefined, 3);
-    // ビームの巻いた糸の縞 (塗り。軸を中心に上下に広がる path)
-    const beamStrips = fillPaths(rec).filter((f) => {
-      const ys = f.pts.map((p) => p.y);
-      const mid = (Math.max(...ys) + Math.min(...ys)) / 2;
-      return Math.max(...ys) - Math.min(...ys) > 20 && Math.abs(mid - BOARD.axisY) < 1e-6;
-    });
-    const beamColors = new Set(beamStrips.map((e) => e.style));
-    expect(beamColors.has(kon())).toBe(true);
-    expect(beamColors.has(shiro())).toBe(true);
-    for (const f of beamStrips) {
-      const ys = f.pts.map((p) => p.y);
-      const top = Math.min(...ys);
-      const bottom = Math.max(...ys);
-      const midX = Math.min(...f.pts.filter((p) => Math.abs(p.y - BOARD.axisY) < 1e-6).map((p) => p.x));
-      const endX = Math.min(...f.pts.filter((p) => Math.abs(p.y - top) < 1e-6 || Math.abs(p.y - bottom) < 1e-6).map((p) => p.x));
-      expect(midX, '縞の真ん中は上下の端より左 (「(」の曲線。PU-29)').toBeLessThan(endX);
-    }
-    const half = (60 * pxPerCm(60)) / 2;
-    const w0 = BEAM_CENTER_X - half + DRUM_DEPTH_SHIFT; // ドラムの巻いた糸はドラムと同じだけ右へずれる (PU-29 追加修正)
-    const w1 = BEAM_CENTER_X + half + DRUM_DEPTH_SHIFT;
-    const slats = strokes(rec).filter((g) => g.style === COLORS.woodLight && g.pts.length === 2 && g.pts[0]!.y === g.pts[1]!.y && g.pts[0]!.y > BOARD.drumY && g.pts[0]!.y < BOARD.drumY + BOARD.drumH);
-    expect(slats.length).toBeGreaterThan(0);
-    // 桟は、その高さの巻いた糸の帯 (縁の「(」の曲線の内側) と重ならない (PU-30 3 で桟の端を縁の曲線で止める形に変えたため、
-    // 矩形 [w0,w1] ではなく曲線の帯で確かめる)
-    const cx = BOARD.drumY + BOARD.drumH / 2;
-    const dHalf = (BOARD.drumH / 2) * (1 - 0.3 * 0.4);
-    const x0 = DRUM_X + DRUM_DEPTH_SHIFT;
-    const x1 = DRUM_X + DRUM_W + DRUM_DEPTH_SHIFT;
-    const ww0 = Math.max(x0, w0);
-    const ww1 = Math.min(x1, w1);
-    for (const g of slats) {
-      const t = (g.pts[0]!.y - cx) / dHalf;
-      const bandL = drumArcX(ww0, t);
-      const bandR = drumArcX(ww1, t);
-      const [a, b] = [Math.min(g.pts[0]!.x, g.pts[1]!.x), Math.max(g.pts[0]!.x, g.pts[1]!.x)];
-      expect(Math.min(b, bandR) - Math.max(a, bandL), `桟 ${a.toFixed(1)}〜${b.toFixed(1)} は帯 ${bandL.toFixed(1)}〜${bandR.toFixed(1)} (y=${g.pts[0]!.y.toFixed(1)}) と重ならない`).toBeLessThanOrEqual(1e-6);
-    }
-  });
-
   it('4. 無地の柄は今までどおり 1 色 (縞は 1 本)', () => {
     expect(stripeRunsOf(content, 'p-muji-kon')).toHaveLength(1);
     expect(stripeRunsOf(content, 'p-muji-kon')[0]!.frac).toBe(1);
   });
 });
 
-describe('PU-29 b: 円筒に沿う「(」の曲線・糸の通り道 (盤面の絵)', () => {
-  const wound = (over?: Partial<BeamingState>): BeamingState => {
-    let st = init({ level: 1, widthCm: 60, seed: 42, puzzleId: 's1', patternId: 'p-muji-kon' });
-    st = reduce(st, { type: 'moveFlange', side: 'left', deltaCm: -30 - st.leftCm });
-    st = reduce(st, { type: 'moveFlange', side: 'right', deltaCm: 30 - st.rightCm });
-    st = reduce(st, { type: 'finishSetup' });
-    st = reduce(st, { type: 'attachThread' });
-    st = reduce(st, { type: 'setSpeed', value: 50 });
-    return { ...st, progress: 0.9, ...over };
-  };
-  const hex = (): string => mainHex(content, 'p-muji-kon');
+// ---------------- PU-32: 横から見た形を写した絵 ----------------
 
-  /** ビームの巻いた糸の縞の塗り (軸を中心に上下に広がる path) */
-  function beamStrips(rec: FakeRecorder): Array<{ style: string; pts: Array<{ x: number; y: number }> }> {
-    return fillPaths(rec).filter((f) => {
-      const ys = f.pts.map((p) => p.y);
-      const mid = (Math.max(...ys) + Math.min(...ys)) / 2;
-      return f.style === hex() && Math.max(...ys) - Math.min(...ys) > 20 && Math.abs(mid - BOARD.axisY) < 1e-6;
-    });
+/** fill ごとの (そのときの塗りの色, 直前の beginPath からの点) */
+function fillPolys(rec: FakeRecorder): Array<{ style: string; pts: Array<{ x: number; y: number }>; alpha: number }> {
+  const out: Array<{ style: string; pts: Array<{ x: number; y: number }>; alpha: number }> = [];
+  let style = '';
+  let alpha = 1;
+  let pts: Array<{ x: number; y: number }> = [];
+  for (const o of rec.ops) {
+    if (o.k === 'style') style = String(o.v);
+    else if (o.k === 'globalAlpha') alpha = Number(o.v);
+    else if (o.k === 'beginPath') pts = [];
+    else if ((o.k === 'moveTo' || o.k === 'lineTo') && o.args) pts.push({ x: Number(o.args[0]), y: Number(o.args[1]) });
+    else if (o.k === 'fill') out.push({ style, pts: [...pts], alpha });
   }
-
-  it('1. ドラムの巻いた糸の左の端は「(」の曲線: 真ん中の高さの x が上下の端の x より左 (PU-28a から曲線。続きの確認)', () => {
-    const rec = draw(wound());
-    const cy = BOARD.drumY + BOARD.drumH / 2;
-    const half = (BOARD.drumH / 2) * (1 - 0.3 * 0.9);
-    // ドラムの巻いた糸 (シートの幅と同じ。ドラムの胴の中ほど) の塗りのうち、左の端 (いちばん左の縞の左の辺)
-    const drumPaths = fillPaths(rec).filter((f) => {
-      const ys = f.pts.map((p) => p.y);
-      const mid = (Math.max(...ys) + Math.min(...ys)) / 2;
-      return Math.max(...ys) - Math.min(...ys) > 20 && Math.abs(mid - cy) < 1e-6;
-    });
-    expect(drumPaths.length).toBeGreaterThan(0);
-    const minXs = drumPaths.map((f) => Math.min(...f.pts.map((p) => p.x)));
-    const leftmost = Math.min(...minXs);
-    // 左の端の曲線: 真ん中 (t=0) の x は端 (t=±1) の x より左
-    const edge = drumPaths.find((f) => Math.min(...f.pts.map((p) => p.x)) === leftmost)!;
-    const topX = Math.min(...edge.pts.filter((p) => Math.abs(p.y - (cy - half)) < 1e-6).map((p) => p.x));
-    const midX = Math.min(...edge.pts.filter((p) => Math.abs(p.y - cy) < 1e-6).map((p) => p.x));
-    expect(midX).toBeLessThan(topX);
-    expect(topX - midX).toBeCloseTo(DRUM_TILT_RX, 6);
-  });
-
-  it('2. ビームの巻いた糸の左の端も「(」の曲線: 上の端は糸のシートの下の端 (ずれ 0) につながり、真ん中 (巻いた糸の半径ぶんのふくらみ) がいちばん左 (PU-29 追加修正: つなぎのずれ wrapTiltX はやめ、シートの下の端のずれは 0)', () => {
-    const rec = draw(wound());
-    const leftX = cmToX(60, -30);
-    const r = woundRadius(0.9);
-    const strips = beamStrips(rec);
-    expect(strips.length).toBeGreaterThan(0);
-    const left = strips.reduce((a, b) => (Math.min(...b.pts.map((p) => p.x)) < Math.min(...a.pts.map((p) => p.x)) ? b : a));
-    const topY = BOARD.axisY - r;
-    const topX = Math.min(...left.pts.filter((p) => Math.abs(p.y - topY) < 1e-6).map((p) => p.x));
-    const midX = Math.min(...left.pts.filter((p) => Math.abs(p.y - BOARD.axisY) < 1e-6).map((p) => p.x));
-    expect(topX, '上の端はシートの下の端につながる (ずれ 0。PU-29 追加修正)').toBeCloseTo(leftX, 6);
-    expect(midX, '真ん中のふくらみは FLANGE_RX × (巻いた半径 ÷ 円盤の半径)').toBeCloseTo(leftX - FLANGE_RX * (r / BOARD.flangeR), 6);
-    expect(midX).toBeLessThan(topX); // 「(」の形
-  });
-
-  it('3. ビームの巻いた糸の縞は長方形で描かない (円筒に沿った曲線の塗りだけ)', () => {
-    const rec = draw(wound());
-    const rectStrips = rec.ops
-      .map((o, i) => ({ o, style: styleBefore(rec.ops, i) }))
-      .filter((e) => e.o.k === 'fillRect' && e.style === hex() && Number((e.o.args as number[])[3]) > 20);
-    expect(rectStrips).toHaveLength(0);
-  });
-
-  it('4. 糸のシートの左の端: ドラムの下の端より、ビームの上の端のほうが左 (手まえに近づくほど左へずれる)。下の端の y は巻いた糸の上の端と同じ (すき間が無い)', () => {
-    for (const p of [0.3, 0.9]) {
-      const rec = draw(wound({ progress: p }));
-      const topY = sheetTopY(p);
-      const bottomY = woundTopY(p);
-      const sheet = fillPaths(rec).filter((f) => f.pts.length === 4 && f.pts.some((q) => Math.abs(q.y - topY) < 1e-6) && f.pts.some((q) => Math.abs(q.y - bottomY) < 1e-6));
-      expect(sheet.length, `p=${p}`).toBeGreaterThan(0);
-      const topMin = Math.min(...sheet.flatMap((f) => f.pts.filter((q) => Math.abs(q.y - topY) < 1e-6).map((q) => q.x)));
-      const bottomMin = Math.min(...sheet.flatMap((f) => f.pts.filter((q) => Math.abs(q.y - bottomY) < 1e-6).map((q) => q.x)));
-      expect(bottomMin, `p=${p} のビームの上の端`).toBeLessThan(topMin);
-      expect(bottomY, `p=${p} の下の端の y`).toBeCloseTo(BOARD.axisY - woundRadius(p), 9);
-    }
-  });
-
-  it('5. 巻く量が増えると、シートの下の端 (巻いた糸の上の端) も上へ動く', () => {
-    expect(woundTopY(0.9)).toBeLessThan(woundTopY(0.3));
-  });
-
-  it('6. 糸のシートの縦の筋は、手まえ (下) ほど左へずれる斜めの線 (まっすぐ走る筋)', () => {
-    const rec = draw(wound({ progress: 0.4 }));
-    const topY = sheetTopY(0.4);
-    const bottomY = woundTopY(0.4);
-    const streaks = strokes(rec).filter((g) => g.style === COLORS.sumi && g.pts.length === 2 && Math.abs(g.pts[0]!.y - topY) < 1e-6 && Math.abs(g.pts[1]!.y - bottomY) < 1e-6);
-    expect(streaks.length).toBeGreaterThan(0);
-    for (const g of streaks) {
-      expect(g.pts[1]!.x, '下の端のほうが左').toBeLessThan(g.pts[0]!.x);
-      expect(g.pts[0]!.x - g.pts[1]!.x, '上端はドラムの下の端のずれ、下端は 0 (PU-29 追加修正)').toBeCloseTo(sheetShiftX(topY, 0.4) - sheetShiftX(bottomY, 0.4), 6);
-    }
-  });
+  return out;
+}
+const ext = (pts: Array<{ x: number; y: number }>): { x0: number; x1: number; y0: number; y1: number } => ({
+  x0: Math.min(...pts.map((p) => p.x)),
+  x1: Math.max(...pts.map((p) => p.x)),
+  y0: Math.min(...pts.map((p) => p.y)),
+  y1: Math.max(...pts.map((p) => p.y)),
 });
+const pinState = (over?: Partial<BeamingState>): BeamingState => {
+  let st = init({ level: 1, widthCm: 60, seed: 42, puzzleId: 's1', patternId: 'p-pin-kon' });
+  st = reduce(st, { type: 'moveFlange', side: 'left', deltaCm: -30 - st.leftCm });
+  st = reduce(st, { type: 'moveFlange', side: 'right', deltaCm: 30 - st.rightCm });
+  st = reduce(st, { type: 'finishSetup' });
+  st = reduce(st, { type: 'attachThread' });
+  st = reduce(st, { type: 'setSpeed', value: 50 });
+  return { ...st, progress: 0.3, ...over };
+};
 
-describe('PU-29 追加修正: ドラム一式 (胴・巻いた糸・桟・右の端の円盤・ランプ) を DRUM_DEPTH_SHIFT だけ右へずらす', () => {
-  it('1. ドラムの胴の左の端 (描く所) は DRUM_X + DRUM_DEPTH_SHIFT。右の端の円盤 (楕円) も同じだけ右', () => {
-    const rec = draw(beamState({ progress: 0 }));
-    const cy = BOARD.drumY + BOARD.drumH / 2;
-    const top = BOARD.drumY;
-    const body = fillPaths(rec).find(
-      (f) =>
-        f.pts.some((p) => Math.abs(p.x - (DRUM_X + DRUM_DEPTH_SHIFT)) < 1e-6 && Math.abs(p.y - top) < 1e-6) &&
-        f.pts.some((p) => Math.abs(p.x - (DRUM_X + DRUM_W + DRUM_DEPTH_SHIFT)) < 1e-6 && Math.abs(p.y - top) < 1e-6),
-    );
-    expect(body, '胴の塗り (左の端 = DRUM_X + DRUM_DEPTH_SHIFT)').toBeDefined();
-    const disk = rec.ops.find(
-      (o) =>
-        o.k === 'ellipse' &&
-        Array.isArray(o.args) &&
-        Math.abs((o.args as number[])[0]! - (DRUM_X + DRUM_W + DRUM_DEPTH_SHIFT)) < 1e-6 &&
-        Math.abs((o.args as number[])[1]! - cy) < 1e-6,
-    );
-    expect(disk, 'ドラムの右の端の円盤').toBeDefined();
+const pt0 = (X: number, z: number, h: number): { x: number; y: number } => {
+  const q = project(z, h, BOARD.H);
+  return { x: X + q.dx, y: q.y };
+};
+const kon = (): string => stripeRunsOf(content, 'p-pin-kon')[0]!.hex;
+const shiro = (): string => stripeRunsOf(content, 'p-pin-kon')[1]!.hex;
+
+describe('PU-32: 糸の帯・隠れる順・盤面に収まる', () => {
+  it('1. 隠れる順: ドラム → 糸 → 鉄の棒 1 → 糸 → 鉄の棒 2 → 糸 (棒 2 の上で糸が手前)。鉄の棒のつや (白い線) が 2 本、そのあいだと前後に糸の帯がある', () => {
+    for (const st of [pinState(), pinState({ phase: 'attach', progress: 0 })]) {
+      const rec = draw(st);
+      const hex = new Set([kon(), shiro()]);
+      const ribbon: number[] = [];
+      const gloss: number[] = [];
+      let style = '';
+      let idx = 0;
+      let grad = -1;
+      for (const o of rec.ops) {
+        if (o.k === 'createLinearGradient' && grad < 0) grad = idx;
+        if (o.k === 'style') style = String(o.v);
+        if (o.k === 'fill' && hex.has(style)) ribbon.push(idx);
+        if (o.k === 'stroke' && style === COLORS.white) gloss.push(idx);
+        idx++;
+      }
+      expect(gloss.length).toBeGreaterThanOrEqual(2);
+      const [g1, g2] = [gloss[0]!, gloss[1]!];
+      expect(grad, 'ドラムの胴 (グラデーション) が最初').toBeLessThan(ribbon[0]!);
+      expect(ribbon.some((i) => i < g1), '棒 1 より前に糸 (ドラムの下から棒 1 まで)').toBe(true);
+      expect(ribbon.some((i) => i > g1 && i < g2), '棒 1 と棒 2 のあいだに糸').toBe(true);
+      expect(ribbon.some((i) => i > g2), '棒 2 のあとに糸 (棒 2 の上は糸が手前)').toBe(true);
+    }
   });
 
-  it('2. ドラムの巻いた糸の左の端も同じだけ右: 端 (t=±1) の x は BEAM_CENTER_X − 幅の半分 + DRUM_DEPTH_SHIFT (ドラムの左の端の当たり判定と同じ式)', () => {
-    const rec = draw(beamState({ progress: 0.4 }));
-    const cy = BOARD.drumY + BOARD.drumH / 2;
-    const half = (BOARD.drumH / 2) * (1 - 0.3 * 0.4);
-    const yarnPaths = fillPaths(rec).filter((f) => {
-      const ys = f.pts.map((p) => p.y);
-      const mid = (Math.max(...ys) + Math.min(...ys)) / 2;
-      return Math.max(...ys) - Math.min(...ys) > 20 && Math.abs(mid - cy) < 1e-6 && f.style === mainHex(content, 'p-muji-kon');
-    });
-    expect(yarnPaths.length).toBeGreaterThan(0);
-    const wHalf = (60 * pxPerCm(60)) / 2;
-    // いちばん左の縞の左の辺で確かめる
-    const edge = yarnPaths.reduce((a, b) => (Math.min(...b.pts.map((p) => p.x)) < Math.min(...a.pts.map((p) => p.x)) ? b : a));
-    const topX = Math.min(...edge.pts.filter((p) => Math.abs(p.y - (cy - half)) < 1e-6).map((p) => p.x));
-    const bottomX = Math.min(...edge.pts.filter((p) => Math.abs(p.y - (cy + half)) < 1e-6).map((p) => p.x));
-    expect(topX).toBeCloseTo(BEAM_CENTER_X - wHalf + DRUM_DEPTH_SHIFT, 6);
-    expect(bottomX).toBeCloseTo(BEAM_CENTER_X - wHalf + DRUM_DEPTH_SHIFT, 6);
-    const leftmost = Math.min(...edge.pts.map((p) => p.x));
-    expect(leftmost, '真ん中の高さは「(」にふくらむぶん左').toBeLessThan(topX);
+  it('2. 帯の左の端の線 (画面): 上から下へ角が無い。ドラムの下 → 鉄の棒 1 の上 → 棒 2 の上 → 真下 → ビームの手前を回る、1 本のなめらかな線 (隣り合う区間の向きの差 25 度以下)', () => {
+    const turn = (pts: Array<{ x: number; y: number }>): number => {
+      let worst = 0;
+      for (let i = 1; i + 1 < pts.length; i++) {
+        const a = Math.atan2(pts[i]!.y - pts[i - 1]!.y, pts[i]!.x - pts[i - 1]!.x);
+        const b = Math.atan2(pts[i + 1]!.y - pts[i]!.y, pts[i + 1]!.x - pts[i]!.x);
+        let d = Math.abs(b - a);
+        if (d > Math.PI) d = 2 * Math.PI - d;
+        worst = Math.max(worst, (d * 180) / Math.PI);
+      }
+      return worst;
+    };
+    const X = cmToX(60, -30);
+    for (const p of [0.05, 0.3, 0.8]) {
+      for (const H of [750, 911, 1100]) {
+        setBoardHeight(H);
+        const edge = sidePath(p).map((q) => {
+          const r = project(q.z, q.h, H);
+          return { x: X + r.dx, y: r.y };
+        });
+        expect(turn(edge), `p=${p} H=${H}`).toBeLessThanOrEqual(25);
+        // 上から下へ: ドラムを離れる点から鉄の棒を越えるまでは y が減る (上がる)・そのあとビームまでは増える (下る)
+        expect(edge[edge.length - 1]!.y).toBeGreaterThan(edge[0]!.y);
+      }
+    }
+    setBoardHeight(750);
   });
 
-  it('3. 糸の束の先の木の棒も、その高さのシートのずれぶん右 (当たり判定と同じ式)', () => {
-    const s = beamState({ phase: 'attach', progress: 0, speed: 0 });
-    const barY = sheetDropEndY(0) + 120;
+  it('3. 描いた絵が 412×915 相当 (H=911) と 1180×820 相当 (H=750) のどちらの盤面にも、四辺に触れずに収まる (attach と beaming 30%・柄あり)', () => {
+    for (const H of [750, 911, 1100]) {
+      setBoardHeight(H);
+      for (const st of [pinState({ phase: 'attach', progress: 0 }), pinState()]) {
+        const rec = draw(st);
+        const xs: number[] = [];
+        const ys: number[] = [];
+        for (const o of rec.ops) {
+          if ((o.k === 'moveTo' || o.k === 'lineTo' || o.k === 'arc' || o.k === 'ellipse') && o.args) {
+            xs.push(Number(o.args[0]));
+            ys.push(Number(o.args[1]));
+          }
+        }
+        expect(Math.min(...xs), `H=${H} ${st.phase} の左`).toBeGreaterThan(0);
+        expect(Math.max(...xs), `H=${H} ${st.phase} の右`).toBeLessThan(BOARD_W);
+        expect(Math.min(...ys), `H=${H} ${st.phase} の上`).toBeGreaterThan(0);
+        expect(Math.max(...ys), `H=${H} ${st.phase} の下`).toBeLessThan(H);
+      }
+    }
+    setBoardHeight(750);
+  });
+
+  it('4. 柄の縞は縦縞 (ピンストライプ): 糸の帯は地の色と線の色の両方で、1 本ごとの帯の左右の線は同じ形を横にずらしたもの (縞が糸の流れる向きに走る)', () => {
+    const rec = draw(pinState({ phase: 'attach', progress: 0 }));
+    const polys = fillPolys(rec).filter((f) => (f.style === kon() || f.style === shiro()) && f.pts.length > 6 && f.pts.length % 2 === 1);
+    expect(new Set(polys.map((f) => f.style)).size).toBe(2);
+    const sample = polys.find((f) => f.pts.length >= 12)!;
+    const len = sample.pts.length; // 最初の moveTo + 左の線 n 点 + 右の線 n 点 (逆順)
+    const m = (len - 1) / 2;
+    const dx = sample.pts[len - 1]!.x - sample.pts[1]!.x; // 左の線の最初の点と、右の線の最後の点 (同じ (z,h))
+    for (let i = 0; i < m; i++) {
+      expect(sample.pts[len - 1 - i]!.y).toBeCloseTo(sample.pts[1 + i]!.y, 6);
+      expect(sample.pts[len - 1 - i]!.x - sample.pts[1 + i]!.x).toBeCloseTo(dx, 6);
+    }
+  });
+
+  it('5. 巻いた糸の円筒は、横から見た巻いた糸の半径を写した大きさ: 糸の色の塗りの縦の幅が 2 × woundRadius (中心 = 軸の高さ)。progress 0 では描かない・大きいほど太い', () => {
+    const wound = (p: number): Array<{ y0: number; y1: number }> => {
+      const rec = draw(beamState({ progress: p }));
+      const hex = mainHex(content, 'p-muji-kon');
+      return fillPolys(rec)
+        .filter((f) => f.style === hex && f.pts.length > 10)
+        .map((f) => ext(f.pts))
+        .filter((e) => Math.abs((e.y0 + e.y1) / 2 - BOARD.axisY) < 1e-6);
+    };
+    expect(wound(0)).toHaveLength(0);
+    for (const p of [0.3, 0.6, 1]) {
+      const w = wound(p);
+      expect(w.length, `p=${p}`).toBeGreaterThanOrEqual(1);
+      expect((w[0]!.y1 - w[0]!.y0) / 2).toBeCloseTo(woundRadius(p), 6);
+    }
+  });
+
+  it('6. 巻いた糸の上に、横いっぱいの線は無い (巻いた糸の幅の 8 割以上の水平な線)。ドラムの桟は巻いた糸の幅の外にだけ', () => {
+    const st = pinState({ progress: 0.5 });
     const { ctx, rec } = makeFakeCtx();
-    drawBoard(ctx, fit, s, content, 0, { x: BEAM_CENTER_X, y: barY });
-    const bar = rec.ops
-      .map((o, i) => ({ o, style: styleBefore(rec.ops, i) }))
-      .filter((e) => e.o.k === 'fillRect' && e.style === COLORS.wood && Number((e.o.args as number[])[2]) > 100)[0]!;
-    const x = (bar.o.args as number[])[0]!;
-    expect(x).toBeCloseTo(threadBarRange(60).x0 + sheetShiftX(barY, 0), 6);
-  });
-});
-
-describe('PU-30: 桟は巻いた糸の上に描かない・左の円盤はシートより奥・回る筋は縁の曲線に沿う・巻き付きの左の端は角の無い曲線', () => {
-  const hex = mainHex(content, 'p-muji-kon');
-
-  /** 塗りを op の番号つきで集める (順番のテスト用) */
-  function fillsWithIndex(rec: FakeRecorder): Array<{ i: number; style: string; pts: Array<{ x: number; y: number }> }> {
-    const out: Array<{ i: number; style: string; pts: Array<{ x: number; y: number }> }> = [];
-    let style = '';
-    let pts: Array<{ x: number; y: number }> = [];
-    rec.ops.forEach((o, i) => {
-      if (o.k === 'style') style = String(o.v);
-      else if (o.k === 'beginPath') pts = [];
-      else if ((o.k === 'moveTo' || o.k === 'lineTo') && o.args) pts.push({ x: Number(o.args[0]), y: Number(o.args[1]) });
-      else if (o.k === 'fill') out.push({ i, style, pts: [...pts] });
-    });
-    return out;
-  }
-
-  it('1. 赤丸: ドラムの木の桟は、その高さの巻いた糸の帯 (縁の曲線の内側) と重ならない。桟の線の端は、その高さの巻いた糸の縁の曲線で止める (PU-30 3)', () => {
-    const s = beamState({ progress: 0.4 });
-    const rec = draw(s);
-    const half = (60 * pxPerCm(60)) / 2;
-    const x0 = DRUM_X + DRUM_DEPTH_SHIFT;
-    const x1 = DRUM_X + DRUM_W + DRUM_DEPTH_SHIFT;
-    const w0 = Math.max(x0, BEAM_CENTER_X - half + DRUM_DEPTH_SHIFT);
-    const w1 = Math.min(x1, BEAM_CENTER_X + half + DRUM_DEPTH_SHIFT);
-    const cy = BOARD.drumY + BOARD.drumH / 2;
-    const dHalf = (BOARD.drumH / 2) * (1 - 0.3 * 0.4);
-    const slats = strokes(rec).filter((g) => g.style === COLORS.woodLight && g.pts.length === 2 && g.pts[0]!.y === g.pts[1]!.y && g.pts[0]!.y > BOARD.drumY && g.pts[0]!.y < BOARD.drumY + BOARD.drumH);
-    expect(slats.length, '桟は描かれる').toBeGreaterThan(0);
+    drawBoard(ctx, fit, st, content, 0.4, null, 0.3);
+    const wLeft = cmToX(60, -30);
+    const wRight = cmToX(60, 30);
+    const wide = strokes(rec).filter((g) => g.pts.length === 2 && g.pts[0]!.y === g.pts[1]!.y && Math.abs(g.pts[1]!.x - g.pts[0]!.x) >= 0.8 * (wRight - wLeft) && Math.abs(g.pts[0]!.y - BOARD.axisY) <= woundRadius(0.5));
+    expect(wide).toHaveLength(0);
+    // 桟 (woodLight の水平線) は、巻いた糸の幅の外 (胴の見えている左右の余り) にだけ: どの線も長さが余りの幅以下 (巻いた糸の上を横切らない)
+    const margin = (DRUM_W - 700) / 2;
+    const slats = strokes(rec).filter((g) => g.style === COLORS.woodLight && g.pts.length === 2 && g.pts[0]!.y === g.pts[1]!.y);
+    expect(slats.length).toBeGreaterThan(0);
     for (const g of slats) {
-      const t = (g.pts[0]!.y - cy) / dHalf;
-      const bandL = drumArcX(w0, t); // その高さの巻いた糸の左の端 (縁の曲線)
-      const bandR = drumArcX(w1, t); // 右の端
-      const a = Math.min(g.pts[0]!.x, g.pts[1]!.x);
-      const b = Math.max(g.pts[0]!.x, g.pts[1]!.x);
-      expect(Math.min(b, bandR) - Math.max(a, bandL), `桟 ${a.toFixed(1)}〜${b.toFixed(1)} が帯 ${bandL.toFixed(1)}〜${bandR.toFixed(1)} (y=${g.pts[0]!.y.toFixed(1)}) と重ならない`).toBeLessThanOrEqual(1e-6);
+      const len = Math.abs(g.pts[1]!.x - g.pts[0]!.x);
+      expect(len).toBeGreaterThan(0);
+      expect(len, '桟の長さ').toBeLessThanOrEqual(margin + 1e-6);
     }
   });
 
-  it('2. 緑丸: 左の円盤は糸のシートより奥に描く (シートが左の円盤の上に見える)。右の円盤はいちばん手前 (PU-30 4)', () => {
-    const s = beamState({ progress: 0.4 });
-    const rec = draw(s);
-    const leftX = cmToX(60, -30);
-    const rightX = cmToX(60, 30);
-    const ops = rec.ops;
-    const flangeOps = (x: number): number[] =>
-      ops.flatMap((o, i) => (o.k === 'ellipse' && Math.abs(Number((o.args as number[])[0]) - x) < 1e-6 && styleBefore(ops, i) === COLORS.flange ? [i] : []));
-    const fills = fillsWithIndex(rec);
-    const topY = sheetTopY(0.4);
-    const yTop = woundTopY(0.4);
-    const sheetFills = fills.filter((f) => f.style === hex && f.pts.length > 0 && f.pts.every((p) => p.y >= topY - 1e-6 && p.y <= yTop + 1e-6));
-    expect(sheetFills.length, 'シートの縞の塗り').toBeGreaterThan(0);
-    const firstSheet = Math.min(...sheetFills.map((f) => f.i));
-    const lastSheet = Math.max(...sheetFills.map((f) => f.i));
-    const leftFlange = flangeOps(leftX);
-    const rightFlange = flangeOps(rightX);
-    expect(leftFlange.length, '左の円盤は描かれる').toBeGreaterThan(0);
-    expect(rightFlange.length, '右の円盤は描かれる').toBeGreaterThan(0);
-    expect(Math.max(...leftFlange), '左の円盤はシートより先 (奥) に描く').toBeLessThan(firstSheet);
-    expect(Math.min(...rightFlange), '右の円盤はシートより後 (手前) に描く').toBeGreaterThan(lastSheet);
+  it('7. ドラムの端の円盤の腕: 角度が進むと腕の先が下へ動く。ビームの円盤の穴は上へ (胴と逆の向き)。胴: 桟は上へ、光の帯は下へ', () => {
+    expect(DRUM_FLANGE_SIGN).toBe(-DRUM_SURFACE_SIGN);
+    expect(BEAM_FLANGE_SIGN).toBe(-BEAM_SURFACE_SIGN);
+    const face = pt0(DRUM_AXIS_X0 + DRUM_W, SIDE.drum.z, SIDE.drum.h);
+    const tipY = (angle: number): number => {
+      const arm = strokes(draw(beamState({ progress: 0 }), angle)).find(
+        (g) => g.style === COLORS.sumiSub && g.pts.length === 2 && Math.abs(g.pts[0]!.x - face.x) < 1e-6 && Math.abs(g.pts[0]!.y - face.y) < 1e-6,
+      );
+      expect(arm, '腕').toBeDefined();
+      return arm!.pts[1]!.y;
+    };
+    expect(tipY(0.1)).toBeGreaterThan(tipY(0));
+    // 胴の桟 (見える側面): 手前の 1 本が上へ動く。光の帯は下へ動く
+    const slatY = (angle: number): number => {
+      const ys = strokes(draw(beamState({ progress: 0 }), angle))
+        .filter((g) => g.style === COLORS.woodLight && g.pts.length === 2 && g.pts[0]!.y === g.pts[1]!.y)
+        .map((g) => g.pts[0]!.y);
+      const c = pt0(0, SIDE.drum.z + SIDE.drum.r * Math.cos(viewAlpha()), SIDE.drum.h + SIDE.drum.r * Math.sin(viewAlpha())).y; // 正面を向いた点の高さ
+      return ys.reduce((best, y) => (Math.abs(y - c) < Math.abs(best - c) ? y : best), Infinity);
+    };
+    expect(slatY(0.1)).toBeLessThan(slatY(0));
+    const bandY = (angle: number): number => {
+      const { ctx, rec } = makeFakeCtx();
+      drawBoard(ctx, fit, beamState({ progress: 0.5 }), content, 0, null, angle);
+      const c = BOARD.axisY;
+      const ys = fillPolys(rec).filter((f) => f.style === COLORS.white && f.alpha < 0.5 && f.pts.length === 4).map((f) => (ext(f.pts).y0 + ext(f.pts).y1) / 2);
+      return ys.reduce((best, y) => (Math.abs(y - c) < Math.abs(best - c) ? y : best), Infinity);
+    };
+    expect(bandY(0.1)).toBeGreaterThan(bandY(0));
+    const holeY = (angle: number): number => {
+      const { ctx, rec } = makeFakeCtx();
+      drawBoard(ctx, fit, beamState({ progress: 0.5 }), content, 0, null, angle);
+      const f0 = pt0(cmToX(60, -30), SIDE.beam.z + 0.4 * SIDE.beam.r * Math.cos(-BEAM_FLANGE_SIGN * angle), SIDE.beam.h + 0.4 * SIDE.beam.r * Math.sin(-BEAM_FLANGE_SIGN * angle));
+      const hole = rec.ops.filter((o) => o.k === 'arc' && (o.args as number[])[2] === 4).map((o) => o.args as number[]).find((a) => Math.abs(a[0]! - f0.x) < 1e-6);
+      expect(hole, '穴').toBeDefined();
+      return hole![1]!;
+    };
+    expect(holeY(0.1)).toBeLessThan(holeY(0)); // 円盤の穴は上へ (0.3.59 の逆)
   });
 
-  it('3. 青丸: ビームの光の帯の両端は、その高さの巻いた糸の縁の曲線の上。軸の高さに近い帯のほうが、遠い帯より左にふくらむ (PU-30 5)', () => {
-    const s = beamState({ progress: 0.5 });
-    const r = woundRadius(0.5);
-    const rec = draw(s, 0.3);
-    const bands = fillsWithIndex(rec).filter((f) => f.style === COLORS.white && f.pts.length > 4);
-    expect(bands.length, '光の帯は 2 つ以上').toBeGreaterThanOrEqual(2);
-    const info = bands.map((f) => {
-      const ys = f.pts.map((p) => p.y);
-      return { midY: (Math.min(...ys) + Math.max(...ys)) / 2, minX: Math.min(...f.pts.map((p) => p.x)) };
-    });
-    // 帯の太さは巻いた半径の 0.3 以内。円筒の端に掛からない帯はきっかり 0.3 (今のまま)
-    for (const f of bands) {
-      const ys = f.pts.map((p) => p.y);
-      const midY = (Math.min(...ys) + Math.max(...ys)) / 2;
-      const th2 = Math.max(...ys) - Math.min(...ys);
-      expect(th2, '帯の太さは 0.3r 以内').toBeLessThanOrEqual(r * 0.3 + 1e-6);
-      if (Math.abs(midY - BOARD.axisY) <= r * 0.85) {
-        expect(th2, '端に掛からない帯の太さは今のまま').toBeCloseTo(r * 0.3, 6);
-      }
-    }
-    // 軸の高さにいちばん近い帯の左端は、いちばん遠い帯の左端より左 (弓なり)
-    const nearest = info.reduce((a, b) => (Math.abs(b.midY - BOARD.axisY) < Math.abs(a.midY - BOARD.axisY) ? b : a));
-    const farthest = info.reduce((a, b) => (Math.abs(b.midY - BOARD.axisY) > Math.abs(a.midY - BOARD.axisY) ? b : a));
-    expect(nearest.midY).not.toBe(farthest.midY);
-    expect(nearest.minX, `軸に近い帯 (${nearest.minX.toFixed(1)}) のほうが遠い帯 (${farthest.minX.toFixed(1)}) より左`).toBeLessThan(farthest.minX);
+  it('8. 糸を付ける前: 木の棒は鉄の棒 2 の手前の面の真下に垂れ (棒の x の範囲は threadBarRange)、太さは画面上 12px 以上。引っぱると棒も帯の下の端も指の y。beaming では描かない', () => {
+    const attach = beamState({ phase: 'attach', progress: 0, speed: 0 });
+    const barRects = (rec: FakeRecorder): number[][] =>
+      rec.ops
+        .map((o, i) => ({ o, style: styleBefore(rec.ops, i) }))
+        .filter((e) => e.o.k === 'fillRect' && e.style === COLORS.wood && Math.abs(Number((e.o.args as number[])[2]) - (threadBarRange(60).x1 - threadBarRange(60).x0)) < 1e-6)
+        .map((e) => e.o.args as number[]);
+    const r0 = barRects(draw(attach));
+    expect(r0).toHaveLength(1);
+    expect(r0[0]![0]).toBeCloseTo(threadBarRange(60).x0, 9);
+    expect(r0[0]![1]! + r0[0]![3]! / 2).toBeCloseTo(sheetDropEndY(0), 9);
+    expect(r0[0]![3]!).toBeGreaterThanOrEqual(12);
+    const { ctx, rec } = makeFakeCtx();
+    const y = (sheetDropEndY(0) + BOARD.axisY) / 2;
+    drawBoard(ctx, { scale: 0.39, offsetX: 0, offsetY: 0 }, attach, content, 0, { x: 0, y });
+    const r1 = barRects(rec);
+    expect(r1[0]![1]! + r1[0]![3]! / 2).toBeCloseTo(y, 6);
+    expect(r1[0]![3]! * 0.39).toBeGreaterThanOrEqual(12 - 1e-6);
+    const hex = mainHex(content, 'p-muji-kon');
+    const ribbonBottom = Math.max(...fillPolys(rec).filter((f) => f.style === hex && f.pts.length > 4).map((f) => ext(f.pts).y1));
+    expect(ribbonBottom).toBeCloseTo(y, 6); // 帯の下の端は棒の位置
+    expect(barRects(draw(beamState({ progress: 0.3 })))).toHaveLength(0);
   });
 
-  it('4. 巻き付きの左の端は角の無いなめらかな1本の曲線 (ドラムの下の端 → ビームの上の端 → ビームの真ん中 → ビームの下の端)。隣り合う区間の傾きの変わり方は 0.5 以下、いちばん左の点は軸の高さ ± 巻いた半径の 30% の中 (PU-30 6)', () => {
-    const s = beamState({ progress: 0.4 });
-    const rec = draw(s);
-    const topY = sheetTopY(0.4);
-    const r = woundRadius(0.4);
-    const yBot = BOARD.axisY + r;
-    const pts: Array<{ x: number; y: number }> = [];
-    for (const f of fillPaths(rec)) {
-      if (f.style !== hex) continue;
-      for (const p of f.pts) if (p.y >= topY - 1e-6 && p.y <= yBot + 1e-6) pts.push(p);
+  it('9. 当たり判定が描いた位置と合う: 糸の端の木の棒 (描いた長方形の中) は hitSheetEdge が真、円盤の面 (描いた楕円の中心) は flangeHit が真', () => {
+    const attach = beamState({ phase: 'attach', progress: 0, speed: 0 });
+    const bar = (() => {
+      const rec = draw(attach);
+      return rec.ops
+        .map((o, i) => ({ o, style: styleBefore(rec.ops, i) }))
+        .filter((e) => e.o.k === 'fillRect' && e.style === COLORS.wood && Number((e.o.args as number[])[2]) > 600)
+        .map((e) => e.o.args as number[])[0]!;
+    })();
+    expect(hitSheetEdge({ x: bar[0]! + bar[2]! / 2, y: bar[1]! + bar[3]! / 2 }, 60, 0)).toBe(true);
+    expect(hitSheetEdge({ x: bar[0]! + 1, y: bar[1]! + bar[3]! / 2 }, 60, 0)).toBe(true);
+    // 円盤: 描いた面 (COLORS.flange の塗り) の中心が、flangeHit の当たりの中
+    const faces = fillPolys(draw(beamState())).filter((f) => f.style === COLORS.flange && f.pts.length > 20);
+    expect(faces).toHaveLength(2);
+    for (const f of faces) {
+      const e = ext(f.pts);
+      const c = { x: (e.x0 + e.x1) / 2, y: (e.y0 + e.y1) / 2 };
+      expect(flangeHit(c, -30, 30, 60, 1)).not.toBeNull();
+      expect(c.y).toBeGreaterThan(BOARD.axisY - BOARD.flangeR);
+      expect(c.y).toBeLessThan(BOARD.axisY + BOARD.flangeR);
     }
-    pts.sort((a, b) => a.y - b.y || a.x - b.x);
-    const edge: Array<{ x: number; y: number }> = [];
-    for (const p of pts) {
-      const last = edge[edge.length - 1];
-      if (!last || Math.abs(last.y - p.y) > 1e-6) edge.push(p);
-      else if (p.x < last.x) edge[edge.length - 1] = p;
-    }
-    expect(edge.length, '左の端の点は細かく取れる').toBeGreaterThan(6);
-    expect(edge[0]!.y, '上の端はシートの上の端').toBeCloseTo(topY, 6);
-    expect(edge[edge.length - 1]!.y, '下の端はビームの巻いた糸の下の端').toBeCloseTo(yBot, 6);
-    let prev: number | null = null;
-    for (let i = 1; i < edge.length; i++) {
-      const slope = (edge[i]!.x - edge[i - 1]!.x) / (edge[i]!.y - edge[i - 1]!.y);
-      if (prev !== null) {
-        expect(Math.abs(slope - prev), `y=${edge[i]!.y.toFixed(1)} での傾きの変わり方 (角が無い)`).toBeLessThanOrEqual(0.5);
-      }
-      prev = slope;
-    }
-    const leftmost = edge.reduce((a, b) => (b.x < a.x ? b : a));
-    expect(Math.abs(leftmost.y - BOARD.axisY), `いちばん左の点の y (${leftmost.y.toFixed(1)}) は軸の高さ (${BOARD.axisY.toFixed(1)}) ±0.3r の中`).toBeLessThanOrEqual(r * 0.3);
   });
 });
