@@ -2183,6 +2183,21 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
   - controller「縦長 (400×900): …」(名前のみ。張りのメーター→速さのメーター)
 - 未確認: 実機 (Fold 8・iPhone) での見え方と操作感。
 
+## 2026-10-10 (ルビー) PU-34: スタート画面のカードの状態を、それぞれのゲームのお題の数に
+
+- コミット: `71eef23` (0.3.75 → 0.3.76)。push 前: `npm run check`・`npm test` (1336 passed | 11 skipped)・`npm run build` 成功。
+- テストを先に書いて RED 2件 (homeCards.test の winding・homeScreen.test のカードの状態) を確認してから実装した。
+- **変更** (`homeCards.ts` の `gameStatusText`):
+  - winding: 「初級・中級・上級」→ 「お題 N」(N = `windingPuzzles(getContent()).length`)。
+  - beaming: クリール立ての数の流用から `beamingPuzzles(getContent()).length` に変えた。
+  - itowari: 同じく `itowariPuzzles(getContent()).length` に変えた。
+  - creel: 今のまま (`creelPuzzles.length`)。
+  - **drumsetup: お題の一覧を返す関数が無いので今のまま (クリール立てと同じ数)** — PU-34 の規則 2 の「無ければ今のまま」にあたる。新規テストに理由を書いた。
+- **期待値を変えたテスト**: homeScreen.test「登録済みのゲームのカードに…」の ドラム巻きの状態の期待値を「初級・中級・上級」から「お題 N」(正規表現) に変えた。
+- **新規テスト**: `src/app/screens/homeCards.test.ts` (PU-34 の3件: winding が「お題 N」で「初級」の字が無い・ほかのゲームもそれぞれの数・drumsetup は今のまま)。
+- **ブラウザで確かめたこと** (Chromium・412×915・既定の設定): クリール立て・ドラム巻き・ビーミングのカードがどれも「お題 15」。
+- 未確認: 実機。PU-34 のあとは PU-32 が main に入るまで待機 (T3-09 はそのあと)。
+
 ## 2026-10-10 (ルビー) PU-33: ビーミングを「開発中」から出す (スタート画面でドラム巻きの次)
 
 - コミット: `134ed59` (0.3.73 → 0.3.74)。push 前: `npm run check`・`npm test` (1329 passed | 11 skipped)・`npm run build` 成功。
