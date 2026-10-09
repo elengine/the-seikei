@@ -241,7 +241,7 @@ describe('T3-06 → T3-07 (速さのメーターと糸を付ける段階の操�
     expect(parseFloat(needle.style.left), '針は速さ 95 の位置').toBeCloseTo(95, 5);
     p.update({ ...beaming(), phase: 'beaming', progress: 0, speed: 50 });
     expect(parseFloat(needle.style.left), '針は速さ 50 の位置').toBeCloseTo(50, 5);
-    // 範囲は巻き量で動く (巻き量 50% (目標 100) と 0% (目標 50) では zone の位置が違う)
+    // 範囲は巻き量で動く (巻き量 50% (目標 100) と 0% (目標 0) では zone の位置が違う。T3-08)
     const zone = host.querySelector<HTMLElement>('.meter__zone')!;
     p.update({ ...beaming(), phase: 'beaming', progress: 0.5, speed: 50 });
     const left50 = zone.style.left;

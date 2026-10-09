@@ -327,15 +327,18 @@ describe('PU-24b・PU-28 (速さの木の棒・ランプ)', () => {
         .filter((o) => o.k === 'fillText')
         .map((o) => String((o.args as unknown[])[0]))
         .filter((t) => ['▲', '▼', '○'].includes(t));
-    // 速すぎ: 巻き量 90% (目標 20・範囲 5〜35) で速さ 80 → ▲ (オレンジ)
+    // 速すぎ: 巻き量 90% (T3-08 で範囲はいつでも 0〜30) で速さ 80 → ▲ (オレンジ)
     const rec2 = draw(beamState({ progress: 0.9, speed: 80 }));
     expect(symbolsOf(rec2), '速すぎの ▲').toEqual(['▲']);
-    // 遅すぎ: 巻き量 90% で速さ 2 → ▼
-    const rec3 = draw(beamState({ progress: 0.9, speed: 2 }));
+    // 遅すぎ: 巻き量 89% (目標 40・レベル1 の範囲 25〜55) で速さ 2 → ▼ (T3-08 で 90% は止めてよい範囲になったため 89% に移した)
+    const rec3 = draw(beamState({ progress: 0.89, speed: 2 }));
     expect(symbolsOf(rec3), '遅すぎの ▼').toEqual(['▼']);
+    // 巻き量 90% の止めてよい範囲 (0〜30): 速さ 2 (ほとんど止まっている) も範囲の中 → ○ (T3-08 で ▼ から変えた)
+    const rec5 = draw(beamState({ progress: 0.9, speed: 2 }));
+    expect(symbolsOf(rec5), '止めてよい範囲の ○').toEqual(['○']);
     // 範囲の中 (巻き量 90%・速さ 20) は ○
-    const rec5 = draw(beamState({ progress: 0.9, speed: 20 }));
-    expect(symbolsOf(rec5), '範囲の中の ○').toEqual(['○']);
+    const rec6 = draw(beamState({ progress: 0.9, speed: 20 }));
+    expect(symbolsOf(rec6), '範囲の中の ○').toEqual(['○']);
     // attach の段階 → ランプは描かない
     const rec4 = draw(beamState({ phase: 'attach' }));
     expect(rec4.ops.some((o) => o.k === 'arc' && Math.abs(((o.args as number[])[0] ?? 0) - lampX()) < 1)).toBe(false);

@@ -5,6 +5,7 @@ import {
   FULL_WIND_SEC_AT_100, TARGET_POINTS, OK_TOL_BY_LEVEL,
   DIP_GAP_MIN_MS, DIP_GAP_MAX_MS, DIP_AMOUNT_MIN, DIP_AMOUNT_MAX,
   DIP_DOWN_MS, DIP_HOLD_MIN_MS, DIP_HOLD_MAX_MS, DIP_BACK_MS,
+  STOP_ZONE, DIP_FROM_PCT, DIP_TO_PCT,
   CONFIRM_MIN, STOP3, STOP2, RESTARTS_OK, WIDTH_OK_CM,
 } from './params';
 import type { Level } from './params';
@@ -25,8 +26,12 @@ export function targetOf(progress: number): number {
   return TARGET_POINTS[TARGET_POINTS.length - 1]![1]!;
 }
 
-/** その巻き量での適正範囲 (目標から揺らぎを引いた値 ± レベルの幅。0〜100 に収める。T3-06 追記) */
+/** その巻き量での適正範囲 (目標から揺らぎを引いた値 ± レベルの幅。0〜100 に収める。T3-06 追記)。
+ *  巻き量 90% 以上は止めてよい範囲で、いつでも 0〜30 (レベルと揺らぎを使わない。T3-08) */
 export function okRangeOf(progress: number, level: Level, dip: number): { min: number; max: number } {
+  if (progress * 100 >= STOP_ZONE.from) {
+    return { min: STOP_ZONE.min, max: STOP_ZONE.max };
+  }
   const target = targetOf(progress) - dip;
   const tol = OK_TOL_BY_LEVEL[level];
   return { min: Math.max(0, target - tol), max: Math.min(100, target + tol) };
@@ -46,7 +51,7 @@ export interface BeamingState {
   leftCm: number; rightCm: number;   // 円盤の位置(ビームの中心からの距離 cm。左は負の数)
   progress: number;                  // 巻いた割合 0〜1 (表示は % にして切り捨て。101% に届いたら糸切れ)
   speed: number;                     // 木の棒の速さ 0〜100 (即時に変わる)
-  dip: number;                       // 目標の揺らぎの今の下がり量 (35〜70% だけ。T3-06 追記)
+  dip: number;                       // 目標の揺らぎの今の下がり量 (10〜80% だけ。T3-08 で区間を変えた)
   dipPhase: 'none' | 'down' | 'hold' | 'back'; // 揺らぎのいまの段階
   dipTimerMs: number;                // 揺らぎの段階の経過時間
   dipGapMs: number;                  // 次の揺らぎまでのあいだ (ms)
@@ -155,12 +160,12 @@ export function reduce(s: BeamingState, a: BeamingAction): BeamingState {
   return s; // 知らない形の操作は受けない
 }
 
-/** 揺らぎ (35〜70% だけ目標がときどき下がって戻る) を 1tick 進める */
+/** 揺らぎ (10〜80% だけ目標がときどき下がって戻る。T3-08) を 1tick 進める */
 function stepDip(s: BeamingState, dtMsC: number, rng: RngState): { dip: number; dipPhase: BeamingState['dipPhase']; dipTimerMs: number; dipGapMs: number; dipAmount: number; dipHoldMs: number; rng: RngState } {
   const pct = s.progress * 100;
   let { dip, dipPhase, dipTimerMs, dipGapMs, dipAmount, dipHoldMs } = s;
   let nextRng = rng;
-  if (pct < 35 || pct > 70) {
+  if (pct < DIP_FROM_PCT || pct > DIP_TO_PCT) {
     // 区間の外では揺らぎはすぐ 0 に戻る
     return { dip: 0, dipPhase: 'none', dipTimerMs: 0, dipGapMs, dipAmount, dipHoldMs, rng: nextRng };
   }

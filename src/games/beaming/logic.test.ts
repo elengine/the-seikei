@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { init, reduce, starsOf, widthOk, resultLines, isValidResume, targetOf, okRangeOf } from './logic';
 import type { BeamingState, BeamingAction } from './logic';
 import type { Level } from './params';
-import { FULL_WIND_SEC_AT_100, TARGET_POINTS, STOP3, STOP2, RESTARTS_OK, OK_TOL_BY_LEVEL } from './params';
+import { FULL_WIND_SEC_AT_100, TARGET_POINTS, STOP3, STOP2, RESTARTS_OK, OK_TOL_BY_LEVEL, STOP_ZONE, DIP_FROM_PCT, DIP_TO_PCT } from './params';
 
 /** テスト用の状態を作る (seed 固定)。level と巻き幅を指定できる */
 function make(level: Level = 1, widthCm = 60, seed = 42): BeamingState {
@@ -190,26 +190,36 @@ describe('beaming logic T3-01 (ルール)', () => {
     expect(i3.leftCm !== i1.leftCm || i3.rightCm !== i1.rightCm).toBe(true);
   });
 
-  it('11. 張りの目標 (TARGET_POINTS を直線で結ぶ) と適正範囲 (目標から揺らぎを引いた値 ± レベルの幅。0〜100 に収める) (T3-06)', () => {
-    expect(TARGET_POINTS).toEqual([[0, 0], [10, 50], [30, 50], [35, 100], [70, 100], [75, 50], [100, 0]]); // PU-27: 0〜10% で 50 に上がる
-    // 仕様書の点 (追記): 0%→0、15%→25、30%→50、32.5%→75、50%→100、72.5%→75、87.5%→25、100%→0
+  it('11. 速さの目標 (TARGET_POINTS を直線で結ぶ) と適正範囲 (目標から揺らぎを引いた値 ± レベルの幅。0〜100 に収める) (T3-08 で目標の点を変えた)', () => {
+    expect(TARGET_POINTS).toEqual([[0, 0], [10, 100], [85, 100], [90, 25]]); // T3-08: 0〜10% で 100 まで上がり、85〜90% で 25 へ下がる
+    // 仕様書の点: 0%→0、5%→50、10%→100、50%→100、85%→100、87.5%→62.5、90%→25
     expect(targetOf(0)).toBe(0);
-    expect(targetOf(0.05)).toBe(25);
-    expect(targetOf(0.10)).toBe(50);
-    expect(targetOf(0.15)).toBe(50);
-    expect(targetOf(0.30)).toBe(50);
-    expect(targetOf(0.325)).toBe(75);
+    expect(targetOf(0.05)).toBe(50);
+    expect(targetOf(0.10)).toBe(100);
     expect(targetOf(0.50)).toBe(100);
-    expect(targetOf(0.725)).toBe(75);
-    expect(targetOf(0.875)).toBe(25);
-    expect(targetOf(1)).toBe(0);
+    expect(targetOf(0.85)).toBe(100);
+    expect(targetOf(0.875)).toBe(62.5);
+    expect(targetOf(0.90)).toBe(25);
+    expect(targetOf(1)).toBe(25); // 90% を超えても 25 (90〜100% の適正範囲は 11d のとおり別に決める)
     // 範囲は目標 (揺らぎを引いた値) ± レベルの幅。0〜100 に収める
     expect(OK_TOL_BY_LEVEL).toEqual({ 1: 15, 2: 10, 3: 6 });
     expect(okRangeOf(0.5, 2, 0)).toEqual({ min: 90, max: 100 });
-    expect(okRangeOf(0.30, 2, 0)).toEqual({ min: 40, max: 60 });
-    expect(okRangeOf(0.30, 1, 0)).toEqual({ min: 35, max: 65 }); // レベル1 は ±15
+    expect(okRangeOf(0.30, 2, 0)).toEqual({ min: 90, max: 100 }); // T3-08: 30% も目標 100
+    expect(okRangeOf(0.30, 1, 0)).toEqual({ min: 85, max: 100 }); // レベル1 は ±15。100 に収める
     expect(okRangeOf(0.50, 3, 20)).toEqual({ min: 74, max: 86 }); // 目標 100 − 揺らぎ 20 = 80 ± 6
     expect(okRangeOf(0.5, 1, 0).max).toBeLessThanOrEqual(100);
+  });
+
+  it('11d. 巻き量 90% 以上は適正範囲をいつでも 0〜30 にする (どのレベルでも。揺らぎがあっても)。89% は目標とレベルの幅から決まる (T3-08)', () => {
+    expect(STOP_ZONE).toEqual({ from: 90, min: 0, max: 30 });
+    for (const p of [0.90, 0.95, 0.99]) {
+      for (const lv of [1, 2, 3] as Level[]) {
+        expect(okRangeOf(p, lv, 0), `巻き量 ${p} レベル ${lv}`).toEqual({ min: 0, max: 30 });
+        expect(okRangeOf(p, lv, 12), `巻き量 ${p} レベル ${lv} 揺らぎあり`).toEqual({ min: 0, max: 30 });
+      }
+    }
+    // 89% は今までどおり目標とレベルの幅 (目標 40・レベル2 は ±10)
+    expect(okRangeOf(0.89, 2, 0)).toEqual({ min: 30, max: 50 });
   });
 
   it("11b. 速さが適正範囲の中のときだけ goodMs が増える (巻いている間だけ。速さ 0 では増えない)。判定は張りでなく速さそのもの (T3-07。張りはやめた)", () => {
@@ -376,7 +386,9 @@ describe('T3-06 (3つの作業と張り)', () => {
     expect(s.speed).toBe(0);
   });
 
-  it('26. 35〜70% では目標がときどき下がって戻る (下がる量は 15 以内。区間の外では下がらない。同じ種なら同じ動き)', () => {
+  it('26. 10〜80% では目標がときどき下がって戻る (下がる量は 15 以内。区間の外では下がらない。同じ種なら同じ動き) (T3-08 で区間を 35〜70% から変えた)', () => {
+    expect(DIP_FROM_PCT).toBe(10);
+    expect(DIP_TO_PCT).toBe(80);
     // 巻き量 50% に固定して 60 秒巻くと、揺らぎで dip が 0 より大きくなることがある
     let s = setupExact(make(2, 60, 9));
     s = reduce(s, { type: 'setSpeed', value: 40 });
@@ -391,14 +403,16 @@ describe('T3-06 (3つの作業と張り)', () => {
     }
     expect(sawDip, `maxDip ${maxDip}`).toBe(true);
     expect(maxDip).toBeLessThanOrEqual(15);
-    // 区間の外 (10%) では下がらない
-    let s2 = setupExact(make(2, 60, 9));
-    s2 = reduce(s2, { type: 'setSpeed', value: 40 });
-    s2 = { ...s2, progress: 0.10 };
-    for (let i = 0; i < 600; i++) {
-      s2 = reduce(s2, { type: 'tick', dtMs: 100 });
-      s2 = { ...s2, progress: 0.10 };
-      expect(s2.dip).toBe(0);
+    // 区間の外 (5% と 82%) では下がらない (T3-08 で区間の外の確かめを 10% から変えた)
+    for (const pOut of [0.05, 0.82]) {
+      let s2 = setupExact(make(2, 60, 9));
+      s2 = reduce(s2, { type: 'setSpeed', value: 40 });
+      s2 = { ...s2, progress: pOut };
+      for (let i = 0; i < 600; i++) {
+        s2 = reduce(s2, { type: 'tick', dtMs: 100 });
+        s2 = { ...s2, progress: pOut };
+        expect(s2.dip).toBe(0);
+      }
     }
     // 同じ種なら同じ動き
     const run = (): number[] => {
