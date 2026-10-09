@@ -2101,7 +2101,7 @@ PROGRESS.json の checks (タスクごとの詳しい確認結果) と notes (�
 - **isValidResume**: `tension` と dip 関係のフィールドが数であること・phase に `'attach'` を含める。古い形 (tension が無い) は読まない
 - **遊び方を4ページに** (文は仕様書どおり。絵も盤面に合わせて描き直し: 糸を引っぱる・張りのメーター・完了)。遊び方を確かめた
 - テスト (先に RED 17 件を確認 → GREEN。全 1265 passed | 11 skipped):
-  - 流れ (`logic.test` 23・controller の「ビーム設定OK→糸を引っぱって attachThread」): setup→finishSetup→attach→attachThread→beaming・attach で setSpeed が効かない・setup で attachThread が効かない・途中で離すと attach のまま・pointercancel で何も起きない・unmount でイベントが外れる
+  - 流れ (`logic.test` 23・controller の「1. 幅を合わせて『ビーム設定OK』→ 糸を付けて棒を引っぱって…結果の画面」): setup→finishSetup→attach→attachThread→beaming・attach で setSpeed が効かない・setup で attachThread が効かない。**途中で離すと attach のまま・pointercancel で何も起きない・unmount でイベントが外れる の3つの controller テストは T3-06 には無く、PU-26 (`d2ff17a`) で実装担当が足したもの** (初版の報告に誤って書いたため訂正)
   - 張りの追従 (`logic.test` 24・25): 0.8秒で約63%・3秒で95%以上・速さ 0 で下がる。適正 (`logic.test` 11b): 範囲の中のときだけ goodMs が増え、速さ 0 では増えない
   - 目標と範囲 (`logic.test` 11): targetOf の8点 (0%→0・15%→25・30%→50・32.5%→75・50%→100・72.5%→75・87.5%→25・100%→0)・okRangeOf とレベルの幅
   - 揺らぎ (`logic.test` 26): 35〜70% で dip が起きる (量は15以内)・区間の外では 0・同じ種なら同じ動き
