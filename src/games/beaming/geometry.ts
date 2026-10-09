@@ -1,4 +1,4 @@
-import { SIDE, SIDE_PROJECTION, SIDE_BEAM_KX, SIDE_DROP0 } from './params';
+import { SIDE, SIDE_PROJECTION, BEAM_DISC_RX, SIDE_DROP0 } from './params';
 import { project, sideScale, sidePath, woundRadiusFig, depthDxOf } from './side';
 
 /**
@@ -55,8 +55,8 @@ export const CORE_R = 11;
  */
 export const ROD_X0 = 40;
 export const ROD_X1 = BOARD_W - 40;
-/** 円盤 (斜めから見て楕円) の横の半径 (px)。横から見た円盤の半径 × 横のずれの係数 (PU-32) */
-export const FLANGE_RX = SIDE_BEAM_KX * SIDE.beam.r;
+/** 円盤 (斜めから見て楕円) の横の半径 (px。上下左右に対称な楕円。PU-32 追加修正 4) */
+export const FLANGE_RX = BEAM_DISC_RX;
 /** 糸の向きを変える鉄の棒の、機械の幅の中の左右の端の x (ビームの幅の位置と同じ x) */
 export const IRON_X0 = 70;
 export const IRON_X1 = BOARD_W - 70;

@@ -6,7 +6,7 @@ import type { BeamingState } from './logic';
 import { cmToX, BOARD, BOARD_W, FLANGE_RX, setBoardHeight, DRUM_W, DRUM_AXIS_X0, flangeHit, hitSheetEdge, woundRadius, lampX, lampY, speedBarCenterX, SPEED_BAR_W, sheetDropEndY, threadBarRange } from './geometry';
 import { sidePath, project, viewAlpha, drumRadius, drumCoreRadius } from './side';
 import { stripeRunsOf, stripeStrips } from './renderer';
-import { DRUM_SURFACE_SIGN, BEAM_SURFACE_SIGN, DRUM_TURN_RATE, BEAM_TURN_RATE, SIDE } from './params';
+import { DRUM_WING_LEN, DRUM_WING_FLARE, DRUM_SURFACE_SIGN, BEAM_SURFACE_SIGN, DRUM_TURN_RATE, BEAM_TURN_RATE, SIDE } from './params';
 import { getContent } from '../../core/content/content';
 import { COLORS } from '../../core/ui/tokens';
 import { makeFakeCtx } from '../winding/renderer.test.helpers';
@@ -525,8 +525,11 @@ describe('PU-32: 糸の帯・隠れる順・盤面に収まる', () => {
     const holeY = (angle: number): number => {
       const { ctx, rec } = makeFakeCtx();
       drawBoard(ctx, fit, beamState({ progress: 0.5 }), content, 0, null, angle);
-      const f0 = pt0(cmToX(60, -30), SIDE.beam.z + 0.55 * SIDE.beam.r * Math.cos(-BEAM_SURFACE_SIGN * angle), SIDE.beam.h + 0.55 * SIDE.beam.r * Math.sin(-BEAM_SURFACE_SIGN * angle));
-      const hole = rec.ops.filter((o) => o.k === 'arc' && (o.args as number[])[2] === 4).map((o) => o.args as number[]).find((a) => Math.abs(a[0]! - f0.x) < 1e-6);
+      // 円盤は上下左右に対称な楕円 (中心 c、半径 FLANGE_RX と BOARD.flangeR): 穴は楕円の上の 0.55 の輪
+      const c0 = pt0(cmToX(60, -30), SIDE.beam.z, SIDE.beam.h);
+      const ph = -BEAM_SURFACE_SIGN * angle;
+      const f0 = { x: c0.x - 0.55 * FLANGE_RX * Math.cos(ph), y: c0.y - 0.55 * BOARD.flangeR * Math.sin(ph) };
+      const hole = rec.ops.filter((o) => o.k === 'arc' && (o.args as number[])[2] === 4).map((o) => o.args as number[]).find((a) => Math.abs(a[0]! - f0.x) < 1e-6 && Math.abs(a[1]! - f0.y) < 1e-6);
       expect(hole, '穴').toBeDefined();
       return hole![1]!;
     };
@@ -645,15 +648,18 @@ describe('PU-32: 糸の帯・隠れる順・盤面に収まる', () => {
     const w0 = 500 - half;
     const w0px = pt0(w0, SIDE.drum.z, SIDE.drum.h).x;
     const woods = fillPolys(rec).filter((f) => f.style === COLORS.wood && f.pts.length === 5);
-    // 羽の板 (4 点 + 閉じる) の右の端 (根元) は、帯の左の端 w0 にある
+    // 羽の板 (4 点 + 閉じる): 根元は帯の左の端の下 (帯の中へ入る) に隠れ、外へ出るのは短い (DRUM_WING_LEN。奥行きのずれ KX × 半径のぶんの余裕)
     expect(woods.length).toBeGreaterThan(3);
+    const slack = 0.1 * SIDE.drum.r + 1;
     for (const f of woods) {
       const e = ext(f.pts);
-      expect(Math.abs(e.x1 - w0px), '根元の x が帯の左の端の近く (板ごとの奥行きのずれ KX × 半径 以内)').toBeLessThanOrEqual(0.1 * SIDE.drum.r + 1);
+      expect(e.x1, '根元は帯の左の端より中 (隠れる)').toBeGreaterThan(w0px);
+      expect(e.x0, '先は帯の左の端から外へ DRUM_WING_LEN だけ').toBeGreaterThanOrEqual(w0px - DRUM_WING_LEN - slack);
+      expect(e.x0, '先は帯の左の端より外へ出ている').toBeLessThan(w0px);
     }
-    // 帯の色の斜めの面: 羽の根元から外へ (左へ) 少し伸びる多角形が、いちばん端の帯の色で塗られている
-    const climb = fillPolys(rec).filter((f) => f.style === kon() && f.pts.length > 40 && ext(f.pts).x0 < w0px - 10 && ext(f.pts).x1 > w0px - 5);
-    expect(climb.length).toBeGreaterThanOrEqual(1);
+    // 糸の束 (いちばん端の帯) は帯の幅の左の端から始まる。羽の斜面の上へは持ち上がらない
+    const yarn = fillPolys(rec).filter((f) => f.style === kon() && f.pts.length > 40 && ext(f.pts).y0 < BOARD.H * 0.4);
+    expect(Math.min(...yarn.map((f) => ext(f.pts).x0))).toBeGreaterThanOrEqual(w0px - slack);
   });
 
   it('13. 端の円盤の回る向きは PU-27 (0.3.61) と同じ画面の向き: ドラムの右の端の面の腕は画面で時計回り・ビームの円盤の穴は反時計回り (画面の角度 = atan2(y, x)。y は下向き)', () => {
@@ -673,20 +679,23 @@ describe('PU-32: 糸の帯・隠れる順・盤面に収まる', () => {
     // ビームの円盤の穴 (内側の輪の最初の穴の、円盤の面の中心からの向き)
     const c = pt0(cmToX(60, -30), SIDE.beam.z, SIDE.beam.h);
     const holeAngle = (angle: number): number => {
-      const q = pt0(cmToX(60, -30), SIDE.beam.z + 0.55 * SIDE.beam.r * Math.cos(-BEAM_SURFACE_SIGN * angle), SIDE.beam.h + 0.55 * SIDE.beam.r * Math.sin(-BEAM_SURFACE_SIGN * angle));
+      const q = { x: c.x - 0.55 * FLANGE_RX * Math.cos(-BEAM_SURFACE_SIGN * angle), y: c.y - 0.55 * BOARD.flangeR * Math.sin(-BEAM_SURFACE_SIGN * angle) };
       const { ctx, rec } = makeFakeCtx();
       drawBoard(ctx, fit, beamState({ progress: 0.5 }), content, 0, null, angle);
-      const hole = rec.ops.filter((o) => o.k === 'arc' && (o.args as number[])[2] === 4).map((o) => o.args as number[]).find((a) => Math.abs(a[0]! - q.x) < 1e-6);
+      const hole = rec.ops.filter((o) => o.k === 'arc' && (o.args as number[])[2] === 4).map((o) => o.args as number[]).find((a) => Math.abs(a[0]! - q.x) < 1e-6 && Math.abs(a[1]! - q.y) < 1e-6);
       expect(hole, '穴').toBeDefined();
-      return Math.atan2(hole![1]! - c.y, hole![0]! - c.x);
+      return Math.atan2((hole![1]! - c.y) / BOARD.flangeR, (hole![0]! - c.x) / FLANGE_RX);
     };
     expect(turn(holeAngle(0), holeAngle(0.1))).toBeLessThan(0); // 反時計回り
   });
 
   it('14. ドラムの胴の半径は糸の巻き芯: どの巻き量でも、胴 (緑の面) は糸の上の端より上にはみ出さない (糸の上に緑の胴が見えない)。糸の外側の半径だけが巻き量で減り、最後は胴の半径になる', () => {
     expect(drumRadius(0)).toBeGreaterThan(drumCoreRadius());
-    expect(drumRadius(1)).toBeCloseTo(drumCoreRadius(), 9);
-    for (const p of [0, 0.3, 0.6, 0.9, 1]) {
+    expect(drumRadius(1)).toBeGreaterThan(drumCoreRadius() + 0.1); // 巻き量 100% ではまだ少し糸が残る
+    expect(drumRadius(1.009)).toBeCloseTo(drumCoreRadius(), 9); // 100.9% でちょうど無くなる (101% で糸が切れて終わる)
+    expect(drumRadius(1.2)).toBeCloseTo(drumCoreRadius(), 9);
+    for (const [a, b] of [[0, 0.3], [0.3, 0.7], [0.7, 1], [1, 1.009]] as const) expect(drumRadius(a)).toBeGreaterThan(drumRadius(b)); // なめらかに減る
+    for (const p of [0, 0.3, 0.6, 0.9, 1, 1.009]) {
       const rec = draw(beamState({ progress: p }));
       // 胴 (最初のグラデーション塗り) と、そのあとの最初の柄の色の塗り (ドラムの巻いた糸) の上の端
       let gradSeen = false;
@@ -733,10 +742,35 @@ describe('PU-32: 糸の帯・隠れる順・盤面に収まる', () => {
       const tops = polys.map((f) => ext(f.pts).y0);
       expect(Math.max(...tops) - Math.min(...tops), `p=${p}: 上の輪郭が水平`).toBeLessThan(1.5);
     }
-    // 巻き始め (糸が厚い) は、左の端が幅の左の端より外 (羽の斜面の上) まで伸びる
+    // 左の端は帯の幅の左の端 (羽の斜面の上へは持ち上がらない)
     const half = (60 * 700 / 60) / 2;
     const w0px = pt0(500 - half, SIDE.drum.z, SIDE.drum.h).x;
     const polys0 = fillPolys(draw(pinState({ progress: 0.1 }))).filter((f) => (f.style === kon() || f.style === shiro()) && f.pts.length > 6 && f.pts.length % 2 === 1 && ext(f.pts).y0 < BOARD.H * 0.4);
-    expect(Math.min(...polys0.map((f) => ext(f.pts).x0))).toBeLessThan(w0px - 5);
+    expect(Math.min(...polys0.map((f) => ext(f.pts).x0))).toBeGreaterThanOrEqual(w0px - 0.1 * SIDE.drum.r - 1);
+  });
+
+  it('17. ビームの円盤は上下左右に対称な楕円: 面の楕円の中心が x の範囲の真ん中・y の範囲の真ん中にあり、軸が中心を貫く (軸の断面の円が円盤の中心にある。左右どちらの円盤にも)', () => {
+    const rec = draw(beamState({ progress: 0.5 }));
+    const faces = fillPolys(rec).filter((q) => q.style === COLORS.flange && q.pts.length > 20);
+    expect(faces.length).toBe(2);
+    for (const f of faces) {
+      const e = ext(f.pts);
+      const mx = (e.x0 + e.x1) / 2;
+      const my = (e.y0 + e.y1) / 2;
+      // 楕円の各点は中心について対称 (180 度回した点も楕円の上にある)
+      for (const q of f.pts) {
+        const nx = (q.x - mx) / ((e.x1 - e.x0) / 2);
+        const ny = (q.y - my) / ((e.y1 - e.y0) / 2);
+        expect(Math.hypot(nx, ny), '楕円の上').toBeCloseTo(1, 6);
+      }
+      // 軸の断面 (steel の小さな楕円) が中心にある
+      const hub = fillPolys(rec).filter((q) => q.style === COLORS.steel && q.pts.length > 20 && Math.abs((ext(q.pts).x0 + ext(q.pts).x1) / 2 - mx) < 1e-6 && Math.abs((ext(q.pts).y0 + ext(q.pts).y1) / 2 - my) < 1e-6);
+      expect(hub.length, '軸が円盤の中心を貫く').toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it('18. ドラムの羽は短く、開きが小さい: 外へ出る長さは DRUM_WING_LEN、羽の先の半径は糸の半径の 1.1 倍以下 (扇のように大きく開かない)', () => {
+    expect(DRUM_WING_LEN).toBeLessThanOrEqual(30);
+    expect(DRUM_WING_FLARE).toBeLessThanOrEqual(0.1);
   });
 });

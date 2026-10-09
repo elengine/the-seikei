@@ -1,4 +1,4 @@
-import { SIDE, SIDE_DRUM_SHRINK, SIDE_WOUND_MIN, SIDE_WOUND_MAX, SIDE_PROJECTION, SIDE_Z_REF, SIDE_BEAM_KX, sideBeamExtra, SIDE_TOP_FRAC, SIDE_BOTTOM_FRAC } from './params';
+import { SIDE, SIDE_DRUM_SHRINK, SIDE_YARN_GONE, SIDE_WOUND_MIN, SIDE_WOUND_MAX, SIDE_PROJECTION, SIDE_Z_REF, sideBeamExtra, SIDE_TOP_FRAC, SIDE_BOTTOM_FRAC } from './params';
 
 /**
  * 機械を真横から見た形 (PU-32)。管理者の横から見た図をもとに、奥行き z (手前が +) と高さ h (上が +) の平面に、
@@ -27,7 +27,9 @@ export function circleArc(c: Circle, from: number, to: number, steps: number): S
 
 /** 巻き量 (0〜1) でのドラムの糸の半径 (枠は変わらない。巻き取られて細る) */
 export function drumRadius(progress: number): number {
-  return SIDE.drum.r * (1 - SIDE_DRUM_SHRINK * Math.min(1, Math.max(0, progress)));
+  // 糸の厚み (外側の半径 − 胴の半径) は巻き量に合わせてなめらかに減り、巻き量 SIDE_YARN_GONE (100.9%) でちょうど 0 (糸が無くなる)
+  const left = Math.min(1, Math.max(0, 1 - progress / SIDE_YARN_GONE));
+  return drumCoreRadius() + (SIDE.drum.r - drumCoreRadius()) * left;
 }
 
 /** ドラムの巻き芯 (胴) の半径。糸はこの胴の表面に巻かれ、糸の外側の半径 drumRadius だけが巻き量で減って、最後は胴の半径になる (PU-32 追加修正) */
@@ -84,6 +86,18 @@ function pickDown(c1: Circle, c2: Circle, kind: 'ext' | 'int'): number {
   return Math.sin(a) < Math.sin(b) ? a : b;
 }
 
+/** 長い直線 (接線) の途中に点を足す (正面へ写すと、奥行きでずれが変わるため曲線になる。間隔は図で 6 以下) */
+function densify(pts: SidePoint[]): SidePoint[] {
+  const out: SidePoint[] = [pts[0]!];
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1]!;
+    const b = pts[i]!;
+    const n = Math.ceil(Math.hypot(b.z - a.z, b.h - a.h) / 6);
+    for (let k = 1; k <= n; k++) out.push({ z: a.z + ((b.z - a.z) * k) / n, h: a.h + ((b.h - a.h) * k) / n });
+  }
+  return out;
+}
+
 /** 見える半分の角度の広さ (半円) */
 export const VISIBLE_SPAN = Math.PI;
 
@@ -119,12 +133,12 @@ export function sidePath(progress: number, dropH?: number): SidePoint[] {
   if (dropH !== undefined) {
     const last = out[out.length - 1]!;
     out.push({ z: last.z, h: SIDE.bar2.h - dropH });
-    return out;
+    return densify(out);
   }
   // ビームの巻いた糸の手前の面を、下の端 (視線に面した半分の下の端) まで回る
   const bottom = viewAlpha() - Math.PI / 2;
   out.push(...shortArc(beam, nC, bottom));
-  return out;
+  return densify(out);
 }
 
 /** 写した位置の大きさの割合 (盤面の高さ H に比例) と、縦の基準 Y0 */
@@ -140,7 +154,7 @@ export function sideScale(H: number): { S: number; Y0: number } {
 
 /** 奥行き z での、幅の位置の x に足すずれ (手前ほど左 = 小さい)。ビームのあたり (Z0 から) だけ傾きが大きく、なめらかにつながる曲線 */
 export function depthDxOf(z: number): number {
-  return SIDE_PROJECTION.KX * (SIDE_Z_REF - z) - (SIDE_BEAM_KX - SIDE_PROJECTION.KX) * sideBeamExtra(z);
+  return SIDE_PROJECTION.KX * (SIDE_Z_REF - z) - sideBeamExtra(z);
 }
 
 /** 横から見た点 (z, h) を、正面の絵へ。dx は幅の位置の x に足すずれ (手前ほど左 = 小さい)、y は画面の y (論理座標) */

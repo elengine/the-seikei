@@ -104,6 +104,8 @@ export const SIDE = {
 
 /** ドラムが巻き取られて細る割合 (巻き量 100% で半径が 1 − この値)。ドラムの枠 (胴・桟) は変わらない */
 export const SIDE_DRUM_SHRINK = 0.3;
+/** ドラムの糸が無くなる巻き量 (progress。1.009 = 100.9%。101% に届くと糸が切れて終わるため、その直前でちょうど無くなる) */
+export const SIDE_YARN_GONE = 1.009;
 /** ビームに巻いた糸の半径 (円盤の半径に対する割合): 巻き量 0 で SIDE_WOUND_MIN、100% で SIDE_WOUND_MAX */
 export const SIDE_WOUND_MIN = 0.2;
 export const SIDE_WOUND_MAX = 0.9;
@@ -118,28 +120,39 @@ export const SIDE_DROP0 = 35;
  */
 export const SIDE_PROJECTION = { KH: 1, KZ: 0.38, KX: 0.1 } as const;
 /**
- * ビームのあたり (奥行き SIDE_BEAM_Z0 から) だけは、横のずれの係数を KX より大きい SIDE_BEAM_KX にする。
- * ビームの円盤を、写真のように穴の開いた円盤 (楕円の横幅 = 半径 × 係数) として見せ、巻き付く所の左の端を目で分かる「(」にするため。
- * 奥のドラムまでのずれが大きくなりすぎないよう、ここより奥は KX のまま。係数は Z0 から SIDE_BEAM_L の幅でなめらかに (角が出ないように) KX から SIDE_BEAM_KX へ変わる。
+ * 帯の通り道の角度 (PU-32 追加修正 4): 横のずれの係数は、奥 (KX) → 鉄の棒 2 のあたりから大きく (SIDE_SLOPE_K1) → 木の棒のあたりで小さく (SIDE_SLOPE_K2) と、
+ * なめらかに変わる (角が出ない)。帯は鉄の棒の上から木の棒のあたりまでで左へ大きく寄り、そこから下はほぼまっすぐビームへ下りる。
+ * 係数は SIDE_SLOPE_Z0 から SIDE_SLOPE_L0 の幅で K1 へ、SIDE_SLOPE_Z1 から SIDE_SLOPE_L1 の幅で K2 へ変わる。
  */
-export const SIDE_BEAM_KX = 0.8;
-export const SIDE_BEAM_Z0 = 780;
-export const SIDE_BEAM_L = 140;
-/** 奥行き z までに、係数の増え分 (SIDE_BEAM_KX − KX) が積もった長さ (ずれの計算に使う。区間でなめらかに増える) */
-export function sideBeamExtra(z: number): number {
-  const t = (z - SIDE_BEAM_Z0) / SIDE_BEAM_L;
+export const SIDE_SLOPE_K1 = 1.3;
+export const SIDE_SLOPE_Z0 = 810;
+export const SIDE_SLOPE_L0 = 55;
+export const SIDE_SLOPE_K2 = 0.4;
+export const SIDE_SLOPE_Z1 = 850;
+export const SIDE_SLOPE_L1 = 80;
+/** 係数が Za から幅 L でなめらかに増え (0 → 1)、そのあとは 1 のまま、というときの、係数の増え分が積もった長さ (z まで) */
+function rampSum(z: number, Za: number, L: number): number {
+  const t = (z - Za) / L;
   if (t <= 0) return 0;
-  if (t >= 1) return SIDE_BEAM_L * 0.5 + (z - SIDE_BEAM_Z0 - SIDE_BEAM_L);
-  return SIDE_BEAM_L * (t * t * t - (t * t * t * t) / 2);
+  if (t >= 1) return L * 0.5 + (z - Za - L);
+  return L * (t * t * t - (t * t * t * t) / 2);
+}
+/** 奥行き z までに、係数の変わり分 (K1 へ上がる分 − K2 へ下がる分) が積もった長さ (ずれの計算に使う) */
+export function sideBeamExtra(z: number): number {
+  return (SIDE_SLOPE_K1 - SIDE_PROJECTION.KX) * rampSum(z, SIDE_SLOPE_Z0, SIDE_SLOPE_L0) - (SIDE_SLOPE_K1 - SIDE_SLOPE_K2) * rampSum(z, SIDE_SLOPE_Z1, SIDE_SLOPE_L1);
 }
 /** ずれの基準の奥行き: ビームの円盤 (SIDE.beam.z) でずれが 0 になるように決める */
-export const SIDE_Z_REF = SIDE.beam.z + ((SIDE_BEAM_KX - SIDE_PROJECTION.KX) * sideBeamExtra(SIDE.beam.z)) / SIDE_PROJECTION.KX;
+export const SIDE_Z_REF = SIDE.beam.z + sideBeamExtra(SIDE.beam.z) / SIDE_PROJECTION.KX;
+/** ビームの円盤 (斜めから見て楕円) の横の半径 (論理の px。円盤は上下左右に対称な楕円で、厚みは楕円をずらして重ねる) */
+export const BEAM_DISC_RX = 34;
 export const SIDE_TOP_FRAC = 0.15;
 export const SIDE_BOTTOM_FRAC = 0.915;
 
 /** ドラムの羽 (糸を巻き始める側 = 左の端の、斜めに開いた板): 板の数はドラムの桟と同じ。外へ伸びる長さ (px) と、開き (半径が伸びる割合)・板の幅 (角度 rad) (PU-32) */
-export const DRUM_WING_LEN = 56;
-export const DRUM_WING_FLARE = 0.35;
+/** 羽 (PU-32 追加修正 4): 帯の左の端から外へ出る長さを短く、開きの角度を小さく。根元は帯の左の端の下に隠れる (DRUM_WING_IN だけ中へ) */
+export const DRUM_WING_LEN = 26;
+export const DRUM_WING_FLARE = 0.06;
+export const DRUM_WING_IN = 24;
 export const DRUM_WING_HALF = 0.07;
 /** ビームの円盤の外の太い金属の筒 (真ちゅう色) の、横から見た半径 (図のピクセル) と長さ (px)。軸は SIDE.beam.r に対する割合の半径で、写真のように太い (PU-32) */
 export const BEAM_BRASS_R = 26;
