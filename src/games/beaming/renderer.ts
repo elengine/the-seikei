@@ -6,7 +6,7 @@ import {
   speedBarCenterX, SPEED_BAR_W, lampX, lampY,
 } from './geometry';
 import { SIDE } from './params';
-import { sidePath, project, viewAlpha, drumRadius, woundRadiusFig } from './side';
+import { sidePath, project, viewAlpha, drumRadius, drumCoreRadius, woundRadiusFig } from './side';
 import type { SidePoint } from './side';
 import { okRangeOf } from './logic';
 import { DRUM_SURFACE_SIGN, BEAM_SURFACE_SIGN, PATTERN_REPEATS, SIDE_DROP0, DRUM_WING_LEN, DRUM_WING_FLARE, DRUM_WING_HALF, BEAM_BRASS_R, BEAM_BRASS_LEN, BEAM_AXLE_R, FRAME_ARM_W } from './params';
@@ -263,7 +263,7 @@ const DRUM_ARMS = 6;
  * 糸の巻かれた面は、胴の中ほど (糸のシートの幅) の、巻き取られて細る円筒。手前の面は下から上へ回る (DRUM_SURFACE_SIGN)。
  */
 export function drawDrum(ctx: CanvasRenderingContext2D, runs: Array<{ hex: string; frac: number }>, repeats: number, drumAngle: number, s: BeamingState): void {
-  const frame: Circ = SIDE.drum;
+  const frame: Circ = { z: SIDE.drum.z, h: SIDE.drum.h, r: drumCoreRadius() }; // 胴は糸の巻き芯の半径 (糸の上に胴が見えない)
   const yarn: Circ = { z: SIDE.drum.z, h: SIDE.drum.h, r: drumRadius(s.progress) };
   const xl = DRUM_AXIS_X0;
   const xr = DRUM_AXIS_X0 + DRUM_W;
@@ -328,7 +328,7 @@ export function drawDrum(ctx: CanvasRenderingContext2D, runs: Array<{ hex: strin
     ctx.stroke();
   }
   ctx.globalAlpha = 1;
-  // ドラムの羽 (ドラム設定の羽と同じ関係): 巻いた帯の左の端の下 (帯の半径の所) から、斜めに外へ開く板。いちばん端の帯 (柄の左端) はこの斜面に乗る。
+  // ドラムの羽 (ドラム設定の羽と同じ関係): 巻いた帯の左の端の下 (巻き芯の半径の所) から、斜めに外へ開く板。いちばん端の帯 (柄の左端) はこの斜面に乗る。
   // 板は桟と同じ数 (見える側面だけ)。羽は帯から始まり、帯と離れた所から生やさない
   ctx.fillStyle = COLORS.wood;
   const r2 = yarn.r * (1 + DRUM_WING_FLARE);
@@ -337,8 +337,8 @@ export function drawDrum(ctx: CanvasRenderingContext2D, runs: Array<{ hex: strin
     const phi = wingFrom(k);
     if (Math.cos(phi - ALPHA) <= 0) continue;
     const q = [
-      pt(w0, yarn.z + yarn.r * Math.cos(phi - DRUM_WING_HALF), yarn.h + yarn.r * Math.sin(phi - DRUM_WING_HALF)),
-      pt(w0, yarn.z + yarn.r * Math.cos(phi + DRUM_WING_HALF), yarn.h + yarn.r * Math.sin(phi + DRUM_WING_HALF)),
+      pt(w0, frame.z + frame.r * Math.cos(phi - DRUM_WING_HALF), frame.h + frame.r * Math.sin(phi - DRUM_WING_HALF)),
+      pt(w0, frame.z + frame.r * Math.cos(phi + DRUM_WING_HALF), frame.h + frame.r * Math.sin(phi + DRUM_WING_HALF)),
       pt(w0 - DRUM_WING_LEN, yarn.z + r2 * Math.cos(phi + DRUM_WING_HALF), yarn.h + r2 * Math.sin(phi + DRUM_WING_HALF)),
       pt(w0 - DRUM_WING_LEN, yarn.z + r2 * Math.cos(phi - DRUM_WING_HALF), yarn.h + r2 * Math.sin(phi - DRUM_WING_HALF)),
     ];
@@ -360,6 +360,15 @@ export function drawDrum(ctx: CanvasRenderingContext2D, runs: Array<{ hex: strin
   for (let i = b1.length - 1; i >= 0; i--) ctx.lineTo(b1[i]!.x, b1[i]!.y);
   ctx.closePath();
   ctx.fill();
+  // 糸の右の端の面 (巻き芯のまわりの糸の輪。糸の外側の半径は胴より大きい)
+  ctx.fillStyle = runs[runs.length - 1]!.hex;
+  facePath(ctx, w1, yarn);
+  ctx.fill();
+  ctx.fillStyle = COLORS.sumi;
+  ctx.globalAlpha = 0.25;
+  facePath(ctx, w1, yarn);
+  ctx.fill();
+  ctx.globalAlpha = 1;
   // 右の端の面 (灰色の金属。円全体を写した楕円) と、回る放射状の腕
   ctx.fillStyle = COLORS.steel;
   facePath(ctx, xr, frame);
@@ -582,30 +591,34 @@ function drawBeamBack(ctx: CanvasRenderingContext2D, s: BeamingState, beamAngle:
 function drawBeamFront(ctx: CanvasRenderingContext2D, s: BeamingState, runs: Array<{ hex: string; frac: number }>, repeats: number, beamAngle: number, contact: number | null): void {
   const leftX = cmToX(s.widthCm, s.leftCm);
   const rightX = cmToX(s.widthCm, s.rightCm);
+  // 糸が巻かれるのは帯の幅だけ。円盤のあいだの帯の外は、軸 (芯) の太さのまま何も巻かれない (円盤を広げても太らない)
+  const halfBand = (s.widthCm * pxPerCm(s.widthCm)) / 2;
+  const bandL = Math.max(leftX, BEAM_CENTER_X - halfBand);
+  const bandR = Math.min(rightX, BEAM_CENTER_X + halfBand);
   if (s.phase !== 'setup' && s.progress > 0) {
     const wound: Circ = { z: SIDE.beam.z, h: SIDE.beam.h, r: woundRadiusFig(s.progress) };
     const from = contact ?? ALPHA + Math.PI / 2; // 糸を付ける前に巻きが残っているとき (再開) は、見える側面の全部
     const to = ALPHA - Math.PI / 2; // 見える側面の下の端
     // 柄の縞 (縦。巻いた糸の円周の向き。左の端は見える側面の弧 = なめらかな 1 本の曲線)
-    for (const st of stripeStrips(runs, repeats, leftX, rightX)) {
+    for (const st of stripeStrips(runs, repeats, bandL, bandR)) {
       ctx.fillStyle = st.hex;
       bandPathRange(ctx, st.x0, st.x1, wound, from, to);
       ctx.fill();
     }
     // 陰影: 上 (帯が乗る所) を明るく、下を暗く (丸い面に見える)
-    const ys = arcScreen(leftX, wound, from, to, 8).map((q) => q.y);
+    const ys = arcScreen(bandL, wound, from, to, 8).map((q) => q.y);
     const shade = ctx.createLinearGradient(0, Math.min(...ys), 0, Math.max(...ys));
     shade.addColorStop(0, COLORS.white);
     shade.addColorStop(1, COLORS.sumi);
     ctx.globalAlpha = 0.28;
     ctx.fillStyle = shade;
-    bandPathRange(ctx, leftX, rightX, wound, from, to);
+    bandPathRange(ctx, bandL, bandR, wound, from, to);
     ctx.fill();
     // 糸の細い筋 (円周の向き。写真のように細く、むらがある)
     ctx.strokeStyle = COLORS.sumi;
     ctx.lineWidth = 1.5;
     for (let i = 0; i < 90; i++) {
-      const xs = leftX + noise(i + 77) * (rightX - leftX);
+      const xs = bandL + noise(i + 77) * (bandR - bandL);
       const a0 = to + noise(i + 600) * (from - to) * 0.6;
       const a1 = Math.min(from, a0 + (from - to) * (0.25 + 0.5 * noise(i + 1000)));
       ctx.globalAlpha = 0.05 + 0.12 * noise(i + 1400);
@@ -624,10 +637,10 @@ function drawBeamFront(ctx: CanvasRenderingContext2D, s: BeamingState, runs: Arr
       const lo = Math.max(to, phi - delta);
       const hi = Math.min(from, phi + delta);
       if (hi <= lo) continue;
-      const a0 = pt(leftX, wound.z + wound.r * Math.cos(lo), wound.h + wound.r * Math.sin(lo));
-      const a1 = pt(leftX, wound.z + wound.r * Math.cos(hi), wound.h + wound.r * Math.sin(hi));
-      const b1 = pt(rightX, wound.z + wound.r * Math.cos(hi), wound.h + wound.r * Math.sin(hi));
-      const b0 = pt(rightX, wound.z + wound.r * Math.cos(lo), wound.h + wound.r * Math.sin(lo));
+      const a0 = pt(bandL, wound.z + wound.r * Math.cos(lo), wound.h + wound.r * Math.sin(lo));
+      const a1 = pt(bandL, wound.z + wound.r * Math.cos(hi), wound.h + wound.r * Math.sin(hi));
+      const b1 = pt(bandR, wound.z + wound.r * Math.cos(hi), wound.h + wound.r * Math.sin(hi));
+      const b0 = pt(bandR, wound.z + wound.r * Math.cos(lo), wound.h + wound.r * Math.sin(lo));
       ctx.beginPath();
       ctx.moveTo(a0.x, a0.y);
       ctx.lineTo(a1.x, a1.y);
@@ -639,8 +652,8 @@ function drawBeamFront(ctx: CanvasRenderingContext2D, s: BeamingState, runs: Arr
     ctx.globalAlpha = 1;
     // 帯が乗る所の境目 (平らな帯から丸い面へ変わる所に、細い影の線)
     if (contact !== null) {
-      const l = pt(leftX, wound.z + wound.r * Math.cos(contact), wound.h + wound.r * Math.sin(contact));
-      const r = pt(rightX, wound.z + wound.r * Math.cos(contact), wound.h + wound.r * Math.sin(contact));
+      const l = pt(bandL, wound.z + wound.r * Math.cos(contact), wound.h + wound.r * Math.sin(contact));
+      const r = pt(bandR, wound.z + wound.r * Math.cos(contact), wound.h + wound.r * Math.sin(contact));
       ctx.strokeStyle = COLORS.sumi;
       ctx.globalAlpha = 0.45;
       ctx.lineWidth = 2;

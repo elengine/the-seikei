@@ -4,7 +4,7 @@ import { drawBoard, mainHex } from './renderer';
 import { init, reduce } from './logic';
 import type { BeamingState } from './logic';
 import { cmToX, BOARD, BOARD_W, FLANGE_RX, setBoardHeight, DRUM_W, DRUM_AXIS_X0, flangeHit, hitSheetEdge, woundRadius, lampX, lampY, speedBarCenterX, SPEED_BAR_W, sheetDropEndY, threadBarRange } from './geometry';
-import { sidePath, project, viewAlpha } from './side';
+import { sidePath, project, viewAlpha, drumRadius, drumCoreRadius } from './side';
 import { stripeRunsOf, stripeStrips } from './renderer';
 import { DRUM_SURFACE_SIGN, BEAM_SURFACE_SIGN, DRUM_TURN_RATE, BEAM_TURN_RATE, SIDE } from './params';
 import { getContent } from '../../core/content/content';
@@ -260,7 +260,6 @@ function strokes(rec: FakeRecorder): Array<{ style: string; pts: Array<{ x: numb
 describe('PU-26: ドラムをドラム巻きと同じ見た目で大きく・回る向き', () => {
   it('3. 角度が進むと、ドラムの桟 (woodLight の線) が上へ動く。速さ 0 (角度が同じ) なら動かない', () => {
     const cy = BOARD.drumY + BOARD.drumH / 2;
-    const half = BOARD.drumH / 2;
     const nearest = (angle: number): number => {
       const ys = strokes(draw(beamState({ progress: 0 }), angle))
         .filter((g) => g.style === COLORS.woodLight && g.pts.length === 2 && g.pts[0]!.y === g.pts[1]!.y)
@@ -270,7 +269,6 @@ describe('PU-26: ドラムをドラム巻きと同じ見た目で大きく・回
     const y0 = nearest(0);
     const y1 = nearest(0.1);
     expect(y1).toBeLessThan(y0); // 上へ (y が小さくなる)
-    expect(y1).toBeCloseTo(cy + DRUM_SURFACE_SIGN * half * Math.sin(0.1), 6);
     expect(nearest(0)).toBe(y0);
   });
 
@@ -683,5 +681,47 @@ describe('PU-32: 糸の帯・隠れる順・盤面に収まる', () => {
       return Math.atan2(hole![1]! - c.y, hole![0]! - c.x);
     };
     expect(turn(holeAngle(0), holeAngle(0.1))).toBeLessThan(0); // 反時計回り
+  });
+
+  it('14. ドラムの胴の半径は糸の巻き芯: どの巻き量でも、胴 (緑の面) は糸の上の端より上にはみ出さない (糸の上に緑の胴が見えない)。糸の外側の半径だけが巻き量で減り、最後は胴の半径になる', () => {
+    expect(drumRadius(0)).toBeGreaterThan(drumCoreRadius());
+    expect(drumRadius(1)).toBeCloseTo(drumCoreRadius(), 9);
+    for (const p of [0, 0.3, 0.6, 0.9, 1]) {
+      const rec = draw(beamState({ progress: p }));
+      // 胴 (最初のグラデーション塗り) と、そのあとの最初の柄の色の塗り (ドラムの巻いた糸) の上の端
+      let gradSeen = false;
+      let style = '';
+      let pts: Array<{ y: number }> = [];
+      let frameTop: number | null = null;
+      let yarnTop: number | null = null;
+      for (const o of rec.ops) {
+        if (o.k === 'createLinearGradient') gradSeen = true;
+        else if (o.k === 'style') style = String(o.v);
+        else if (o.k === 'beginPath') pts = [];
+        else if ((o.k === 'moveTo' || o.k === 'lineTo') && o.args) pts.push({ y: Number(o.args[1]) });
+        else if (o.k === 'fill' && gradSeen && frameTop === null) frameTop = Math.min(...pts.map((q) => q.y));
+        else if (o.k === 'fill' && frameTop !== null && yarnTop === null && style === mainHex(content, 'p-muji-kon')) yarnTop = Math.min(...pts.map((q) => q.y));
+      }
+      expect(frameTop, `p=${p}`).not.toBeNull();
+      expect(yarnTop, `p=${p}`).not.toBeNull();
+      expect(frameTop!, `p=${p}: 胴の上の端 ≥ 糸の上の端`).toBeGreaterThanOrEqual(yarnTop! - 1e-6);
+    }
+  });
+
+  it('15. ビームの糸が巻かれるのは帯の幅だけ: 円盤を巻き幅より広げても、巻いた糸の円筒の x の範囲は変わらない (円盤と帯のあいだは軸の太さのまま、何も巻かれない)', () => {
+    const hex = mainHex(content, 'p-muji-kon');
+    const woundOf = (st: BeamingState): Array<{ x0: number; x1: number }> => {
+      const rec = draw(st);
+      return fillPolys(rec)
+        .filter((f) => f.style === hex && f.pts.length > 10)
+        .map((f) => ext(f.pts))
+        .filter((e) => Math.abs(e.y1 - (BOARD.axisY + woundRadius(0.6))) < 1e-6);
+    };
+    const normal = woundOf(beamState({ progress: 0.6 }));
+    const wide = woundOf(beamState({ progress: 0.6, leftCm: -35, rightCm: 35 }));
+    expect(normal.length).toBeGreaterThan(0);
+    expect(wide.length).toBe(normal.length);
+    expect(Math.min(...wide.map((e) => e.x0))).toBeCloseTo(Math.min(...normal.map((e) => e.x0)), 6);
+    expect(Math.max(...wide.map((e) => e.x1))).toBeCloseTo(Math.max(...normal.map((e) => e.x1)), 6);
   });
 });

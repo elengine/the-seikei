@@ -300,18 +300,22 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
     if (base !== null && stageBox !== null && stageCol !== null && base.w > 0) {
       // 縦長: 操作欄は中身 (依頼票・ボタン) の高さだけにして、残りの高さを盤面に回す (PU-32 追加修正)。帯の高さは盤面の入れ物の上の部分
       let extra = 0;
+      let panelHidden = false;
       if (portrait) {
         const root = frame.panel.querySelector<HTMLElement>('.beaming-panel');
         const cs = getComputedStyle(frame.panel);
         const chrome = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) + parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
-        // 完了のボタン (72px + 余白) は途中から出るので、その分はいつも空けておく (出たときに盤面が動かないように)
-        const need = Math.max(root?.offsetHeight ?? 0, 88) + chrome;
+        // ボタンが出ているあいだだけ操作欄を残す (出ていないときは操作欄ごと隠して、盤面に回す。何も入っていない白い枠を見せない)
+        const shown = Array.from(root?.querySelectorAll('button') ?? []).some((b) => (b as HTMLElement).style.display !== 'none');
+        const need = shown ? Math.max(root?.offsetHeight ?? 0, 72) + chrome : 0;
+        panelHidden = !shown;
         extra = Math.max(0, Math.floor(base.panelH - need));
       }
       const boxH = base.boxH + extra;
       stageCol.style.height = `${base.colH + extra}px`;
       stageBox.style.height = `${boxH}px`;
       frame.panel.style.height = `${Math.max(0, base.panelH - extra)}px`;
+      frame.panel.style.display = panelHidden ? 'none' : '';
       if (boxH !== appliedBoxH) {
         try {
           setupCanvas(frame.stage, base.w, boxH);

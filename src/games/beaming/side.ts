@@ -30,6 +30,11 @@ export function drumRadius(progress: number): number {
   return SIDE.drum.r * (1 - SIDE_DRUM_SHRINK * Math.min(1, Math.max(0, progress)));
 }
 
+/** ドラムの巻き芯 (胴) の半径。糸はこの胴の表面に巻かれ、糸の外側の半径 drumRadius だけが巻き量で減って、最後は胴の半径になる (PU-32 追加修正) */
+export function drumCoreRadius(): number {
+  return SIDE.drum.r * (1 - SIDE_DRUM_SHRINK);
+}
+
 /** ビームに巻いた糸の半径 (図のピクセル。円盤の半径は固定で、巻き量で SIDE_WOUND_MIN → SIDE_WOUND_MAX 倍へ太る) */
 export function woundRadiusFig(progress: number): number {
   const p = Math.min(1, Math.max(0, progress));
