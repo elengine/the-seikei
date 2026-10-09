@@ -143,7 +143,7 @@ function drawDrum(ctx: CanvasRenderingContext2D, hex: string, drumAngle: number,
   ctx.stroke();
 }
 
-/** 糸のシート。上はドラムの下端 (中央)、下は巻いた糸の円筒の上端 (shiftCm の中心)。柄の色の縦の筋が上から下へ走る */
+/** 糸のシート。上はドラムの下端 (中央)、下は巻いた糸の円筒の上端 (中央)。柄の色の縦の筋が上から下へ走る */
 function drawSheet(ctx: CanvasRenderingContext2D, s: BeamingState, hex: string): void {
   if (s.phase === 'setup') return; // 幅合わせのあいだはシートは降りてこない
   const half = (s.widthCm * pxPerCm(s.widthCm)) / 2;

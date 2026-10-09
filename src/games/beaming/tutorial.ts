@@ -86,57 +86,62 @@ export function drawPage1(ctx: CanvasRenderingContext2D, w: number, h: number): 
   drawText(ctx, '円盤を引っぱる', w * 0.38, h * 0.96);
 }
 
-/** 2ページ目: 速さのレバー (3つの止まり) と巻き量の帯・ランプ */
+/** 棒 (茶色の横長の棒) を、中心 cx・高さ y に描く。左右に引っぱる部品 */
+function drawBar(ctx: CanvasRenderingContext2D, cx: number, y: number, bw: number, bh: number): void {
+  ctx.fillStyle = COLORS.wood;
+  ctx.fillRect(cx - bw / 2, y - bh / 2, bw, bh);
+}
+
+/** 矢印 (横向き。dir=-1 で左、1 で右) */
+function drawArrow(ctx: CanvasRenderingContext2D, x: number, y: number, len: number, dir: number): void {
+  const head = len * 0.25;
+  ctx.strokeStyle = COLORS.sumi;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x + dir * len, y);
+  ctx.moveTo(x + dir * len, y);
+  ctx.lineTo(x + dir * (len - head), y - head);
+  ctx.moveTo(x + dir * len, y);
+  ctx.lineTo(x + dir * (len - head), y + head);
+  ctx.stroke();
+}
+
+/** 2ページ目: 茶色の棒を左右に引っぱって速さを変える (矢印と「速さ」の数字) と巻き量の帯 */
 export function drawPage2(ctx: CanvasRenderingContext2D, w: number, h: number): void {
   drawBoardSketch(ctx, w, h, 0, false);
-  // 速さのレバー: 横の帯と3つの止まり (停止・50%・100%)
-  const bandY = h * 0.62;
-  const bX = w * 0.24;
-  const bW = w * 0.52;
-  ctx.fillStyle = COLORS.aiTint;
-  ctx.fillRect(bX, bandY - h * 0.035, bW, h * 0.07);
-  ctx.strokeStyle = COLORS.ai;
-  ctx.lineWidth = 2;
-  ctx.strokeRect(bX, bandY - h * 0.035, bW, h * 0.07);
-  const knobs: Array<[string, number, boolean]> = [
-    ['停止', 0, false],
-    ['50%', 0.5, true],
-    ['100%', 1, false],
-  ];
-  for (const [label, ratio, selected] of knobs) {
-    const kx = bX + bW * ratio;
-    ctx.beginPath();
-    ctx.arc(kx, bandY, h * 0.043, 0, Math.PI * 2);
-    ctx.fillStyle = selected ? COLORS.ai : COLORS.white;
-    ctx.fill();
-    ctx.strokeStyle = COLORS.ai;
-    ctx.stroke();
-    drawText(ctx, label, kx, bandY - h * 0.058);
-  }
-  drawText(ctx, 'レバー', bX + bW * 0.08, bandY + h * 0.075);
+  // 茶色の棒 (横長。盤面のガイドの棒と同じ色) と左右の矢印
+  const barY = h * 0.58;
+  drawBar(ctx, w * 0.5, barY, w * 0.36, h * 0.05);
+  drawArrow(ctx, w * 0.3, barY - h * 0.07, w * 0.14, -1);
+  drawArrow(ctx, w * 0.7, barY - h * 0.07, w * 0.14, 1);
+  ctx.textAlign = 'center';
+  drawText(ctx, '←遅く', w * 0.2, barY - h * 0.1);
+  drawText(ctx, '速く→', w * 0.8, barY - h * 0.1);
+  // 「速さ 63」(適正の藍)
+  ctx.fillStyle = COLORS.ai;
+  ctx.font = 'bold 24px sans-serif';
+  ctx.fillText('速さ 63', w * 0.5, barY + h * 0.11);
+  ctx.textAlign = 'start';
   // 巻き量の帯 (適正な速さの区間)
   const gX = w * 0.24;
   const gW = w * 0.52;
-  const gY = h * 0.8;
+  const gY = h * 0.84;
   ctx.fillStyle = COLORS.kinariDeep;
   ctx.fillRect(gX, gY, gW, h * 0.05);
-  ctx.fillStyle = COLORS.machineLight; // 適正の区間 (0〜30% と 25〜75% の重なりを 1 本で示す)
+  ctx.fillStyle = COLORS.machineLight;
   ctx.fillRect(gX, gY, gW * 0.5, h * 0.05);
   ctx.fillStyle = COLORS.shu;
   ctx.fillRect(gX + gW - 3, gY, 3, h * 0.05); // 100% の線 (ここを超えると切れる)
   ctx.strokeStyle = COLORS.steel;
   ctx.strokeRect(gX, gY, gW, h * 0.05);
   drawText(ctx, '巻き量の帯', gX + gW * 0.28, gY + h * 0.038);
-  // ランプ (緑の丸)
-  ctx.beginPath();
-  ctx.arc(w * 0.12, gY + h * 0.025, h * 0.028, 0, Math.PI * 2);
-  ctx.fillStyle = COLORS.machine;
-  ctx.fill();
 }
 
-/** 3ページ目: 止めるタイミング (確認のボタンと 100% の目印) */
+/** 3ページ目: 止めるタイミング (棒を左端まで戻す・確認のボタンと 100% の目印) */
 export function drawPage3(ctx: CanvasRenderingContext2D, w: number, h: number): void {
   drawBoardSketch(ctx, w, h, w * 0.06, false);
+  drawBar(ctx, w * 0.32, h * 0.58, w * 0.36, h * 0.05); // 棒は左端 (止めた形)
   // 100% ちょうどの目印 (巻き量の帯の右端)
   ctx.fillStyle = COLORS.shu;
   ctx.fillRect(w * 0.79, h * 0.3, 4, h * 0.45);
@@ -154,15 +159,15 @@ export const beamingTutorial: TutorialSpec = {
   pages: [
     {
       draw: (ctx, w, h) => drawPage1(ctx, w, h),
-      text: '巻き終えたドラムから、全部の糸をビームに巻き返します。まず、ビームの両端の円盤を絵の上で左右に引っぱって、巻き幅に合わせます',
+      text: 'ビームの両端の円盤を左右に引っぱって、巻き幅に合わせます。合わせたら「巻き始める」を押します',
     },
     {
       draw: (ctx, w, h) => drawPage2(ctx, w, h),
-      text: 'ビームの上のレバーで速さを変えます (停止・50%・100%)。巻き量ごとに適正な速さが違い、枠と緑のランプで分かります。止めずに 101% に届くと糸が切れます',
+      text: '茶色の棒を右へ引っぱるほど速く巻けます。巻き量ごとにちょうどよい速さがあり、「速さ」の数字が藍色ならちょうどよい速さです',
     },
     {
       draw: (ctx, w, h) => drawPage3(ctx, w, h),
-      text: '巻き量が 95% を超えたらレバーを停止にして「確認」を押します。100% ちょうどで止めると一番よい結果です',
+      text: '巻き量が 95% を超えたら、棒を左端まで戻して止め、「確認」を押します。100% で止めるといちばんよい結果です。101% に届くと糸が切れます',
     },
   ],
 };

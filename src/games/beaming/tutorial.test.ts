@@ -5,12 +5,12 @@ import { beamingTutorial } from './tutorial';
  * ビーム巻きの遊び方のテスト (P3 T3-03b)。3ページ。
  */
 describe('ビーム巻きの遊び方 T3-03b (3ページ)', () => {
-  it('3ページあり、文は幅合わせ・レバーと適正な速さ・止めるタイミングと確認の順。寄せる・偏りの説明は無い (T3-05)', () => {
+  it('3ページあり、文は幅合わせ・棒と適正な速さ・止めるタイミングと確認の順。寄せる・偏りの説明は無い (T3-05)', () => {
     expect(beamingTutorial.pages).toHaveLength(3);
     expect(beamingTutorial.pages[0]!.text).toContain('引っぱ');
-    expect(beamingTutorial.pages[1]!.text).toContain('レバー');
+    expect(beamingTutorial.pages[1]!.text).toContain('茶色の棒');
     expect(beamingTutorial.pages[2]!.text).toContain('確認');
-    expect(beamingTutorial.pages[2]!.text).toContain('100% ちょうど');
+    expect(beamingTutorial.pages[2]!.text).toContain('100% で止める');
     const all = beamingTutorial.pages.map((p) => p.text).join('\n');
     for (const w of ['寄せる', '乗り上げ', '偏り']) {
       expect(all, w).not.toContain(w);
@@ -75,18 +75,40 @@ describe('ビーム巻きの遊び方 T3-03b (3ページ)', () => {
   });
 });
 
-describe('T3-04c (遊び方をレバーに合わせる)', () => {
-  it('2ページ目はレバーの3段階と適正な速さ。{{pedal}}やメーターは無い', () => {
-    const p2 = beamingTutorial.pages[1]!.text;
-    expect(p2).toContain('レバー');
-    expect(p2).not.toContain('{{pedal}}');
-    expect(p2).not.toContain('メーター');
+describe('PU-24 追加修正 (遊び方を茶色の棒に合わせる)', () => {
+  const texts = (): string[] => beamingTutorial.pages.map((p) => p.text);
+
+  it('3ページの文が決めたとおり。「レバー」「停止」「50%」の言葉が無い', () => {
+    const [p1, p2, p3] = texts();
+    expect(p1).toBe('ビームの両端の円盤を左右に引っぱって、巻き幅に合わせます。合わせたら「巻き始める」を押します');
+    expect(p2).toBe('茶色の棒を右へ引っぱるほど速く巻けます。巻き量ごとにちょうどよい速さがあり、「速さ」の数字が藍色ならちょうどよい速さです');
+    expect(p3).toBe('巻き量が 95% を超えたら、棒を左端まで戻して止め、「確認」を押します。100% で止めるといちばんよい結果です。101% に届くと糸が切れます');
+    const all = texts().join('\n');
+    for (const w of ['レバー', '停止', '50%', '{{pedal}}', 'メーター']) {
+      expect(all, w).not.toContain(w);
+    }
   });
 
-  it('どこかに「確認」があり、101% に届くと糸が切れることが分かる (T3-05)', () => {
-    const all = beamingTutorial.pages.map((p) => p.text).join('\n');
-    expect(all).toContain('確認');
-    expect(all).toContain('101%');
-    expect(all).toContain('切れ');
+  it('2ページ目の絵: 棒の矢印と「速さ 63」を描く。「レバー」「停止」「50%」は描かない', () => {
+    const drawn: string[] = [];
+    const fake = new Proxy({ canvas: { width: 300, height: 200 } } as Record<string, unknown>, {
+      get(t, key): unknown {
+        if (key in t) return t[key as string];
+        return (...args: unknown[]): void => {
+          if (key === 'fillText') drawn.push(String(args[0]));
+        };
+      },
+      set(t, key, v): boolean {
+        t[key as string] = v;
+        return true;
+      },
+    });
+    beamingTutorial.pages[1]!.draw(fake as unknown as CanvasRenderingContext2D, 900, 600);
+    expect(drawn.some((t) => t.includes('速さ 63'))).toBe(true);
+    expect(drawn.some((t) => t.includes('遅く'))).toBe(true);
+    expect(drawn.some((t) => t.includes('速く'))).toBe(true);
+    for (const w of ['レバー', '停止', '50%']) {
+      expect(drawn.join('|'), w).not.toContain(w);
+    }
   });
 });
