@@ -255,22 +255,31 @@ describe('PU-14a: ドラム巻きの操作欄 (戻す・踏み込む・速さ・
     expect(css).not.toContain('winding-panel__amount--done');
   });
 
-  it('制限時間の表記は「0:49/0:33」とスラッシュの前後の隙間なし (見切れないように。T2-16 その6)。目標以内は超過の印なし。超えたら --over と「超過」', () => {
+  it('制限時間の表記は「0:49/0:33」とスラッシュの前後の隙間なし (見切れないように。T2-16 その6)。目標を超えたら「超過」の文字は無く、経過時間の部品だけに点滅のクラスが付く (T2-25)', () => {
     const { host, p } = mount();
     const base = init({ level: 1, patternId: 'p-pin-kon', sections: 5, seed: 1 });
     p.update({ ...base, elapsedMs: 1000 });
     let clock = host.querySelector('.winding-panel__clock')!;
     expect(clock.classList.contains('winding-panel__clock--over')).toBe(false);
-    expect(clock.textContent).not.toContain('超過');
     expect(clock.textContent!.trim()).toMatch(/^\d+:\d\d\/\d+:\d\d$/);
+    expect(clock.querySelectorAll('.winding-panel__elapsed--blink'), '超えていないあいだは点滅しない').toHaveLength(0);
     p.update({ ...base, elapsedMs: 99 * 60 * 1000 });
     clock = host.querySelector('.winding-panel__clock')!;
     expect(clock.classList.contains('winding-panel__clock--over')).toBe(true);
-    expect(clock.textContent).toContain('超過');
+    expect(clock.textContent, 'T2-25 で「超過」の文字をやめた').not.toContain('超過');
+    // 時計は 経過時間・「/」・制限時間 の 3 つの部品 (span)。点滅するのは経過時間だけ
+    const spans = Array.from(clock.children) as HTMLElement[];
+    expect(spans).toHaveLength(3);
+    expect(spans[0]!.textContent).toMatch(/^\d+:\d\d$/);
+    expect(spans[1]!.textContent).toBe('/');
+    expect(spans[2]!.textContent).toMatch(/^\d+:\d\d$/);
+    expect(spans[0]!.className).toContain('winding-panel__elapsed--blink');
+    expect(spans[1]!.className).not.toContain('blink');
+    expect(spans[2]!.className).not.toContain('blink');
     p.destroy();
   });
 
-  it('時計の文字の大きさは、内側の幅の 85% 以下に「0:00/0:00 超過」が収まる大きさ (40px を上限・20px 未満にしない。T2-16 その7)。jsdom では測れないので上限の 40px', () => {
+  it('時計の文字の大きさは、内側の幅の 85% 以下に「0:00/0:00」(超過の文字なし。T2-25) が収まる大きさ (40px を上限・20px 未満にしない。T2-16 その7)。jsdom では測れないので上限の 40px', () => {
     document.body.innerHTML = '';
     const host = document.createElement('div');
     document.body.appendChild(host);
@@ -284,7 +293,7 @@ describe('PU-14a: ドラム巻きの操作欄 (戻す・踏み込む・速さ・
     p.destroy();
   });
 
-  it('clockFontSize: 内側の幅の 85% に「0:00/0:00 超過」が収まる大きさ (40px を上限・20px 未満にしない)。測れないときは 40', () => {
+  it('clockFontSize: 内側の幅の 85% に「0:00/0:00」(超過の文字なし。T2-25) が収まる大きさ (40px を上限・20px 未満にしない)。測れないときは 40', () => {
     // 40px で 320px の文字のとき: 幅 280 → 280×0.85×40/320 = 29.75 → 29px (収まる)
     expect(clockFontSize(280, 320)).toBe(29);
     // 幅 140 → 14.9 → 20px (下限)
@@ -310,13 +319,30 @@ describe('PU-14a: ドラム巻きの操作欄 (戻す・踏み込む・速さ・
     p.destroy();
   });
 
-  it('base.css: 制限時間は太字で nowrap。超過は朱 (shu)。大きさは JS が操作欄の幅に合わせて入れる (T2-16 その6)', () => {
+  it('base.css: 制限時間は太字で nowrap。超えたときの朱 (shu) は今のまま。大きさは JS が操作欄の幅に合わせて入れる (T2-16 その6)', () => {
     const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
     const clock = css.match(/\n\.winding-panel__clock\s*\{([^}]*)\}/)![1]!;
     expect(clock).not.toContain('font-size'); // 大きさは JS が幅に合わせて設定する
     expect(clock).toContain('font-weight: bold');
     expect(clock).toContain('white-space: nowrap');
     expect(css.match(/\n\.winding-panel__clock--over\s*\{([^}]*)\}/)![1]).toContain('color: var(--c-shu)');
+  });
+
+  it('base.css: 経過時間の点滅 (T2-25)。1.6 秒の明滅で不透明度 1 と 0.25。端末の視差効果を減らす設定では点滅を止めて下線を引く', () => {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../styles/base.css'), 'utf-8');
+    const blink = css.match(/\n\.winding-panel__elapsed--blink\s*\{([^}]*)\}/)![1]!;
+    expect(blink).toContain('animation');
+    expect(blink).toContain('--winding-blink-duration: 1.6s'); // ゆっくりした明滅 (1 回 1.6 秒)。数値は CSS の変数に置く
+    expect(blink).toContain('--winding-blink-low: 0.25'); // 消えて見える側の不透明度
+    expect(css).toContain('@keyframes winding-clock-blink');
+    const kf = css.match(/@keyframes winding-clock-blink\s*\{[\s\S]*?\n\}/)![0]!;
+    expect(kf).toContain('opacity: 1');
+    expect(kf).toContain('opacity: var(--winding-blink-low)');
+    // ドラム巻きの時計の media ブロック (base.css には prefers-reduced-motion がほかにもあるので、時計のものを選ぶ)
+    const medias = Array.from(css.matchAll(/@media[^{]*prefers-reduced-motion[^{]*\{[\s\S]*?\n\}/g)).map((m) => m[0]);
+    const reduce = medias.find((b) => b.includes('winding-panel__elapsed--blink'))!;
+    expect(reduce).toContain('animation: none');
+    expect(reduce).toContain('text-decoration: underline'); // 色だけに頼らない
   });
 
   it('base.css: 詰めた形では、操作欄の区画の間隔を 8px に詰める (段階5・915×412 でスクロールを 0 にするため)', () => {

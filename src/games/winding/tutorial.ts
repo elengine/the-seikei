@@ -218,7 +218,7 @@ function drawScissors(ctx: CanvasRenderingContext2D, x: number, y: number, scale
   }
 }
 
-/** 5ページ目: 巻き量と、制限時間 (目標を超えると朱の「超過」)・ハサミの略図 (T2-12・PU-14d・T2-18c) */
+/** 5ページ目: 巻き量と、制限時間 (目標を超えると朱の文字。点滅は絵に出せないので「超過」の文字は無い。T2-25)・ハサミの略図 (T2-12・PU-14d・T2-18c) */
 function drawPage5(ctx: CanvasRenderingContext2D, w: number, h: number): void {
   const tX = w * 0.14;
   // 巻き量
@@ -232,13 +232,13 @@ function drawPage5(ctx: CanvasRenderingContext2D, w: number, h: number): void {
   ctx.fillStyle = COLORS.sumiSub;
   ctx.font = 'bold 36px sans-serif';
   ctx.fillText('0:42 / 1:30', tX + 16, h * 0.26 + 40);
-  // 目標を超えた例 (朱の文字に「超過」)
+  // 目標を超えた例 (朱の文字。点滅は絵で表せないので「超過」の文字は無い。T2-25)
   ctx.fillStyle = COLORS.white;
   ctx.fillRect(tX, h * 0.46, w * 0.72, 56);
   ctx.strokeRect(tX, h * 0.46, w * 0.72, 56);
   ctx.fillStyle = COLORS.shu;
   ctx.font = 'bold 36px sans-serif';
-  ctx.fillText('1:52 / 1:30 超過', tX + 16, h * 0.46 + 40);
+  ctx.fillText('1:52 / 1:30', tX + 16, h * 0.46 + 40);
   // ハサミの絵と説明
   drawScissors(ctx, w * 0.17, h * 0.72, 1.4);
   drawText(ctx, 'ハサミを糸の所まで引っぱって切ります', w * 0.28, h * 0.75);

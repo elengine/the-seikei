@@ -28,7 +28,7 @@ function pedalReason(phase: WindingState['phase']): string {
   }
 }
 
-/** 時計の文字の大きさ (px)。40px での文字の幅 widthAt40 をもとに、「0:00/0:00 超過」が
+/** 時計の文字の大きさ (px)。40px での文字の幅 widthAt40 をもとに、「0:00/0:00」が
  * 内側の幅 innerW の 85% 以下に収まる大きさを求める (40px を上限・20px 未満にしない)。
  * 測れないとき (widthAt40 が 0 など) は上限の 40px (T2-16 その7) */
 export function clockFontSize(innerW: number, widthAt40: number): number {
@@ -53,6 +53,28 @@ export function createWindingPanel(
   const section = document.createElement('div');
   section.className = 'winding-panel__section';
   root.appendChild(section);
+
+  // 中身は一度だけ作って、update では文字とクラスだけを替える (update のたびに作り直すと
+  // 経過時間の点滅の CSS animation が毎フレーム再開してしまい、点滅が見えなくなる。T2-25)
+  const bandSpan = part('');
+  section.appendChild(bandSpan);
+
+  const amount = div('winding-panel__amount');
+  const amountLabel = part('');
+  const bar = div('winding-panel__amount-bar');
+  const fill = div('winding-panel__amount-fill');
+  bar.appendChild(fill);
+  amount.append(amountLabel, bar);
+  section.appendChild(amount);
+
+  const clock = part('');
+  clock.className = 'winding-panel__clock';
+  const elapsedSpan = part('');
+  elapsedSpan.className = 'winding-panel__elapsed';
+  const slashSpan = part('/');
+  const limitSpan = part('');
+  clock.append(elapsedSpan, slashSpan, limitSpan);
+  section.appendChild(clock);
 
   // 2. 張りのメーター (節の見出しは用語の呼び名)
   const meterBox = document.createElement('section');
@@ -109,61 +131,58 @@ export function createWindingPanel(
 
   return {
     update(s: WindingState): void {
-      section.textContent = '';
       const len = s.lengths[s.current] ?? 0;
       const pct = Math.floor((len / SECTION_LENGTH) * 100);
-      section.appendChild(part(`帯 ${s.current + 1}/${s.sections}`));
+      bandSpan.textContent = `帯 ${s.current + 1}/${s.sections}`;
       // 巻き量は操作欄の中でいちばん目立つ表示 (大きく太字)。100% になっても形とメッセージは変えず、
       // 文字の色だけ青 (藍) にする (T2-18b)
-      const amount = div(pct >= 100 ? 'winding-panel__amount winding-panel__amount--full' : 'winding-panel__amount');
-      amount.textContent = `巻き量 ${pct}%`;
+      amount.className = pct >= 100 ? 'winding-panel__amount winding-panel__amount--full' : 'winding-panel__amount';
+      amountLabel.textContent = `巻き量 ${pct}%`;
       // 巻き量の横長の帯 (0〜100%)
-      const bar = div('winding-panel__amount-bar');
-      const fill = div('winding-panel__amount-fill');
       fill.style.width = `${Math.max(0, Math.min(100, pct))}%`;
-      bar.appendChild(fill);
-      amount.appendChild(bar);
-      section.appendChild(amount);
       const target = targetMsOf(s);
       const over = s.elapsedMs > target;
-      // 制限時間は大きく見せる。目標を超えたら朱の文字にして「超過」を添える (色だけに頼らない)。
+      // 制限時間は大きく見せる。目標を超えたら朱の文字 (色に加えて経過時間の点滅で知らせる。T2-25 で「超過」の文字はやめた)。
       // 表記は「0:49/0:33」とスラッシュの前後の隙間なし (T2-16 その6)
-      const time = part(`${clockText(s.elapsedMs)}/${clockText(target)}${over ? ' 超過' : ''}`);
-      time.className = over ? 'winding-panel__clock winding-panel__clock--over' : 'winding-panel__clock';
-      section.appendChild(time);
-      // 文字の大きさは、内側の幅の 85% 以下に「0:00/0:00 超過」が収まる大きさ (40px を上限・20px 未満にしない。T2-16 その7)。
+      clock.className = over ? 'winding-panel__clock winding-panel__clock--over' : 'winding-panel__clock';
+      // 文字の大きさは、内側の幅の 85% 以下に「0:00/0:00」が収まる大きさ (40px を上限・20px 未満にしない。T2-16 その7。T2-25 で超過の文字を測らなくした)。
       // 実際の文字の幅を 40px で毎回測る (フォントの読み込み後も正しくなる。jsdom では測れないので 0 → 上限)
       // 見た目の幅で測る (ゲーム枠は transform で拡大縮小されるため clientWidth だと実寸とずれる。T2-16 その7)
       const w = section.getBoundingClientRect().width;
-      time.style.fontSize = '40px';
-      const prevText = time.textContent;
-      time.textContent = '0:00/0:00 超過'; // いちばん幅が広がる形で測る
+      clock.style.fontSize = '40px';
+      // 測るときは部品の文字を「0:00」に替えるだけ (部品を付け替えないので点滅の animation は止まらない。T2-25)
+      elapsedSpan.textContent = '0:00';
+      limitSpan.textContent = '0:00';
       // 時計は flex で幅いっぱいに伸びるので、offsetWidth ではなく文字自体の幅を Range で測る (jsdom では測れないので 0 → 上限)
       const range = document.createRange();
       let textW = 0;
       if (typeof range.getBoundingClientRect === 'function') {
-        range.selectNodeContents(time);
+        range.selectNodeContents(clock);
         textW = range.getBoundingClientRect().width;
       }
       let size = clockFontSize(w, textW);
-      time.style.fontSize = `${size}px`;
-      // 念のため、「0:00/0:00 超過」の形そのもので収まりを測り、内側の幅の 82% を超えていたら 1px ずつ縮める
+      clock.style.fontSize = `${size}px`;
+      // 念のため、「0:00/0:00」の形そのもので収まりを測り、内側の幅の 82% を超えていたら 1px ずつ縮める
       // (文字の大きさごとに描画の幅が比例しない + 枠の拡縮で幅が少し揺れるため、85% より狭い 82% を目標にして
       //  どんなときも 85% 以下・右に 15% 以上の余白を守る。T2-16 その7)
       if (typeof range.getBoundingClientRect === 'function') {
-        time.textContent = '0:00/0:00 超過';
-        range.selectNodeContents(time);
+        elapsedSpan.textContent = '0:00';
+        limitSpan.textContent = '0:00';
+        range.selectNodeContents(clock);
         let actual = range.getBoundingClientRect().width;
         let guard = 0;
         while (actual > w * 0.82 && size > 20 && guard < 21) {
           size -= 1;
-          time.style.fontSize = `${size}px`;
-          range.selectNodeContents(time);
+          clock.style.fontSize = `${size}px`;
+          range.selectNodeContents(clock);
           actual = range.getBoundingClientRect().width;
           guard += 1;
         }
       }
-      time.textContent = prevText;
+      // 実際の時間に戻す。目標を超えたら経過時間の部品だけをゆっくり点滅させる (「/」と制限時間は点滅しない。T2-25)
+      elapsedSpan.textContent = clockText(s.elapsedMs);
+      elapsedSpan.className = over ? 'winding-panel__elapsed winding-panel__elapsed--blink' : 'winding-panel__elapsed';
+      limitSpan.textContent = clockText(target);
       meter.update(s.tension, s.range);
       // ペダルは 'ready' と 'winding' で押せる (ready で動かすと巻き始まる。T2-18a)
       pedal.setEnabled(s.phase === 'winding' || s.phase === 'ready', pedalReason(s.phase));

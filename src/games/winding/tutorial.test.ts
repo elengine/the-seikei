@@ -168,11 +168,12 @@ describe('PU-14d: ドラム巻きの遊び方を今の画面に合わせる', ()
     expect(wide.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('5 ページ目の絵に、目標を超えた制限時間 (朱の「超過」) と「巻き量」がある', () => {
+  it('5 ページ目の絵に、目標を超えた制限時間 (朱の文字。「1:52 / 1:30」。点滅は絵に出せないので「超過」の文字は無い。T2-25) と「巻き量」がある', () => {
     const { ctx, rec } = makeFakeCtx();
     windingTutorial.pages[4]!.draw(ctx, 900, 600);
     const texts = rec.ops.filter((o) => o.k === 'fillText').map((o) => String(o.args?.[0]));
-    expect(texts.some((t) => t.includes('超過'))).toBe(true);
+    expect(texts.some((t) => t.includes('1:52 / 1:30'))).toBe(true);
+    expect(texts.some((t) => t.includes('超過')), 'T2-25 で「超過」の文字をやめた').toBe(false);
     expect(texts.some((t) => t.includes('巻き量'))).toBe(true);
     expect(rec.fillStyleLog).toContain(COLORS.shu);
   });

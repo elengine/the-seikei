@@ -1433,6 +1433,27 @@ button {
   background: var(--c-ai);
 }
 
+.winding-panel__elapsed--blink {
+  /* 経過時間だけをゆっくり点滅させる (T2-25)。1 回の明滅 1.6 秒。見えている時間を長めにする */
+  --winding-blink-duration: 1.6s;
+  --winding-blink-low: 0.25;
+  animation: winding-clock-blink var(--winding-blink-duration) infinite;
+}
+
+@keyframes winding-clock-blink {
+  0%, 70% { opacity: 1; }
+  85% { opacity: var(--winding-blink-low); }
+  100% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .winding-panel__elapsed--blink {
+    /* 端末の「視差効果を減らす」では点滅させず、下線で知らせる (色だけに頼らないため。T2-25) */
+    animation: none;
+    text-decoration: underline;
+  }
+}
+
 .winding-panel__clock--over {
   color: var(--c-shu); /* 目標を超えたら朱。「超過」の文字も添える */
 }
