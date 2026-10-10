@@ -379,10 +379,24 @@ export function drawDrum(ctx: CanvasRenderingContext2D, runs: Array<{ hex: strin
       }
     }
   }
-  // 帯留めの竿 (深緑の細い棒。ドラム巻きでは縦の棒。ここでは軸の向きに走り、板と同じに回る。白い小さな金具が付く)
-  const phiPole = ALPHA - DRUM_SURFACE_SIGN * (drumAngle + DRUM_POLE_ANGLE0);
-  const cPole = Math.cos(phiPole - ALPHA);
-  if (cPole > 0) {
+  // 帯留めの竿 (深緑の細い棒。ドラム巻きでは縦の棒。ここでは軸の向きに走り、板と同じに回る。白い小さな金具が付く)。
+  // 糸が消え始めたら (erase > 0)、糸の下の端が竿に接して竿と一緒に動くので、竿は糸より手前に描く (PU-32 追加修正 12)
+  const erase = Math.min(1, Math.max(0, (s.progress - DRUM_ERASE_FROM) / (DRUM_ERASE_TO - DRUM_ERASE_FROM)));
+  let relPole = drumAngle + DRUM_POLE_ANGLE0; // 竿の、正面からの角度 (上が正)。DRUM_SURFACE_SIGN = −1 (手前の面は上へ回る)
+  relPole = Math.atan2(Math.sin(relPole), Math.cos(relPole));
+  const poleVisible = Math.cos(relPole) > 0;
+  // 糸の下の端 (正面からの角度): 消え始める前は見える側面の下の端。消え始めたら竿の角度へ移り (最初の 20% でなめらかに)、竿から上へ向かって消えていく
+  const w = Math.min(1, erase / 0.2);
+  const wEase = w * w * (3 - 2 * w);
+  const poleEdge = poleVisible ? relPole : relPole < 0 ? -Math.PI / 2 : Math.PI / 2;
+  const base = -Math.PI / 2 + (poleEdge + Math.PI / 2) * wEase;
+  const edgeRel = base + erase * (Math.PI / 2 - base);
+  const drawPole = (): void => {
+    // 糸が消え始めたら、竿は糸の下の端に付いて動く (角度は糸の端と同じ。端はドラムの回転で動く竿の角度から決まる)
+    const relDraw = erase > 0 ? edgeRel : relPole;
+    const phiPole = ALPHA + relDraw;
+    const cPole = Math.cos(relDraw);
+    if (cPole <= 0) return;
     const m = pt(xl, frame.z + frame.r * Math.cos(phiPole), frame.h + frame.r * Math.sin(phiPole));
     const t = Math.max(3, DRUM_POLE_W * cPole);
     ctx.fillStyle = COLORS.machineDark;
@@ -391,7 +405,8 @@ export function drawDrum(ctx: CanvasRenderingContext2D, runs: Array<{ hex: strin
     for (const f of [1 / 6, 1 / 2, 5 / 6]) {
       ctx.fillRect(m.x + (xr - xl) * f - DRUM_BRACKET_ALONG / 2, m.y - (DRUM_BRACKET_ACROSS * cPole) / 2, DRUM_BRACKET_ALONG, Math.max(4, DRUM_BRACKET_ACROSS * cPole));
     }
-  }
+  };
+  if (erase === 0) drawPole(); // 糸が巻かれているあいだは、竿は糸の下 (糸は後から描く)
   // ドラムの羽 (PU-32 追加修正 4): 糸の束より先に描く。根元は帯の左の端の下 (DRUM_WING_IN だけ中) に隠れ、帯の左の端から外へ短く (DRUM_WING_LEN)、小さな角度で出る。
   // 板は桟と同じ数 (見える側面だけ)
   ctx.fillStyle = COLORS.wood;
@@ -416,9 +431,8 @@ export function drawDrum(ctx: CanvasRenderingContext2D, runs: Array<{ hex: strin
   const hasYarn = yarn.r - frame.r > 0.5;
   // 終わりに向けて、糸は下側から消えていく (PU-32 追加修正 9。ドラムは手前が上へ回り、帯は下から出ていくため)。厚みが薄くなるのとあわせて、
   // 巻き量 DRUM_ERASE_FROM (99.7%) から DRUM_ERASE_TO (99.9%) にかけて、見える側面の下の端から上へ向かって糸が消え、胴が見えていく
-  const erase = Math.min(1, Math.max(0, (s.progress - DRUM_ERASE_FROM) / (DRUM_ERASE_TO - DRUM_ERASE_FROM)));
   const aTop = ALPHA + Math.PI / 2;
-  const aLow = ALPHA - Math.PI / 2 + erase * Math.PI; // 糸が残る角度の範囲は aLow → aTop
+  const aLow = ALPHA + edgeRel; // 糸が残る角度の範囲は aLow → aTop (下の端は、消え始めたら竿に接して竿と一緒に動く)
   const strips = hasYarn && erase < 1 ? stripeStrips(runs, repeats, w0, w1) : [];
   for (const st of strips) {
     if (st.x0 >= yx1) continue; // 右の端の斜めの面 (taper) の所は、縞の色ではなく、下の円すいの面だけ (狭い縞が逆向きにならない)
@@ -452,6 +466,7 @@ export function drawDrum(ctx: CanvasRenderingContext2D, runs: Array<{ hex: strin
   }
   ctx.globalAlpha = 1;
   }
+  if (erase > 0) drawPole(); // 糸が消え始めたら、竿を糸の端の上に描く (竿が糸の端を押さえている)
   if (hasYarn && erase === 0) {
   // 糸の右の端: 斜めに細くなって胴へ下りる (円すいの側面。最後の帯の色)。端の面は胴の半径
   const ra = arcScreen(yx1, yarn, ALPHA - Math.PI / 2, ALPHA + Math.PI / 2, 24);

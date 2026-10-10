@@ -888,4 +888,19 @@ describe('PU-32: 糸の帯・隠れる順・盤面に収まる', () => {
     const brackets = rects.filter((r) => r.style === COLORS.steel && Math.abs(r.a[2]! - DRUM_BRACKET_ALONG) < 1e-6);
     expect(brackets.length, '金具 3 つ').toBe(3);
   });
+
+  it('26. 糸が下から消えていくとき (99.75%・99.85%)、糸の下の端は竿に接していて、ドラムが回って竿が動いても糸の端が竿からずれない (PU-32 追加修正 12)', () => {
+    const hex = mainHex(content, 'p-muji-kon');
+    for (const p of [0.9975, 0.9985]) {
+      for (const angle of [0, 0.25, 0.5]) {
+        const rec = draw(beamState({ progress: p }), angle);
+        const pole = rec.ops.map((o, i) => ({ o, style: styleBefore(rec.ops, i) })).filter((e) => e.o.k === 'fillRect' && e.style === COLORS.machineDark && Number((e.o.args as number[])[2]) > DRUM_W).map((e) => e.o.args as number[]);
+        const yarn = fillPolys(rec).filter((f) => f.style === hex && f.pts.length > 20 && ext(f.pts).y0 < BOARD.H * 0.4);
+        if (pole.length === 0 || yarn.length === 0) continue; // 竿が裏側 (見えない) のときは、糸の端は見える側面の端
+        const poleY = pole[0]![1]! + pole[0]![3]! / 2;
+        const yarnBottom = Math.max(...yarn.map((f) => ext(f.pts).y1));
+        expect(Math.abs(yarnBottom - poleY), `p=${p} angle=${angle}: 糸の下の端と竿の高さ`).toBeLessThanOrEqual(4);
+      }
+    }
+  });
 });
