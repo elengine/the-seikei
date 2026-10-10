@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { init, reduce, starsOf, widthOk, resultLines, isValidResume, targetOf, okRangeOf } from './logic';
+import { init, reduce, starsOf, widthOk, resultLines, isValidResume, targetOf, okRangeOf, brakeFactor } from './logic';
 import type { BeamingState, BeamingAction } from './logic';
 import type { Level } from './params';
-import { FULL_WIND_SEC_AT_100, TARGET_POINTS, STOP3, STOP2, RESTARTS_OK, OK_TOL_BY_LEVEL, STOP_ZONE, DIP_FROM_PCT, DIP_TO_PCT } from './params';
+import { BRAKE_FROM, BREAK_AT, FULL_WIND_SEC_AT_100, TARGET_POINTS, STOP3, STOP2, RESTARTS_OK, OK_TOL_BY_LEVEL, STOP_ZONE, DIP_FROM_PCT, DIP_TO_PCT } from './params';
 
 /** テスト用の状態を作る (seed 固定)。level と巻き幅を指定できる */
 function make(level: Level = 1, widthCm = 60, seed = 42): BeamingState {
@@ -73,39 +73,48 @@ describe('beaming logic T3-01 (ルール)', () => {
     expect(widthOk(s)).toBe(false);
   });
 
-  it("6. 止めずに 101% に届くと糸が切れて失敗 (broken・phase 'done'・星なし)。100.99 までは切れない (T3-05)", () => {
+  it("6. 止めずに 100.1% に届くと糸が切れて失敗 (broken・phase 'done'・星なし。管理者の指示)", () => {
     const s = setupExact(make());
     const w = act(s, [{ type: 'setSpeed', value: 100 }]);
     // 100% を超えるまで巻く (21秒 + 余裕)
     let after = w;
-    for (let i = 0; i < 310; i++) {
+    for (let i = 0; i < 900; i++) {
       after = reduce(after, { type: 'tick', dtMs: 100 });
       if (after.phase === 'done') break;
     }
     expect(after.broken, '100% を超えた').toBe(true);
     expect(after.phase).toBe('done');
     expect(starsOf(after)).toBe(0);
-    // 結果の行に「巻き量が 101% に届きました」
-    expect(resultLines(after).some((l) => l.value.includes('101% に届'))).toBe(true);
+    expect(after.progress).toBeGreaterThanOrEqual(1.001 - 1e-9);
+    expect(resultLines(after).some((l) => l.value === '巻き量が100%を超えたので糸が切れました')).toBe(true);
   });
 
-  it('7. 速さ 100 で 21 秒で巻き終わる。止めずに 101% に届くと切れる。50 はその半分の速さ (T3-05。T3-10 で 30 秒から 21 秒に変えた)', () => {
+  it('7. 速さ 100 の機械は 75% まで 15.75 秒 (21 秒の 75%)。75% を超えたら、車がなめらかに止まるのと同じ一定の減速 (速さ ∝ √残り) で落ち、100.1% でちょうど 0。それまでは切れない。50 はその半分の速さ', () => {
     expect(FULL_WIND_SEC_AT_100).toBe(21);
+    expect(brakeFactor(0.5)).toBe(1);
+    expect(brakeFactor(BRAKE_FROM)).toBe(1);
+    expect(brakeFactor(0.875)).toBeCloseTo(Math.sqrt((BREAK_AT - 0.875) / (BREAK_AT - BRAKE_FROM)), 9);
+    expect(brakeFactor(0.9)).toBeLessThan(brakeFactor(0.8)); // 巻き量が進むほど落ちる
+    expect(brakeFactor(1.0)).toBeLessThan(0.1);
+    expect(brakeFactor(BREAK_AT)).toBeLessThanOrEqual(0.02);
+    // 一定の減速 (速さの 2 乗が巻き量に対して直線): 速さ² の差が等しい
+    const v2 = (p: number): number => brakeFactor(p) ** 2;
+    expect(v2(0.8) - v2(0.85)).toBeCloseTo(v2(0.85) - v2(0.9), 9);
     let s = setupExact(make());
     s = act(s, [{ type: 'setSpeed', value: 100 }]);
-    for (let i = 0; i < 209; i++) {
+    for (let i = 0; i < 157; i++) s = reduce(s, { type: 'tick', dtMs: 100 });
+    expect(s.progress).toBeCloseTo(0.747, 2); // 15.7 秒で約 75%
+    for (let i = 0; i < 53; i++) s = reduce(s, { type: 'tick', dtMs: 100 }); // 21 秒
+    expect(s.progress).toBeGreaterThan(0.92);
+    expect(s.progress).toBeLessThan(0.96); // 減速しているので、減速が無いときの 100% よりずっと手前
+    expect(s.phase).toBe('beaming');
+    let prev = s.progress;
+    for (let i = 0; i < 900 && s.phase === 'beaming'; i++) {
       s = reduce(s, { type: 'tick', dtMs: 100 });
+      expect(s.progress).toBeGreaterThanOrEqual(prev);
+      if (s.phase === 'beaming') expect(s.progress, '100.1% に届くまでは切れない').toBeLessThan(BREAK_AT);
+      prev = s.progress;
     }
-    expect(s.phase).toBe('beaming'); // まだ 20.9 秒 (巻き量 99.5%)
-    expect(s.progress).toBeGreaterThan(0.99);
-    for (let i = 0; i < 3; i++) {
-      s = reduce(s, { type: 'tick', dtMs: 100 });
-    }
-    expect(s.phase).toBe('beaming'); // 21.2 秒 = 巻き量 100.9%。まだ切れない (100.99 まで)
-    for (let i = 0; i < 2; i++) {
-      s = reduce(s, { type: 'tick', dtMs: 100 });
-    }
-    expect(s.phase).toBe('done'); // 21.4 秒で 101% に届いたので失敗で終わる (小数の誤差で 21.3 秒は 100.999…%)
     expect(s.broken).toBe(true);
     // 50 は 100 の半分の速さ: 10.5秒 (105tick) で 4分の1・21秒で半分
     let half = setupExact(make());
@@ -120,15 +129,7 @@ describe('beaming logic T3-01 (ルール)', () => {
     expect(half.progress).toBeCloseTo(0.5, 1);
   });
 
-  it('T3-10: 速さ 100 で 21 秒巻くと巻き量はほぼ 100% (±0.5%)。速さ 50 で 21 秒なら約 50%', () => {
-    let s = setupExact(make());
-    s = act(s, [{ type: 'setSpeed', value: 100 }]);
-    for (let i = 0; i < 210; i++) {
-      s = reduce(s, { type: 'tick', dtMs: 100 });
-    }
-    expect(s.phase, '21 秒ちょうどはまだ切れない (100.99 まで)').toBe('beaming');
-    expect(s.progress).toBeGreaterThan(0.995);
-    expect(s.progress).toBeLessThan(1.005);
+  it('T3-10: 速さ 50 で 21 秒なら約 50% (75% までは減速しない)', () => {
     let half = setupExact(make());
     half = act(half, [{ type: 'setSpeed', value: 50 }]);
     for (let i = 0; i < 210; i++) {
@@ -264,7 +265,7 @@ describe('beaming logic T3-01 (ルール)', () => {
     let s = setupExact(make());
     s = act(s, [{ type: 'setSpeed', value: 100 }]);
     // 95% まで巻く (T3-10 で 21 秒になったので 200tick = 20 秒 = 95.2%)
-    for (let i = 0; i < 200; i++) {
+    for (let i = 0; i < 230; i++) {
       s = reduce(s, { type: 'tick', dtMs: 100 });
     }
     expect(s.progress).toBeGreaterThanOrEqual(0.95);
@@ -361,18 +362,18 @@ describe('T3-05 (揺れをやめる・速さを連続に・止める判定を表
     expect(Object.keys(cur)).not.toContain('shiftCm');
   });
 
-  it('21. 巻き量 100.5 で止めて確認すると「100% ぴったりで止めた」扱い (星3の止めた位置)。101.0 に届くと失敗', () => {
+  it('21. 巻き量 100.5 で止めて確認すると「100% ぴったりで止めた」扱い (星3の止めた位置)。100.1 に届くと失敗', () => {
     // 100.5% で止めて確認 → 星3 (他の条件が揃っていれば)。止めた位置の表示は 100
     const base = setupExact(make());
     const s: BeamingState = { ...base, widthErrCm: 0, goodMs: 900, windMs: 1000, progress: 1.005, restarts: 0, broken: false, speed: 0 };
     expect(starsOf(s)).toBe(3);
     expect(resultLines(s).find((l) => l.label === '止めた位置')!.value).toBe('100%');
-    // 100.99 でも星3
-    expect(starsOf({ ...s, progress: 1.0099 })).toBe(3);
-    // 101.0 に届いたら tick で切れる (100 で巻くと 101% は 30.3 秒)
+    // 100.09 でも星3
+    expect(starsOf({ ...s, progress: 1.0009 })).toBe(3);
+    // 100.1 に届いたら tick で切れる
     let cur = setupExact(make());
     cur = reduce(cur, { type: 'setSpeed', value: 100 });
-    for (let i = 0; i < 310; i++) {
+    for (let i = 0; i < 900; i++) {
       cur = reduce(cur, { type: 'tick', dtMs: 100 });
       if (cur.broken) break;
     }

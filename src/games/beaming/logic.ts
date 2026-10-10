@@ -2,7 +2,7 @@ import type { RngState } from '../../core/clock/clock';
 import { seedFrom, nextFloat } from '../../core/clock/clock';
 import {
   MAX_TICK_MS, STARS3, STARS2, STAR_WIDTH3, STAR_WIDTH2,
-  FULL_WIND_SEC_AT_100, TARGET_POINTS, OK_TOL_BY_LEVEL, START_OFFSET_CM,
+  FULL_WIND_SEC_AT_100, BRAKE_FROM, BREAK_AT, TARGET_POINTS, OK_TOL_BY_LEVEL, START_OFFSET_CM,
   DIP_GAP_MIN_MS, DIP_GAP_MAX_MS, DIP_AMOUNT_MIN, DIP_AMOUNT_MAX,
   DIP_DOWN_MS, DIP_HOLD_MIN_MS, DIP_HOLD_MAX_MS, DIP_BACK_MS,
   STOP_ZONE, DIP_FROM_PCT, DIP_TO_PCT,
@@ -209,6 +209,24 @@ function stepDip(s: BeamingState, dtMsC: number, rng: RngState): { dip: number; 
   return { dip, dipPhase, dipTimerMs, dipGapMs, dipAmount, dipHoldMs, rng: nextRng };
 }
 
+/**
+ * 機械の巻く速さにかかる係数 (管理者の指示)。巻き量 BRAKE_FROM (75%) までは 1。それを超えたら、車がなめらかに止まるときと同じ一定の減速
+ * (速さ ∝ √(BREAK_AT までの残り)) で落ち、BREAK_AT (100.1%) で 0。ゼロに張り付かないよう、ごく小さい下限を置く
+ */
+export function brakeFactor(progress: number): number {
+  if (progress <= BRAKE_FROM) return 1;
+  return Math.max(0.02, Math.sqrt(Math.max(0, (BREAK_AT - progress) / (BREAK_AT - BRAKE_FROM))));
+}
+
+/** 巻き量の表示 (「巻き量 N%」の N)。95% 以上は小数第 1 位まで (切り捨て)、それより下は整数 (切り捨て) */
+export function progressLabel(progress: number): string {
+  if (progress >= 0.95) return (Math.floor(progress * 1000 + 1e-9) / 10).toFixed(1);
+  return String(Math.floor(progress * 100));
+}
+
+/** 糸が切れたときの文 */
+export const BROKEN_MESSAGE = '巻き量が100%を超えたので糸が切れました';
+
 /** tick。dtMs を MAX_TICK_MS で丸め、'beaming' で時間を進める */
 function tick(s: BeamingState, dtMs: number): BeamingState {
   if (s.phase !== 'beaming') return s;
@@ -219,14 +237,14 @@ function tick(s: BeamingState, dtMs: number): BeamingState {
   if (s.speed === 0) {
     return s;
   }
-  const rate = s.speed / 100 / FULL_WIND_SEC_AT_100; // 1秒あたりの巻き量
+  const rate = (s.speed / 100 / FULL_WIND_SEC_AT_100) * brakeFactor(s.progress); // 1秒あたりの巻き量 (75% を超えたら機械の速さが落ちる)
   const progress = s.progress + rate * dt;
   const windMs = s.windMs + dtMsC;
   const d = stepDip(s, dtMsC, s.rng);
   const range = okRangeOf(progress, s.level, d.dip);
   const goodMs = s.speed >= range.min && s.speed <= range.max ? s.goodMs + dtMsC : s.goodMs;
-  // 2. 巻き量 101% に届いたら糸が切れて失敗 (T3-05。100.99 までは切れない)
-  if (progress * 100 >= 101) {
+  // 2. 巻き量 100.1% に届いたら糸が切れて失敗 (管理者の指示。100.09 までは切れない)
+  if (progress >= BREAK_AT - 1e-9) {
     return { ...s, progress, speed: 0, windMs, goodMs, ...d, broken: true, phase: 'done' };
   }
   return { ...s, progress, windMs, goodMs, ...d };
@@ -253,7 +271,7 @@ export function starsOf(s: BeamingState): 0 | 1 | 2 | 3 {
 /** 成績の行 (T3-05。「中央に保てた割合」「乗り上げ」は無い) */
 export function resultLines(s: BeamingState): { label: string; value: string }[] {
   if (s.broken) {
-    return [{ label: '結果', value: '巻き量が 101% に届きました' }];
+    return [{ label: '結果', value: BROKEN_MESSAGE }];
   }
   const pct = (ok: number): string => `${Math.round(s.windMs > 0 ? (ok / s.windMs) * 100 : 0)}%`;
   return [

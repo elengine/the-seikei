@@ -28,7 +28,7 @@ export function circleArc(c: Circle, from: number, to: number, steps: number): S
 /** 巻き量 (0〜1) でのドラムの糸の半径 (枠は変わらない。巻き取られて細る) */
 export function drumRadius(progress: number): number {
   // 糸の厚み (外側の半径 − 胴の半径) は巻き量に合わせてなめらかに減り、巻き量 SIDE_YARN_GONE (100.9%) でちょうど 0 (糸が無くなる)
-  const left = Math.min(1, Math.max(0, 1 - progress / SIDE_YARN_GONE));
+  const left = Math.sqrt(Math.min(1, Math.max(0, 1 - progress / SIDE_YARN_GONE))); // √: 終わりに向けて糸が急に消えず、なめらかに薄くなる
   return drumCoreRadius() + (SIDE.drum.r - drumCoreRadius()) * left;
 }
 

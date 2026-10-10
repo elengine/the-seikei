@@ -1126,6 +1126,12 @@ body {
   color: var(--c-muted);
 }
 
+/* ビーミングの糸切れの文 (少し大きく) */
+.result__hint--big {
+  font-size: calc(var(--fs-body) * 1.25);
+  color: var(--c-text, inherit);
+}
+
 .result-patterns {
   font-size: var(--fs-body);
 }

@@ -61,10 +61,15 @@ describe('beaming panel T3-03a (操作欄)', () => {
 
   it('4. 巻き量の表示は切り捨て (100.99% は 100%。T3-05)', () => {
     const p = createBeamingPanel(host, { terms, onAction: () => undefined });
-    p.update({ ...beaming(), progress: 1.0099 });
-    expect(host.textContent).toContain('巻き量 100%');
-    p.update({ ...beaming(), progress: 0.995 });
-    expect(host.textContent).toContain('巻き量 99%');
+    // 95% 未満は整数 (切り捨て)、95% 以上は小数第 1 位まで (切り捨て。管理者の指示)
+    p.update({ ...beaming(), progress: 0.949 });
+    expect(host.textContent).toContain('巻き量 94%');
+    p.update({ ...beaming(), progress: 0.95 });
+    expect(host.textContent).toContain('巻き量 95.0%');
+    p.update({ ...beaming(), progress: 0.9999 });
+    expect(host.textContent).toContain('巻き量 99.9%');
+    p.update({ ...beaming(), progress: 1.0009 });
+    expect(host.textContent).toContain('巻き量 100.0%');
     p.destroy();
   });
 

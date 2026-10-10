@@ -9,7 +9,7 @@ import { showTutorial } from '../../core/ui/tutorialOverlay';
 import { drawBoard, stripeRunsOf } from './renderer';
 import { createBeamingPanel } from './panel';
 import { getContent } from '../../core/content/content';
-import { init, reduce, resultLines } from './logic';
+import { init, reduce, resultLines, BROKEN_MESSAGE } from './logic';
 import { seedFromText } from '../winding/logic';
 import { resultOf } from './messages';
 import type { BeamingState, BeamingAction, Level } from './logic';
@@ -358,6 +358,7 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
     finished = true;
     stopLoop();
     refresh();
+    if (s.broken) deps.audio.play('buzzer'); // 糸が切れた瞬間の短いブザー
     doneTimer = setTimeout(() => {
       doneTimer = null;
       if (disposed) {
@@ -379,8 +380,8 @@ export function createBeamingController(parent: HTMLElement, deps: GameDeps, pro
     title.textContent = '糸が切れました';
     box.appendChild(title);
     const line = document.createElement('p');
-    line.className = 'result__hint';
-    line.textContent = resultLines(s)[0]?.value ?? '巻き量が 100% を超えました';
+    line.className = 'result__hint result__hint--big';
+    line.textContent = resultLines(s)[0]?.value ?? BROKEN_MESSAGE;
     box.appendChild(line);
     const actions = document.createElement('div');
     actions.className = 'dialog__actions result__actions';

@@ -1,4 +1,4 @@
-export type SoundName = 'tap' | 'ok' | 'gentleNo' | 'knot' | 'page' | 'fanfare' | 'stop';
+export type SoundName = 'tap' | 'ok' | 'gentleNo' | 'knot' | 'page' | 'fanfare' | 'stop' | 'buzzer';
 
 export interface Note {
   freq: number; // Hz (250〜2000)
@@ -36,6 +36,11 @@ export const SOUNDS: Record<SoundName, Note[]> = {
     { freq: 659, startMs: 180, durMs: 180, wave: 'triangle', gain: 0.4 }, // ミ
     { freq: 784, startMs: 360, durMs: 180, wave: 'triangle', gain: 0.4 }, // ソ
     { freq: 1046, startMs: 540, durMs: 320, wave: 'triangle', gain: 0.4 }, // ド
+  ],
+  // 短いブザー (ビーミングの糸切れ。約 0.4 秒。低めの 2 音を重ねて、はっきり聞こえるが責めない)
+  buzzer: [
+    { freq: 262, startMs: 0, durMs: 400, wave: 'triangle', gain: 0.35 },
+    { freq: 277, startMs: 0, durMs: 400, wave: 'triangle', gain: 0.3 },
   ],
   // 機械が止まる音 (糸切れ)。実物の「ガシャン」(最初の 0.2 秒ほど) のあと、
   // 低い音が小さくなりながら 0.5 秒で消える (管理者の指定。T2-11b)

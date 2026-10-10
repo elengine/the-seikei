@@ -3,7 +3,7 @@ import { createSectionHeading } from '../../core/ui/layout';
 import { createTensionMeter } from '../../core/ui/pedalControl';
 import type { TensionMeter } from '../../core/ui/pedalControl';
 import type { BeamingState, BeamingAction } from './logic';
-import { okRangeOf } from './logic';
+import { okRangeOf, progressLabel } from './logic';
 import { CONFIRM_MIN } from './params';
 
 /**
@@ -189,7 +189,7 @@ export function createBeamingPanel(
       confirmBtn.style.display = canConfirm ? '' : 'none';
       confirmBtn.setAttribute('aria-disabled', String(!confirmStopped));
       confirmBtn.classList.toggle('beaming-panel__main--locked', !confirmStopped);
-      amount.textContent = `巻き量 ${Math.floor(s.progress * 100)}%`; // 表示は切り捨て (T3-05)
+      amount.textContent = `巻き量 ${progressLabel(s.progress)}%`; // 表示は切り捨て (T3-05)。95% 以上は小数第 1 位まで
       // 速さのメーター: 針は速さそのもの。範囲は巻き量と揺らぎで動く (T3-07)
       meter.update(s.speed, okRangeOf(s.progress, s.level, s.dip));
       // 巻き返しの段階の下の行は空 (ボタンが無いので行を低くする)

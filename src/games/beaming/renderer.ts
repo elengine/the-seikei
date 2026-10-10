@@ -127,20 +127,43 @@ function facePath(ctx: CanvasRenderingContext2D, X: number, c: Circ): void {
 }
 
 /** 糸の通り道の部分 (sub) を、柄の縞ごとの帯にして塗る。縞の x は、幅の位置 (cx ± 巻き幅の半分) を柄でくり返し割ったもの (PU-32) */
-function drawRibbon(ctx: CanvasRenderingContext2D, sub: SidePoint[], s: BeamingState, runs: Array<{ hex: string; frac: number }>, repeats: number): void {
+/** 巻いた糸の円筒 (ビームに巻かれた面) の楕円 e (中心の x は x)、帯が乗る所の y (yTop)、そこの楕円の上の角度 tTop。drawBeamFront と、帯の端をつなぐ drawBoard で同じ値を使う */
+function windTop(s: BeamingState, contact: number | null, x: number): { e: Ell; yTop: number; tTop: number } {
+  const f = woundRadiusFig(s.progress) / SIDE.beam.r;
+  const e = discEllipse(x, f);
+  const cyBottom = e.cy + e.ry;
+  const wr = woundRadiusFig(s.progress);
+  // 糸を付ける前に巻きが残っているとき (再開) は、見える側面の全部 = 楕円の上の端
+  const yTop = contact === null ? e.cy - e.ry : Math.max(e.cy - e.ry, Math.min(cyBottom - 1, pt(0, SIDE.beam.z + wr * Math.cos(contact), SIDE.beam.h + wr * Math.sin(contact)).y));
+  const tTop = Math.asin(Math.max(-1, Math.min(1, (e.cy - yTop) / e.ry))); // 楕円の上の点 (y = cy − ry sin t) のうち yTop の高さのもの
+  return { e, yTop, tTop };
+}
+
+function drawRibbon(ctx: CanvasRenderingContext2D, sub: SidePoint[], s: BeamingState, runs: Array<{ hex: string; frac: number }>, repeats: number, join: number | null = null): void {
   if (sub.length < 2) return;
   const half = (s.widthCm * pxPerCm(s.widthCm)) / 2;
+  // join: ビームの巻いた糸の円筒につなぐ (PU-32 追加修正 8)。帯が円筒に乗る所で、帯の左の端が円筒の左の端の「(」の上の点 (幅の左の端から join だけずれた x) に
+  // 来るよう、帯の x を右の端を動かさずに伸ばす (下へ行くほど滑らかに強くなる)。join が null なら何もしない
+  const L = BEAM_CENTER_X - half;
+  const R = BEAM_CENTER_X + half;
+  const spot = (X: number, q: SidePoint, j: number): { x: number; y: number } => {
+    const p0 = pt(X, q.z, q.h);
+    if (join === null) return p0;
+    const t = j / (sub.length - 1);
+    const w = t * t * (3 - 2 * t);
+    return { x: p0.x + (w * (join - depthDx(sub[sub.length - 1]!.z)) * (R - X)) / (R - L), y: p0.y };
+  };
   for (const st of stripeStrips(runs, repeats, BEAM_CENTER_X - half, BEAM_CENTER_X + half)) {
     ctx.fillStyle = st.hex;
     ctx.beginPath();
-    const first = pt(st.x0, sub[0]!.z, sub[0]!.h);
+    const first = spot(st.x0, sub[0]!, 0);
     ctx.moveTo(first.x, first.y);
-    for (const q of sub) {
-      const a = pt(st.x0, q.z, q.h);
+    sub.forEach((q, j) => {
+      const a = spot(st.x0, q, j);
       ctx.lineTo(a.x, a.y);
-    }
+    });
     for (let i = sub.length - 1; i >= 0; i--) {
-      const b = pt(st.x1, sub[i]!.z, sub[i]!.h);
+      const b = spot(st.x1, sub[i]!, i);
       ctx.lineTo(b.x, b.y);
     }
     ctx.closePath();
@@ -158,7 +181,7 @@ function drawRibbon(ctx: CanvasRenderingContext2D, sub: SidePoint[], s: BeamingS
     ctx.globalAlpha = 0.05 + 0.12 * noise(i + 1300);
     ctx.beginPath();
     for (let j = a0; j <= a1; j++) {
-      const a = pt(X, sub[j]!.z, sub[j]!.h);
+      const a = spot(X, sub[j]!, j);
       if (j === a0) ctx.moveTo(a.x, a.y);
       else ctx.lineTo(a.x, a.y);
     }
@@ -217,8 +240,15 @@ export function drawBoard(
   drawIronBar(ctx, SIDE.bar2);
   // 鉄の棒 2 の上から、ビームに触れる点まで (平らな帯。糸を付ける前は垂れた端まで)。ビームに触れたあとは、陰影のついた円筒の面につながる
   const i3 = firstOn(path, { z: SIDE.beam.z, h: SIDE.beam.h, r: woundRadiusFig(s.progress) });
-  drawRibbon(ctx, i3 >= 0 ? path.slice(i2, i3 + 1) : path.slice(i2), s, runs, repeats);
   const contact = i3 >= 0 ? Math.atan2(path[i3]!.h - SIDE.beam.h, path[i3]!.z - SIDE.beam.z) : null;
+  // 巻いた糸の円筒があるとき (糸を付けたあと) は、帯の左の端を円筒の「(」の上の点につなぐ
+  let join: number | null = null;
+  if (contact !== null && s.phase !== 'setup' && s.progress > 0) {
+    const bandL = Math.max(cmToX(s.widthCm, s.leftCm), BEAM_CENTER_X - (s.widthCm * pxPerCm(s.widthCm)) / 2);
+    const wt = windTop(s, contact, bandL);
+    join = -wt.e.rx * Math.cos(wt.tTop);
+  }
+  drawRibbon(ctx, i3 >= 0 ? path.slice(i2, i3 + 1) : path.slice(i2), s, runs, repeats, join);
   drawBeamFront(ctx, s, runs, repeats, beamAngle, contact); // 巻いた糸の円筒 (帯が乗る所から下) と右の円盤: 帯より手前
 
   // 速さの木の棒 (横に渡した赤茶の角材)
@@ -658,12 +688,8 @@ function drawBeamFront(ctx: CanvasRenderingContext2D, s: BeamingState, runs: Arr
   if (s.phase !== 'setup' && s.progress > 0) {
     // 巻いた糸の円筒 (PU-32 追加修正 7): 円盤と同じ投影・同じ中心の楕円 (縦の半径 ry・横の半径 rx は円盤の woundRadiusFig / 円盤の半径 倍)。
     // 帯が乗る所 (contact) から下の面だけ見える。左の端は楕円の左半分の「(」、円盤の縁までの余裕はどの向きでも円盤の楕円と同じ割合
-    const f = woundRadiusFig(s.progress) / SIDE.beam.r;
-    const e = discEllipse(bandL, f);
+    const { e, yTop, tTop } = windTop(s, contact, bandL);
     const cyBottom = e.cy + e.ry;
-    // 上の境目: 帯が乗る所の y (糸を付ける前に巻きが残っているとき = 再開は、見える側面の全部 = 楕円の上の端)
-    const yTop = contact === null ? e.cy - e.ry : Math.max(e.cy - e.ry, Math.min(cyBottom - 1, pt(0, SIDE.beam.z + woundRadiusFig(s.progress) * Math.cos(contact), SIDE.beam.h + woundRadiusFig(s.progress) * Math.sin(contact)).y));
-    const tTop = Math.asin(Math.max(-1, Math.min(1, (e.cy - yTop) / e.ry))); // 楕円の上の点 (y = cy − ry sin t) のうち yTop の高さのもの
     const strip = (x0: number, x1: number, first: boolean): void => {
       ctx.beginPath();
       if (first) {

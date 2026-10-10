@@ -15,7 +15,7 @@ describe('ビーム巻きの遊び方 T3-03b (3ページ)', () => {
     expect(beamingTutorial.pages[2]!.text).toContain('速さのメーター');
     expect(beamingTutorial.pages[2]!.text).toContain('動きます');
     expect(beamingTutorial.pages[3]!.text).toContain('完了');
-    expect(beamingTutorial.pages[3]!.text).toContain('101%');
+    expect(beamingTutorial.pages[3]!.text).toContain('100.1%');
     const all = beamingTutorial.pages.map((p) => p.text).join('\n');
     for (const w of ['寄せる', '乗り上げ', '偏り', '確認', '巻き始める', '速さの目標']) {
       expect(all, w).not.toContain(w);
@@ -68,7 +68,7 @@ describe('T3-06 → T3-07 (遊び方を4ページに。3つの作業と速さの
     expect(p1).toBe('ビームの両端の円盤を左右に動かして、目標値に合わせます。合わせたら『円盤調整完了』を押します'); // 文は PU-29 で変えた
     expect(p2).toBe('ドラムの糸の束の先の木の棒を、指でビームまで引っぱって離すと、糸がビームに付きます');
     expect(p3).toBe('木の棒を右へ引っぱると巻き始めます。速さのメーターの針を緑の範囲に入れるように、木の棒を動かします。緑の範囲は、巻き量に合わせて動きます'); // T3-07 で変えた
-    expect(p4).toBe('巻き量が 90% を超えると、緑の範囲がいちばん左まで広がり、いつでも止められます。95% を超えたら、木の棒を左端まで戻して止め、『完了』を押します。100% で止めるといちばんよい結果です。101% に届くと糸が切れます');
+    expect(p4).toBe('巻き量が 90% を超えると、緑の範囲がいちばん左まで広がり、いつでも止められます。95% を超えたら、木の棒を左端まで戻して止め、『完了』を押します。100% で止めるといちばんよい結果です。100.1% に届くと糸が切れます');
     const all = texts().join('\n');
     for (const w of ['レバー', '停止', '50%', '{{pedal}}', '速さの目標', '巻き始める']) { // 速さの部品の呼び名は「木の棒」(PU-28)
       expect(all, w).not.toContain(w);

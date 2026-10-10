@@ -692,10 +692,10 @@ describe('PU-32: 糸の帯・隠れる順・盤面に収まる', () => {
   it('14. ドラムの胴の半径は糸の巻き芯: どの巻き量でも、胴 (緑の面) は糸の上の端より上にはみ出さない (糸の上に緑の胴が見えない)。糸の外側の半径だけが巻き量で減り、最後は胴の半径になる', () => {
     expect(drumRadius(0)).toBeGreaterThan(drumCoreRadius());
     expect(drumRadius(1)).toBeGreaterThan(drumCoreRadius() + 0.1); // 巻き量 100% ではまだ少し糸が残る
-    expect(drumRadius(1.009)).toBeCloseTo(drumCoreRadius(), 9); // 100.9% でちょうど無くなる (101% で糸が切れて終わる)
+    expect(drumRadius(1.001)).toBeCloseTo(drumCoreRadius(), 9); // 100.1% でちょうど無くなる (100.1% で糸が切れて終わる)
     expect(drumRadius(1.2)).toBeCloseTo(drumCoreRadius(), 9);
-    for (const [a, b] of [[0, 0.3], [0.3, 0.7], [0.7, 1], [1, 1.009]] as const) expect(drumRadius(a)).toBeGreaterThan(drumRadius(b)); // なめらかに減る
-    for (const p of [0, 0.3, 0.6, 0.9, 1, 1.009]) {
+    for (const [a, b] of [[0, 0.3], [0.3, 0.7], [0.7, 1], [1, 1.001]] as const) expect(drumRadius(a)).toBeGreaterThan(drumRadius(b)); // なめらかに減る
+    for (const p of [0, 0.3, 0.6, 0.9, 1, 1.001]) {
       const rec = draw(beamState({ progress: p }));
       // 胴 (最初のグラデーション塗り) と、そのあとの最初の柄の色の塗り (ドラムの巻いた糸) の上の端
       let gradSeen = false;
@@ -712,8 +712,8 @@ describe('PU-32: 糸の帯・隠れる順・盤面に収まる', () => {
         else if (o.k === 'fill' && frameTop !== null && yarnTop === null && style === mainHex(content, 'p-muji-kon')) yarnTop = Math.min(...pts.map((q) => q.y));
       }
       expect(frameTop, `p=${p}`).not.toBeNull();
-      if (p >= 1) {
-        // 糸が無くなる (厚み 0.5 未満): ドラムの糸の面は描かない (ドラムの高さに柄の色の塗りが無い)
+      if (p >= 1.001) {
+        // 糸が無くなる (100.1%) (厚み 0.5 未満): ドラムの糸の面は描かない (ドラムの高さに柄の色の塗りが無い)
         const drumYarn = fillPolys(rec).filter((f) => f.style === mainHex(content, 'p-muji-kon') && ext(f.pts).y0 < frameTop! + 1 && f.pts.length > 40 && ext(f.pts).y1 < BOARD.H * 0.55);
         expect(drumYarn.length, `p=${p}: 糸は描かない`).toBe(0);
         continue;

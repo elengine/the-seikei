@@ -11,6 +11,10 @@ export type Level = 1 | 2 | 3;
 export const BEAM_LENGTH = 1;
 
 /** 速さ 100 (レバー右) で 0 から 1 まで巻くにかかる秒数 (T3-04a)。50 はその半分の速さ */
+/** 巻き量がこれ (0.75 = 75%) を超えたら、機械の巻く速さが落ち始める。車がなめらかに止まるときと同じ一定の減速 (速さ ∝ √残り) で、BREAK_AT でちょうど 0 (管理者の指示) */
+export const BRAKE_FROM = 0.75;
+/** 巻き量がこれ (1.001 = 100.1%) に届くと糸が切れて失敗 (管理者の指示) */
+export const BREAK_AT = 1.001;
 export const FULL_WIND_SEC_AT_100 = 21; // T3-10: 30 から 21 (今の 70%)。速さ 100 で 21 秒で巻き量 100%
 
 /**
@@ -114,8 +118,8 @@ export const SIDE = {
 
 /** ドラムが巻き取られて細る割合 (巻き量 100% で半径が 1 − この値)。ドラムの枠 (胴・桟) は変わらない */
 export const SIDE_DRUM_SHRINK = 0.3;
-/** ドラムの糸が無くなる巻き量 (progress。1.009 = 100.9%。101% に届くと糸が切れて終わるため、その直前でちょうど無くなる) */
-export const SIDE_YARN_GONE = 1.009;
+/** ドラムの糸が無くなる巻き量 (progress。1.001 = 100.1%。糸が切れる巻き量 BREAK_AT と同じ) */
+export const SIDE_YARN_GONE = 1.001;
 /** ビームに巻いた糸の半径 (円盤の半径に対する割合): 巻き量 0 で SIDE_WOUND_MIN、100% で SIDE_WOUND_MAX */
 export const SIDE_WOUND_MIN = 0.175; // = 軸の半径 (BEAM_AXLE_R 14) ÷ 円盤の半径 (80)。巻き始めは、帯が軸の表面に接する
 export const SIDE_WOUND_MAX = 0.9;
@@ -158,7 +162,7 @@ export const SIDE_Z_REF = SIDE_SLOPE_ZEND + sideBeamExtra(SIDE_SLOPE_ZEND) / SID
 /** ビームの円盤 (斜めから見て楕円) の横の半径 (論理の px。円盤は上下左右に対称な楕円で、厚みは楕円をずらして重ねる) */
 export const BEAM_DISC_RX = 34;
 export const SIDE_TOP_FRAC = 0.15;
-export const SIDE_BOTTOM_FRAC = 0.915;
+export const SIDE_BOTTOM_FRAC = 0.87; // 円盤の下の端。下に調整の目盛りと印の場所を空ける (縦長で切れない。PU-32)
 
 /** ドラムの羽 (糸を巻き始める側 = 左の端の、斜めに開いた板): 板の数はドラムの桟と同じ。外へ伸びる長さ (px) と、開き (半径が伸びる割合)・板の幅 (角度 rad) (PU-32) */
 /** 羽 (PU-32 追加修正 4): 帯の左の端から外へ出る長さを短く、開きの角度を小さく。根元は帯の左の端の下に隠れる (DRUM_WING_IN だけ中へ) */

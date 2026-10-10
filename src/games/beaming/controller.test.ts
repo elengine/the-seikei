@@ -856,7 +856,7 @@ describe('T3-04c (糸切れの結果の画面)', () => {
         const dlg = container.querySelector('.dialog-backdrop');
         expect(dlg).not.toBeNull();
         expect(dlg!.textContent).toContain('糸が切れました');
-        expect(dlg!.textContent).toContain('巻き量が 101% に届きました');
+        expect(dlg!.textContent).toContain('巻き量が100%を超えたので糸が切れました');
       },
       { timeout: 5000, interval: 100 },
     );
