@@ -118,8 +118,10 @@ export const SIDE = {
 
 /** ドラムが巻き取られて細る割合 (巻き量 100% で半径が 1 − この値)。ドラムの枠 (胴・桟) は変わらない */
 export const SIDE_DRUM_SHRINK = 0.3;
-/** ドラムの糸が、下側から消え始める巻き量 (0.9 = 90%。SIDE_YARN_GONE で全部消える。厚みが薄くなる処理はそのまま) */
-export const DRUM_ERASE_FROM = 0.9;
+/** ドラムの糸が、下側から消え始める巻き量 (0.997 = 99.7%。DRUM_ERASE_TO で全部消える。厚みが薄くなる処理はそのまま) */
+export const DRUM_ERASE_FROM = 0.997;
+/** ドラムの糸が下から消え終わる巻き量 (0.999 = 99.9%。管理者の指示)。これ以降は胴と羽だけ */
+export const DRUM_ERASE_TO = 0.999;
 /** ドラムの糸が無くなる巻き量 (progress。1.001 = 100.1%。糸が切れる巻き量 BREAK_AT と同じ) */
 export const SIDE_YARN_GONE = 1.001;
 /** ビームに巻いた糸の半径 (円盤の半径に対する割合): 巻き量 0 で SIDE_WOUND_MIN、100% で SIDE_WOUND_MAX */

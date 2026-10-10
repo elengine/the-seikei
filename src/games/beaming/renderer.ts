@@ -9,7 +9,7 @@ import { SIDE } from './params';
 import { depthDxOf as depthDx, sidePath, project, viewAlpha, drumRadius, drumCoreRadius, woundRadiusFig } from './side';
 import type { SidePoint } from './side';
 import { okRangeOf } from './logic';
-import { DRUM_SURFACE_SIGN, BEAM_SURFACE_SIGN, PATTERN_REPEATS, SIDE_DROP0, DRUM_ERASE_FROM, SIDE_YARN_GONE, DRUM_WING_LEN, DRUM_WING_FLARE, DRUM_WING_IN, DRUM_WING_HALF, BEAM_DISC_RX, BEAM_BRASS_R, BEAM_BRASS_LEN, BEAM_AXLE_R, FRAME_ARM_W } from './params';
+import { DRUM_SURFACE_SIGN, BEAM_SURFACE_SIGN, PATTERN_REPEATS, SIDE_DROP0, DRUM_ERASE_FROM, DRUM_ERASE_TO, DRUM_WING_LEN, DRUM_WING_FLARE, DRUM_WING_IN, DRUM_WING_HALF, BEAM_DISC_RX, BEAM_BRASS_R, BEAM_BRASS_LEN, BEAM_AXLE_R, FRAME_ARM_W } from './params';
 import { expandPlan, toRuns } from '../../core/domain/stripe';
 import { FONT_FAMILY } from '../../core/ui/tokens';
 import type { BeamingState } from './logic';
@@ -142,7 +142,7 @@ function facePath(ctx: CanvasRenderingContext2D, X: number, c: Circ): void {
 const BEAM_SHADE_ALPHA = 0.28;
 
 /** 巻いた糸の円筒 (ビームに巻かれた面) の楕円 e (中心の x は x)、帯が乗る所の y (yTop)、そこの楕円の上の角度 tTop。drawBeamFront と、帯の端をつなぐ drawBoard で同じ値を使う */
-function windTop(s: BeamingState, contact: number | null, x: number): { e: Ell; yTop: number; tTop: number } {
+function windTop(s: BeamingState, contact: number | null, x: number): { e: Ell; yTop: number; tTop: number; shift: number } {
   const f = woundRadiusFig(s.progress) / SIDE.beam.r;
   const e = discEllipse(x, f);
   const cyBottom = e.cy + e.ry;
@@ -150,7 +150,10 @@ function windTop(s: BeamingState, contact: number | null, x: number): { e: Ell; 
   // 糸を付ける前に巻きが残っているとき (再開) は、見える側面の全部 = 楕円の上の端
   const yTop = contact === null ? e.cy - e.ry : Math.max(e.cy - e.ry, Math.min(cyBottom - 1, pt(0, SIDE.beam.z + wr * Math.cos(contact), SIDE.beam.h + wr * Math.sin(contact)).y));
   const tTop = Math.asin(Math.max(-1, Math.min(1, (e.cy - yTop) / e.ry))); // 楕円の上の点 (y = cy − ry sin t) のうち yTop の高さのもの
-  return { e, yTop, tTop };
+  // 帯と円筒を左へ寄せる量 (PU-32 追加修正 10): 帯の左の端が軸の左の端の線まで届くよう、「(」の弧の上のほうの点が真ん中の点より右にある分 (rx × (1 − cos tTop)) だけ左へ。
+  // ただし円筒が円盤の面のふちから出ない (円盤の横の半径 − 円筒の横の半径 まで)
+  const shift = Math.max(0, Math.min(e.rx * (1 - Math.cos(tTop)), BEAM_DISC_RX - e.rx));
+  return { e, yTop, tTop, shift };
 }
 
 function drawRibbon(ctx: CanvasRenderingContext2D, sub: SidePoint[], s: BeamingState, runs: Array<{ hex: string; frac: number }>, repeats: number, join: number | null = null, fade: { y0: number; y1: number; alpha: number } | null = null): void {
@@ -286,11 +289,17 @@ export function drawBoard(
   // 巻いた糸の円筒があるとき (糸を付けたあと) は、帯の左の端を円筒の「(」の上の点につなぐ
   let join: number | null = null;
   let fade: { y0: number; y1: number; alpha: number } | null = null;
-  if (contact !== null && s.phase !== 'setup' && s.progress > 0) {
+  const y0 = pt(0, path[i2]!.z, path[i2]!.h).y;
+  if (contact !== null && s.phase !== 'setup') {
+    // ビームに付いたあと (巻き量 0 の固定直後も): 帯の左の端をつなぎ、円筒の陰影の上の端の明るさへだんだん白を重ねる
     const bandL = Math.max(cmToX(s.widthCm, s.leftCm), BEAM_CENTER_X - (s.widthCm * pxPerCm(s.widthCm)) / 2);
     const wt = windTop(s, contact, bandL);
-    join = -wt.e.rx * Math.cos(wt.tTop);
-    fade = { y0: pt(0, path[i2]!.z, path[i2]!.h).y, y1: wt.yTop, alpha: BEAM_SHADE_ALPHA }; // 円筒の陰影の上の端の明るさに合わせる
+    join = -wt.e.rx * Math.cos(wt.tTop) - wt.shift;
+    fade = { y0, y1: wt.yTop, alpha: BEAM_SHADE_ALPHA };
+  } else if (loose && path.length > i2 + 1) {
+    // 糸を付ける前 (垂れている・指で引っぱっている間): 垂れた帯の下の端まで、同じ明るさ (BEAM_SHADE_ALPHA) になるよう白をだんだん重ねる
+    const last = path[path.length - 1]!;
+    fade = { y0, y1: pt(0, last.z, last.h).y, alpha: BEAM_SHADE_ALPHA };
   }
   drawRibbon(ctx, i3 >= 0 ? path.slice(i2, i3 + 1) : path.slice(i2), s, runs, repeats, join, fade);
   drawBeamFront(ctx, s, runs, repeats, beamAngle, contact); // 巻いた糸の円筒 (帯が乗る所から下) と右の円盤: 帯より手前
@@ -390,8 +399,8 @@ export function drawDrum(ctx: CanvasRenderingContext2D, runs: Array<{ hex: strin
   // 糸が無くなったら (厚み 0。巻き量 100.9% 以上) 糸の面は何も描かない: 胴 (巻き芯) と羽だけが見える (PU-32 追加修正 7)
   const hasYarn = yarn.r - frame.r > 0.5;
   // 終わりに向けて、糸は下側から消えていく (PU-32 追加修正 9。ドラムは手前が上へ回り、帯は下から出ていくため)。厚みが薄くなるのとあわせて、
-  // 巻き量 DRUM_ERASE_FROM から SIDE_YARN_GONE へ向けて、見える側面の下の端から上へ向かって糸が消え、胴が見えていく
-  const erase = Math.min(1, Math.max(0, (s.progress - DRUM_ERASE_FROM) / (SIDE_YARN_GONE - DRUM_ERASE_FROM)));
+  // 巻き量 DRUM_ERASE_FROM (99.7%) から DRUM_ERASE_TO (99.9%) にかけて、見える側面の下の端から上へ向かって糸が消え、胴が見えていく
+  const erase = Math.min(1, Math.max(0, (s.progress - DRUM_ERASE_FROM) / (DRUM_ERASE_TO - DRUM_ERASE_FROM)));
   const aTop = ALPHA + Math.PI / 2;
   const aLow = ALPHA - Math.PI / 2 + erase * Math.PI; // 糸が残る角度の範囲は aLow → aTop
   const strips = hasYarn && erase < 1 ? stripeStrips(runs, repeats, w0, w1) : [];
@@ -738,21 +747,21 @@ function drawBeamFront(ctx: CanvasRenderingContext2D, s: BeamingState, runs: Arr
   if (s.phase !== 'setup' && s.progress > 0) {
     // 巻いた糸の円筒 (PU-32 追加修正 7): 円盤と同じ投影・同じ中心の楕円 (縦の半径 ry・横の半径 rx は円盤の woundRadiusFig / 円盤の半径 倍)。
     // 帯が乗る所 (contact) から下の面だけ見える。左の端は楕円の左半分の「(」、円盤の縁までの余裕はどの向きでも円盤の楕円と同じ割合
-    const { e, yTop, tTop } = windTop(s, contact, bandL);
+    const { e, yTop, tTop, shift } = windTop(s, contact, bandL);
     const cyBottom = e.cy + e.ry;
     // 縞の面: 縞の境目は円筒の円周 (楕円の左半分の「(」の弧)。左右どちらの境目も同じ弧 (PU-32 追加修正 9)
     const strip = (x0: number, x1: number): void => {
       ctx.beginPath();
       for (let i = 0; i <= 16; i++) {
         const t = tTop + ((-Math.PI / 2 - tTop) * i) / 16;
-        const x = x0 - e.rx * Math.cos(t);
+        const x = x0 - shift - e.rx * Math.cos(t);
         const y = e.cy - e.ry * Math.sin(t);
         if (i === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
       }
       for (let i = 16; i >= 0; i--) {
         const t = tTop + ((-Math.PI / 2 - tTop) * i) / 16;
-        ctx.lineTo(x1 - e.rx * Math.cos(t), e.cy - e.ry * Math.sin(t));
+        ctx.lineTo(x1 - shift - e.rx * Math.cos(t), e.cy - e.ry * Math.sin(t));
       }
       ctx.closePath();
     };
@@ -811,8 +820,8 @@ function drawBeamFront(ctx: CanvasRenderingContext2D, s: BeamingState, runs: Arr
       ctx.globalAlpha = 0.45;
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(bandL - e.rx * Math.cos(tTop), yTop);
-      ctx.lineTo(bandR - e.rx * Math.cos(tTop), yTop);
+      ctx.moveTo(bandL - shift - e.rx * Math.cos(tTop), yTop);
+      ctx.lineTo(bandR - shift - e.rx * Math.cos(tTop), yTop);
       ctx.stroke();
       ctx.globalAlpha = 1;
     }

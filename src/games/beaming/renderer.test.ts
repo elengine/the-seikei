@@ -712,7 +712,7 @@ describe('PU-32: 糸の帯・隠れる順・盤面に収まる', () => {
         else if (o.k === 'fill' && frameTop !== null && yarnTop === null && style === mainHex(content, 'p-muji-kon')) yarnTop = Math.min(...pts.map((q) => q.y));
       }
       expect(frameTop, `p=${p}`).not.toBeNull();
-      if (p >= 1.001) {
+      if (p >= 0.999) {
         // 糸が無くなる (100.1%) (厚み 0.5 未満): ドラムの糸の面は描かない (ドラムの高さに柄の色の塗りが無い)
         const drumYarn = fillPolys(rec).filter((f) => f.style === mainHex(content, 'p-muji-kon') && ext(f.pts).y0 < frameTop! + 1 && f.pts.length > 40 && ext(f.pts).y1 < BOARD.H * 0.55);
         expect(drumYarn.length, `p=${p}: 糸は描かない`).toBe(0);
@@ -830,18 +830,19 @@ describe('PU-32: 糸の帯・隠れる順・盤面に収まる', () => {
     setBoardHeight(750);
   });
 
-  it('22. ドラムの糸は終わりに向けて下側から消える (PU-32 追加修正 9): 巻き量 50% より 97% のほうが、糸の下の端が上にある。100.1% では糸が無い。薄くなる処理は残る (半径は減り続ける)', () => {
+  it('22. ドラムの糸は下側から消える (PU-32 追加修正 9・10): 巻き量 99.7% から 99.9% にかけて、糸の下の端が上へ上がり、99.9% で糸が無い。薄くなる処理は残る (半径は減り続ける)', () => {
     const yarnBottom = (p: number): number | null => {
       const polys = fillPolys(draw(beamState({ progress: p }))).filter((f) => f.style === mainHex(content, 'p-muji-kon') && f.pts.length > 20 && ext(f.pts).y0 < BOARD.H * 0.4);
       return polys.length === 0 ? null : Math.max(...polys.map((f) => ext(f.pts).y1));
     };
-    const b50 = yarnBottom(0.5)!;
-    const b85 = yarnBottom(0.85)!;
-    const b97 = yarnBottom(0.97)!;
-    expect(b97, '97% は下が消えている').toBeLessThan(b85 - 20);
-    expect(b85, '85% はまだ下まである (薄くなるだけ)').toBeGreaterThan(b50 - 40);
+    const b99 = yarnBottom(0.99)!;
+    const b997 = yarnBottom(0.997)!;
+    const b998 = yarnBottom(0.998)!;
+    expect(b99, '99% はまだ下まである').toBeGreaterThan(b997 - 3);
+    expect(b998, '99.8% は下の半分ほどが消えている').toBeLessThan(b997 - 5);
+    expect(yarnBottom(0.9991), '99.9% で糸は無い').toBeNull();
     expect(yarnBottom(1.001), '100.1% で無い').toBeNull();
-    expect(drumRadius(0.97)).toBeLessThan(drumRadius(0.85)); // 薄くなる処理は残っている
+    expect(drumRadius(0.99)).toBeLessThan(drumRadius(0.85)); // 薄くなる処理は残っている
   });
 
   it('23. ビームに巻いた帯の縞の境目は「(」の弧 (垂直の直線ではない): 巻いた糸の円筒の縞の多角形の左右の縁は、上から下へ x が変わる。帯の色は円筒の上の端へ向けて白を重ねてなじむ (白の重なりの濃さが下へ増え、0.28 まで)', () => {
@@ -855,5 +856,14 @@ describe('PU-32: 糸の帯・隠れる順・盤面に収まる', () => {
     const alphas = fillPolys(rec).filter((f) => f.style === COLORS.white && f.alpha > 0 && f.alpha < 0.28 && f.pts.length > 8).map((f) => f.alpha);
     expect(alphas.length, '白の重なりが何段階かある').toBeGreaterThan(3);
     expect(Math.max(...alphas)).toBeLessThanOrEqual(0.28);
+  });
+
+  it('24. 糸を付ける前 (垂れている・引っぱっている間) の帯にも、下へ向けて白をだんだん重ねる (PU-32 追加修正 10)。0 → 0.28。固定直後 (巻き量 0) の帯にも重なる', () => {
+    const attach = beamState({ phase: 'attach', progress: 0, speed: 0 });
+    const whites = (st: BeamingState): number[] => fillPolys(draw(st)).filter((f) => f.style === COLORS.white && f.alpha > 0 && f.alpha < 0.28 && f.pts.length > 8).map((f) => f.alpha);
+    const a = whites(attach);
+    expect(a.length, '垂れた帯に白の重なりが何段階かある').toBeGreaterThan(3);
+    expect(Math.max(...a)).toBeLessThanOrEqual(0.28);
+    expect(whites(beamState({ progress: 0 })).length, '固定直後の帯にも').toBeGreaterThan(3);
   });
 });
