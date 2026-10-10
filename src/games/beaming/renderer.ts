@@ -6,7 +6,7 @@ import {
   speedBarCenterX, SPEED_BAR_W, lampX, lampY,
 } from './geometry';
 import { SIDE } from './params';
-import { sidePath, project, viewAlpha, drumRadius, drumCoreRadius, woundRadiusFig } from './side';
+import { depthDxOf as depthDx, sidePath, project, viewAlpha, drumRadius, drumCoreRadius, woundRadiusFig } from './side';
 import type { SidePoint } from './side';
 import { okRangeOf } from './logic';
 import { DRUM_SURFACE_SIGN, BEAM_SURFACE_SIGN, PATTERN_REPEATS, SIDE_DROP0, DRUM_WING_LEN, DRUM_WING_FLARE, DRUM_WING_IN, DRUM_WING_HALF, BEAM_DISC_RX, BEAM_BRASS_R, BEAM_BRASS_LEN, BEAM_AXLE_R, FRAME_ARM_W } from './params';
@@ -110,17 +110,6 @@ function visArc(X: number, c: Circ, n = 24): Array<{ x: number; y: number }> {
 function bandPath(ctx: CanvasRenderingContext2D, Xa: number, Xb: number, c: Circ): void {
   const a = visArc(Xa, c);
   const b = visArc(Xb, c);
-  ctx.beginPath();
-  ctx.moveTo(a[0]!.x, a[0]!.y);
-  for (const q of a) ctx.lineTo(q.x, q.y);
-  for (let i = b.length - 1; i >= 0; i--) ctx.lineTo(b[i]!.x, b[i]!.y);
-  ctx.closePath();
-}
-
-/** 円筒の側面の帯のうち、円の角度 from → to の部分だけ (軸の位置 Xa から Xb まで) のパス */
-function bandPathRange(ctx: CanvasRenderingContext2D, Xa: number, Xb: number, c: Circ, from: number, to: number): void {
-  const a = arcScreen(Xa, c, from, to, 16);
-  const b = arcScreen(Xb, c, from, to, 16);
   ctx.beginPath();
   ctx.moveTo(a[0]!.x, a[0]!.y);
   for (const q of a) ctx.lineTo(q.x, q.y);
@@ -237,7 +226,7 @@ export function drawBoard(
 
   // 幅合わせの段階: 目標の巻き幅の点線と目盛り (cm)、円盤の内側の印
   if (s.phase === 'setup') {
-    drawTarget(ctx, s);
+    drawTarget(ctx, s, fit.scale);
   }
 
   // 糸の束の先の木の棒 (糸を付けるまで。巻き始めたらビームに巻き込まれて見えない。PU-27)
@@ -272,7 +261,7 @@ export function drawDrum(ctx: CanvasRenderingContext2D, runs: Array<{ hex: strin
   const w1 = BEAM_CENTER_X + half;
   // 糸の束の断面 (管理者の図): 上の輪郭は軸と平行 (半径 yarn.r のまま)。左の端は帯の幅の左の端、右は斜めに細くなって胴へ下りる (taper)
   const rise = Math.max(0, yarn.r - frame.r);
-  const taper = Math.min((w1 - w0) * 0.4, rise * 1.2);
+  const taper = Math.min((w1 - w0) * 0.4, rise * 1.2, 40);
   const yx0 = w0;
   const yx1 = w1 - taper;
   // 胴 (機械の緑。上下を暗く、上寄りを明るく)
@@ -324,12 +313,16 @@ export function drawDrum(ctx: CanvasRenderingContext2D, runs: Array<{ hex: strin
     ctx.fill();
   }
   // 柄の縞: 円周の向き (画面では丸みに沿った縦の縞) に色が並ぶ
-  const strips = stripeStrips(runs, repeats, w0, w1);
-  strips.forEach((st, i) => {
+  // 糸が無くなったら (厚み 0。巻き量 100.9% 以上) 糸の面は何も描かない: 胴 (巻き芯) と羽だけが見える (PU-32 追加修正 7)
+  const hasYarn = yarn.r - frame.r > 0.5;
+  const strips = hasYarn ? stripeStrips(runs, repeats, w0, w1) : [];
+  for (const st of strips) {
+    if (st.x0 >= yx1) continue; // 右の端の斜めの面 (taper) の所は、縞の色ではなく、下の円すいの面だけ (狭い縞が逆向きにならない)
     ctx.fillStyle = st.hex;
-    bandPath(ctx, i === 0 ? yx0 : st.x0, i === strips.length - 1 ? yx1 : st.x1, yarn);
+    bandPath(ctx, st === strips[0] ? yx0 : st.x0, Math.min(st.x1, yx1), yarn);
     ctx.fill();
-  });
+  }
+  if (hasYarn) {
   // 丸み: 巻いた糸の面の上のほうを明るく、下のほうを暗くする (手前へ丸く盛り上がって見える。写真のドラムの上の半分)
   const yEdge = visArc(w0, yarn).map((q) => q.y);
   const shade = ctx.createLinearGradient(0, Math.min(...yEdge), 0, Math.max(...yEdge));
@@ -353,10 +346,12 @@ export function drawDrum(ctx: CanvasRenderingContext2D, runs: Array<{ hex: strin
     ctx.stroke();
   }
   ctx.globalAlpha = 1;
+  }
+  if (hasYarn) {
   // 糸の右の端: 斜めに細くなって胴へ下りる (円すいの側面。最後の帯の色)。端の面は胴の半径
   const ra = arcScreen(yx1, yarn, ALPHA - Math.PI / 2, ALPHA + Math.PI / 2, 24);
   const rb = arcScreen(w1, frame, ALPHA - Math.PI / 2, ALPHA + Math.PI / 2, 24);
-  ctx.fillStyle = runs[runs.length - 1]!.hex;
+  ctx.fillStyle = runs[0]!.hex; // 縞ではなく、主になる色 (明るい縞の色の三角が目立たないように)
   ctx.beginPath();
   ctx.moveTo(ra[0]!.x, ra[0]!.y);
   for (const q of ra) ctx.lineTo(q.x, q.y);
@@ -364,9 +359,10 @@ export function drawDrum(ctx: CanvasRenderingContext2D, runs: Array<{ hex: strin
   ctx.closePath();
   ctx.fill();
   ctx.fillStyle = COLORS.sumi;
-  ctx.globalAlpha = 0.2;
+  ctx.globalAlpha = 0.3;
   ctx.fill();
   ctx.globalAlpha = 1;
+  }
   // 右の端の面 (灰色の金属。円全体を写した楕円) と、回る放射状の腕
   ctx.fillStyle = COLORS.steel;
   facePath(ctx, xr, frame);
@@ -401,24 +397,26 @@ function drawFrameArms(ctx: CanvasRenderingContext2D): void {
 
 /** 糸の向きを変える鉄の棒 (横から見た円 c を写した、機械の幅いっぱいの円筒。上側のつや。PU-32) */
 function drawIronBar(ctx: CanvasRenderingContext2D, c: Circ): void {
-  ctx.fillStyle = COLORS.steel;
-  bandPath(ctx, IRON_X0, IRON_X1, c);
-  ctx.fill();
+  // 円筒 (円盤・軸と同じく、左の端は「(」、右を向いた端の面は上下左右に対称な楕円。PU-32 追加修正 7)
+  const m = pt(0, c.z, c.h);
+  const ry = (BOARD.flangeR * c.r) / SIDE.beam.r;
+  const ell = (X: number): Ell => ({ cx: X + depthDx(c.z), cy: m.y, rx: ry * IRON_ASPECT, ry });
+  cyl(ctx, ell(IRON_X0), ell(IRON_X1), COLORS.steel, false);
   // 光の筋 (つや。上側に太い 1 本と、細い 1 本)
   ctx.strokeStyle = COLORS.white;
-  for (const [da, alpha, w] of [[0.15, 0.55, 3], [-0.55, 0.3, 2]] as const) {
-    const a = arcScreen(IRON_X0, c, ALPHA + da, ALPHA + da, 1)[0]!;
-    const b = arcScreen(IRON_X1, c, ALPHA + da, ALPHA + da, 1)[0]!;
+  for (const [f, alpha, w] of [[0.5, 0.55, 3], [0.1, 0.3, 2]] as const) {
     ctx.globalAlpha = alpha;
     ctx.lineWidth = w;
     ctx.beginPath();
-    ctx.moveTo(a.x, a.y);
-    ctx.lineTo(b.x, b.y);
+    ctx.moveTo(ell(IRON_X0).cx, m.y - ry * f);
+    ctx.lineTo(ell(IRON_X1).cx, m.y - ry * f);
     ctx.stroke();
   }
   ctx.globalAlpha = 1;
   ctx.fillStyle = COLORS.steel;
-  facePath(ctx, IRON_X1, c);
+  ctx.beginPath();
+  ellipsePath(ctx, ell(IRON_X1));
+  ctx.closePath();
   ctx.fill();
   ctx.strokeStyle = COLORS.sumiSub;
   ctx.lineWidth = 2;
@@ -522,9 +520,10 @@ const HOLE_RINGS: Array<{ frac: number; count: number }> = [
 ];
 
 /** 軸の両端の黒いつまみ: 横の半径・縦の半径・円筒の長さ (論理の px)。軸が円盤の面から右へ出る長さ */
+const IRON_ASPECT = 0.6; // 鉄の棒の端の楕円の、縦に対する横の割合
 const KNOB_RX = 5;
 const KNOB_RY = 16;
-const KNOB_LEN = 8;
+const KNOB_LEN = 10;
 const AXLE_OUT = 50;
 
 /** 軸 (芯) の横から見た半径 (図のピクセル。写真のように太い) */
@@ -532,8 +531,7 @@ const AXLE_R = BEAM_AXLE_R;
 
 /** ビームの円盤の楕円 (上下左右に対称。中心は軸の位置 X、縦の半径は横から見た円を写した大きさ、横の半径は BEAM_DISC_RX)。frac は半径に対する割合 */
 function discEllipse(X: number, frac: number): { cx: number; cy: number; rx: number; ry: number } {
-  const c = pt(X, SIDE.beam.z, SIDE.beam.h);
-  return { cx: c.x, cy: c.y, rx: BEAM_DISC_RX * frac, ry: BOARD.flangeR * frac };
+  return { cx: X, cy: project(SIDE.beam.z, SIDE.beam.h, BOARD.H).y, rx: BEAM_DISC_RX * frac, ry: BOARD.flangeR * frac };
 }
 
 function ellipsePath(ctx: CanvasRenderingContext2D, e: { cx: number; cy: number; rx: number; ry: number }, from = 0, to = Math.PI * 2, n = 36, move = true): void {
@@ -579,12 +577,24 @@ function drawFlange(ctx: CanvasRenderingContext2D, X: number, beamAngle: number)
   ctx.stroke();
 }
 
-/** 軸方向の円筒 (ビームの軸・円盤の外の筒): X0〜X1、半径は円盤の半径の frac 倍。上下左右に対称な形 (円盤の楕円と同じ中心)。cap のとき右の端に面の楕円を描く */
-function tube(ctx: CanvasRenderingContext2D, X0: number, X1: number, frac: number, color: string, cap: boolean): void {
-  const e0 = discEllipse(X0, frac);
-  const e1 = discEllipse(X1, frac);
+interface Ell {
+  cx: number;
+  cy: number;
+  rx: number;
+  ry: number;
+}
+
+/**
+ * 軸方向の円筒 (PU-32 追加修正 7): 左の端は円の断面を写した楕円の左半分 (「(」の輪郭。左を向いた面は見えない)、右の端は右半分。
+ * cap のとき、右の端に面の楕円 (右を向いた面) を描く。つやは cap のときだけ
+ */
+function cyl(ctx: CanvasRenderingContext2D, e0: Ell, e1: Ell, color: string, cap: boolean): void {
   ctx.fillStyle = color;
-  ctx.fillRect(e0.cx, e0.cy - e0.ry, e1.cx - e0.cx, 2 * e0.ry);
+  ctx.beginPath();
+  ellipsePath(ctx, e0, Math.PI / 2, (Math.PI * 3) / 2, 20);
+  ellipsePath(ctx, e1, -Math.PI / 2, Math.PI / 2, 20, false);
+  ctx.closePath();
+  ctx.fill();
   if (cap) {
     ctx.beginPath();
     ellipsePath(ctx, e1);
@@ -593,17 +603,21 @@ function tube(ctx: CanvasRenderingContext2D, X0: number, X1: number, frac: numbe
     ctx.strokeStyle = COLORS.sumiSub;
     ctx.lineWidth = 1.5;
     ctx.stroke();
+    // 上のつや (細い明るい線)
+    ctx.strokeStyle = COLORS.white;
+    ctx.globalAlpha = 0.35;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(e0.cx, e0.cy - e0.ry * 0.55);
+    ctx.lineTo(e1.cx, e1.cy - e1.ry * 0.55);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
   }
-  if (!cap) return;
-  // 上のつや (細い明るい線。筒の外の真ちゅうだけ。軸の全長には引かない)
-  ctx.strokeStyle = COLORS.white;
-  ctx.globalAlpha = 0.35;
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(e0.cx, e0.cy - e0.ry * 0.55);
-  ctx.lineTo(e1.cx, e1.cy - e1.ry * 0.55);
-  ctx.stroke();
-  ctx.globalAlpha = 1;
+}
+
+/** 軸方向の円筒 (ビームの軸・円盤の外の筒): X0〜X1、半径は円盤の半径の frac 倍 (円盤と同じ中心・同じ投影) */
+function tube(ctx: CanvasRenderingContext2D, X0: number, X1: number, frac: number, color: string, cap: boolean): void {
+  cyl(ctx, discEllipse(X0, frac), discEllipse(X1, frac), color, cap);
 }
 
 /** 円盤の外の太い金属の筒 (真ちゅう色。写真の円盤の外の筒)。X0〜X1 の円筒 */
@@ -614,20 +628,19 @@ function drawBrass(ctx: CanvasRenderingContext2D, X0: number, X1: number): void 
 /** ビームの奥の部分: 軸の全体と左の円盤、円盤のあいだの軸。糸より奥に描く (PU-30 4) */
 function drawBeamBack(ctx: CanvasRenderingContext2D, s: BeamingState, beamAngle: number): void {
   const leftX = cmToX(s.widthCm, s.leftCm);
-  tube(ctx, ROD_X0, ROD_X1, AXLE_R / SIDE.beam.r, COLORS.steel, false);
-  // 左端のつまみ: 左を向いた端の面は見えない。左の端は「(」の輪郭だけ (面の楕円は描かない)
-  const k0 = discEllipse(ROD_X0, 1);
-  const knob = { cx: k0.cx, cy: k0.cy, rx: KNOB_RX, ry: KNOB_RY };
-  ctx.fillStyle = COLORS.sumi;
-  ctx.beginPath();
-  ellipsePath(ctx, knob, Math.PI / 2, (Math.PI * 3) / 2, 16);
-  ctx.closePath();
-  ctx.fill();
-  ctx.fillRect(knob.cx, knob.cy - KNOB_RY, KNOB_LEN, 2 * KNOB_RY);
+  // 左端のつまみ (黒。左は「(」の輪郭、右を向いた面の楕円。軸はその面の中心から出る)
+  cyl(ctx, knobEll(ROD_X0), knobEll(ROD_X0 + KNOB_LEN), COLORS.sumi, true);
+  tube(ctx, ROD_X0 + KNOB_LEN, ROD_X1 - KNOB_LEN, AXLE_R / SIDE.beam.r, COLORS.steel, false);
   // 前後の重なりは右にあるものほど手前: 左の真ちゅうの筒 → 左の円盤 → 軸 (円盤の右を向いた面の中心から右へ出る)
   drawBrass(ctx, leftX - FLANGE_THICK - BEAM_BRASS_LEN, leftX - FLANGE_THICK);
   drawFlange(ctx, leftX, beamAngle);
   tube(ctx, leftX, leftX + AXLE_OUT, AXLE_R / SIDE.beam.r, COLORS.steel, false);
+}
+
+/** つまみの楕円 (軸の位置 X) */
+function knobEll(X: number): Ell {
+  const e = discEllipse(X, 1);
+  return { cx: e.cx, cy: e.cy, rx: KNOB_RX, ry: KNOB_RY };
 }
 
 /**
@@ -643,99 +656,114 @@ function drawBeamFront(ctx: CanvasRenderingContext2D, s: BeamingState, runs: Arr
   const bandL = Math.max(leftX, BEAM_CENTER_X - halfBand);
   const bandR = Math.min(rightX, BEAM_CENTER_X + halfBand);
   if (s.phase !== 'setup' && s.progress > 0) {
-    const wound: Circ = { z: SIDE.beam.z, h: SIDE.beam.h, r: woundRadiusFig(s.progress) };
-    const from = contact ?? ALPHA + Math.PI / 2; // 糸を付ける前に巻きが残っているとき (再開) は、見える側面の全部
-    const to = ALPHA - Math.PI / 2; // 見える側面の下の端
-    // 柄の縞 (縦。巻いた糸の円周の向き。左の端は見える側面の弧 = なめらかな 1 本の曲線)
-    for (const st of stripeStrips(runs, repeats, bandL, bandR)) {
+    // 巻いた糸の円筒 (PU-32 追加修正 7): 円盤と同じ投影・同じ中心の楕円 (縦の半径 ry・横の半径 rx は円盤の woundRadiusFig / 円盤の半径 倍)。
+    // 帯が乗る所 (contact) から下の面だけ見える。左の端は楕円の左半分の「(」、円盤の縁までの余裕はどの向きでも円盤の楕円と同じ割合
+    const f = woundRadiusFig(s.progress) / SIDE.beam.r;
+    const e = discEllipse(bandL, f);
+    const cyBottom = e.cy + e.ry;
+    // 上の境目: 帯が乗る所の y (糸を付ける前に巻きが残っているとき = 再開は、見える側面の全部 = 楕円の上の端)
+    const yTop = contact === null ? e.cy - e.ry : Math.max(e.cy - e.ry, Math.min(cyBottom - 1, pt(0, SIDE.beam.z + woundRadiusFig(s.progress) * Math.cos(contact), SIDE.beam.h + woundRadiusFig(s.progress) * Math.sin(contact)).y));
+    const tTop = Math.asin(Math.max(-1, Math.min(1, (e.cy - yTop) / e.ry))); // 楕円の上の点 (y = cy − ry sin t) のうち yTop の高さのもの
+    const strip = (x0: number, x1: number, first: boolean): void => {
+      ctx.beginPath();
+      if (first) {
+        for (let i = 0; i <= 16; i++) {
+          const t = tTop + ((-Math.PI / 2 - tTop) * i) / 16;
+          const x = x0 - e.rx * Math.cos(t);
+          const y = e.cy - e.ry * Math.sin(t);
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+      } else {
+        ctx.moveTo(x0, yTop);
+        ctx.lineTo(x0, cyBottom);
+      }
+      ctx.lineTo(x1, cyBottom);
+      ctx.lineTo(x1, yTop);
+      ctx.closePath();
+    };
+    // 柄の縞 (縦。巻いた糸の円周の向き)
+    const strips = stripeStrips(runs, repeats, bandL, bandR);
+    strips.forEach((st, i) => {
       ctx.fillStyle = st.hex;
-      bandPathRange(ctx, st.x0, st.x1, wound, from, to);
+      strip(st.x0, st.x1, i === 0);
       ctx.fill();
-    }
+    });
     // 陰影: 上 (帯が乗る所) を明るく、下を暗く (丸い面に見える)
-    const ys = arcScreen(bandL, wound, from, to, 8).map((q) => q.y);
-    const shade = ctx.createLinearGradient(0, Math.min(...ys), 0, Math.max(...ys));
+    const shade = ctx.createLinearGradient(0, yTop, 0, cyBottom);
     shade.addColorStop(0, COLORS.white);
     shade.addColorStop(1, COLORS.sumi);
     ctx.globalAlpha = 0.28;
     ctx.fillStyle = shade;
-    bandPathRange(ctx, bandL, bandR, wound, from, to);
+    strip(bandL, bandR, true);
     ctx.fill();
     // 糸の細い筋 (円周の向き。写真のように細く、むらがある)
     ctx.strokeStyle = COLORS.sumi;
     ctx.lineWidth = 1.5;
+    const yAt = (t: number): number => e.cy - e.ry * Math.sin(t);
+    const tBot = -Math.PI / 2;
     for (let i = 0; i < 90; i++) {
       const xs = bandL + noise(i + 77) * (bandR - bandL);
-      const a0 = to + noise(i + 600) * (from - to) * 0.6;
-      const a1 = Math.min(from, a0 + (from - to) * (0.25 + 0.5 * noise(i + 1000)));
+      const a0 = tBot + noise(i + 600) * (tTop - tBot) * 0.6;
+      const a1 = Math.min(tTop, a0 + (tTop - tBot) * (0.25 + 0.5 * noise(i + 1000)));
       ctx.globalAlpha = 0.05 + 0.12 * noise(i + 1400);
-      const e = arcScreen(xs, wound, a0, a1, 6);
       ctx.beginPath();
-      e.forEach((q, j) => (j === 0 ? ctx.moveTo(q.x, q.y) : ctx.lineTo(q.x, q.y)));
+      ctx.moveTo(xs, yAt(a0));
+      ctx.lineTo(xs, yAt(a1));
       ctx.stroke();
     }
-    // 回っていることが分かる光の帯 (薄い明るさの反射。見える側面だけ。beamAngle が増えると下へ流れる。BEAM_SURFACE_SIGN)。横の線は引かない
+    // 回っていることが分かる光の帯 (薄い明るさの反射。beamAngle が増えると下へ流れる。BEAM_SURFACE_SIGN)。横の線は引かない
     ctx.fillStyle = COLORS.white;
     ctx.globalAlpha = 0.2;
     const delta = 0.18;
     for (let k = 0; k < BEAM_STREAKS; k++) {
       const phi = ALPHA - BEAM_SURFACE_SIGN * (beamAngle + (Math.PI * 2 * k) / BEAM_STREAKS);
       if (Math.cos(phi - ALPHA) <= 0.15) continue;
-      const lo = Math.max(to, phi - delta);
-      const hi = Math.min(from, phi + delta);
+      const lo = Math.max(tBot, phi - ALPHA - delta); // 見える側面の中の角度 (正面 = 0。上が正)
+      const hi = Math.min(tTop, phi - ALPHA + delta);
       if (hi <= lo) continue;
-      const a0 = pt(bandL, wound.z + wound.r * Math.cos(lo), wound.h + wound.r * Math.sin(lo));
-      const a1 = pt(bandL, wound.z + wound.r * Math.cos(hi), wound.h + wound.r * Math.sin(hi));
-      const b1 = pt(bandR, wound.z + wound.r * Math.cos(hi), wound.h + wound.r * Math.sin(hi));
-      const b0 = pt(bandR, wound.z + wound.r * Math.cos(lo), wound.h + wound.r * Math.sin(lo));
       ctx.beginPath();
-      ctx.moveTo(a0.x, a0.y);
-      ctx.lineTo(a1.x, a1.y);
-      ctx.lineTo(b1.x, b1.y);
-      ctx.lineTo(b0.x, b0.y);
+      ctx.moveTo(bandL, yAt(hi));
+      ctx.lineTo(bandR, yAt(hi));
+      ctx.lineTo(bandR, yAt(lo));
+      ctx.lineTo(bandL, yAt(lo));
       ctx.closePath();
       ctx.fill();
     }
     ctx.globalAlpha = 1;
     // 帯が乗る所の境目 (平らな帯から丸い面へ変わる所に、細い影の線)
     if (contact !== null) {
-      const l = pt(bandL, wound.z + wound.r * Math.cos(contact), wound.h + wound.r * Math.sin(contact));
-      const r = pt(bandR, wound.z + wound.r * Math.cos(contact), wound.h + wound.r * Math.sin(contact));
       ctx.strokeStyle = COLORS.sumi;
       ctx.globalAlpha = 0.45;
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(l.x, l.y);
-      ctx.lineTo(r.x, r.y);
+      ctx.moveTo(bandL - e.rx * Math.cos(tTop), yTop);
+      ctx.lineTo(bandR, yTop);
       ctx.stroke();
       ctx.globalAlpha = 1;
     }
   }
-  // 右の円盤と、その手前 (右) に出る真ちゅうの筒・軸・端のつまみ (帯より手前)
-  tube(ctx, rightX, ROD_X1, AXLE_R / SIDE.beam.r, COLORS.steel, false);
+  // 右の円盤と、その手前 (右) に出る真ちゅうの筒・軸・端のつまみ (帯より手前。右にあるものほど手前の順)
+  const rf = AXLE_R / SIDE.beam.r;
+  tube(ctx, rightX, ROD_X1 - KNOB_LEN, rf, COLORS.steel, false);
   drawFlange(ctx, rightX, beamAngle);
   drawBrass(ctx, rightX, rightX + BEAM_BRASS_LEN);
-  // 右端のつまみ: 右を向いた端の面を楕円として描く (真ちゅうの筒の右の端と同じ考え)
-  const k1 = discEllipse(ROD_X1, 1);
-  ctx.fillStyle = COLORS.sumi;
-  ctx.fillRect(k1.cx - KNOB_LEN, k1.cy - KNOB_RY, KNOB_LEN, 2 * KNOB_RY);
-  ctx.beginPath();
-  ellipsePath(ctx, { cx: k1.cx, cy: k1.cy, rx: KNOB_RX, ry: KNOB_RY });
-  ctx.closePath();
-  ctx.fill();
+  tube(ctx, rightX + BEAM_BRASS_LEN, ROD_X1 - KNOB_LEN, rf, COLORS.steel, false); // 真ちゅうの筒の右の面の中心から出る軸 (根元は「(」)
+  cyl(ctx, knobEll(ROD_X1 - KNOB_LEN), knobEll(ROD_X1), COLORS.sumi, true); // 右を向いた端の面は楕円
 }
 
 /** 幅合わせの目標の点線と目盛り (10cm ごと)、円盤の内側の印 (藍 = 合っている、朱 = 外れている) */
-function drawTarget(ctx: CanvasRenderingContext2D, s: BeamingState): void {
+function drawTarget(ctx: CanvasRenderingContext2D, s: BeamingState, scale: number): void {
+  const u = 1 / Math.min(1, scale); // 縮尺が小さい (縦長のスマホ) ときも、線・目盛り・印が画面上で細くならない大きさ (PU-32 追加修正 7)
   const half = (s.widthCm * pxPerCm(s.widthCm)) / 2;
   const x0 = BEAM_CENTER_X - half;
   const x1 = BEAM_CENTER_X + half;
   const y = BOARD.targetY;
   ctx.strokeStyle = COLORS.sumiSub;
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 2 * u;
   // 点線 (偽の Canvas にもある形で描く: 線分を並べる)
-  const dash = 10;
-  const gap = 8;
+  const dash = 10 * u;
+  const gap = 8 * u;
   for (let x = x0; x < x1; x += dash + gap) {
     ctx.beginPath();
     ctx.moveTo(x, y);
@@ -746,7 +774,7 @@ function drawTarget(ctx: CanvasRenderingContext2D, s: BeamingState): void {
   ctx.fillStyle = COLORS.sumiSub;
   const perCm = pxPerCm(s.widthCm);
   for (let cm = -Math.floor(s.widthCm / 2 / 10) * 10; cm <= s.widthCm / 2; cm += 10) {
-    ctx.fillRect(BEAM_CENTER_X + cm * perCm - 1, y, 2, 10);
+    ctx.fillRect(BEAM_CENTER_X + cm * perCm - u, y, 2 * u, 10 * u);
   }
   // 円盤の内側の印 (左は leftCm、右は rightCm が目標に合っているか)
   const targets: Array<{ cm: number; actual: number }> = [
@@ -756,7 +784,7 @@ function drawTarget(ctx: CanvasRenderingContext2D, s: BeamingState): void {
   for (const t of targets) {
     const ok = Math.abs(t.actual - t.cm) <= 1;
     ctx.fillStyle = ok ? COLORS.ai : COLORS.shu;
-    ctx.fillRect(cmToX(s.widthCm, t.actual) - 6, y + 16, 12, 12);
+    ctx.fillRect(cmToX(s.widthCm, t.actual) - 6 * u, y + 16 * u, 12 * u, 12 * u);
   }
 }
 

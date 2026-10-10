@@ -117,7 +117,7 @@ export const SIDE_DRUM_SHRINK = 0.3;
 /** ドラムの糸が無くなる巻き量 (progress。1.009 = 100.9%。101% に届くと糸が切れて終わるため、その直前でちょうど無くなる) */
 export const SIDE_YARN_GONE = 1.009;
 /** ビームに巻いた糸の半径 (円盤の半径に対する割合): 巻き量 0 で SIDE_WOUND_MIN、100% で SIDE_WOUND_MAX */
-export const SIDE_WOUND_MIN = 0.2;
+export const SIDE_WOUND_MIN = 0.175; // = 軸の半径 (BEAM_AXLE_R 14) ÷ 円盤の半径 (80)。巻き始めは、帯が軸の表面に接する
 export const SIDE_WOUND_MAX = 0.9;
 /** 糸を付ける前に、鉄の棒 2 から垂れる糸の長さ (図のピクセル) */
 export const SIDE_DROP0 = 35;
@@ -128,18 +128,20 @@ export const SIDE_DROP0 = 35;
  *   画面の x = (幅の位置の x) + KX × (SIDE_Z_REF − z)  (手前ほど左に見える。奥のドラムは右へずれる)
  * S は盤面の高さ H に比例 (ドラムの上の端がランプの空き SIDE_TOP_FRAC × H、ビームの円盤の下の端が SIDE_BOTTOM_FRAC × H に来る)。
  */
-export const SIDE_PROJECTION = { KH: 1, KZ: 0.38, KX: 0.1 } as const;
+export const SIDE_PROJECTION = { KH: 1, KZ: 0.38, KX: 0.075 } as const;
 /**
  * 帯の通り道の角度 (PU-32 追加修正 4): 横のずれの係数は、奥 (KX) → 鉄の棒 2 のあたりから大きく (SIDE_SLOPE_K1) → 木の棒のあたりで小さく (SIDE_SLOPE_K2) と、
  * なめらかに変わる (角が出ない)。帯は鉄の棒の上から木の棒のあたりまでで左へ大きく寄り、そこから下はほぼまっすぐビームへ下りる。
  * 係数は SIDE_SLOPE_Z0 から SIDE_SLOPE_L0 の幅で K1 へ、SIDE_SLOPE_Z1 から SIDE_SLOPE_L1 の幅で K2 へ変わる。
  */
 export const SIDE_SLOPE_K1 = 1.3;
-export const SIDE_SLOPE_Z0 = 810;
-export const SIDE_SLOPE_L0 = 55;
-export const SIDE_SLOPE_K2 = 0.4;
+export const SIDE_SLOPE_Z0 = 815;
+export const SIDE_SLOPE_L0 = 50;
+export const SIDE_SLOPE_K2 = 0;
 export const SIDE_SLOPE_Z1 = 850;
-export const SIDE_SLOPE_L1 = 80;
+export const SIDE_SLOPE_L1 = 70;
+/** これより手前 (z がこの値以上) ではずれが一定 (係数 0): ビームの手前の面は、帯の左右の端がまっすぐ下りる。ずれの基準 (この奥行きで 0) */
+export const SIDE_SLOPE_ZEND = 925;
 /** 係数が Za から幅 L でなめらかに増え (0 → 1)、そのあとは 1 のまま、というときの、係数の増え分が積もった長さ (z まで) */
 function rampSum(z: number, Za: number, L: number): number {
   const t = (z - Za) / L;
@@ -151,8 +153,8 @@ function rampSum(z: number, Za: number, L: number): number {
 export function sideBeamExtra(z: number): number {
   return (SIDE_SLOPE_K1 - SIDE_PROJECTION.KX) * rampSum(z, SIDE_SLOPE_Z0, SIDE_SLOPE_L0) - (SIDE_SLOPE_K1 - SIDE_SLOPE_K2) * rampSum(z, SIDE_SLOPE_Z1, SIDE_SLOPE_L1);
 }
-/** ずれの基準の奥行き: ビームの円盤 (SIDE.beam.z) でずれが 0 になるように決める */
-export const SIDE_Z_REF = SIDE.beam.z + sideBeamExtra(SIDE.beam.z) / SIDE_PROJECTION.KX;
+/** ずれの基準の奥行き: SIDE_SLOPE_ZEND より手前でずれが 0 になるように決める */
+export const SIDE_Z_REF = SIDE_SLOPE_ZEND + sideBeamExtra(SIDE_SLOPE_ZEND) / SIDE_PROJECTION.KX;
 /** ビームの円盤 (斜めから見て楕円) の横の半径 (論理の px。円盤は上下左右に対称な楕円で、厚みは楕円をずらして重ねる) */
 export const BEAM_DISC_RX = 34;
 export const SIDE_TOP_FRAC = 0.15;

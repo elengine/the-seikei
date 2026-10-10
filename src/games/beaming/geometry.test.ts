@@ -3,7 +3,7 @@ import {
   pxPerCm, cmToX, xToCm, BEAM_W_PX, BOARD_W, BEAM_CENTER_X, woundRadius, setBoardHeight, BOARD, drawnExtent, FLANGE_RX, ROD_X0, ROD_X1, flangeHit, dragCm, FLANGE_HIT_MIN_PX, lampX, lampY, SPEED_BAR_SHIFT_MAX, speedBarCenterX, speedFromBarDrag, hitSpeedBar, SPEED_BAR_W, DRUM_X, DRUM_W, hitSheetEdge, hitBeamWind, sheetTopY, sheetDropEndY, lampR, THREAD_BAR_MARGIN, threadBarRange, clampThreadBarY, threadAttachY, DRUM_AXIS_X0, depthDx, dropHFor } from './geometry';
 import { logicalHeightFor } from '../winding/geometry';
 import { sidePath, project } from './side';
-import { SIDE, SIDE_PROJECTION, SIDE_TOP_FRAC, SIDE_BOTTOM_FRAC, SIDE_WOUND_MIN, SIDE_WOUND_MAX } from './params';
+import { SIDE, SIDE_PROJECTION, SIDE_TOP_FRAC, SIDE_BOTTOM_FRAC, SIDE_WOUND_MIN, SIDE_WOUND_MAX, SIDE_SLOPE_ZEND } from './params';
 import { DRUM_SURFACE_SIGN, BEAM_SURFACE_SIGN, DRUM_TURN_RATE, BEAM_TURN_RATE } from './params';
 
 describe('beaming geometry T3-02 (座標)', () => {
@@ -280,7 +280,8 @@ describe('PU-32: 横から見た形 (side.ts) を写した盤面の座標', () =
     expect(DRUM_X).toBeCloseTo(DRUM_AXIS_X0 + depthDx(SIDE.drum.z), 9);
     expect(depthDx(SIDE.drum.z)).toBeGreaterThan(depthDx(SIDE.bar1.z));
     expect(depthDx(SIDE.bar2.z)).toBeGreaterThan(depthDx(SIDE.beam.z) - 1e-9);
-    expect(depthDx(SIDE.beam.z)).toBeCloseTo(0, 9);
+    expect(depthDx(SIDE_SLOPE_ZEND)).toBeCloseTo(0, 9); // ビームの手前の面から下は、ずれが一定 (帯の端がまっすぐ下りる)
+    expect(depthDx(SIDE_SLOPE_ZEND + 60)).toBeCloseTo(0, 9);
     expect(DRUM_X).toBeGreaterThan(0);
     expect(DRUM_X + DRUM_W + depthDx(SIDE.drum.z) * 0 + SIDE_PROJECTION.KX * SIDE.drum.r).toBeLessThanOrEqual(BOARD_W);
   });

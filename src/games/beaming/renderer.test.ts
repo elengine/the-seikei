@@ -6,7 +6,7 @@ import type { BeamingState } from './logic';
 import { cmToX, BOARD, BOARD_W, FLANGE_RX, setBoardHeight, DRUM_W, DRUM_AXIS_X0, flangeHit, hitSheetEdge, woundRadius, lampX, lampY, speedBarCenterX, SPEED_BAR_W, sheetDropEndY, threadBarRange } from './geometry';
 import { sidePath, project, viewAlpha, drumRadius, drumCoreRadius } from './side';
 import { stripeRunsOf, stripeStrips } from './renderer';
-import { DRUM_WING_LEN, DRUM_WING_FLARE, DRUM_SURFACE_SIGN, BEAM_SURFACE_SIGN, DRUM_TURN_RATE, BEAM_TURN_RATE, SIDE } from './params';
+import { SIDE_WOUND_MIN, BEAM_AXLE_R, DRUM_WING_LEN, DRUM_WING_FLARE, DRUM_SURFACE_SIGN, BEAM_SURFACE_SIGN, DRUM_TURN_RATE, BEAM_TURN_RATE, SIDE } from './params';
 import { getContent } from '../../core/content/content';
 import { COLORS } from '../../core/ui/tokens';
 import { makeFakeCtx } from '../winding/renderer.test.helpers';
@@ -526,7 +526,7 @@ describe('PU-32: 糸の帯・隠れる順・盤面に収まる', () => {
       const { ctx, rec } = makeFakeCtx();
       drawBoard(ctx, fit, beamState({ progress: 0.5 }), content, 0, null, angle);
       // 円盤は上下左右に対称な楕円 (中心 c、半径 FLANGE_RX と BOARD.flangeR): 穴は楕円の上の 0.55 の輪
-      const c0 = pt0(cmToX(60, -30), SIDE.beam.z, SIDE.beam.h);
+      const c0 = { x: cmToX(60, -30), y: pt0(0, SIDE.beam.z, SIDE.beam.h).y }; // 円盤の楕円の中心 (x は幅の位置そのまま)
       const ph = -BEAM_SURFACE_SIGN * angle;
       const f0 = { x: c0.x - 0.55 * FLANGE_RX * Math.cos(ph), y: c0.y - 0.55 * BOARD.flangeR * Math.sin(ph) };
       const hole = rec.ops.filter((o) => o.k === 'arc' && (o.args as number[])[2] === 4).map((o) => o.args as number[]).find((a) => Math.abs(a[0]! - f0.x) < 1e-6 && Math.abs(a[1]! - f0.y) < 1e-6);
@@ -677,7 +677,7 @@ describe('PU-32: 糸の帯・隠れる順・盤面に収まる', () => {
     };
     expect(turn(armAngle(0), armAngle(0.1))).toBeGreaterThan(0); // 時計回り (画面の角度が増える)
     // ビームの円盤の穴 (内側の輪の最初の穴の、円盤の面の中心からの向き)
-    const c = pt0(cmToX(60, -30), SIDE.beam.z, SIDE.beam.h);
+    const c = { x: cmToX(60, -30), y: pt0(0, SIDE.beam.z, SIDE.beam.h).y };
     const holeAngle = (angle: number): number => {
       const q = { x: c.x - 0.55 * FLANGE_RX * Math.cos(-BEAM_SURFACE_SIGN * angle), y: c.y - 0.55 * BOARD.flangeR * Math.sin(-BEAM_SURFACE_SIGN * angle) };
       const { ctx, rec } = makeFakeCtx();
@@ -712,6 +712,12 @@ describe('PU-32: 糸の帯・隠れる順・盤面に収まる', () => {
         else if (o.k === 'fill' && frameTop !== null && yarnTop === null && style === mainHex(content, 'p-muji-kon')) yarnTop = Math.min(...pts.map((q) => q.y));
       }
       expect(frameTop, `p=${p}`).not.toBeNull();
+      if (p >= 1) {
+        // 糸が無くなる (厚み 0.5 未満): ドラムの糸の面は描かない (ドラムの高さに柄の色の塗りが無い)
+        const drumYarn = fillPolys(rec).filter((f) => f.style === mainHex(content, 'p-muji-kon') && ext(f.pts).y0 < frameTop! + 1 && f.pts.length > 40 && ext(f.pts).y1 < BOARD.H * 0.55);
+        expect(drumYarn.length, `p=${p}: 糸は描かない`).toBe(0);
+        continue;
+      }
       expect(yarnTop, `p=${p}`).not.toBeNull();
       expect(frameTop!, `p=${p}: 胴の上の端 ≥ 糸の上の端`).toBeGreaterThanOrEqual(yarnTop! - 1e-6);
     }
@@ -769,9 +775,11 @@ describe('PU-32: 糸の帯・隠れる順・盤面に収まる', () => {
     // 左の円盤: 軸は円盤の面の中心から右へ出る (軸の四角は円盤の面を塗ったあとに描かれ、始まりが円盤の中心の x)
     const f0 = ext(faces[0]!.pts);
     const cx0 = (f0.x0 + f0.x1) / 2;
-    const iFace = rec.ops.findIndex((o) => o.k === 'fill' && styleBefore(rec.ops, rec.ops.indexOf(o)) === COLORS.flange);
-    const iAxle = rec.ops.findIndex((o, i) => o.k === 'fillRect' && styleBefore(rec.ops, i) === COLORS.steel && Math.abs((o.args as number[])[0]! - cx0) < 1e-6);
+    const polys = fillPolys(rec);
+    const iFace = polys.findIndex((q) => q.style === COLORS.flange && q.pts.length > 20);
+    const iAxle = polys.findIndex((q, i) => i > iFace && q.style === COLORS.steel && ext(q.pts).x0 < cx0 && ext(q.pts).x1 > cx0 + 20);
     expect(iAxle, '軸が円盤の中心から').toBeGreaterThan(iFace);
+    expect(ext(polys[iAxle]!.pts).x0, '軸の根元は「(」: 円盤の中心より少し左へふくらむ').toBeLessThan(cx0);
   });
 
   it('18. ドラムの羽は短く、開きが小さい: 外へ出る長さは DRUM_WING_LEN、羽の先の半径は糸の半径の 1.1 倍以下 (扇のように大きく開かない)', () => {
@@ -781,11 +789,11 @@ describe('PU-32: 糸の帯・隠れる順・盤面に収まる', () => {
 
   it('19. 端の面は右を向いたものだけ楕円で見える: 左の端のつまみは「(」の輪郭 (楕円の右半分は描かない)、右の端のつまみは右の端に楕円。左の円盤の右の面に軸 (steel の四角) が円盤より手前に描かれる。右の真ちゅうの筒の左の端に楕円は無い', () => {
     const rec = draw(beamState({ progress: 0.5 }));
-    const knobs = fillPolys(rec).filter((q) => q.style === COLORS.sumi && q.pts.length > 10 && ext(q.pts).y1 - ext(q.pts).y0 < 40 && ext(q.pts).x1 - ext(q.pts).x0 < 20);
-    expect(knobs.length, '左右のつまみの楕円 (右) と「(」 (左)').toBeGreaterThanOrEqual(2);
+    const knobs = fillPolys(rec).filter((q) => q.style === COLORS.sumi && q.pts.length > 10 && ext(q.pts).y1 - ext(q.pts).y0 < 40 && ext(q.pts).x1 - ext(q.pts).x0 < 30);
+    expect(knobs.length, '左右のつまみ (本体の「(」と右の端の楕円)').toBeGreaterThanOrEqual(4);
     // 真ちゅうの楕円 (gold) は右の筒の右の端と左の筒の右の端 (円盤の後ろ) の 2 つだけ。左の端 (円盤の面に付く側) には無い
     const golds = fillPolys(rec).filter((q) => q.style === COLORS.gold && q.pts.length > 20);
-    expect(golds.length).toBe(2);
+    expect(golds.length, '左右の筒の本体 (「(」の輪郭) と右の端の楕円').toBe(4);
   });
 
   it('20. 巻き幅 150〜200cm のお題でも、描いた絵 (四角も含む) は盤面の四辺に触れない: 円盤調整 (setup)・糸を付ける (attach)・巻く (beaming) の 3 つの段階を、盤面の高さ 750・911・1100 で (PU-32 追加修正 6)', () => {
@@ -807,6 +815,17 @@ describe('PU-32: 糸の帯・隠れる順・盤面に収まる', () => {
           expect(Math.max(...xs), `${widthCm}cm H=${H} ${st.phase} の右`).toBeLessThan(BOARD_W - 4);
         }
       }
+    }
+    setBoardHeight(750);
+  });
+
+  it('21. 巻き始めの帯は軸の表面に接する (巻いた糸の半径の割合 = 軸の半径 ÷ 円盤の半径)。円盤調整の目盛りは、縦長 (縮尺 0.39) でも盤面の下の端より内側に収まる (PU-32 追加修正 7)', () => {
+    expect(SIDE_WOUND_MIN * SIDE.beam.r).toBeCloseTo(BEAM_AXLE_R, 9);
+    for (const H of [750, 911, 1812]) {
+      setBoardHeight(H);
+      const u = H > 1500 ? 1 / 0.39 : 1; // 縦長 (H = 1812) は縮尺 0.39、それ以外は 1
+      expect(BOARD.targetY + 28 * u, `H=${H}`).toBeLessThan(H);
+      expect(BOARD.targetY, `H=${H}`).toBeGreaterThan(BOARD.axisY + BOARD.flangeR); // 円盤の下の端より下
     }
     setBoardHeight(750);
   });

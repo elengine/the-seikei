@@ -89,7 +89,7 @@ export function setBoardHeight(height: number): void {
   BOARD.guideY = project(SIDE.wood.z, SIDE.wood.h, H).y;
   BOARD.axisY = project(SIDE.beam.z, SIDE.beam.h, H).y;
   BOARD.flangeR = S * SIDE.beam.r * V_K;
-  BOARD.targetY = H * 0.96;
+  BOARD.targetY = H * 0.94; // 円盤の下の端 (0.915 H) の少し下。縦長で目盛りが切れない位置 (PU-32 追加修正 7)
 }
 setBoardHeight(BOARD_H);
 
