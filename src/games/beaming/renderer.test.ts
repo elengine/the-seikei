@@ -6,6 +6,7 @@ import type { BeamingState } from './logic';
 import { cmToX, BOARD, BOARD_W, FLANGE_RX, setBoardHeight, DRUM_W, DRUM_AXIS_X0, flangeHit, hitSheetEdge, woundRadius, lampX, lampY, speedBarCenterX, SPEED_BAR_W, sheetDropEndY, threadBarRange } from './geometry';
 import { sidePath, project, viewAlpha, drumRadius, drumCoreRadius } from './side';
 import { stripeRunsOf, stripeStrips } from './renderer';
+import { DRUM_SLAT_W, DRUM_HOLE_STEP, DRUM_HOLE_R, DRUM_POLE_OVER, DRUM_BRACKET_ALONG } from '../../core/ui/drumLook';
 import { SIDE_WOUND_MIN, BEAM_AXLE_R, DRUM_WING_LEN, DRUM_WING_FLARE, DRUM_SURFACE_SIGN, BEAM_SURFACE_SIGN, DRUM_TURN_RATE, BEAM_TURN_RATE, SIDE } from './params';
 import { getContent } from '../../core/content/content';
 import { COLORS } from '../../core/ui/tokens';
@@ -257,13 +258,19 @@ function strokes(rec: FakeRecorder): Array<{ style: string; pts: Array<{ x: numb
   return out;
 }
 
+/** ドラムの木の板 (wood の長い四角。端から端まで) の中心の y の一覧 (PU-32 追加修正 11) */
+function slatCenters(rec: FakeRecorder): number[] {
+  return rec.ops
+    .map((o, i) => ({ o, style: styleBefore(rec.ops, i) }))
+    .filter((e) => e.o.k === 'fillRect' && e.style === COLORS.wood && Number((e.o.args as number[])[2]) >= DRUM_W - 1 && Number((e.o.args as number[])[2]) <= DRUM_W + 1)
+    .map((e) => Number((e.o.args as number[])[1]) + Number((e.o.args as number[])[3]) / 2);
+}
+
 describe('PU-26: ドラムをドラム巻きと同じ見た目で大きく・回る向き', () => {
   it('3. 角度が進むと、ドラムの桟 (woodLight の線) が上へ動く。速さ 0 (角度が同じ) なら動かない', () => {
     const cy = BOARD.drumY + BOARD.drumH / 2;
     const nearest = (angle: number): number => {
-      const ys = strokes(draw(beamState({ progress: 0 }), angle))
-        .filter((g) => g.style === COLORS.woodLight && g.pts.length === 2 && g.pts[0]!.y === g.pts[1]!.y)
-        .map((g) => g.pts[0]!.y);
+      const ys = slatCenters(draw(beamState({ progress: 0 }), angle));
       return ys.reduce((best, y) => (Math.abs(y - cy) < Math.abs(best - cy) ? y : best), Infinity);
     };
     const y0 = nearest(0);
@@ -479,15 +486,9 @@ describe('PU-32: 糸の帯・隠れる順・盤面に収まる', () => {
     // 例外は、帯が乗る所の境目の影の線 1 本だけ (平らな帯から丸い面へ変わる所。軸より上)
     expect(wide.length).toBeLessThanOrEqual(1);
     for (const g of wide) expect(g.pts[0]!.y).toBeLessThan(BOARD.axisY);
-    // 桟 (woodLight の水平線) は、巻いた糸の幅の外 (胴の見えている左右の余り) にだけ: どの線も長さが余りの幅以下 (巻いた糸の上を横切らない)
-    const margin = (DRUM_W - 700) / 2;
-    const slats = strokes(rec).filter((g) => g.style === COLORS.woodLight && g.pts.length === 2 && g.pts[0]!.y === g.pts[1]!.y);
+    // 桟 (wood の板) は端から端まで (糸の下にも伸びる。糸は後から描くので板は見えない)。板は胴の端から端までの長さ
+    const slats = slatCenters(rec);
     expect(slats.length).toBeGreaterThan(0);
-    for (const g of slats) {
-      const len = Math.abs(g.pts[1]!.x - g.pts[0]!.x);
-      expect(len).toBeGreaterThan(0);
-      expect(len, '桟の長さ').toBeLessThanOrEqual(margin + 1e-6);
-    }
   });
 
   it('7. ドラムの端の円盤の腕は上へ・ビームの円盤の穴は下へ (どちらも胴と同じ向き)。胴: 桟は上へ、光の帯は下へ', () => {
@@ -507,9 +508,7 @@ describe('PU-32: 糸の帯・隠れる順・盤面に収まる', () => {
     expect(tipY(0.1)).toBeLessThan(tipY(0)); // 円盤の腕もドラムの胴と同じ向き: 手前の点が上へ
     // 胴の桟 (見える側面): 手前の 1 本が上へ動く。光の帯は下へ動く
     const slatY = (angle: number): number => {
-      const ys = strokes(draw(beamState({ progress: 0 }), angle))
-        .filter((g) => g.style === COLORS.woodLight && g.pts.length === 2 && g.pts[0]!.y === g.pts[1]!.y)
-        .map((g) => g.pts[0]!.y);
+      const ys = slatCenters(draw(beamState({ progress: 0 }), angle));
       const c = pt0(0, SIDE.drum.z + SIDE.drum.r * Math.cos(viewAlpha()), SIDE.drum.h + SIDE.drum.r * Math.sin(viewAlpha())).y; // 正面を向いた点の高さ
       return ys.reduce((best, y) => (Math.abs(y - c) < Math.abs(best - c) ? y : best), Infinity);
     };
@@ -567,7 +566,8 @@ describe('PU-32: 糸の帯・隠れる順・盤面に収まる', () => {
       return rec.ops
         .map((o, i) => ({ o, style: styleBefore(rec.ops, i) }))
         .filter((e) => e.o.k === 'fillRect' && e.style === COLORS.wood && Number((e.o.args as number[])[2]) > 600)
-        .map((e) => e.o.args as number[])[0]!;
+        .map((e) => e.o.args as number[])
+        .pop()!; // 糸の端の木の棒はドラムの板より後に描く (最後の長い wood の四角)
     })();
     expect(hitSheetEdge({ x: bar[0]! + bar[2]! / 2, y: bar[1]! + bar[3]! / 2 }, 60, 0)).toBe(true);
     expect(hitSheetEdge({ x: bar[0]! + 1, y: bar[1]! + bar[3]! / 2 }, 60, 0)).toBe(true);
@@ -865,5 +865,27 @@ describe('PU-32: 糸の帯・隠れる順・盤面に収まる', () => {
     expect(a.length, '垂れた帯に白の重なりが何段階かある').toBeGreaterThan(3);
     expect(Math.max(...a)).toBeLessThanOrEqual(0.28);
     expect(whites(beamState({ progress: 0 })).length, '固定直後の帯にも').toBeGreaterThan(3);
+  });
+
+  it('25. ドラムの胴はドラム巻きのドラムと同じ見た目 (PU-32 追加修正 11): 木の板 (端から端まで) の上に深緑の丸い印が等間隔に並び、深緑の竿 (軸の向き) に白い小さな金具が付く。比率は core/ui/drumLook.ts を共通に使う', () => {
+    const rec = draw(beamState({ progress: 1 }));
+    const rects = rec.ops.map((o, i) => ({ o, style: styleBefore(rec.ops, i) })).filter((e) => e.o.k === 'fillRect').map((e) => ({ style: e.style, a: e.o.args as number[] }));
+    const slats = rects.filter((r) => r.style === COLORS.wood && Math.abs(r.a[2]! - DRUM_W) < 1);
+    expect(slats.length, '見える側面の板').toBeGreaterThan(5);
+    for (const r of slats) expect(r.a[3]!, '板の幅は DRUM_SLAT_W 以下').toBeLessThanOrEqual(DRUM_SLAT_W + 1e-6);
+    // 丸い印 (machineDark の楕円): 正面に近い板だけ。間隔は DRUM_HOLE_STEP
+    const dots = rec.ops.map((o, i) => ({ o, style: styleBefore(rec.ops, i) })).filter((e) => e.o.k === 'ellipse' && e.style === COLORS.machineDark).map((e) => e.o.args as number[]);
+    expect(dots.length).toBeGreaterThan(8);
+    const rowY = dots[0]![1]!;
+    const row = dots.filter((d) => Math.abs(d[1]! - rowY) < 1e-6).map((d) => d[0]!).sort((a, b) => a - b);
+    expect(row.length).toBeGreaterThan(5);
+    expect(row[1]! - row[0]!).toBeCloseTo(DRUM_HOLE_STEP, 6);
+    expect(dots[0]![2]!).toBeCloseTo(DRUM_HOLE_R, 6);
+    // 竿: machineDark の長い四角 (ドラムより長い)、金具 (steel の小さな四角) が付く
+    const pole = rects.filter((r) => r.style === COLORS.machineDark && r.a[2]! > DRUM_W);
+    expect(pole.length, '竿は 1 本').toBe(1);
+    expect(pole[0]!.a[2]!).toBeCloseTo(DRUM_W + DRUM_POLE_OVER, 6);
+    const brackets = rects.filter((r) => r.style === COLORS.steel && Math.abs(r.a[2]! - DRUM_BRACKET_ALONG) < 1e-6);
+    expect(brackets.length, '金具 3 つ').toBe(3);
   });
 });

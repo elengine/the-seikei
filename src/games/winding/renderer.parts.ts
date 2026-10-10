@@ -1,5 +1,6 @@
 import type { WindingState } from './logic';
 import { COLORS, FONT_FAMILY } from '../../core/ui/tokens';
+import { DRUM_SLAT_W, DRUM_HOLE_STEP, DRUM_HOLE_R, DRUM_HOLE_FACING, DRUM_POLE_W, DRUM_POLE_OVER, DRUM_BRACKET_ALONG, DRUM_BRACKET_ACROSS } from '../../core/ui/drumLook';
 import { SECTION_LENGTH, STRIPE_H, WING_OUT, WING_SIDE_MAX_RATIO, SLAT_OVER, SLAT_FLARE, OVER_GRACE_MS, OVER_BLINK_MS, OVER_BLINK_FAST_MS, YARN_FEEL } from './params';
 import type { StageFit } from '../../core/viewport/viewport';
 import { DRUM_AREA, fontPx, drumSectionY, threadY, CREEL_END_X, DRUM_END_X, surfaceY, DRUM_BULGE } from './geometry';
@@ -21,10 +22,9 @@ export const SLAT_COUNT = 16;
 import { PIN_ANGLE0 } from './geometry';
 export { PIN_ANGLE0 };
 
-/** 板の穴の縦の間隔 (論理座標。T2-13a) */
-const HOLE_STEP = 60;
-/** 板の穴の半径 (論理座標) */
-const HOLE_R = 4;
+/** 板の穴の縦の間隔・半径は、ビーミングのドラムと共通 (core/ui/drumLook.ts。T2-13a) */
+const HOLE_STEP = DRUM_HOLE_STEP;
+const HOLE_R = DRUM_HOLE_R;
 
 /** ピン (横木) の静止時の角度 (rad)。正面から少し左に来るように (T2-10 追加修正 b) */
 /** ピンの向きの基準 PIN_ANGLE0 は geometry.ts にある (T2-19b で竿の止まる位置の計算と共有) */
@@ -99,7 +99,7 @@ export function drawDrum(
   // 幅は 板の幅 × cos θ。cos θ ≤ 0 (裏側) は描かない。
   // 板は胴の外へ斜めに張り出した羽: 側面 (厚み) を板の右側に、|sin θ| に比例した幅で描く
   // (正面の中央では見えず、左右の端で太く見える。T2-13a)
-  const slatW0 = fontPx(fit, 12);
+  const slatW0 = fontPx(fit, DRUM_SLAT_W);
   ctx.fillStyle = COLORS.wood;
   for (let k = 0; k < SLAT_COUNT; k++) {
     const th = drumAngle + (Math.PI * 2 * k) / SLAT_COUNT;
@@ -132,7 +132,7 @@ export function drawDrum(
     ctx.closePath();
     ctx.fill();
     // 板の丸い穴 (正面に近い板だけ。暗い色の小さな丸を縦に等間隔に。T2-13a)
-    if (cosT > 0.6) {
+    if (cosT > DRUM_HOLE_FACING) {
       ctx.fillStyle = COLORS.machineDark;
       for (let hy = topC + HOLE_STEP / 2; hy < surfaceY(sx, y + h) - fontPx(fit, 10); hy += HOLE_STEP) {
         ctx.beginPath();
@@ -232,15 +232,15 @@ export function drawDrum(
     ctx.fillStyle = COLORS.machineDark;
     // 帯を止める緑の竿: 上は上の縁の弧より外へ出す (PU-14 追加修正2)。
     // 上端・下端とも surfaceY (中央が高い ∩。T2-16 その5)。下の端の基準はドラムの下の端の高さのまま
-    const overTop = fontPx(fit, 24);
+    const overTop = fontPx(fit, DRUM_POLE_OVER);
     const pinTop = surfaceY(pinX, y) - overTop;
     const pinBot = surfaceY(pinX, y + h);
-    ctx.fillRect(pinX - (fontPx(fit, 10) * cosPin) / 2, pinTop, Math.max(3, fontPx(fit, 10) * cosPin), pinBot - pinTop);
+    ctx.fillRect(pinX - (fontPx(fit, DRUM_POLE_W) * cosPin) / 2, pinTop, Math.max(3, fontPx(fit, DRUM_POLE_W) * cosPin), pinBot - pinTop);
     for (let i = 0; i < s.sections; i++) {
       // 糸の始まりの灰色の印も surfaceY で決める (T2-16 その5)
       const py = surfaceY(pinX, drumSectionPinY(i, s.sections));
       ctx.fillStyle = COLORS.steel;
-      ctx.fillRect(pinX - fontPx(fit, 2) * cosPin, py - fontPx(fit, 3), Math.max(4, fontPx(fit, 12) * cosPin), fontPx(fit, 6));
+      ctx.fillRect(pinX - fontPx(fit, 2) * cosPin, py - fontPx(fit, DRUM_BRACKET_ALONG / 2), Math.max(4, fontPx(fit, DRUM_BRACKET_ACROSS) * cosPin), fontPx(fit, DRUM_BRACKET_ALONG));
       // 巻いている帯のピンには糸の束が掛かる
       if (i === s.current && s.phase === 'winding') {
         ctx.strokeStyle = base;

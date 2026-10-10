@@ -6,10 +6,11 @@ import {
   speedBarCenterX, SPEED_BAR_W, lampX, lampY,
 } from './geometry';
 import { SIDE } from './params';
+import { DRUM_SLAT_W, DRUM_HOLE_STEP, DRUM_HOLE_R, DRUM_HOLE_FACING, DRUM_POLE_W, DRUM_POLE_OVER, DRUM_BRACKET_ALONG, DRUM_BRACKET_ACROSS } from '../../core/ui/drumLook';
 import { depthDxOf as depthDx, sidePath, project, viewAlpha, drumRadius, drumCoreRadius, woundRadiusFig } from './side';
 import type { SidePoint } from './side';
 import { okRangeOf } from './logic';
-import { DRUM_SURFACE_SIGN, BEAM_SURFACE_SIGN, PATTERN_REPEATS, SIDE_DROP0, DRUM_ERASE_FROM, DRUM_ERASE_TO, DRUM_WING_LEN, DRUM_WING_FLARE, DRUM_WING_IN, DRUM_WING_HALF, BEAM_DISC_RX, BEAM_BRASS_R, BEAM_BRASS_LEN, BEAM_AXLE_R, FRAME_ARM_W } from './params';
+import { DRUM_SURFACE_SIGN, BEAM_SURFACE_SIGN, PATTERN_REPEATS, SIDE_DROP0, DRUM_ERASE_FROM, DRUM_ERASE_TO, DRUM_POLE_ANGLE0, DRUM_WING_LEN, DRUM_WING_FLARE, DRUM_WING_IN, DRUM_WING_HALF, BEAM_DISC_RX, BEAM_BRASS_R, BEAM_BRASS_LEN, BEAM_AXLE_R, FRAME_ARM_W } from './params';
 import { expandPlan, toRuns } from '../../core/domain/stripe';
 import { FONT_FAMILY } from '../../core/ui/tokens';
 import type { BeamingState } from './logic';
@@ -357,25 +358,40 @@ export function drawDrum(ctx: CanvasRenderingContext2D, runs: Array<{ hex: strin
   ctx.fillStyle = grad;
   bandPath(ctx, xl, xr, frame);
   ctx.fill();
-  // 木の桟 (軸に沿った線。円筒の周りに等間隔。見える側面だけ。巻いた糸の幅の外にだけ描く。drumAngle が増えると上へ流れる)
-  ctx.strokeStyle = COLORS.woodLight;
-  ctx.globalAlpha = 0.8;
+  // 胴の木の板・丸い印・帯留めの竿 (ドラム巻きのドラムと同じ見た目。比率は core/ui/drumLook.ts。PU-32 追加修正 11)。
+  // 糸の下に板は見えない (糸は後から描く)。糸が下から消えると、消えた所からこの板と印が見える。
+  // 板は端から端まで軸の向きに伸び、円周に等間隔に並ぶ。手前の面の板は回転に合わせて動く (drumAngle が増えると上へ流れる)
+  const slatThick = (c: number): number => Math.max(2, DRUM_SLAT_W * c);
   for (let k = 0; k < DRUM_SLATS; k++) {
     const phi = ALPHA - DRUM_SURFACE_SIGN * (drumAngle + (Math.PI * 2 * k) / DRUM_SLATS);
     const c = Math.cos(phi - ALPHA);
     if (c <= 0) continue; // 裏側
-    ctx.lineWidth = Math.max(1.5, 5 * c);
-    for (const [xa, xb] of [[xl, w0], [w1, xr]] as const) {
-      if (xb - xa < 1) continue;
-      const a = pt(xa, frame.z + frame.r * Math.cos(phi), frame.h + frame.r * Math.sin(phi));
-      const b = pt(xb, frame.z + frame.r * Math.cos(phi), frame.h + frame.r * Math.sin(phi));
-      ctx.beginPath();
-      ctx.moveTo(a.x, a.y);
-      ctx.lineTo(b.x, b.y);
-      ctx.stroke();
+    const m = pt(xl, frame.z + frame.r * Math.cos(phi), frame.h + frame.r * Math.sin(phi));
+    const t = slatThick(c);
+    ctx.fillStyle = COLORS.wood;
+    ctx.fillRect(m.x, m.y - t / 2, xr - xl, t);
+    if (c > DRUM_HOLE_FACING) {
+      ctx.fillStyle = COLORS.machineDark;
+      for (let hx = xl + DRUM_HOLE_STEP / 2; hx < xr - DRUM_HOLE_STEP / 4; hx += DRUM_HOLE_STEP) {
+        ctx.beginPath();
+        ctx.ellipse(hx + (m.x - xl), m.y, DRUM_HOLE_R, DRUM_HOLE_R * c, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
   }
-  ctx.globalAlpha = 1;
+  // 帯留めの竿 (深緑の細い棒。ドラム巻きでは縦の棒。ここでは軸の向きに走り、板と同じに回る。白い小さな金具が付く)
+  const phiPole = ALPHA - DRUM_SURFACE_SIGN * (drumAngle + DRUM_POLE_ANGLE0);
+  const cPole = Math.cos(phiPole - ALPHA);
+  if (cPole > 0) {
+    const m = pt(xl, frame.z + frame.r * Math.cos(phiPole), frame.h + frame.r * Math.sin(phiPole));
+    const t = Math.max(3, DRUM_POLE_W * cPole);
+    ctx.fillStyle = COLORS.machineDark;
+    ctx.fillRect(m.x - DRUM_POLE_OVER, m.y - t / 2, xr - xl + DRUM_POLE_OVER, t);
+    ctx.fillStyle = COLORS.steel;
+    for (const f of [1 / 6, 1 / 2, 5 / 6]) {
+      ctx.fillRect(m.x + (xr - xl) * f - DRUM_BRACKET_ALONG / 2, m.y - (DRUM_BRACKET_ACROSS * cPole) / 2, DRUM_BRACKET_ALONG, Math.max(4, DRUM_BRACKET_ACROSS * cPole));
+    }
+  }
   // ドラムの羽 (PU-32 追加修正 4): 糸の束より先に描く。根元は帯の左の端の下 (DRUM_WING_IN だけ中) に隠れ、帯の左の端から外へ短く (DRUM_WING_LEN)、小さな角度で出る。
   // 板は桟と同じ数 (見える側面だけ)
   ctx.fillStyle = COLORS.wood;
