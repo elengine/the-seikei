@@ -2,7 +2,7 @@ import type { RngState } from '../../core/clock/clock';
 import { seedFrom, nextFloat } from '../../core/clock/clock';
 import {
   MAX_TICK_MS, STARS3, STARS2, STAR_WIDTH3, STAR_WIDTH2,
-  FULL_WIND_SEC_AT_100, BRAKE_FROM, BREAK_AT, TARGET_POINTS, OK_TOL_BY_LEVEL, START_OFFSET_CM,
+  FULL_WIND_SEC_AT_100, BRAKE_FROM, BREAK_AT, TARGET_POINTS, OK_TOL_BY_LEVEL, START_OFFSET_CM, STOP_BLEND_FROM,
   DIP_GAP_MIN_MS, DIP_GAP_MAX_MS, DIP_AMOUNT_MIN, DIP_AMOUNT_MAX,
   DIP_DOWN_MS, DIP_HOLD_MIN_MS, DIP_HOLD_MAX_MS, DIP_BACK_MS,
   STOP_ZONE, DIP_FROM_PCT, DIP_TO_PCT,
@@ -27,10 +27,25 @@ export function targetOf(progress: number): number {
 }
 
 /** その巻き量での適正範囲 (目標から揺らぎを引いた値 ± レベルの幅。0〜100 に収める。T3-06 追記)。
- *  巻き量 90% 以上は止めてよい範囲で、いつでも 0〜30 (レベルと揺らぎを使わない。T3-08) */
+ *  巻き量 90% 以上は止めてよい範囲で、いつでも 0〜35 (レベルと揺らぎを使わない。T3-08。T3-12 で 35 に)。
+ *  85〜90% は、85% の範囲 (揺らぎ 0) から 90% の 0〜35 へ、下の端・上の端をそれぞれ直線でつなぐ (T3-12) */
 export function okRangeOf(progress: number, level: Level, dip: number): { min: number; max: number } {
-  if (progress * 100 >= STOP_ZONE.from) {
+  const pct = progress * 100;
+  if (pct >= STOP_ZONE.from) {
     return { min: STOP_ZONE.min, max: STOP_ZONE.max };
+  }
+  if (pct >= STOP_BLEND_FROM) {
+    // 85% のときの範囲 = 今の決まり (目標 100 − 揺らぎ 0 ± レベルの幅。0〜100 に収める。85% は揺らぎの区間の外)
+    const baseTarget = targetOf(STOP_BLEND_FROM / 100);
+    const tol = OK_TOL_BY_LEVEL[level];
+    const baseMin = Math.max(0, baseTarget - tol);
+    const baseMax = Math.min(100, baseTarget + tol);
+    // 90% (STOP_ZONE.from) に向かって下の端・上の端をそれぞれ直線で動かす
+    const t = (pct - STOP_BLEND_FROM) / (STOP_ZONE.from - STOP_BLEND_FROM);
+    return {
+      min: baseMin * (1 - t) + STOP_ZONE.min * t,
+      max: baseMax * (1 - t) + STOP_ZONE.max * t,
+    };
   }
   const target = targetOf(progress) - dip;
   const tol = OK_TOL_BY_LEVEL[level];

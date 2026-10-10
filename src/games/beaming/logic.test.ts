@@ -209,16 +209,15 @@ describe('beaming logic T3-01 (ルール)', () => {
   });
 
   it('11. 速さの目標 (TARGET_POINTS を直線で結ぶ) と適正範囲 (目標から揺らぎを引いた値 ± レベルの幅。0〜100 に収める) (T3-08 で目標の点を変えた)', () => {
-    expect(TARGET_POINTS).toEqual([[0, 0], [10, 100], [85, 100], [90, 25]]); // T3-08: 0〜10% で 100 まで上がり、85〜90% で 25 へ下がる
-    // 仕様書の点: 0%→0、5%→50、10%→100、50%→100、85%→100、87.5%→62.5、90%→25
+    expect(TARGET_POINTS).toEqual([[0, 0], [10, 100], [85, 100]]); // T3-12: 85〜90% は範囲を直線でつなぐので (90, 25) の点は消した
+    // 仕様書の点: 0%→0、5%→50、10%→100、50%→100、85%→100 (85% を超えると目標は使わない。T3-12)
     expect(targetOf(0)).toBe(0);
     expect(targetOf(0.05)).toBe(50);
     expect(targetOf(0.10)).toBe(100);
     expect(targetOf(0.50)).toBe(100);
     expect(targetOf(0.85)).toBe(100);
-    expect(targetOf(0.875)).toBe(62.5);
-    expect(targetOf(0.90)).toBe(25);
-    expect(targetOf(1)).toBe(25); // 90% を超えても 25 (90〜100% の適正範囲は 11d のとおり別に決める)
+    expect(targetOf(0.90)).toBe(100); // 85% を超えても最後の目標のまま (適正範囲は 11d・T3-12 のとおり別に決める)
+    expect(targetOf(1)).toBe(100);
     // 範囲は目標 (揺らぎを引いた値) ± レベルの幅。0〜100 に収める
     expect(OK_TOL_BY_LEVEL).toEqual({ 1: 15, 2: 10, 3: 6 });
     expect(okRangeOf(0.5, 2, 0)).toEqual({ min: 90, max: 100 });
@@ -228,16 +227,33 @@ describe('beaming logic T3-01 (ルール)', () => {
     expect(okRangeOf(0.5, 1, 0).max).toBeLessThanOrEqual(100);
   });
 
-  it('11d. 巻き量 90% 以上は適正範囲をいつでも 0〜30 にする (どのレベルでも。揺らぎがあっても)。89% は目標とレベルの幅から決まる (T3-08)', () => {
-    expect(STOP_ZONE).toEqual({ from: 90, min: 0, max: 30 });
+  it('11d. 巻き量 90% 以上は適正範囲をいつでも 0〜35 にする (どのレベルでも。揺らぎがあっても)。T3-12 で 0〜30 から変えた', () => {
+    expect(STOP_ZONE).toEqual({ from: 90, min: 0, max: 35 });
     for (const p of [0.90, 0.95, 0.99]) {
       for (const lv of [1, 2, 3] as Level[]) {
-        expect(okRangeOf(p, lv, 0), `巻き量 ${p} レベル ${lv}`).toEqual({ min: 0, max: 30 });
-        expect(okRangeOf(p, lv, 12), `巻き量 ${p} レベル ${lv} 揺らぎあり`).toEqual({ min: 0, max: 30 });
+        expect(okRangeOf(p, lv, 0), `巻き量 ${p} レベル ${lv}`).toEqual({ min: 0, max: 35 });
+        expect(okRangeOf(p, lv, 12), `巻き量 ${p} レベル ${lv} 揺らぎあり`).toEqual({ min: 0, max: 35 });
       }
     }
-    // 89% は今までどおり目標とレベルの幅 (目標 40・レベル2 は ±10)
-    expect(okRangeOf(0.89, 2, 0)).toEqual({ min: 30, max: 50 });
+  });
+
+  it('T3-12: 85〜90% の適正範囲は、85% の範囲から 90% の 0〜35 へ下の端・上の端をそれぞれ直線でつなぐ (揺らぎは使わない。跳ばない)', () => {
+    // 85% は今の決まり (目標 100 ± レベルの幅。揺らぎ 0)
+    expect(okRangeOf(0.85, 1, 0)).toEqual({ min: 85, max: 100 });
+    expect(okRangeOf(0.85, 2, 0)).toEqual({ min: 90, max: 100 });
+    expect(okRangeOf(0.85, 3, 0)).toEqual({ min: 94, max: 100 });
+    expect(okRangeOf(0.85, 1, 12), '85% は揺らぎの区間の外なので揺らぎを使わない').toEqual({ min: 85, max: 100 });
+    // 87.5% は 85% と 90% のちょうど真ん中 (レベル1: 下 (85+0)/2 = 42.5・上 (100+35)/2 = 67.5)
+    const mid = okRangeOf(0.875, 1, 0);
+    expect(mid.min).toBeCloseTo(42.5, 9);
+    expect(mid.max).toBeCloseTo(67.5, 9);
+    // 89.9% と 90% はほぼ同じ (直線なので 85→90 の傾き分だけ差が出る。跳ばないことを確かめる)
+    for (const lv of [1, 2, 3] as Level[]) {
+      const a = okRangeOf(0.899, lv, 0);
+      const b = okRangeOf(0.90, lv, 0);
+      expect(Math.abs(a.min - b.min), `レベル ${lv} の下の端`).toBeLessThanOrEqual(2);
+      expect(Math.abs(a.max - b.max), `レベル ${lv} の上の端`).toBeLessThanOrEqual(2);
+    }
   });
 
   it("11b. 速さが適正範囲の中のときだけ goodMs が増える (巻いている間だけ。速さ 0 では増えない)。判定は張りでなく速さそのもの (T3-07。張りはやめた)", () => {

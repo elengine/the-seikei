@@ -226,13 +226,13 @@ describe('PU-24b・PU-28 (速さの木の棒・ランプ)', () => {
         .filter((o) => o.k === 'fillText')
         .map((o) => String((o.args as unknown[])[0]))
         .filter((t) => ['▲', '▼', '○'].includes(t));
-    // 速すぎ: 巻き量 90% (T3-08 で範囲はいつでも 0〜30) で速さ 80 → ▲ (オレンジ)
+    // 速すぎ: 巻き量 90% (T3-12 で範囲はいつでも 0〜35) で速さ 80 → ▲ (オレンジ)
     const rec2 = draw(beamState({ progress: 0.9, speed: 80 }));
     expect(symbolsOf(rec2), '速すぎの ▲').toEqual(['▲']);
     // 遅すぎ: 巻き量 89% (目標 40・レベル1 の範囲 25〜55) で速さ 2 → ▼ (T3-08 で 90% は止めてよい範囲になったため 89% に移した)
     const rec3 = draw(beamState({ progress: 0.89, speed: 2 }));
     expect(symbolsOf(rec3), '遅すぎの ▼').toEqual(['▼']);
-    // 巻き量 90% の止めてよい範囲 (0〜30): 速さ 2 (ほとんど止まっている) も範囲の中 → ○ (T3-08 で ▼ から変えた)
+    // 巻き量 90% の止めてよい範囲 (0〜35): 速さ 2 (ほとんど止まっている) も範囲の中 → ○ (T3-08 で ▼ から変えた。T3-12 で 35 に)
     const rec5 = draw(beamState({ progress: 0.9, speed: 2 }));
     expect(symbolsOf(rec5), '止めてよい範囲の ○').toEqual(['○']);
     // 範囲の中 (巻き量 90%・速さ 20) は ○
