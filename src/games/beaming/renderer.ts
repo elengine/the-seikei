@@ -9,7 +9,7 @@ import { SIDE } from './params';
 import { depthDxOf as depthDx, sidePath, project, viewAlpha, drumRadius, drumCoreRadius, woundRadiusFig } from './side';
 import type { SidePoint } from './side';
 import { okRangeOf } from './logic';
-import { DRUM_SURFACE_SIGN, BEAM_SURFACE_SIGN, PATTERN_REPEATS, SIDE_DROP0, DRUM_WING_LEN, DRUM_WING_FLARE, DRUM_WING_IN, DRUM_WING_HALF, BEAM_DISC_RX, BEAM_BRASS_R, BEAM_BRASS_LEN, BEAM_AXLE_R, FRAME_ARM_W } from './params';
+import { DRUM_SURFACE_SIGN, BEAM_SURFACE_SIGN, PATTERN_REPEATS, SIDE_DROP0, DRUM_ERASE_FROM, SIDE_YARN_GONE, DRUM_WING_LEN, DRUM_WING_FLARE, DRUM_WING_IN, DRUM_WING_HALF, BEAM_DISC_RX, BEAM_BRASS_R, BEAM_BRASS_LEN, BEAM_AXLE_R, FRAME_ARM_W } from './params';
 import { expandPlan, toRuns } from '../../core/domain/stripe';
 import { FONT_FAMILY } from '../../core/ui/tokens';
 import type { BeamingState } from './logic';
@@ -117,6 +117,17 @@ function bandPath(ctx: CanvasRenderingContext2D, Xa: number, Xb: number, c: Circ
   ctx.closePath();
 }
 
+/** 円筒の側面の帯のうち、円の角度 from → to の部分だけ (軸の位置 Xa から Xb まで) のパス */
+function bandPathRange(ctx: CanvasRenderingContext2D, Xa: number, Xb: number, c: Circ, from: number, to: number): void {
+  const a = arcScreen(Xa, c, from, to, 16);
+  const b = arcScreen(Xb, c, from, to, 16);
+  ctx.beginPath();
+  ctx.moveTo(a[0]!.x, a[0]!.y);
+  for (const q of a) ctx.lineTo(q.x, q.y);
+  for (let i = b.length - 1; i >= 0; i--) ctx.lineTo(b[i]!.x, b[i]!.y);
+  ctx.closePath();
+}
+
 /** 円筒の端の面 (円全体を写した楕円) のパス */
 function facePath(ctx: CanvasRenderingContext2D, X: number, c: Circ): void {
   const e = arcScreen(X, c, 0, Math.PI * 2, 36);
@@ -127,6 +138,9 @@ function facePath(ctx: CanvasRenderingContext2D, X: number, c: Circ): void {
 }
 
 /** 糸の通り道の部分 (sub) を、柄の縞ごとの帯にして塗る。縞の x は、幅の位置 (cx ± 巻き幅の半分) を柄でくり返し割ったもの (PU-32) */
+/** 巻いた糸の円筒の陰影 (上の端の白の重なり) の濃さ。帯の色をこの明るさに近づける (つなぎ目の色の段差を無くす) */
+const BEAM_SHADE_ALPHA = 0.28;
+
 /** 巻いた糸の円筒 (ビームに巻かれた面) の楕円 e (中心の x は x)、帯が乗る所の y (yTop)、そこの楕円の上の角度 tTop。drawBeamFront と、帯の端をつなぐ drawBoard で同じ値を使う */
 function windTop(s: BeamingState, contact: number | null, x: number): { e: Ell; yTop: number; tTop: number } {
   const f = woundRadiusFig(s.progress) / SIDE.beam.r;
@@ -139,11 +153,11 @@ function windTop(s: BeamingState, contact: number | null, x: number): { e: Ell; 
   return { e, yTop, tTop };
 }
 
-function drawRibbon(ctx: CanvasRenderingContext2D, sub: SidePoint[], s: BeamingState, runs: Array<{ hex: string; frac: number }>, repeats: number, join: number | null = null): void {
+function drawRibbon(ctx: CanvasRenderingContext2D, sub: SidePoint[], s: BeamingState, runs: Array<{ hex: string; frac: number }>, repeats: number, join: number | null = null, fade: { y0: number; y1: number; alpha: number } | null = null): void {
   if (sub.length < 2) return;
   const half = (s.widthCm * pxPerCm(s.widthCm)) / 2;
   // join: ビームの巻いた糸の円筒につなぐ (PU-32 追加修正 8)。帯が円筒に乗る所で、帯の左の端が円筒の左の端の「(」の上の点 (幅の左の端から join だけずれた x) に
-  // 来るよう、帯の x を右の端を動かさずに伸ばす (下へ行くほど滑らかに強くなる)。join が null なら何もしない
+  // 来るよう、帯の x を同じだけ左へずらす (下へ行くほど滑らかに強くなる)。縞の境目は、円筒の縞の境目の弧とつながる。join が null なら何もしない
   const L = BEAM_CENTER_X - half;
   const R = BEAM_CENTER_X + half;
   const spot = (X: number, q: SidePoint, j: number): { x: number; y: number } => {
@@ -151,7 +165,7 @@ function drawRibbon(ctx: CanvasRenderingContext2D, sub: SidePoint[], s: BeamingS
     if (join === null) return p0;
     const t = j / (sub.length - 1);
     const w = t * t * (3 - 2 * t);
-    return { x: p0.x + (w * (join - depthDx(sub[sub.length - 1]!.z)) * (R - X)) / (R - L), y: p0.y };
+    return { x: p0.x + w * (join - depthDx(sub[sub.length - 1]!.z)), y: p0.y }; // 帯全体を同じだけ動かす (巻いた糸の縞の境目の弧と、縞の位置がつながる)
   };
   for (const st of stripeStrips(runs, repeats, BEAM_CENTER_X - half, BEAM_CENTER_X + half)) {
     ctx.fillStyle = st.hex;
@@ -168,6 +182,34 @@ function drawRibbon(ctx: CanvasRenderingContext2D, sub: SidePoint[], s: BeamingS
     }
     ctx.closePath();
     ctx.fill();
+  }
+  // 色のつながり (PU-32 追加修正 9): 帯が巻いた糸の円筒に乗る所で、円筒の上の端の色 (白を alpha 重ねた色) に合うよう、y0 → y1 で白を 0 → alpha までだんだん重ねる
+  if (fade !== null && fade.y1 > fade.y0) {
+    // 帯を点の列の区間ごとに分け、下の区間ほど濃く白を重ねる (グラデーションの代わり。色は tokens の白)
+    const n = Math.min(24, sub.length - 1);
+    ctx.fillStyle = COLORS.white;
+    for (let k = 0; k < n; k++) {
+      const j0 = Math.floor(((sub.length - 1) * k) / n);
+      const j1 = Math.floor(((sub.length - 1) * (k + 1)) / n);
+      if (j1 <= j0) continue;
+      const yMid = pt(0, sub[Math.min(sub.length - 1, Math.ceil((j0 + j1) / 2))]!.z, sub[Math.min(sub.length - 1, Math.ceil((j0 + j1) / 2))]!.h).y;
+      const u = Math.min(1, Math.max(0, (yMid - fade.y0) / (fade.y1 - fade.y0)));
+      ctx.globalAlpha = fade.alpha * u;
+      ctx.beginPath();
+      const f0 = spot(L, sub[j0]!, j0);
+      ctx.moveTo(f0.x, f0.y);
+      for (let j = j0; j <= j1; j++) {
+        const a2 = spot(L, sub[j]!, j);
+        ctx.lineTo(a2.x, a2.y);
+      }
+      for (let j = j1; j >= j0; j--) {
+        const b2 = spot(R, sub[j]!, j);
+        ctx.lineTo(b2.x, b2.y);
+      }
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
   }
   // 糸の筋 (流れる向きの細い線。柄の縞とは別の質感。写真のように細く、長さと濃さにむらがある)
   ctx.strokeStyle = COLORS.sumi;
@@ -243,12 +285,14 @@ export function drawBoard(
   const contact = i3 >= 0 ? Math.atan2(path[i3]!.h - SIDE.beam.h, path[i3]!.z - SIDE.beam.z) : null;
   // 巻いた糸の円筒があるとき (糸を付けたあと) は、帯の左の端を円筒の「(」の上の点につなぐ
   let join: number | null = null;
+  let fade: { y0: number; y1: number; alpha: number } | null = null;
   if (contact !== null && s.phase !== 'setup' && s.progress > 0) {
     const bandL = Math.max(cmToX(s.widthCm, s.leftCm), BEAM_CENTER_X - (s.widthCm * pxPerCm(s.widthCm)) / 2);
     const wt = windTop(s, contact, bandL);
     join = -wt.e.rx * Math.cos(wt.tTop);
+    fade = { y0: pt(0, path[i2]!.z, path[i2]!.h).y, y1: wt.yTop, alpha: BEAM_SHADE_ALPHA }; // 円筒の陰影の上の端の明るさに合わせる
   }
-  drawRibbon(ctx, i3 >= 0 ? path.slice(i2, i3 + 1) : path.slice(i2), s, runs, repeats, join);
+  drawRibbon(ctx, i3 >= 0 ? path.slice(i2, i3 + 1) : path.slice(i2), s, runs, repeats, join, fade);
   drawBeamFront(ctx, s, runs, repeats, beamAngle, contact); // 巻いた糸の円筒 (帯が乗る所から下) と右の円盤: 帯より手前
 
   // 速さの木の棒 (横に渡した赤茶の角材)
@@ -345,14 +389,19 @@ export function drawDrum(ctx: CanvasRenderingContext2D, runs: Array<{ hex: strin
   // 柄の縞: 円周の向き (画面では丸みに沿った縦の縞) に色が並ぶ
   // 糸が無くなったら (厚み 0。巻き量 100.9% 以上) 糸の面は何も描かない: 胴 (巻き芯) と羽だけが見える (PU-32 追加修正 7)
   const hasYarn = yarn.r - frame.r > 0.5;
-  const strips = hasYarn ? stripeStrips(runs, repeats, w0, w1) : [];
+  // 終わりに向けて、糸は下側から消えていく (PU-32 追加修正 9。ドラムは手前が上へ回り、帯は下から出ていくため)。厚みが薄くなるのとあわせて、
+  // 巻き量 DRUM_ERASE_FROM から SIDE_YARN_GONE へ向けて、見える側面の下の端から上へ向かって糸が消え、胴が見えていく
+  const erase = Math.min(1, Math.max(0, (s.progress - DRUM_ERASE_FROM) / (SIDE_YARN_GONE - DRUM_ERASE_FROM)));
+  const aTop = ALPHA + Math.PI / 2;
+  const aLow = ALPHA - Math.PI / 2 + erase * Math.PI; // 糸が残る角度の範囲は aLow → aTop
+  const strips = hasYarn && erase < 1 ? stripeStrips(runs, repeats, w0, w1) : [];
   for (const st of strips) {
     if (st.x0 >= yx1) continue; // 右の端の斜めの面 (taper) の所は、縞の色ではなく、下の円すいの面だけ (狭い縞が逆向きにならない)
     ctx.fillStyle = st.hex;
-    bandPath(ctx, st === strips[0] ? yx0 : st.x0, Math.min(st.x1, yx1), yarn);
+    bandPathRange(ctx, st === strips[0] ? yx0 : st.x0, Math.min(st.x1, yx1), yarn, aLow, aTop);
     ctx.fill();
   }
-  if (hasYarn) {
+  if (hasYarn && erase < 1) {
   // 丸み: 巻いた糸の面の上のほうを明るく、下のほうを暗くする (手前へ丸く盛り上がって見える。写真のドラムの上の半分)
   const yEdge = visArc(w0, yarn).map((q) => q.y);
   const shade = ctx.createLinearGradient(0, Math.min(...yEdge), 0, Math.max(...yEdge));
@@ -360,15 +409,16 @@ export function drawDrum(ctx: CanvasRenderingContext2D, runs: Array<{ hex: strin
   shade.addColorStop(1, COLORS.sumi);
   ctx.globalAlpha = 0.14;
   ctx.fillStyle = shade;
-  bandPath(ctx, yx0, yx1, yarn);
+  bandPathRange(ctx, yx0, yx1, yarn, aLow, aTop);
   ctx.fill();
   // 糸の筋 (円周の向きの細い線。写真のように細く、長さと濃さにむらがある。規則正しい輪にしない)
   ctx.strokeStyle = COLORS.sumi;
   ctx.lineWidth = 1.5;
   for (let i = 0; i < 150; i++) {
     const xs = w0 + noise(i) * (w1 - w0);
-    const a0 = ALPHA - Math.PI / 2 + noise(i + 400) * Math.PI * 0.6;
-    const a1 = Math.min(ALPHA + Math.PI / 2, a0 + Math.PI * (0.25 + 0.5 * noise(i + 800)));
+    const a0 = Math.max(aLow, ALPHA - Math.PI / 2 + noise(i + 400) * Math.PI * 0.6);
+    const a1 = Math.min(aTop, a0 + Math.PI * (0.25 + 0.5 * noise(i + 800)));
+    if (a1 - a0 < 0.05) continue;
     ctx.globalAlpha = 0.05 + 0.12 * noise(i + 1200);
     const e = arcScreen(xs, yarn, a0, a1, 8);
     ctx.beginPath();
@@ -377,7 +427,7 @@ export function drawDrum(ctx: CanvasRenderingContext2D, runs: Array<{ hex: strin
   }
   ctx.globalAlpha = 1;
   }
-  if (hasYarn) {
+  if (hasYarn && erase === 0) {
   // 糸の右の端: 斜めに細くなって胴へ下りる (円すいの側面。最後の帯の色)。端の面は胴の半径
   const ra = arcScreen(yx1, yarn, ALPHA - Math.PI / 2, ALPHA + Math.PI / 2, 24);
   const rb = arcScreen(w1, frame, ALPHA - Math.PI / 2, ALPHA + Math.PI / 2, 24);
@@ -690,38 +740,36 @@ function drawBeamFront(ctx: CanvasRenderingContext2D, s: BeamingState, runs: Arr
     // 帯が乗る所 (contact) から下の面だけ見える。左の端は楕円の左半分の「(」、円盤の縁までの余裕はどの向きでも円盤の楕円と同じ割合
     const { e, yTop, tTop } = windTop(s, contact, bandL);
     const cyBottom = e.cy + e.ry;
-    const strip = (x0: number, x1: number, first: boolean): void => {
+    // 縞の面: 縞の境目は円筒の円周 (楕円の左半分の「(」の弧)。左右どちらの境目も同じ弧 (PU-32 追加修正 9)
+    const strip = (x0: number, x1: number): void => {
       ctx.beginPath();
-      if (first) {
-        for (let i = 0; i <= 16; i++) {
-          const t = tTop + ((-Math.PI / 2 - tTop) * i) / 16;
-          const x = x0 - e.rx * Math.cos(t);
-          const y = e.cy - e.ry * Math.sin(t);
-          if (i === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        }
-      } else {
-        ctx.moveTo(x0, yTop);
-        ctx.lineTo(x0, cyBottom);
+      for (let i = 0; i <= 16; i++) {
+        const t = tTop + ((-Math.PI / 2 - tTop) * i) / 16;
+        const x = x0 - e.rx * Math.cos(t);
+        const y = e.cy - e.ry * Math.sin(t);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
       }
-      ctx.lineTo(x1, cyBottom);
-      ctx.lineTo(x1, yTop);
+      for (let i = 16; i >= 0; i--) {
+        const t = tTop + ((-Math.PI / 2 - tTop) * i) / 16;
+        ctx.lineTo(x1 - e.rx * Math.cos(t), e.cy - e.ry * Math.sin(t));
+      }
       ctx.closePath();
     };
     // 柄の縞 (縦。巻いた糸の円周の向き)
     const strips = stripeStrips(runs, repeats, bandL, bandR);
-    strips.forEach((st, i) => {
+    strips.forEach((st) => {
       ctx.fillStyle = st.hex;
-      strip(st.x0, st.x1, i === 0);
+      strip(st.x0, st.x1);
       ctx.fill();
     });
     // 陰影: 上 (帯が乗る所) を明るく、下を暗く (丸い面に見える)
     const shade = ctx.createLinearGradient(0, yTop, 0, cyBottom);
     shade.addColorStop(0, COLORS.white);
     shade.addColorStop(1, COLORS.sumi);
-    ctx.globalAlpha = 0.28;
+    ctx.globalAlpha = BEAM_SHADE_ALPHA;
     ctx.fillStyle = shade;
-    strip(bandL, bandR, true);
+    strip(bandL, bandR);
     ctx.fill();
     // 糸の細い筋 (円周の向き。写真のように細く、むらがある)
     ctx.strokeStyle = COLORS.sumi;
@@ -764,7 +812,7 @@ function drawBeamFront(ctx: CanvasRenderingContext2D, s: BeamingState, runs: Arr
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(bandL - e.rx * Math.cos(tTop), yTop);
-      ctx.lineTo(bandR, yTop);
+      ctx.lineTo(bandR - e.rx * Math.cos(tTop), yTop);
       ctx.stroke();
       ctx.globalAlpha = 1;
     }
